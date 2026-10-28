@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Snap Count</title>
+<meta name="theme-color" content="#14202b">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+/* Layout: one narrow column, sticky team bar, cards only for leagues and matchups */
+:root{
+  --bg:#f3f4f1; --surface:#ffffff; --ink:#14202b; --muted:#5d6872; --line:#dde1dc;
+  --accent:#d99a00; --accent-ink:#14202b; --field:#2f6b4f;
+  --ok:#2f6b4f; --warn:#b87400; --bad:#b3261e;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"Source Sans 3",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#10181f; --surface:#18232d; --ink:#e9ece8; --muted:#97a3ad; --line:#2a3743;
+  --accent:#f0b429; --accent-ink:#10181f; --field:#5fb28a;
+  --ok:#5fb28a; --warn:#f0b429; --bad:#ff7a6e; color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.45 var(--body);
+  padding:env(safe-area-inset-top,0px) max(16px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));}
+[hidden]{display:none!important}
+.wrap{max-width:640px;margin:0 auto}
+header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0 10px;border-bottom:3px solid var(--ink)}
+.brand{font:700 30px/1 var(--display);letter-spacing:.02em;text-transform:uppercase;margin:0;display:flex;align-items:baseline;gap:8px}
+.brand span{background:var(--accent);color:var(--accent-ink);padding:0 6px;border-radius:2px}
+.wk{font:600 15px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn{background:var(--ink);color:var(--bg);border:0;border-radius:6px;padding:10px 14px;font-weight:700}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.icon{background:none;border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-weight:600;font-size:14px}
+nav.tabs{display:flex;gap:4px;margin:14px 0 6px;overflow-x:auto}
+nav.tabs button{border:0;background:none;padding:8px 7px;font:600 15px/1 var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:3px solid transparent;white-space:nowrap}
+nav.tabs button[aria-selected=true]{color:var(--ink);border-color:var(--accent)}
+h2{font:700 22px/1.1 var(--display);text-transform:uppercase;letter-spacing:.03em;margin:22px 0 10px;text-wrap:balance}
+h3{font:600 15px/1 var(--display);text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:18px 0 6px}
+.stack{display:flex;flex-direction:column;gap:10px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px}
+.league{display:flex;flex-direction:column;gap:8px;text-align:left;width:100%}
+.league .row1{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.league .name{font:700 20px/1.1 var(--display);text-transform:uppercase;min-width:0;overflow-wrap:anywhere}
+.badge{font:600 12px/1 var(--display);letter-spacing:.1em;text-transform:uppercase;padding:4px 6px;border-radius:3px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.score{display:grid;grid-template-columns:1fr auto;gap:2px 12px;font-variant-numeric:tabular-nums}
+.score .t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.score .p{font:700 22px/1.1 var(--display);text-align:right}
+.score .me{font-weight:700}
+.lead{color:var(--ok)}
+.muted{color:var(--muted)}
+.small{font-size:14px}
+.plist{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--line);border-radius:8px}
+.plist li{border-top:1px solid var(--line)}
+.plist li:first-child{border-top:0}
+.prow{display:grid;grid-template-columns:44px 1fr auto;align-items:center;gap:10px;width:100%;background:none;border:0;text-align:left;padding:10px 12px}
+.pos{font:700 15px/1 var(--display);letter-spacing:.06em;text-align:center;padding:5px 0;border-radius:4px;background:var(--bg);border:1px solid var(--line)}
+.pname{min-width:0}
+.pname b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pname small{color:var(--muted);font-size:13px}
+.pts{font:700 19px/1 var(--display);font-variant-numeric:tabular-nums;text-align:right}
+.inj{display:inline-block;font:700 12px/1 var(--display);letter-spacing:.06em;padding:3px 5px;border-radius:3px;margin-left:6px;vertical-align:1px;color:#14202b;background:var(--warn)}
+.inj.bad{background:var(--bad);color:#fff}
+.inj.ok{background:var(--ok)}
+form.add{display:flex;flex-direction:column;gap:10px}
+label{font-weight:600;font-size:14px}
+input,select{font:inherit;width:100%;padding:10px 12px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+.seg{display:flex;gap:6px}
+.seg button{flex:1;padding:9px;border:1px solid var(--line);border-radius:6px;background:var(--surface);font-weight:700}
+.seg button[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.acct{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.acct:first-child{border-top:0}
+.err{border-left:4px solid var(--bad);background:var(--surface);padding:10px 12px;border-radius:4px;font-size:14px}
+.news a{color:var(--ink);text-decoration:none;display:block;padding:12px;border-top:1px solid var(--line)}
+.news a:first-child{border-top:0}
+.news a b{display:block;line-height:1.3}
+.news a small{color:var(--muted)}
+.news a:hover b{text-decoration:underline}
+.mine{background:color-mix(in srgb,var(--accent) 18%,transparent);border-radius:3px;padding:0 3px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.chip{font-size:13px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.chip.free{border-color:var(--ok);color:var(--ok);font-weight:600}
+.sheet{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:20}
+.sheet .panel{background:var(--bg);width:100%;max-width:640px;max-height:85vh;overflow:auto;border-radius:14px 14px 0 0;padding:16px max(16px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.back{background:none;border:0;padding:6px 0;font:600 16px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.spin{color:var(--muted);padding:18px 0;font-style:italic}
+.toggle{display:flex;align-items:center;gap:8px;font-size:14px;margin:6px 0 10px}
+.toggle input{width:auto}
+.seg.sub{margin-top:4px}
+.posf{margin:12px 0 0}
+.chip{background:none;font:inherit;font-size:13px}
+button.chip{cursor:pointer;padding:5px 11px;font-weight:600}
+.chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.live{color:#fff;background:var(--bad);font:700 11px/1 var(--display);letter-spacing:.08em;padding:2px 4px;border-radius:3px}
+.avg{display:flex;flex-direction:column;align-items:flex-end;font:600 16px/1 var(--display);color:var(--muted)}
+.avg small{font:600 10px/1.2 var(--display);letter-spacing:.08em;text-transform:uppercase}
+.statrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;margin-top:14px}
+.statrow div{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+.statrow small{display:block;color:var(--muted);font-size:12px}
+.statrow b{font:700 22px/1.1 var(--display);font-variant-numeric:tabular-nums}
+footer{margin-top:28px;color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:12px}
+@media (prefers-reduced-motion:no-preference){.sheet .panel{animation:up .18s ease-out}@keyframes up{from{transform:translateY(24px);opacity:.6}}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1 class="brand">Snap <span>Count</span></h1>
+    <div class="wk" id="wk"></div>
+  </header>
+  <nav class="tabs" role="tablist" id="tabs">
+    <button role="tab" data-tab="leagues" aria-selected="true">My Leagues</button>
+    <button role="tab" data-tab="news" aria-selected="false">Headlines</button>
+    <button role="tab" data-tab="trending" aria-selected="false">Trending</button>
+    <button role="tab" data-tab="accounts" aria-selected="false">Accounts</button>
+  </nav>
+  <main id="view"></main>
+  <footer>Live data from Sleeper and Fleaflicker. Headlines from ESPN and Google News, linked to the original articles.</footer>
+</div>
+<div id="sheet" class="sheet" hidden><div class="panel" id="sheetPanel" role="dialog" aria-modal="true"></div></div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt = n => (n == null || isNaN(n)) ? "–" : Number(n).toFixed(2);
+const norm = s => String(s || "").toLowerCase().replace(/\b(jr|sr|ii|iii|iv)\b/g, "").replace(/[^a-z]/g, "");
+
+/* ---------- storage ---------- */
+const KEY = "snapcount.v1";
+function loadAccts(){ try { return JSON.parse(localStorage.getItem(KEY)) || {sleeper:[], flea:[]}; } catch(e){ return {sleeper:[], flea:[]}; } }
+function saveAccts(a){ try { localStorage.setItem(KEY, JSON.stringify(a)); } catch(e){} }
+let accts = loadAccts();
+
+/* ---------- api ---------- */
+async function api(path){
+  const r = await fetch(path);
+  if (!r.ok) { let t = ""; try { t = (await r.json()).error; } catch(e){} throw new Error(t || ("Request failed (" + r.status + ")")); }
+  return r.json();
+}
+let nflState = null, players = null, playersP = null;
+async function getState(){ if (!nflState) nflState = await api("/api/sleeper/state/nfl"); return nflState; }
+function getPlayers(){ if (!playersP) playersP = api("/api/players").then(p => (players = p)); return playersP; }
+
+/* ---------- injury ---------- */
+function injChip(code){
+  if (!code) return "";
+  const c = String(code).toUpperCase();
+  const map = {QUESTIONABLE:"Q", DOUBTFUL:"D", OUT:"O", "INJURED RESERVE":"IR", SUSPENDED:"SUS", SUS:"SUS", PUP:"PUP", NA:"NA", COV:"COV"};
+  const s = map[c] || c.slice(0,3);
+  const cls = (s === "Q" || s === "P") ? "" : "bad";
+  return '<span class="inj ' + cls + '" title="' + esc(code) + '">' + esc(s) + "</span>";
+}
+
+/* ---------- Sleeper ---------- */
+async function sleeperLeagues(username){
+  const [st, user] = await Promise.all([getState(), api("/api/sleeper/user/" + encodeURIComponent(username))]);
+  if (!user || !user.user_id) throw new Error('No Sleeper user named "' + username + '"');
+  const season = st.league_season || st.season;
+  const lgs = await api("/api/sleeper/user/" + user.user_id + "/leagues/nfl/" + season) || [];
+  return lgs.map(l => ({platform:"sleeper", id:l.league_id, name:l.name, season, uid:user.user_id, acct:username}));
+}
+async function sleeperDetail(L){
+  const st = await getState();
+  const week = Math.max(1, st.display_week || st.week || 1);
+  const [users, rosters, mus, lg] = await Promise.all([
+    api("/api/sleeper/league/" + L.id + "/users"),
+    api("/api/sleeper/league/" + L.id + "/rosters"),
+    api("/api/sleeper/league/" + L.id + "/matchups/" + week).catch(() => []),
+    api("/api/sleeper/league/" + L.id).catch(() => ({}))
+  ]);
+  await Promise.all([getPlayers(), getSeasonStats(L.season)]);
+  const rec = ((lg && lg.scoring_settings) || {}).rec;
+  const scoring = rec >= 1 ? "ppr" : rec >= 0.5 ? "half" : rec === 0 ? "std" : "ppr";
+  const uById = {}; (users || []).forEach(u => uById[u.user_id] = u);
+  const ptsByRoster = {}; (mus || []).forEach(m => ptsByRoster[m.roster_id] = m);
+  const teams = (rosters || []).map(r => {
+    const u = uById[r.owner_id] || {};
+    const s = r.settings || {};
+    const m = ptsByRoster[r.roster_id] || {};
+    const starters = new Set((r.starters || []).filter(x => x && x !== "0"));
+    const reserve = new Set(r.reserve || []);
+    const pp = m.players_points || {};
+    const roster = (r.players || []).map(pid => {
+      const p = players[pid] || [pid, "", "", null, null];
+      return {id:pid, name:p[0], pos:p[1] || (/^[A-Z]{2,3}$/.test(pid) ? "DEF" : ""), team:p[2], inj:p[3], injPart:p[4],
+        slot: starters.has(pid) ? "start" : reserve.has(pid) ? "ir" : "bench", pts: pp[pid]};
+    });
+    return {id:String(r.roster_id), name:(u.metadata && u.metadata.team_name) || u.display_name || ("Team " + r.roster_id),
+      owner:u.display_name || "", w:s.wins||0, l:s.losses||0, t:s.ties||0,
+      pf:(s.fpts||0) + (s.fpts_decimal||0)/100, roster, mine: r.owner_id === L.uid || (r.co_owners||[]).includes(L.uid),
+      matchup:m.matchup_id, wk:m.points};
+  });
+  const groups = {}; teams.forEach(t => { if (t.matchup) (groups[t.matchup] = groups[t.matchup] || []).push(t); });
+  const games = Object.values(groups).filter(g => g.length === 2).map(g => ({a:{id:g[0].id, pts:g[0].wk}, b:{id:g[1].id, pts:g[1].wk}}));
+  return {week, teams, games, starterSplit:true, scoring};
+}
+
+/* ---------- Fleaflicker ---------- */
+const fq = (ep, params) => "/api/flea/" + ep + "?" + new URLSearchParams(Object.assign({sport:"NFL"}, params)).toString();
+async function fleaLeagues(acct){
+  if (acct.type === "league") {
+    const st = await api(fq("FetchLeagueStandings", {league_id:acct.value}));
+    const name = (st.league && st.league.name) || ("Fleaflicker league " + acct.value);
+    return [{platform:"flea", id:String(acct.value), name, myTeam:acct.team || fleaTeamFor(acct.value), acct:acct.value, acctObj:acct}];
+  }
+  const r = await api(fq("FetchUserLeagues", {email:acct.value}));
+  const lgs = r.leagues || [];
+  if (!lgs.length) throw new Error("No Fleaflicker leagues found for " + acct.value);
+  return lgs.map(l => ({platform:"flea", id:String(l.id), name:l.name, myTeam: l.ownedTeam ? String(l.ownedTeam.id) : fleaTeamFor(String(l.id)), acct:acct.value}));
+}
+const val = x => (x && typeof x === "object") ? (x.value != null ? Number(x.value) : null) : (x == null ? null : Number(x));
+async function fleaDetail(L){
+  const [stand, board, ros] = await Promise.all([
+    api(fq("FetchLeagueStandings", {league_id:L.id})),
+    api(fq("FetchLeagueScoreboard", {league_id:L.id})),
+    api(fq("FetchLeagueRosters", {league_id:L.id}))
+  ]);
+  const week = (board.schedulePeriod && (board.schedulePeriod.ordinal || board.schedulePeriod.value)) || null;
+  const tinfo = {};
+  (stand.divisions || []).forEach(d => (d.teams || []).forEach(t => {
+    const rec = t.recordOverall || {};
+    tinfo[t.id] = {name:t.name, owner:((t.owners||[])[0]||{}).displayName || "", w:rec.wins||0, l:rec.losses||0, t:rec.ties||0, pf:val(t.pointsFor)};
+  }));
+  const teams = (ros.rosters || []).map(r => {
+    const t = r.team || {}; const i = tinfo[t.id] || {};
+    const roster = (r.players || []).map(lp => {
+      const p = lp.proPlayer || {}; const inj = p.injury || null;
+      return {id:String(p.id), name:p.nameFull, pos:p.position, team:p.proTeamAbbreviation,
+        inj: inj ? (inj.typeAbbreviaition || inj.typeAbbreviation || inj.typeFull) : null,
+        injPart: inj ? (inj.description || inj.typeFull) : null, slot:"bench", pts:null};
+    });
+    return {id:String(t.id), name:t.name || i.name, owner:i.owner || (((t.owners||[])[0]||{}).displayName) || "",
+      w:i.w||0, l:i.l||0, t:i.t||0, pf:i.pf, roster, mine: L.myTeam ? String(t.id) === L.myTeam : false};
+  });
+  Object.keys(tinfo).forEach(id => { if (!teams.find(t => t.id === String(id))) teams.push(Object.assign({id:String(id), roster:[], mine: L.myTeam === String(id)}, tinfo[id])); });
+  const games = (board.games || []).map(g => {
+    const hs = g.homeScore && g.homeScore.score, as = g.awayScore && g.awayScore.score;
+    return {a:{id:String((g.away||{}).id), pts: as ? val(as) : val((g.away||{}).pointsFor)},
+            b:{id:String((g.home||{}).id), pts: hs ? val(hs) : val((g.home||{}).pointsFor)},
+            live: !!g.isInProgress, final: !!g.isFinalScore};
+  }).filter(g => g.a.id !== "undefined" && g.b.id !== "undefined");
+  return {week, teams, games, starterSplit:false};
+}
+
+/* ---------- league cache ---------- */
+let leagues = [];      // [{meta, detail, error}]
+let leaguesLoaded = false, leaguesErr = [];
+async function loadAll(){
+  leagues = []; leaguesErr = []; leaguesLoaded = false; render();
+  const jobs = [];
+  accts.sleeper.forEach(u => jobs.push(sleeperLeagues(u).catch(e => { leaguesErr.push("Sleeper " + u + ": " + e.message); return []; })));
+  accts.flea.forEach(a => jobs.push(fleaLeagues(a).catch(e => { leaguesErr.push("Fleaflicker " + a.value + ": " + e.message); return []; })));
+  const metas = (await Promise.all(jobs.concat([loadScoreboard().then(() => [])]))).flat();
+  leagues = metas.map(m => ({meta:m, detail:null, error:null}));
+  leaguesLoaded = true; render();
+  await Promise.all(leagues.map(async L => {
+    try { L.detail = L.meta.platform === "sleeper" ? await sleeperDetail(L.meta) : await fleaDetail(L.meta); }
+    catch(e){ L.error = e.message; }
+    if (cur.tab === "leagues") render();
+  }));
+  const st = await getState().catch(() => null);
+  if (st) $("#wk").textContent = "Week " + (st.display_week || st.week) + " · " + (st.league_season || st.season);
+}
+
+/* ---------- views ---------- */
+const cur = {tab:"leagues", league:null, newsMine:false};
+function setTab(t){ cur.tab = t; cur.league = null; document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === t)); render(); window.scrollTo(0,0); }
+$("#tabs").addEventListener("click", e => { const b = e.target.closest("button[data-tab]"); if (b) setTab(b.dataset.tab); });
+
+function render(){
+  const v = $("#view");
+  if (cur.tab === "accounts") return renderAccounts(v);
+  if (cur.tab === "news") return renderNews(v);
+  if (cur.tab === "trending") return renderTrending(v);
+  if (cur.league != null) return renderLeague(v, leagues[cur.league]);
+  return renderLeagues(v);
+}
+function hasAccts(){ return accts.sleeper.length + accts.flea.length > 0; }
+
+function emptyState(v){
+  v.innerHTML = '<h2>Your leagues, one screen</h2><p class="muted">Add a Sleeper username or a Fleaflicker email or league ID. Your rosters, scores and injury flags load straight from the league sites.</p>' + addForm();
+  wireAdd(v);
+}
+function renderLeagues(v){
+  if (!hasAccts()) return emptyState(v);
+  let h = "";
+  leaguesErr.forEach(e => h += '<div class="err">' + esc(e) + "</div>");
+  if (!leaguesLoaded) { v.innerHTML = h + '<p class="spin">Loading your leagues…</p>'; return; }
+  if (!leagues.length) { v.innerHTML = h + '<p class="muted">No leagues found for this season.</p>'; return; }
+  h += '<div class="stack" style="margin-top:12px">';
+  leagues.forEach((L, i) => {
+    const m = L.meta, d = L.detail;
+    h += '<button class="card league" data-l="' + i + '"><div class="row1"><span class="name">' + esc(m.name) + '</span><span class="badge">' + (m.platform === "sleeper" ? "Sleeper" : "Fleaflicker") + "</span></div>";
+    if (L.error) h += '<span class="small" style="color:var(--bad)">' + esc(L.error) + "</span>";
+    else if (!d) h += '<span class="small muted">Loading scores…</span>';
+    else {
+      const me = d.teams.find(t => t.mine);
+      if (!me) h += '<span class="small muted">Tap to pick your team</span>';
+      else {
+        const g = d.games.find(g => g.a.id === me.id || g.b.id === me.id);
+        h += '<span class="small muted">' + esc(me.name) + " · " + me.w + "-" + me.l + (me.t ? "-" + me.t : "") + "</span>";
+        if (g) {
+          const mine = g.a.id === me.id ? g.a : g.b, opp = g.a.id === me.id ? g.b : g.a;
+          const ot = d.teams.find(t => t.id === opp.id) || {name:"Opponent"};
+          const lead = (mine.pts||0) >= (opp.pts||0);
+          h += '<div class="score"><span class="t me">' + esc(me.name) + '</span><span class="p ' + (lead ? "lead" : "") + '">' + fmt(mine.pts) + '</span><span class="t">' + esc(ot.name) + '</span><span class="p">' + fmt(opp.pts) + "</span></div>";
+        }
+        const hurt = me.roster.filter(p => p.inj && p.slot !== "ir");
+        if (hurt.length) h += '<span class="small" style="color:var(--warn)">' + hurt.length + " player" + (hurt.length > 1 ? "s" : "") + " on the injury report</span>";
+      }
+    }
+    h += "</button>";
+  });
+  v.innerHTML = h + "</div>";
+  v.querySelectorAll("[data-l]").forEach(b => b.addEventListener("click", () => { cur.league = +b.dataset.l; cur.team = null; render(); window.scrollTo(0,0); }));
+}
+
+/* ---------- NFL games (live status for every player) ---------- */
+const TEAM_ALIAS = {WSH:"WAS", JAC:"JAX", LA:"LAR", OAK:"LV", SD:"LAC"};
+const tnorm = t => { t = String(t || "").toUpperCase(); return TEAM_ALIAS[t] || t; };
+let nflGames = {}, gamesAt = 0;
+async function loadScoreboard(){
+  try {
+    const r = await api("/api/scoreboard");
+    const map = {};
+    (r.games || []).forEach(g => { map[tnorm(g.away)] = g; map[tnorm(g.home)] = g; });
+    nflGames = map; gamesAt = Date.now();
+  } catch(e){}
+}
+const anyLive = () => Object.values(nflGames).some(g => g.state === "in");
+function gameLine(team){
+  if (!team) return '<span class="muted">Free agent</span>';
+  const t = tnorm(team), g = nflGames[t];
+  if (!gamesAt) return esc(t);
+  if (!g) return esc(t) + ' · <span class="muted">Bye</span>';
+  const opp = tnorm(g.away) === t ? "@" + tnorm(g.home) : "vs " + tnorm(g.away);
+  if (g.state === "pre") return esc(t) + " " + esc(opp) + ' · <span class="muted">' + esc(g.detail) + "</span>";
+  const sc = tnorm(g.away) + " " + g.awayScore + " – " + tnorm(g.home) + " " + g.homeScore;
+  if (g.state === "in") return '<span class="live">LIVE</span> ' + esc(sc) + " · " + esc(g.detail);
+  return esc(sc) + ' · <span class="muted">Final</span>';
+}
+
+/* ---------- player rows ---------- */
+let reg = [];
+function playerRow(p, right){
+  const i = reg.push(p) - 1;
+  return '<li><button class="prow" data-i="' + i + '">' +
+    '<span class="pos">' + esc(p.pos || "–") + '</span><span class="pname"><b>' + esc(p.name || p.id) + injChip(p.inj) + "</b><small>" + gameLine(p.team) + (p.injPart ? " · " + esc(p.injPart) : "") + "</small>" + (p.extra || "") + "</span>" +
+    '<span class="pts">' + (right == null ? "" : right) + "</span></button></li>";
+}
+function wireRows(v){ v.querySelectorAll(".prow[data-i]").forEach(b => b.addEventListener("click", () => openPlayer(reg[+b.dataset.i]))); }
+const POS_ORDER = {QB:1,RB:2,WR:3,TE:4,K:5,DEF:6,DST:6,"D/ST":6};
+const byPos = (a,b) => (POS_ORDER[a.pos]||9) - (POS_ORDER[b.pos]||9) || String(a.name).localeCompare(String(b.name));
+
+/* ---------- season stats (Sleeper) ---------- */
+let sstats = null, sstatsP = null;
+function getSeasonStats(season){ if (!sstatsP) sstatsP = api("/api/sstats?season=" + season).then(s => (sstats = s)).catch(() => (sstats = {})); return sstatsP; }
+const SCORE_IDX = {ppr:0, half:1, std:2};
+function seasonPts(pid, fmtKey){ const s = sstats && sstats[pid]; if (!s) return null; return {pts:s[SCORE_IDX[fmtKey] || 0], gp:s[3]}; }
+
+/* ---------- Fleaflicker: live lineup for one team ---------- */
+async function fleaTeamRoster(L, team){
+  try {
+    const r = await api(fq("FetchRoster", {league_id:L.meta.id, team_id:team.id}));
+    const out = [];
+    (r.groups || []).forEach(g => (g.slots || []).forEach(s => {
+      const lp = s.leaguePlayer; if (!lp || !lp.proPlayer) return;
+      const p = lp.proPlayer, inj = p.injury || null, grp = String(g.group || "").toUpperCase();
+      const rg = (lp.requestedGames || [])[0] || {};
+      const pts = val(lp.viewingActualPoints) ?? val(rg.pointsActual);
+      out.push({id:String(p.id), name:p.nameFull, pos:p.position, team:p.proTeamAbbreviation,
+        inj: inj ? (inj.typeAbbreviaition || inj.typeAbbreviation || inj.typeFull) : null,
+        injPart: inj ? (inj.description || inj.typeFull) : null,
+        slot: grp === "START" ? "start" : (grp === "INJURED" || grp === "IR") ? "ir" : "bench",
+        pts: pts, avg: val(lp.seasonAverage), tot: val(lp.seasonTotal)});
+    }));
+    if (out.length) { team.roster = out; team.live = true; }
+  } catch(e){ team.liveErr = e.message; }
+}
+
+/* ---------- league view ---------- */
+function renderLeague(v, L){
+  reg = [];
+  const m = L.meta, d = L.detail;
+  let h = '<button class="back" id="back">‹ All leagues</button><h2>' + esc(m.name) + "</h2>";
+  if (L.error) { v.innerHTML = h + '<div class="err">' + esc(L.error) + "</div>"; return wireBack(v); }
+  if (!d) { v.innerHTML = h + '<p class="spin">Loading…</p>'; return wireBack(v); }
+  const sub = cur.sub || "team";
+  h += '<div class="seg sub" role="tablist">' + [["team","My team"],["fa","Free agents"],["league","League"]].map(x => '<button type="button" data-sub="' + x[0] + '" aria-pressed="' + (sub === x[0]) + '">' + x[1] + "</button>").join("") + "</div>";
+  let me = cur.team ? d.teams.find(t => t.id === cur.team) : d.teams.find(t => t.mine);
+  if (sub === "team") {
+    h += '<label for="teamPick" style="display:block;margin-top:12px">Team</label><select id="teamPick">' + (me ? "" : '<option value="">Pick your team…</option>') +
+      d.teams.map(t => '<option value="' + esc(t.id) + '"' + (me && me.id === t.id ? " selected" : "") + ">" + esc(t.name) + (t.owner ? " (" + esc(t.owner) + ")" : "") + "</option>").join("") + "</select>";
+    if (me) {
+      if (m.platform === "flea" && !me.live && !me.liveLoading && !me.liveErr) { me.liveLoading = true; fleaTeamRoster(L, me).then(() => { me.liveLoading = false; if (cur.league === leagues.indexOf(L)) render(); }); }
+      const g = d.games.find(g => g.a.id === me.id || g.b.id === me.id);
+      if (g) {
+        const mine = g.a.id === me.id ? g.a : g.b, opp = g.a.id === me.id ? g.b : g.a;
+        const ot = d.teams.find(t => t.id === opp.id) || {name:"Opponent"};
+        h += '<div class="card score" style="margin-top:12px"><span class="t me">' + esc(me.name) + '</span><span class="p ' + ((mine.pts||0) >= (opp.pts||0) ? "lead" : "") + '">' + fmt(mine.pts) + '</span><span class="t">' + esc(ot.name) + '</span><span class="p">' + fmt(opp.pts) + "</span></div>";
+      }
+      const right = p => {
+        if (p.pts != null) return fmt(p.pts);
+        if (m.platform === "sleeper") { const s = seasonPts(p.id, d.scoring); return s && s.gp ? '<span class="avg">' + fmt(s.pts / s.gp) + "<small>avg</small></span>" : ""; }
+        return p.avg != null ? '<span class="avg">' + fmt(p.avg) + "<small>avg</small></span>" : "";
+      };
+      const split = m.platform === "sleeper" || me.live;
+      if (split) {
+        const st = me.roster.filter(p => p.slot === "start").sort(byPos), bn = me.roster.filter(p => p.slot === "bench").sort(byPos), ir = me.roster.filter(p => p.slot === "ir");
+        h += "<h3>Starters" + (d.week ? " · Week " + d.week : "") + '</h3><ul class="plist">' + st.map(p => playerRow(p, right(p))).join("") + "</ul>";
+        h += '<h3>Bench</h3><ul class="plist">' + bn.map(p => playerRow(p, right(p))).join("") + "</ul>";
+        if (ir.length) h += '<h3>IR</h3><ul class="plist">' + ir.map(p => playerRow(p, "")).join("") + "</ul>";
+      } else {
+        h += "<h3>Roster" + (me.liveLoading ? " · loading live points…" : "") + '</h3><ul class="plist">' + me.roster.slice().sort(byPos).map(p => playerRow(p, right(p))).join("") + "</ul>";
+      }
+      h += '<p class="small muted">' + (anyLive() ? "Games in progress · updates every minute" : "Updated " + new Date().toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})) + "</p>";
+    }
+  } else if (sub === "fa") {
+    const pos = cur.faPos || "ALL";
+    h += '<div class="chips posf">' + ["ALL","QB","RB","WR","TE","K","DEF"].map(x => '<button type="button" class="chip' + (pos === x ? " on" : "") + '" data-pos="' + x + '">' + x + "</button>").join("") + '</div><div id="fa"><p class="spin">Loading free agents…</p></div>';
+  } else {
+    if (d.games.length) {
+      h += "<h3>Matchups" + (d.week ? " · Week " + d.week : "") + '</h3><div class="stack">';
+      d.games.forEach(g => {
+        const A = d.teams.find(t => t.id === g.a.id) || {name:"Team"}, B = d.teams.find(t => t.id === g.b.id) || {name:"Team"};
+        const aLead = (g.a.pts||0) > (g.b.pts||0), bLead = (g.b.pts||0) > (g.a.pts||0);
+        h += '<div class="card score"><span class="t' + (me && A.id === me.id ? " me" : "") + '">' + esc(A.name) + '</span><span class="p ' + (aLead ? "lead" : "") + '">' + fmt(g.a.pts) + '</span><span class="t' + (me && B.id === me.id ? " me" : "") + '">' + esc(B.name) + '</span><span class="p ' + (bLead ? "lead" : "") + '">' + fmt(g.b.pts) + "</span></div>";
+      });
+      h += "</div>";
+    }
+    const stand = d.teams.slice().sort((a,b) => b.w - a.w || (b.pf||0) - (a.pf||0));
+    h += '<h3>Standings</h3><ul class="plist">' + stand.map((t,i) => '<li><div class="prow" style="grid-template-columns:28px 1fr auto"><span class="muted" style="font-variant-numeric:tabular-nums">' + (i+1) + '</span><span class="pname"><b' + (me && t.id === me.id ? ' class="me"' : "") + ">" + esc(t.name) + "</b><small>" + t.w + "-" + t.l + (t.t ? "-" + t.t : "") + '</small></span><span class="small muted" style="font-variant-numeric:tabular-nums">' + fmt(t.pf) + " PF</span></div></li>").join("") + "</ul>";
+  }
+  v.innerHTML = h;
+  wireBack(v);
+  v.querySelectorAll("[data-sub]").forEach(b => b.addEventListener("click", () => { cur.sub = b.dataset.sub; render(); }));
+  const sel = v.querySelector("#teamPick");
+  if (sel) sel.addEventListener("change", () => {
+    cur.team = sel.value || null;
+    if (m.platform === "flea" && cur.team) { m.myTeam = cur.team; d.teams.forEach(t => t.mine = t.id === cur.team); rememberFleaTeam(m, cur.team); }
+    render();
+  });
+  v.querySelectorAll("[data-pos]").forEach(b => b.addEventListener("click", () => { cur.faPos = b.dataset.pos; render(); }));
+  wireRows(v);
+  if (sub === "fa") loadFreeAgents(L, cur.faPos || "ALL");
+}
+
+/* ---------- free agents ---------- */
+async function loadFreeAgents(L, pos){
+  const el = () => $("#fa");
+  const token = (cur.faToken = Math.random());
+  try {
+    let list = [];
+    if (L.meta.platform === "sleeper") {
+      const d = L.detail;
+      await Promise.all([getPlayers(), getSeasonStats(L.meta.season)]);
+      const taken = new Set(); d.teams.forEach(t => t.roster.forEach(p => taken.add(p.id)));
+      for (const id in players) {
+        if (taken.has(id)) continue;
+        const p = players[id]; if (pos !== "ALL" && p[1] !== pos) continue;
+        if (!p[2] && p[1] !== "DEF") continue;
+        const s = seasonPts(id, d.scoring); if (!s || !s.pts) continue;
+        list.push({id, name:p[0], pos:p[1], team:p[2], inj:p[3], injPart:p[4], tot:s.pts, avg:s.gp ? s.pts / s.gp : null, gp:s.gp});
+      }
+      list.sort((a,b) => b.tot - a.tot); list = list.slice(0, 40);
+    } else {
+      const params = {league_id:L.meta.id, "filter.free_agent_only":"true", sort:"SORT_SEASON_TOTAL"};
+      if (pos !== "ALL") params["filter.position.eligibility"] = pos === "DEF" ? "D/ST" : pos;
+      const r = await api(fq("FetchPlayerListing", params));
+      list = (r.players || []).map(x => {
+        const p = x.proPlayer || {}, inj = p.injury || null;
+        return {id:String(p.id), name:p.nameFull, pos:p.position, team:p.proTeamAbbreviation,
+          inj: inj ? (inj.typeAbbreviaition || inj.typeAbbreviation || inj.typeFull) : null, injPart: inj ? (inj.description || inj.typeFull) : null,
+          tot: val(x.seasonTotal), avg: val(x.seasonAverage)};
+      });
+    }
+    if (token !== cur.faToken || !el()) return;
+    if (!list.length) { el().innerHTML = '<p class="muted">No free agents found' + (pos !== "ALL" ? " at " + pos : "") + ".</p>"; return; }
+    list.forEach(p => p.extra = p.avg != null ? '<small class="muted"> · ' + fmt(p.avg) + " per game</small>" : "");
+    el().innerHTML = '<p class="small muted" style="margin:10px 0 6px">Ranked by season points' + (L.meta.platform === "sleeper" ? " (" + ({ppr:"PPR", half:"half PPR", std:"standard"}[L.detail.scoring] || "PPR") + ")" : "") + '</p><ul class="plist">' + list.map(p => playerRow(p, fmt(p.tot))).join("") + "</ul>";
+    wireRows(el());
+  } catch(e){ if (el()) el().innerHTML = '<div class="err">Couldn’t load free agents: ' + esc(e.message) + "</div>"; }
+}
+function wireBack(v){ v.querySelector("#back").addEventListener("click", () => { cur.league = null; cur.sub = "team"; render(); }); }
+function rememberFleaTeam(m, team){
+  try { const s = JSON.parse(localStorage.getItem(KEY + ".fleaTeams") || "{}"); s[m.id] = team; localStorage.setItem(KEY + ".fleaTeams", JSON.stringify(s)); } catch(e){}
+}
+function fleaTeamFor(id){ try { return (JSON.parse(localStorage.getItem(KEY + ".fleaTeams") || "{}"))[id] || null; } catch(e){ return null; } }
+
+/* ---------- player sheet ---------- */
+function ago(d){
+  const t = new Date(d).getTime(); if (!t) return "";
+  const m = Math.round((Date.now() - t) / 60000);
+  if (m < 60) return m + "m ago"; if (m < 1440) return Math.round(m/60) + "h ago"; return Math.round(m/1440) + "d ago";
+}
+async function openPlayer(pl){
+  const sh = $("#sheet"), p = $("#sheetPanel");
+  let stats = "";
+  const cells = [];
+  if (pl.pts != null) cells.push(["This week", fmt(pl.pts)]);
+  if (pl.tot != null) cells.push(["Season", fmt(pl.tot)]);
+  if (pl.avg != null) cells.push(["Per game", fmt(pl.avg)]);
+  if (cells.length) stats = '<div class="statrow">' + cells.map(c => '<div><small>' + c[0] + "</small><b>" + c[1] + "</b></div>").join("") + "</div>";
+  p.innerHTML = '<button class="back" id="closeSheet">✕ Close</button><h2 style="margin-top:6px">' + esc(pl.name) + injChip(pl.inj) + '</h2><p class="muted small" style="margin:0">' + esc(pl.pos || "") + " · " + gameLine(pl.team) + (pl.injPart ? " · " + esc(pl.injPart) : "") + "</p>" + stats + '<h3>Latest news</h3><div id="pnews"><p class="spin">Searching headlines…</p></div>';
+  sh.hidden = false;
+  p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+  try {
+    const r = await api("/api/news?q=" + encodeURIComponent('"' + pl.name + '" NFL'));
+    const items = (r.items || []).slice(0, 10);
+    $("#pnews").innerHTML = items.length ? '<div class="news card" style="padding:0">' + items.map(n => '<a href="' + esc(n.link) + '" target="_blank" rel="noopener"><b>' + esc(n.title) + "</b><small>" + esc(n.source || "") + (n.date ? " · " + ago(n.date) : "") + "</small></a>").join("") + "</div>" : '<p class="muted">No recent headlines found.</p>';
+  } catch(e){ $("#pnews").innerHTML = '<div class="err">Couldn’t load headlines: ' + esc(e.message) + "</div>"; }
+}
+function closeSheet(){ $("#sheet").hidden = true; }
+$("#sheet").addEventListener("click", e => { if (e.target.id === "sheet") closeSheet(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeSheet(); });
+
+/* ---------- my players index (for headlines + trending) ---------- */
+function myPlayers(){
+  const out = [];
+  leagues.forEach(L => { const d = L.detail; if (!d) return; const me = d.teams.find(t => t.mine); if (me) me.roster.forEach(p => p.name && out.push(p.name)); });
+  return [...new Set(out)];
+}
+
+/* ---------- headlines ---------- */
+let headlines = null;
+async function renderNews(v){
+  v.innerHTML = '<h2>NFL headlines</h2><label class="toggle"><input type="checkbox" id="mineOnly"' + (cur.newsMine ? " checked" : "") + '> Only stories about my players</label><div id="hl"><p class="spin">Loading headlines…</p></div>';
+  v.querySelector("#mineOnly").addEventListener("change", e => { cur.newsMine = e.target.checked; drawNews(); });
+  try { if (!headlines) headlines = await api("/api/headlines"); drawNews(); }
+  catch(e){ $("#hl").innerHTML = '<div class="err">Couldn’t load headlines: ' + esc(e.message) + "</div>"; }
+}
+function drawNews(){
+  const el = $("#hl"); if (!el || !headlines) return;
+  const mine = myPlayers();
+  const rx = mine.length ? new RegExp("\\b(" + mine.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")\\b", "gi") : null;
+  let items = (headlines.items || []).map(a => {
+    const text = a.title + " " + (a.desc || "") + " " + (a.athletes || []).join(" ");
+    const hit = rx ? (text.match(rx) || []) : [];
+    if (rx) rx.lastIndex = 0;
+    return Object.assign({hit:[...new Set(hit)]}, a);
+  });
+  if (cur.newsMine) items = items.filter(a => a.hit.length);
+  if (!items.length) { el.innerHTML = '<p class="muted">' + (cur.newsMine ? (mine.length ? "None of today’s top stories mention your players." : "Load your leagues first so we know who your players are.") : "No headlines right now.") + "</p>"; return; }
+  el.innerHTML = '<div class="news card" style="padding:0">' + items.map(a => '<a href="' + esc(a.link) + '" target="_blank" rel="noopener"><b>' + esc(a.title) + "</b>" + (a.desc ? '<span class="small muted" style="display:block;margin:2px 0">' + esc(a.desc) + "</span>" : "") + "<small>ESPN" + (a.date ? " · " + ago(a.date) : "") + (a.hit.length ? ' · <span class="mine">' + esc(a.hit.join(", ")) + "</span>" : "") + "</small></a>").join("") + "</div>";
+}
+
+/* ---------- trending ---------- */
+async function renderTrending(v){
+  reg = [];
+  v.innerHTML = '<h2>Most added, last 24 hours</h2><p class="muted small" style="margin-top:-4px">Adds across all Sleeper leagues. We check each one against your leagues so you can see who’s still on waivers.</p><div id="tr"><p class="spin">Loading…</p></div>';
+  try {
+    const [tr] = await Promise.all([api("/api/sleeper/players/nfl/trending/add?lookback_hours=24&limit=25"), getPlayers(), gamesAt ? null : loadScoreboard()]);
+    const ready = leagues.filter(L => L.detail);
+    const rows = tr.map(t => {
+      const p = players[t.player_id] || [t.player_id, "", ""];
+      const chips = ready.map(L => {
+        const taken = L.meta.platform === "sleeper"
+          ? L.detail.teams.some(tm => tm.roster.some(r => r.id === t.player_id))
+          : L.detail.teams.some(tm => tm.roster.some(r => norm(r.name) === norm(p[0])));
+        return taken ? '<span class="chip">Rostered in ' + esc(L.meta.name) + "</span>" : '<span class="chip free">Free in ' + esc(L.meta.name) + "</span>";
+      }).join("");
+      return playerRow({id:t.player_id, name:p[0], pos:p[1], team:p[2], inj:p[3], injPart:p[4], extra: chips ? '<span class="chips">' + chips + "</span>" : ""}, '<span class="small muted" style="font:600 14px var(--body)">+' + Number(t.count).toLocaleString() + "</span>");
+    }).join("");
+    $("#tr").innerHTML = '<ul class="plist">' + rows + "</ul>" + (hasAccts() && !ready.length ? '<p class="muted small">Your leagues are still loading. Reopen this tab to see who’s free.</p>' : "");
+    wireRows(v);
+  } catch(e){ $("#tr").innerHTML = '<div class="err">Couldn’t load trending players: ' + esc(e.message) + "</div>"; }
+}
+
+/* ---------- accounts ---------- */
+let addMode = "sleeper";
+function addForm(){
+  return '<form class="add card" id="addForm"><div class="seg" role="group" aria-label="Platform">' +
+    '<button type="button" data-m="sleeper" aria-pressed="' + (addMode === "sleeper") + '">Sleeper</button>' +
+    '<button type="button" data-m="flea" aria-pressed="' + (addMode === "flea") + '">Fleaflicker</button></div>' +
+    (addMode === "sleeper"
+      ? '<label for="acctIn">Sleeper username</label><input id="acctIn" autocomplete="off" autocapitalize="off" placeholder="e.g. gridironGreg" required>'
+      : '<label for="acctIn">Fleaflicker email or league ID</label><input id="acctIn" autocomplete="off" autocapitalize="off" placeholder="you@email.com or 312876" required><span class="small muted">The league ID is the number in your league’s Fleaflicker web address.</span>') +
+    '<button class="btn" type="submit">Add</button></form>';
+}
+function wireAdd(v){
+  const f = v.querySelector("#addForm");
+  f.querySelectorAll("[data-m]").forEach(b => b.addEventListener("click", () => { addMode = b.dataset.m; render(); }));
+  f.addEventListener("submit", e => {
+    e.preventDefault();
+    const x = f.querySelector("#acctIn").value.trim(); if (!x) return;
+    if (addMode === "sleeper") { if (!accts.sleeper.includes(x)) accts.sleeper.push(x); }
+    else { const type = /^\d+$/.test(x) ? "league" : "email"; if (!accts.flea.some(a => a.value === x)) accts.flea.push({type, value:x}); }
+    saveAccts(accts); setTab("leagues"); loadAll();
+  });
+}
+function renderAccounts(v){
+  let h = "<h2>Accounts</h2>";
+  const list = accts.sleeper.map((u,i) => ({label:u, plat:"Sleeper", k:"s", i})).concat(accts.flea.map((a,i) => ({label:(a.type === "league" ? "League " : "") + a.value, plat:"Fleaflicker", k:"f", i})));
+  if (list.length) h += '<div class="card">' + list.map(a => '<div class="acct"><span><b>' + esc(a.label) + '</b> <span class="badge">' + a.plat + '</span></span><button class="icon" data-rm="' + a.k + a.i + '">Remove</button></div>').join("") + "</div>";
+  h += "<h3>Add another</h3>" + addForm();
+  h += '<p class="small muted">Accounts are saved only in this browser. Nothing is sent anywhere except the league sites themselves.</p>';
+  v.innerHTML = h;
+  v.querySelectorAll("[data-rm]").forEach(b => b.addEventListener("click", () => {
+    const k = b.dataset.rm[0], i = +b.dataset.rm.slice(1);
+    if (k === "s") accts.sleeper.splice(i,1); else accts.flea.splice(i,1);
+    saveAccts(accts); loadAll(); render();
+  }));
+  wireAdd(v);
+}
+
+/* ---------- boot ---------- */
+accts.flea.forEach(a => { if (a.type === "league") a.team = fleaTeamFor(a.value); });
+render();
+async function refreshLive(){
+  if (document.hidden || !$("#sheet").hidden || document.activeElement && document.activeElement.tagName === "SELECT") return;
+  await loadScoreboard();
+  if (!anyLive() || cur.tab !== "leagues") return;
+  const targets = cur.league != null ? [leagues[cur.league]] : leagues;
+  await Promise.all(targets.filter(Boolean).map(async L => {
+    try {
+      const keep = L.detail && L.detail.teams.find(t => t.mine || t.id === cur.team);
+      const fresh = L.meta.platform === "sleeper" ? await sleeperDetail(L.meta) : await fleaDetail(L.meta);
+      if (keep) { const nt = fresh.teams.find(t => t.id === keep.id); if (nt && L.meta.platform === "flea") await fleaTeamRoster(L, nt); }
+      L.detail = fresh;
+    } catch(e){}
+  }));
+  if (cur.tab === "leagues" && (cur.sub || "team") !== "fa") render();
+}
+setInterval(refreshLive, 60000);
+if (hasAccts()) loadAll(); else getState().then(st => $("#wk").textContent = "Week " + (st.display_week || st.week) + " · " + (st.league_season || st.season)).catch(() => {});
+</script>
+</body>
+</html>
