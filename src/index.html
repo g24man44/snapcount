@@ -179,6 +179,17 @@ a.alitem{color:var(--ink);text-decoration:none}
 .offlist{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
 .offlist li{display:grid;grid-template-columns:40px 1fr auto;gap:10px;align-items:center;font-variant-numeric:tabular-nums}
 .offlist .pos{padding:6px 0}
+.psearch{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:0 12px;color:var(--muted);margin-bottom:8px}
+.psearch input{border:0;background:transparent;padding:12px 0;flex:1;min-width:0}
+.psearch input:focus{outline:none}
+.psearch:focus-within{border-color:var(--accent)}
+.sres{list-style:none;margin:0 0 12px;padding:0;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+.sres li{border-top:1px solid var(--line)}
+.sres li:first-child{border-top:0}
+.sres button{display:grid;grid-template-columns:40px 1fr;gap:12px;align-items:center;width:100%;background:none;border:0;text-align:left;padding:10px 14px}
+.sres button b{display:block}
+.sres button small{color:var(--muted);font-size:13px}
+.sres .pos{padding:7px 0}
 footer{margin-top:28px;color:var(--muted);font-size:12.5px;padding:0 2px}
 @media (prefers-reduced-motion:no-preference){.sheet .panel{animation:up .2s cubic-bezier(.2,.8,.2,1)}@keyframes up{from{transform:translateY(30px);opacity:.6}}}
 </style>
@@ -930,6 +941,7 @@ async function renderTrade(v){
   if (tr.ppr == null) tr.ppr = L.meta.platform === "sleeper" ? ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1") : "1";
   const qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1;
   if (tr.dyn == null) { const sv = savedDyn(L); tr.dyn = sv != null ? sv : /dynasty|keeper/i.test(L.meta.name); }
+  h += '<div class="psearch"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="trS" type="search" placeholder="Search any player in this league" autocomplete="off" aria-label="Search any player in this league"></div><ul id="trSR" class="sres" hidden></ul>';
   h += '<p class="muted small" style="margin:-4px 2px 12px">' + (tr.mode === "find" ? "Pick a player you want and see the fairest packages from your roster and picks." : "Got an offer? Pick the players from it and get a grade from 1 to 10.") + "</p>";
   h += '<div class="card stackc" style="gap:10px"><label for="trL">League</label><select id="trL">' + ready.map(x => '<option value="' + x.i + '"' + (x.i === tr.league ? " selected" : "") + ">" + esc(x.L.meta.name) + "</option>").join("") + "</select>" +
     '<label for="trT">Trading with</label><select id="trT">' + others.map(t => '<option value="' + esc(t.id) + '"' + (t.id === tr.other ? " selected" : "") + ">" + esc(t.name) + (t.owner ? " (" + esc(t.owner) + ")" : "") + "</option>").join("") + "</select>" +
@@ -938,6 +950,22 @@ async function renderTrade(v){
   h += '<div id="trOut"><p class="spin">Loading trade values…</p></div>';
   v.innerHTML = h;
   v.querySelectorAll("[data-mode]").forEach(b => b.addEventListener("click", () => { tr.mode = b.dataset.mode; render(); }));
+  const sIn = v.querySelector("#trS"), sOut = v.querySelector("#trSR");
+  const pool = others.flatMap(t => t.roster.filter(p => p.name).map(p => ({p, t})));
+  sIn.addEventListener("input", () => {
+    const q = norm(sIn.value);
+    if (q.length < 2) { sOut.hidden = true; sOut.innerHTML = ""; return; }
+    const hits = pool.filter(x => norm(x.p.name).includes(q)).sort((a, b) => norm(a.p.name).indexOf(q) - norm(b.p.name).indexOf(q)).slice(0, 8);
+    sOut.innerHTML = hits.length ? hits.map(x => '<li><button type="button" data-st="' + esc(x.t.id) + '" data-sp="' + esc(x.p.id) + '"><span class="pos" data-pos="' + esc(x.p.pos || "") + '">' + esc(x.p.pos || "–") + "</span><span><b>" + esc(x.p.name) + "</b><small>" + esc(x.t.name) + (x.t.owner ? " · " + esc(x.t.owner) : "") + "</small></span></button></li>").join("") : '<li class="muted small" style="padding:12px 14px">No one on another team matches.</li>';
+    sOut.hidden = false;
+  });
+  sOut.addEventListener("click", e => {
+    const b = e.target.closest("button[data-sp]"); if (!b) return;
+    tr.other = b.dataset.st;
+    if (tr.mode === "find") tr.target = b.dataset.sp;
+    else { tr.get = new Set([b.dataset.sp]); tr.give.clear(); }
+    render(); window.scrollTo(0, 0);
+  });
   v.querySelector("#trL").addEventListener("change", e => { tr.league = +e.target.value; tr.other = null; tr.give.clear(); tr.get.clear(); tr.ppr = null; tr.dyn = null; tr.keep = null; tr.target = null; render(); });
   v.querySelector("#trT").addEventListener("change", e => { tr.other = e.target.value; tr.get.clear(); tr.target = null; render(); });
   v.querySelectorAll("[data-ppr]").forEach(b => b.addEventListener("click", () => { tr.ppr = b.dataset.ppr; render(); }));
@@ -1063,8 +1091,10 @@ function drawTrade(ctx){
   const byVal = (a, b) => ((V[sid.get(b)] || [0])[0] || 0) - ((V[sid.get(a)] || [0])[0] || 0);
   let h = "";
   if (tr.give.size || tr.get.size) {
-    const g = gradeTrade(ctx), [label, tone] = GRADE_LABEL(g.score);
-    h += '<div class="card grade ' + tone + '"><div class="gtop"><div class="gnum"><b>' + g.score + "</b><small>/10</small></div><div><b class='glabel'>" + label + '</b><span class="muted small">' + (tr.give.size && tr.get.size ? "Based on trade value, your weekly starting lineup, injuries and trends." : "Pick players on both sides to finish the grade.") + "</span></div></div>" +
+    const both = tr.give.size && tr.get.size;
+    const g = gradeTrade(ctx), [label, tone] = both ? GRADE_LABEL(g.score) : ["Add the other side", ""];
+    if (!both) g.ask = null;
+    h += '<div class="card grade ' + tone + '"><div class="gtop"><div class="gnum"><b>' + (both ? g.score : "–") + "</b><small>/10</small></div><div><b class='glabel'>" + label + '</b><span class="muted small">' + (tr.give.size && tr.get.size ? "Based on trade value, your weekly starting lineup, injuries and trends." : "Pick players on both sides to finish the grade.") + "</span></div></div>" +
       '<ul class="reasons">' + g.reasons.map(r => '<li class="' + r.tone + '">' + esc(r.text) + "</li>").join("") + "</ul>" +
       (g.ask ? '<p class="small" style="margin:10px 0 0">To even it out, ask them to add <b>' + esc(g.ask.name) + "</b>.</p>" : "") +
       '<p class="small muted" style="margin:10px 0 0">Values: ' + esc(ctx.src) + ", " + (ctx.dyn ? "dynasty" : "redraft") + (ctx.qbs === 2 ? " superflex" : "") + ", " + ctx.teams + "-team " + ({"1":"PPR","0.5":"half PPR","0":"standard"}[tr.ppr]) + ".</p></div>";
