@@ -84,7 +84,7 @@ export async function alertsRoute(request, env, p, url) {
           ids: (body.ids || []).slice(0, 400).map(String),
           names: (body.names || []).slice(0, 400).map(String),
           leagues: (body.leagues || []).slice(0, 30).map(l => ({ p: l.p === "flea" ? "flea" : "sleeper", id: String(l.id), name: String(l.name || "").slice(0, 80) })),
-          prefs: { mine: body.prefs?.mine !== false, fa: body.prefs?.fa !== false, faPos: body.prefs?.faPos === "QB" ? "QB" : "ALL" },
+          prefs: { mine: body.prefs?.mine !== false, fa: body.prefs?.fa !== false, news: body.prefs?.news !== false, faPos: body.prefs?.faPos === "QB" ? "QB" : "ALL" },
           origin: url.origin
         };
         const prev = await env.SNAP.get("sub:" + id);
@@ -110,6 +110,8 @@ export async function alertsRoute(request, env, p, url) {
       if (url.searchParams.get("mark") === "1" && unread.length) await env.SNAP.put(key, JSON.stringify(list.map(a => Object.assign(a, { read: true }))));
       return out({ alerts: res });
     }
+    if (p === "/api/push/run" && url.searchParams.get("what") === "notes") return out(await runInjuryNotes(env));
+    if (p === "/api/push/run" && url.searchParams.get("what") === "news") return out(await runHeadlines(env));
     if (p === "/api/push/run") {
       const pos = ["QB", "RB", "WR", "TE"].includes(url.searchParams.get("pos")) ? url.searchParams.get("pos") : "QB";
       return out(await runChecks(env, pos));
@@ -266,21 +268,140 @@ export async function runChecks(env, forcePos) {
       if (items.length) sent += await deliver(env, k.name.slice(4), rec, items);
     }
   }
-  if (changed) {
+  if (fresh || events.length || (changed && Date.now() - (prev.at || 0) > 3600e3)) {
     const lastEvents = events.length ? events.slice(0, 8).map(e => e.kind + " " + e.name + " " + (e.to ?? e.starter ?? "")) : (prev && prev.events) || [];
     await env.SNAP.put("snap:" + pos, JSON.stringify({ week, season, at: Date.now(), p: now, events: lastEvents }));
   }
   return { pos, week, players: Object.keys(now).length, events: events.length, sent, baseline: fresh };
 }
 
+/* ---------- ESPN injury report (news notes) and headlines ---------- */
+const TEAM_ABBR = {
+  "Arizona Cardinals":"ARI","Atlanta Falcons":"ATL","Baltimore Ravens":"BAL","Buffalo Bills":"BUF","Carolina Panthers":"CAR","Chicago Bears":"CHI",
+  "Cincinnati Bengals":"CIN","Cleveland Browns":"CLE","Dallas Cowboys":"DAL","Denver Broncos":"DEN","Detroit Lions":"DET","Green Bay Packers":"GB",
+  "Houston Texans":"HOU","Indianapolis Colts":"IND","Jacksonville Jaguars":"JAX","Kansas City Chiefs":"KC","Las Vegas Raiders":"LV","Los Angeles Chargers":"LAC",
+  "Los Angeles Rams":"LAR","Miami Dolphins":"MIA","Minnesota Vikings":"MIN","New England Patriots":"NE","New Orleans Saints":"NO","New York Giants":"NYG",
+  "New York Jets":"NYJ","Philadelphia Eagles":"PHI","Pittsburgh Steelers":"PIT","San Francisco 49ers":"SF","Seattle Seahawks":"SEA","Tampa Bay Buccaneers":"TB",
+  "Tennessee Titans":"TEN","Washington Commanders":"WAS"
+};
+const SKILL = new Set(["QB", "RB", "WR", "TE", "K"]);
+export function practiceTag(text) {
+  const t = String(text || "");
+  if (/did not practice|didn't practice|\bDNP\b|sat out (of )?practice|missed practice|not practice/i.test(t)) return "DNP";
+  if (/\blimited\b/i.test(t) && /practice|participant|session/i.test(t)) return "LP";
+  if (/practiced fully|full(y)? participant|full practice|full session|practiced in full/i.test(t)) return "FP";
+  return "";
+}
+export async function readInjuries() {
+  const r = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/injuries", { headers: UA });
+  if (!r.ok) throw new Error("ESPN injury report answered " + r.status);
+  const d = await r.json();
+  const map = {};
+  for (const tm of d.injuries || []) {
+    const teamGuess = TEAM_ABBR[tm.displayName] || (tm.team && tm.team.abbreviation) || tm.abbreviation || "";
+    for (const it of tm.injuries || []) {
+      const a = it.athlete || {}, pos = (a.position && a.position.abbreviation) || "";
+      const name = a.displayName || a.fullName || "";
+      if (!name || !SKILL.has(pos)) continue;
+      const det = it.details || {};
+      const short = it.shortComment || "", long = it.longComment || "";
+      map[norm(name) + "|" + pos] = {
+        name, pos, team: (a.team && a.team.abbreviation) || teamGuess,
+        status: it.status || (it.type && it.type.description) || "",
+        short, long, date: it.date || "", ret: det.returnDate || "",
+        part: [det.side && det.side !== "Not Specified" ? det.side : "", det.type || ""].filter(Boolean).join(" "),
+        prac: practiceTag(short) || practiceTag(long)
+      };
+    }
+  }
+  return map;
+}
+export async function injuriesRoute() {
+  try {
+    const players = await readInjuries();
+    return new Response(JSON.stringify({ at: Date.now(), players }), { headers: { "content-type": "application/json; charset=utf-8", "cache-control": "public, max-age=300" } });
+  } catch (e) {
+    return out({ error: "Couldn't load the injury report: " + (e.message || e) }, 502);
+  }
+}
+async function readNews() {
+  const r = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?limit=50", { headers: UA });
+  if (!r.ok) throw new Error("ESPN headlines answered " + r.status);
+  const d = await r.json();
+  return (d.articles || []).map(a => ({
+    id: String(a.id || a.dataSourceIdentifier || a.headline),
+    title: a.headline || "", desc: a.description || "",
+    link: (a.links && a.links.web && a.links.web.href) || "",
+    names: (a.categories || []).filter(c => c.type === "athlete" && c.description).map(c => norm(c.description))
+  })).filter(a => a.title);
+}
+const noteSig = n => (n.date || "") + "|" + norm(n.short).slice(0, 60);
+
+async function eachSubscriber(env, fn) {
+  const list = await env.SNAP.list({ prefix: "sub:" });
+  let sent = 0;
+  for (const k of list.keys) {
+    const rec = await env.SNAP.get(k.name, "json");
+    if (!rec) continue;
+    const items = fn(rec);
+    if (items && items.length) sent += await deliver(env, k.name.slice(4), rec, items);
+  }
+  return sent;
+}
+const nameSet = rec => new Set((rec.names || []).map(n => n.split("|")[0]));
+
+export async function runInjuryNotes(env) {
+  let now;
+  try { now = await readInjuries(); } catch (e) { return { error: String(e.message || e) }; }
+  const prev = await env.SNAP.get("snap:inj", "json");
+  const sigs = {}; for (const k in now) if (now[k].short) sigs[k] = noteSig(now[k]);
+  if (!prev) { await env.SNAP.put("snap:inj", JSON.stringify({ at: Date.now(), s: sigs })); return { baseline: true, notes: Object.keys(sigs).length }; }
+  const fresh = Object.keys(sigs).filter(k => prev.s[k] !== sigs[k]).map(k => Object.assign({ key: k }, now[k]));
+  let sent = 0;
+  if (fresh.length) {
+    sent = await eachSubscriber(env, rec => {
+      if (rec.prefs.news === false && rec.prefs.mine === false) return [];
+      const mine = new Set(rec.names || []);
+      return fresh.filter(n => mine.has(n.key)).slice(0, 5).map(n => ({
+        id: "note:" + n.key + ":" + sigs[n.key],
+        title: n.name + (n.status ? " (" + n.status + ")" : "") + (n.prac ? " · " + n.prac : ""),
+        body: n.short.slice(0, 220)
+      }));
+    });
+    await env.SNAP.put("snap:inj", JSON.stringify({ at: Date.now(), s: sigs }));
+  }
+  return { notes: Object.keys(sigs).length, changed: fresh.length, sent };
+}
+
+export async function runHeadlines(env) {
+  let items;
+  try { items = await readNews(); } catch (e) { return { error: String(e.message || e) }; }
+  const prev = await env.SNAP.get("snap:news", "json");
+  const seen = new Set(prev ? prev.ids : []);
+  const fresh = prev ? items.filter(a => !seen.has(a.id)) : [];
+  let sent = 0;
+  if (fresh.length) {
+    sent = await eachSubscriber(env, rec => {
+      if (rec.prefs.news === false) return [];
+      const mine = nameSet(rec);
+      return fresh.filter(a => a.names.some(n => mine.has(n))).slice(0, 3).map(a => ({ id: "news:" + a.id, title: a.title, body: a.desc.slice(0, 200), url: a.link }));
+    });
+  }
+  if (!prev || fresh.length) await env.SNAP.put("snap:news", JSON.stringify({ at: Date.now(), ids: items.map(a => a.id).concat(prev ? prev.ids : []).slice(0, 200) }));
+  return { articles: items.length, fresh: fresh.length, sent, baseline: !prev };
+}
+
 export async function runMinute(env) {
   await runChecks(env, "QB").catch(() => {});
-  await runChecks(env, OTHERS[new Date().getUTCMinutes() % OTHERS.length]).catch(() => {});
+  const m = new Date().getUTCMinutes();
+  await runChecks(env, OTHERS[m % OTHERS.length]).catch(() => {});
+  if (m % 2 === 1) await runInjuryNotes(env).catch(() => {});
+  if (m % 5 === 0) await runHeadlines(env).catch(() => {});
 }
 
 /* ---------- files the phone needs ---------- */
 export const SW_JS = `
-const SHELL = "snapcount-shell-v1";
+const SHELL = "snapcount-shell-v2";
 self.addEventListener("install", e => { self.skipWaiting(); e.waitUntil(caches.open(SHELL).then(c => c.addAll(["/", "/icon-192.png"])).catch(() => {})); });
 self.addEventListener("fetch", e => {
   if (e.request.mode !== "navigate") return;
@@ -297,11 +418,13 @@ self.addEventListener("push", e => e.waitUntil((async () => {
   } catch (err) {}
   if (!items.length) items = [{ id: "update", title: "Snap Count", body: "There's news about your players." }];
   for (const a of items.slice(0, 4)) {
-    await self.registration.showNotification(a.title, { body: a.body, tag: a.id, icon: "/icon-192.png", data: { url: "/#alerts" } });
+    await self.registration.showNotification(a.title, { body: a.body, tag: a.id, icon: "/icon-192.png", data: { url: a.url || "/#alerts" } });
   }
 })()));
 self.addEventListener("notificationclick", e => {
   e.notification.close();
+  const target = (e.notification.data && e.notification.data.url) || "/#alerts";
+  if (/^https?:/.test(target)) { e.waitUntil(self.clients.openWindow(target)); return; }
   e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(ws => {
     for (const w of ws) { if ("focus" in w) { w.postMessage({ open: "alerts" }); return w.focus(); } }
     return self.clients.openWindow("/#alerts");

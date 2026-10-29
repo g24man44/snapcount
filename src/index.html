@@ -122,6 +122,13 @@ button.chip{cursor:pointer;padding:5px 11px;font-weight:600}
 .install div{flex:1;min-width:0}
 .install b{display:block}
 .install span{font-size:14px;color:var(--muted)}
+.note{display:block;margin-top:3px;font-size:12.5px;line-height:1.35;color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.note .inj{margin:0 5px 0 0}
+.injcard{display:flex;flex-direction:column;gap:6px}
+.injcard p{margin:0;line-height:1.45}
+.injhead{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.injhead .inj{margin-left:0}
+a.alitem{color:var(--ink);text-decoration:none}
 footer{margin-top:28px;color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:12px}
 @media (prefers-reduced-motion:no-preference){.sheet .panel{animation:up .18s ease-out}@keyframes up{from{transform:translateY(24px);opacity:.6}}}
 </style>
@@ -275,7 +282,7 @@ async function loadAll(){
   const jobs = [];
   accts.sleeper.forEach(u => jobs.push(sleeperLeagues(u).catch(e => { leaguesErr.push("Sleeper " + u + ": " + e.message); return []; })));
   accts.flea.forEach(a => jobs.push(fleaLeagues(a).catch(e => { leaguesErr.push("Fleaflicker " + a.value + ": " + e.message); return []; })));
-  const metas = (await Promise.all(jobs.concat([loadScoreboard().then(() => [])]))).flat();
+  const metas = (await Promise.all(jobs.concat([loadScoreboard().then(() => []), loadInjuries().then(() => [])]))).flat();
   leagues = metas.map(m => ({meta:m, detail:null, error:null}));
   leaguesLoaded = true; render();
   await Promise.all(leagues.map(async L => {
@@ -369,13 +376,26 @@ function gameLine(team){
   return esc(sc) + ' · <span class="muted">Final</span>';
 }
 
+/* ---------- ESPN injury report notes ---------- */
+let injMap = {}, injAt = 0;
+async function loadInjuries(){
+  try { const r = await api("/api/injuries"); injMap = r.players || {}; injAt = Date.now(); } catch(e){}
+}
+const injFor = p => p && p.name ? injMap[norm(p.name) + "|" + (p.pos || "")] : null;
+const PRAC = {DNP:["Did not practice","bad"], LP:["Limited practice",""], FP:["Full practice","ok"]};
+function pracChip(t){ return t && PRAC[t] ? '<span class="inj ' + PRAC[t][1] + '" title="' + PRAC[t][0] + '">' + t + "</span>" : ""; }
+
 /* ---------- player rows ---------- */
 let reg = [];
 function playerRow(p, right){
   const i = reg.push(p) - 1;
   return '<li><button class="prow" data-i="' + i + '">' +
-    '<span class="pos">' + esc(p.pos || "–") + '</span><span class="pname"><b>' + esc(p.name || p.id) + injChip(p.inj) + "</b><small>" + gameLine(p.team) + (p.injPart ? " · " + esc(p.injPart) : "") + "</small>" + (p.extra || "") + "</span>" +
+    '<span class="pos">' + esc(p.pos || "–") + '</span><span class="pname"><b>' + esc(p.name || p.id) + injChip(p.inj) + "</b><small>" + gameLine(p.team) + (p.injPart ? " · " + esc(p.injPart) : "") + "</small>" + noteLine(p) + (p.extra || "") + "</span>" +
     '<span class="pts">' + (right == null ? "" : right) + "</span></button></li>";
+}
+function noteLine(p){
+  const n = injFor(p); if (!n || !n.short) return "";
+  return '<small class="note">' + pracChip(n.prac) + esc(n.short) + "</small>";
 }
 function wireRows(v){ v.querySelectorAll(".prow[data-i]").forEach(b => b.addEventListener("click", () => openPlayer(reg[+b.dataset.i]))); }
 const POS_ORDER = {QB:1,RB:2,WR:3,TE:4,K:5,DEF:6,DST:6,"D/ST":6};
@@ -522,6 +542,13 @@ function ago(d){
   const m = Math.round((Date.now() - t) / 60000);
   if (m < 60) return m + "m ago"; if (m < 1440) return Math.round(m/60) + "h ago"; return Math.round(m/1440) + "d ago";
 }
+function injSection(pl){
+  const n = injFor(pl); if (!n) return "";
+  const when = n.date ? new Date(n.date) : null;
+  return '<h3>Injury report</h3><div class="card injcard"><div class="injhead"><b>' + esc(n.status || "Listed") + "</b>" + pracChip(n.prac) + (n.part ? '<span class="muted small">' + esc(n.part) + "</span>" : "") + "</div>" +
+    (n.long || n.short ? "<p>" + esc(n.long || n.short) + "</p>" : "") +
+    '<small class="muted">' + (when && !isNaN(when) ? "Updated " + ago(when) : "") + (n.ret ? (when ? " · " : "") + "Expected back " + esc(new Date(/^\d{4}-\d{2}-\d{2}$/.test(n.ret) ? n.ret + "T12:00:00" : n.ret).toLocaleDateString([], {month:"short", day:"numeric"})) : "") + " · ESPN injury report</small></div>";
+}
 async function openPlayer(pl){
   const sh = $("#sheet"), p = $("#sheetPanel");
   let stats = "";
@@ -530,7 +557,7 @@ async function openPlayer(pl){
   if (pl.tot != null) cells.push(["Season", fmt(pl.tot)]);
   if (pl.avg != null) cells.push(["Per game", fmt(pl.avg)]);
   if (cells.length) stats = '<div class="statrow">' + cells.map(c => '<div><small>' + c[0] + "</small><b>" + c[1] + "</b></div>").join("") + "</div>";
-  p.innerHTML = '<button class="back" id="closeSheet">✕ Close</button><h2 style="margin-top:6px">' + esc(pl.name) + injChip(pl.inj) + '</h2><p class="muted small" style="margin:0">' + esc(pl.pos || "") + " · " + gameLine(pl.team) + (pl.injPart ? " · " + esc(pl.injPart) : "") + "</p>" + stats + '<h3>Latest news</h3><div id="pnews"><p class="spin">Searching headlines…</p></div>';
+  p.innerHTML = '<button class="back" id="closeSheet">✕ Close</button><h2 style="margin-top:6px">' + esc(pl.name) + injChip(pl.inj) + '</h2><p class="muted small" style="margin:0">' + esc(pl.pos || "") + " · " + gameLine(pl.team) + (pl.injPart ? " · " + esc(pl.injPart) : "") + "</p>" + stats + injSection(pl) + '<h3>Latest news</h3><div id="pnews"><p class="spin">Searching headlines…</p></div>';
   sh.hidden = false;
   p.querySelector("#closeSheet").addEventListener("click", closeSheet);
   try {
@@ -640,7 +667,7 @@ async function post(path, body){
   if (!r.ok) throw new Error(j.error || ("Request failed (" + r.status + ")"));
   return j;
 }
-function alertPrefs(){ try { return Object.assign({mine:true, fa:true, faPos:"ALL"}, JSON.parse(localStorage.getItem(KEY + ".alerts") || "{}")); } catch(e){ return {mine:true, fa:true, faPos:"ALL"}; } }
+function alertPrefs(){ try { return Object.assign({mine:true, fa:true, news:true, faPos:"ALL"}, JSON.parse(localStorage.getItem(KEY + ".alerts") || "{}")); } catch(e){ return {mine:true, fa:true, news:true, faPos:"ALL"}; } }
 function saveAlertPrefs(p){ try { localStorage.setItem(KEY + ".alerts", JSON.stringify(p)); } catch(e){} }
 function b64uBytes(s){ s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; const b = atob(s), a = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; }
 async function getSub(){
@@ -652,7 +679,7 @@ function watchList(){
   leagues.forEach(L => {
     const d = L.detail; if (!d) return;
     const me = d.teams.find(t => t.mine); if (!me) return;
-    me.roster.forEach(p => { if (L.meta.platform === "sleeper") ids.add(String(p.id)); else if (p.name) names.add(norm(p.name) + "|" + (p.pos || "")); });
+    me.roster.forEach(p => { if (L.meta.platform === "sleeper") ids.add(String(p.id)); if (p.name) names.add(norm(p.name) + "|" + (p.pos || "")); });
   });
   return {ids:[...ids], names:[...names], leagues: leagues.map(L => ({p:L.meta.platform, id:L.meta.id, name:L.meta.name}))};
 }
@@ -689,7 +716,7 @@ async function renderAlerts(v){
   const sub = alertState.sub = await getSub();
   if (cur.tab !== "alerts") return;
   if (!sub) {
-    h += '<div class="card alertpitch"><p style="margin:0 0 10px"><b>Get a notification on this phone when:</b></p><ul class="ticks"><li>A player on your roster is downgraded, ruled out, placed on IR, comes off the injury report, or gets traded</li><li>A starter is ruled out and his backup is a free agent in one of your leagues</li><li>A free agent’s projected points jump, especially at QB</li></ul>' +
+    h += '<div class="card alertpitch"><p style="margin:0 0 10px"><b>Get a notification on this phone when:</b></p><ul class="ticks"><li>A player on your roster is downgraded, ruled out, placed on IR, comes off the injury report, or gets traded</li><li>A starter is ruled out and his backup is a free agent in one of your leagues</li><li>A free agent’s projected points jump, especially at QB</li><li>The injury report posts a new note about one of your players, like a missed practice</li><li>A headline mentions one of your players</li></ul>' +
       '<button class="btn" id="alOn" style="width:100%;margin-top:6px">Turn on alerts</button>' +
       (hasAccts() ? "" : '<p class="small muted" style="margin:10px 0 0">Add your leagues under Accounts first so we know who your players are.</p>') + "</div>";
     if (alertState.msg) h += '<div class="err" style="margin-top:10px">' + esc(alertState.msg) + "</div>";
@@ -702,13 +729,14 @@ async function renderAlerts(v){
     return;
   }
   const w = watchList();
-  const nMine = w.ids.length + w.names.length;
+  const nMine = w.names.length || w.ids.length;
   h += '<div class="card"><div class="alstat"><span class="dot"></span><b>Alerts are on for this phone</b></div><p class="small muted" style="margin:6px 0 0">' +
     (nMine ? "Watching " + nMine + " of your players across " + w.leagues.length + " league" + (w.leagues.length === 1 ? "" : "s") + "." : "Your leagues are still loading.") +
-    " QBs are checked every minute, other positions every 3 minutes.</p></div>";
+    " QBs are checked every minute, other positions every 3 minutes, the injury report every 2 minutes and headlines every 5.</p></div>";
   h += "<h3>What to send</h3>" + '<div class="card stackc">' +
     '<label class="toggle"><input type="checkbox" id="alMine"' + (prefs.mine ? " checked" : "") + "> My players: injuries, status changes and trades</label>" +
     '<label class="toggle"><input type="checkbox" id="alFa"' + (prefs.fa ? " checked" : "") + "> Free agents: new starters and projection jumps</label>" +
+    '<label class="toggle"><input type="checkbox" id="alNews"' + (prefs.news ? " checked" : "") + "> News: injury report notes and headlines about my players</label>" +
     '<div class="seg" role="group" aria-label="Free agent positions"><button type="button" data-fp="ALL" aria-pressed="' + (prefs.faPos === "ALL") + '">All positions</button><button type="button" data-fp="QB" aria-pressed="' + (prefs.faPos === "QB") + '">QBs only</button></div></div>';
   h += '<div class="btnrow"><button class="btn ghost" id="alTest">Send a test alert</button><button class="btn ghost" id="alOff">Turn off</button></div>';
   if (alertState.msg) h += '<p class="small" style="margin:8px 0 0">' + esc(alertState.msg) + "</p>";
@@ -717,6 +745,7 @@ async function renderAlerts(v){
   const savePrefs = async p => { saveAlertPrefs(p); alertState.msg = ""; try { await syncAlerts(sub); } catch(e){ alertState.msg = e.message; } render(); };
   v.querySelector("#alMine").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {mine:e.target.checked})));
   v.querySelector("#alFa").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {fa:e.target.checked})));
+  v.querySelector("#alNews").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {news:e.target.checked})));
   v.querySelectorAll("[data-fp]").forEach(b => b.addEventListener("click", () => savePrefs(Object.assign(alertPrefs(), {faPos:b.dataset.fp}))));
   v.querySelector("#alTest").addEventListener("click", async e => {
     e.target.disabled = true; e.target.textContent = "Sending…";
@@ -732,7 +761,7 @@ async function renderAlerts(v){
   try {
     const r = await api("/api/push/alerts?e=" + encodeURIComponent(sub.endpoint));
     const list = r.alerts || [], el = $("#alList"); if (!el) return;
-    el.innerHTML = list.length ? '<div class="news card" style="padding:0">' + list.map(a => '<div class="alitem"><b>' + esc(a.title) + "</b><span>" + esc(a.body) + "</span><small>" + fmtWhen(a.t) + "</small></div>").join("") + "</div>" : '<p class="muted small">Nothing yet. You’ll see every alert here too.</p>';
+    el.innerHTML = list.length ? '<div class="news card" style="padding:0">' + list.map(a => (a.url ? '<a class="alitem" href="' + esc(a.url) + '" target="_blank" rel="noopener">' : '<div class="alitem">') + "<b>" + esc(a.title) + "</b><span>" + esc(a.body) + "</span><small>" + fmtWhen(a.t) + (a.url ? " · Read the story" : "") + "</small>" + (a.url ? "</a>" : "</div>")).join("") + "</div>" : '<p class="muted small">Nothing yet. You’ll see every alert here too.</p>';
   } catch(e){ const el = $("#alList"); if (el) el.innerHTML = '<div class="err">Couldn’t load your alerts: ' + esc(e.message) + "</div>"; }
 }
 if (pushOK) navigator.serviceWorker.addEventListener("message", e => { if (e.data && e.data.open === "alerts") setTab("alerts"); });
@@ -759,6 +788,7 @@ render();
 async function refreshLive(){
   if (document.hidden || !$("#sheet").hidden || document.activeElement && document.activeElement.tagName === "SELECT") return;
   await loadScoreboard();
+  if (Date.now() - injAt > 5 * 60000) { await loadInjuries(); if (cur.tab === "leagues" && (cur.sub || "team") !== "fa" && $("#sheet").hidden) render(); }
   if (!anyLive() || cur.tab !== "leagues") return;
   const targets = cur.league != null ? [leagues[cur.league]] : leagues;
   await Promise.all(targets.filter(Boolean).map(async L => {

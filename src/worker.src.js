@@ -1,7 +1,7 @@
 // Snap Count — one Cloudflare Worker that serves the app and fetches live league data.
 // Paste this whole file into a new Cloudflare Worker and deploy. Free plan is fine.
 
-import { alertsRoute, runMinute, staticRoute } from "./src/alerts.js";
+import { alertsRoute, runMinute, staticRoute, injuriesRoute } from "./src/alerts.js";
 
 const HTML = __HTML__;
 
@@ -148,6 +148,7 @@ export default {
       const st = staticRoute(p);
       if (st) return st;
       if (p.startsWith("/api/push/")) return alertsRoute(request, env, p, url);
+      if (p === "/api/injuries") return cached(ctx, "injuries", 300, injuriesRoute);
       if (p.startsWith("/api/sleeper/")) {
         const rest = p.slice("/api/sleeper/".length);
         if (!/^[A-Za-z0-9_\-\/.]+$/.test(rest)) return json({ error: "Bad path" }, 400, 0);
