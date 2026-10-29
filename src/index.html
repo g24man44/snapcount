@@ -358,7 +358,9 @@ async function loadAll(){
   accts.flea.forEach(a => jobs.push(fleaLeagues(a).catch(e => { leaguesErr.push("Fleaflicker " + a.value + ": " + e.message); return []; })));
   const metas = (await Promise.all(jobs.concat([loadScoreboard().then(() => []), loadInjuries().then(() => [])]))).flat();
   leagues = metas.map(m => ({meta:m, detail:null, error:null}));
-  leaguesLoaded = true; render();
+  leaguesLoaded = true;
+  if (pendingJoin) { const i = leagues.findIndex(L => L.meta.platform === "flea" && L.meta.id === pendingJoin); if (i >= 0) { cur.tab = "leagues"; cur.league = i; cur.sub = "team"; cur.joined = true; } pendingJoin = null; }
+  render();
   await Promise.all(leagues.map(async L => {
     try { L.detail = L.meta.platform === "sleeper" ? await sleeperDetail(L.meta) : await fleaDetail(L.meta); }
     catch(e){ L.error = e.message; }
@@ -527,6 +529,7 @@ function renderLeague(v, L){
   h += '<div class="seg sub" role="tablist">' + [["team","My team"],["fa","Free agents"],["league","League"]].map(x => '<button type="button" data-sub="' + x[0] + '" aria-pressed="' + (sub === x[0]) + '">' + x[1] + "</button>").join("") + "</div>";
   let me = cur.team ? d.teams.find(t => t.id === cur.team) : d.teams.find(t => t.mine);
   if (sub === "team") {
+    if (!me) h += '<div class="card install" style="margin-top:12px"><img src="/icon-192.png" alt=""><div><b>' + (cur.joined ? "Welcome to Snap Count" : "Which team is yours?") + '</b><span>Pick your team below. Your scores, alerts and trade tools all follow it.</span></div></div>';
     h += '<label for="teamPick" style="display:block;margin-top:12px">Team</label><select id="teamPick">' + (me ? "" : '<option value="">Pick your team…</option>') +
       d.teams.map(t => '<option value="' + esc(t.id) + '"' + (me && me.id === t.id ? " selected" : "") + ">" + esc(t.name) + (t.owner ? " (" + esc(t.owner) + ")" : "") + "</option>").join("") + "</select>";
     if (me) {
@@ -757,9 +760,28 @@ function renderAccounts(v){
   let h = "<h2>Accounts</h2>";
   const list = accts.sleeper.map((u,i) => ({label:u, plat:"Sleeper", k:"s", i})).concat(accts.flea.map((a,i) => ({label:(a.type === "league" ? "League " : "") + a.value, plat:"Fleaflicker", k:"f", i})));
   if (list.length) h += '<div class="card">' + list.map(a => '<div class="acct"><span><b>' + esc(a.label) + '</b> <span class="badge">' + a.plat + '</span></span><button class="icon" data-rm="' + a.k + a.i + '">Remove</button></div>').join("") + "</div>";
+  const fl = accts.flea.map(a => a.type === "league" ? {id:a.value, name:"League " + a.value} : null).filter(Boolean)
+    .concat(leagues.filter(L => L.meta.platform === "flea").map(L => ({id:L.meta.id, name:L.meta.name})))
+    .filter((x, i, arr) => arr.findIndex(y => y.id === x.id) === i);
+  if (fl.length) {
+    h += "<h3>Invite your league</h3>" + '<div class="card stackc" style="gap:12px">' + fl.map(x => {
+      const link = location.origin + "/?join=flea:" + x.id;
+      return '<div><b>' + esc(leagues.find(L => L.meta.id === x.id) ? leagues.find(L => L.meta.id === x.id).meta.name : x.name) + '</b><p class="small muted" style="margin:2px 0 8px;word-break:break-all">' + esc(link) + '</p><div class="sendrow" style="margin:0"><button type="button" class="btn" data-share="' + esc(link) + '">Share invite</button><button type="button" class="btn ghost" data-copy="' + esc(link) + '">Copy link</button></div></div>';
+    }).join("") + '<p class="small muted" style="margin:0">Leaguemates open the link, pick their team, and get the same tools on their own phone. Nobody can see your settings or change anyone’s team.</p></div>';
+  }
   h += "<h3>Add another</h3>" + addForm();
   h += '<p class="small muted">Accounts are saved only in this browser. Nothing is sent anywhere except the league sites themselves.</p>';
   v.innerHTML = h;
+  v.querySelectorAll("[data-share]").forEach(b => b.addEventListener("click", async () => {
+    const url = b.dataset.share, text = "Free app for our league: live scores, injury alerts and a trade grader. Open this and pick your team:";
+    if (navigator.share) { try { await navigator.share({title:"Snap Count", text, url}); return; } catch(e){ if (e && e.name === "AbortError") return; } }
+    try { await navigator.clipboard.writeText(text + " " + url); b.textContent = "Copied"; } catch(e){ b.textContent = "Copy failed"; }
+    setTimeout(() => { b.textContent = "Share invite"; }, 1800);
+  }));
+  v.querySelectorAll("[data-copy]").forEach(b => b.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = "Copied"; } catch(e){ b.textContent = "Copy failed"; }
+    setTimeout(() => { b.textContent = "Copy link"; }, 1800);
+  }));
   v.querySelectorAll("[data-rm]").forEach(b => b.addEventListener("click", () => {
     const k = b.dataset.rm[0], i = +b.dataset.rm.slice(1);
     if (k === "s") accts.sleeper.splice(i,1); else accts.flea.splice(i,1);
@@ -1281,6 +1303,16 @@ function wireInstall(v){
 if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
 
 /* ---------- boot ---------- */
+let pendingJoin = null;
+try {
+  const j = new URLSearchParams(location.search).get("join");
+  const m = j && j.match(/^flea:(\d{3,12})$/);
+  if (m) {
+    pendingJoin = m[1];
+    if (!accts.flea.some(a => a.type === "league" && a.value === m[1])) { accts.flea.push({type:"league", value:m[1]}); saveAccts(accts); }
+    history.replaceState(null, "", location.pathname);
+  }
+} catch(e){}
 accts.flea.forEach(a => { if (a.type === "league") a.team = fleaTeamFor(a.value); });
 if (location.hash === "#alerts") { cur.tab = "alerts"; try { history.replaceState(null, "", location.pathname); } catch(e){} }
 render();
