@@ -282,12 +282,19 @@ async function fleaLeagues(acct){
   if (!lgs.length) throw new Error("No Fleaflicker leagues found for " + acct.value);
   return lgs.map(l => ({platform:"flea", id:String(l.id), name:l.name, myTeam: l.ownedTeam ? String(l.ownedTeam.id) : fleaTeamFor(String(l.id)), acct:acct.value}));
 }
-const val = x => (x && typeof x === "object") ? (x.value != null ? Number(x.value) : null) : (x == null ? null : Number(x));
+const val = x => {
+  if (x == null) return null;
+  if (typeof x !== "object") return Number(x);
+  if (x.value != null) return Number(x.value);
+  if (x.formatted != null && x.formatted !== "" && !isNaN(Number(String(x.formatted).replace(/,/g, "")))) return Number(String(x.formatted).replace(/,/g, ""));
+  return null;
+};
 async function fleaDetail(L){
-  const [stand, board, ros] = await Promise.all([
+  const [stand, board, ros, rules] = await Promise.all([
     api(fq("FetchLeagueStandings", {league_id:L.id})),
     api(fq("FetchLeagueScoreboard", {league_id:L.id})),
-    api(fq("FetchLeagueRosters", {league_id:L.id}))
+    api(fq("FetchLeagueRosters", {league_id:L.id})),
+    api(fq("FetchLeagueRules", {league_id:L.id})).catch(() => ({}))
   ]);
   const week = (board.schedulePeriod && (board.schedulePeriod.ordinal || board.schedulePeriod.value)) || null;
   const tinfo = {};
@@ -308,12 +315,15 @@ async function fleaDetail(L){
   });
   Object.keys(tinfo).forEach(id => { if (!teams.find(t => t.id === String(id))) teams.push(Object.assign({id:String(id), roster:[], mine: L.myTeam === String(id)}, tinfo[id])); });
   const games = (board.games || []).map(g => {
-    const hs = g.homeScore && g.homeScore.score, as = g.awayScore && g.awayScore.score;
-    return {a:{id:String((g.away||{}).id), pts: as ? val(as) : val((g.away||{}).pointsFor)},
-            b:{id:String((g.home||{}).id), pts: hs ? val(hs) : val((g.home||{}).pointsFor)},
+    const hs = g.homeScore || {}, as = g.awayScore || {};
+    return {a:{id:String((g.away||{}).id), pts: val(as.score) ?? 0, proj: val(as.projected)},
+            b:{id:String((g.home||{}).id), pts: val(hs.score) ?? 0, proj: val(hs.projected)},
             live: !!g.isInProgress, final: !!g.isFinalScore};
   }).filter(g => g.a.id !== "undefined" && g.b.id !== "undefined");
-  return {week, teams, games, starterSplit:false};
+  const FL = {"RB/WR/TE":"FLEX", "QB/RB/WR/TE":"SUPER_FLEX", "WR/TE":"REC_FLEX", "RB/WR":"WRRB_FLEX"};
+  const slots = [];
+  (rules.rosterPositions || []).forEach(rp => { const k = FL[rp.label] || rp.label; if (["QB","RB","WR","TE","FLEX","SUPER_FLEX","REC_FLEX","WRRB_FLEX"].includes(k)) for (let i = 0; i < (rp.start || 0); i++) slots.push(k); });
+  return {week, teams, games, starterSplit:false, slots: slots.length ? slots : null};
 }
 
 /* ---------- league cache ---------- */
@@ -460,11 +470,12 @@ async function fleaTeamRoster(L, team){
       const p = lp.proPlayer, inj = p.injury || null, grp = String(g.group || "").toUpperCase();
       const rg = (lp.requestedGames || [])[0] || {};
       const pts = val(lp.viewingActualPoints) ?? val(rg.pointsActual);
+      const proj = val(lp.viewingProjectedPoints) ?? val(rg.pointsProjected);
       out.push({id:String(p.id), name:p.nameFull, pos:p.position, team:p.proTeamAbbreviation,
         inj: inj ? (inj.typeAbbreviaition || inj.typeAbbreviation || inj.typeFull) : null,
         injPart: inj ? (inj.description || inj.typeFull) : null,
         slot: grp === "START" ? "start" : (grp === "INJURED" || grp === "IR") ? "ir" : "bench",
-        pts: pts, avg: val(lp.seasonAverage), tot: val(lp.seasonTotal)});
+        pts: pts, proj: proj, avg: val(lp.seasonAverage), tot: val(lp.seasonTotal)});
     }));
     if (out.length) { team.roster = out; team.live = true; }
   } catch(e){ team.liveErr = e.message; }
@@ -507,6 +518,7 @@ function renderLeague(v, L){
       }
       const right = p => {
         if (p.pts != null) return fmt(p.pts);
+        if (p.proj != null) return '<span class="avg">' + fmt(p.proj) + "<small>proj</small></span>";
         if (m.platform === "sleeper") { const s = seasonPts(p.id, d.scoring); return s && s.gp ? '<span class="avg">' + fmt(s.pts / s.gp) + "<small>avg</small></span>" : ""; }
         return p.avg != null ? '<span class="avg">' + fmt(p.avg) + "<small>avg</small></span>" : "";
       };
@@ -737,11 +749,14 @@ function renderAccounts(v){
 /* ---------- trade grader ---------- */
 const FLEX = {FLEX:["RB","WR","TE"], SUPER_FLEX:["QB","RB","WR","TE"], REC_FLEX:["WR","TE"], WRRB_FLEX:["WR","RB"]};
 const OUTISH_C = /^(out|ir|injured reserve|o|doubtful|d|sus|suspended|pup|na)$/i;
-const tr = {league:null, other:null, give:new Set(), get:new Set(), ppr:null, values:{}, loading:null, err:""};
-const valuesKey = (ppr, teams, qbs) => ppr + "|" + teams + "|" + qbs;
+const tr = {league:null, other:null, give:new Set(), get:new Set(), ppr:null, dyn:null, values:{}, loading:null, err:"", valuesHasFlea:false};
+function savedDyn(L){ try { const v = JSON.parse(localStorage.getItem(KEY + ".dyn") || "{}")[L.meta.platform + L.meta.id]; return v == null ? null : v; } catch(e){ return null; } }
+function saveDyn(L, v){ try { const o = JSON.parse(localStorage.getItem(KEY + ".dyn") || "{}"); o[L.meta.platform + L.meta.id] = v; localStorage.setItem(KEY + ".dyn", JSON.stringify(o)); } catch(e){} }
+const valuesKey = (ppr, teams, qbs, dyn) => ppr + "|" + teams + "|" + qbs + "|" + (dyn ? 1 : 0);
 let sidIndex = null;
 async function sleeperIdFor(L, p){
   if (L.meta.platform === "sleeper") return String(p.id);
+  if (p.id && tr.valuesHasFlea) return "f" + p.id;
   await getPlayers();
   if (!sidIndex) { sidIndex = {}; for (const id in players) { const q = players[id]; const k = norm(q[0]) + "|" + q[1]; if (!sidIndex[k]) sidIndex[k] = id; } }
   return sidIndex[norm(p.name) + "|" + (p.pos || "")] || "";
@@ -766,20 +781,22 @@ function bestLineup(roster, slots, val){
 const fmtV = n => Math.round(n).toLocaleString();
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 function gradeTrade(ctx){
-  const {L, me, them, V, sid} = ctx;
+  const {L, me, them, V, sid, ppg} = ctx;
   const val = p => ((V[sid.get(p)] || [0])[0]) || 0;
+  const pts = p => ppg.get(p) || 0;
   const give = me.roster.filter(p => tr.give.has(p.id)), get = them.roster.filter(p => tr.get.has(p.id));
   const eff = arr => arr.map(val).sort((a, b) => b - a).reduce((s, v, i) => s + v * Math.max(0.4, 1 - 0.15 * i), 0);
   const rawG = give.reduce((s, p) => s + val(p), 0), rawR = get.reduce((s, p) => s + val(p), 0);
   const G = eff(give), R = eff(get), ratio = (R + 50) / (G + 50);
   const valueScore = 5.5 + 4.5 * clamp(Math.log(ratio) / Math.log(1.6), -1, 1);
   const slots = leagueSlots(L);
-  const before = bestLineup(me.roster, slots, val);
+  const before = bestLineup(me.roster, slots, pts);
   const afterRoster = me.roster.filter(p => !tr.give.has(p.id)).concat(get);
-  const after = bestLineup(afterRoster, slots, val);
-  const pct = before.total ? (after.total - before.total) / before.total : 0;
+  const after = bestLineup(afterRoster, slots, pts);
+  const delta = after.total - before.total;
+  const pct = before.total ? delta / before.total : 0;
   const holes = after.list.filter((s, i) => !s.p && !FLEX[s.slot] && before.list[i].p);
-  const lineupAdj = clamp(pct * 12, -1.5, 1.5) - 3 * holes.length;
+  const lineupAdj = clamp(delta / 5, -2, 2) - 3 * holes.length;
   const hurtIn = get.filter(p => OUTISH_C.test(String(p.inj || ""))), hurtOut = give.filter(p => OUTISH_C.test(String(p.inj || "")));
   const injAdj = clamp(-0.6 * hurtIn.length, -1.2, 0) + clamp(0.3 * hurtOut.length, 0, 0.6);
   let score = clamp(Math.round(valueScore + lineupAdj + injAdj), 1, 10);
@@ -790,7 +807,7 @@ function gradeTrade(ctx){
   const all = give.map(p => ({p, side:"give"})).concat(get.map(p => ({p, side:"get"}))).sort((a, b) => val(b.p) - val(a.p));
   if (all.length && val(all[0].p)) {
     const top = all[0], rk = (V[sid.get(top.p)] || [])[2];
-    reasons.push({tone: top.side === "get" ? "good" : "bad", text: "Best player in the deal: " + top.p.name + (rk ? " (" + top.p.pos + rk + ")" : "") + ". You'd be " + (top.side === "get" ? "getting" : "giving up") + " him."});
+    reasons.push({tone: top.side === "get" ? "good" : "bad", text: "Best player in the deal: " + top.p.name + (rk ? " (" + top.p.pos + rk + ")" : "") + (top.side === "get" ? ". You'd be getting him." : ". You'd be giving him up.")});
   }
   if (give.length !== get.length) {
     const n = give.length - get.length;
@@ -802,8 +819,8 @@ function gradeTrade(ctx){
     const slot = s.slot.replace("_", " ");
     changes.push(s.p ? slot + ": " + s.p.name + (b.p ? " replaces " + b.p.name : " fills an empty spot") : slot + ": " + b.p.name + " leaves and nobody replaces him");
   });
-  if (Math.abs(pct) < 0.02) reasons.push({tone: "", text: "Your starting lineup barely changes."});
-  else reasons.push({tone: pct > 0 ? "good" : "bad", text: "Your starting lineup gets " + (pct > 0 ? "stronger" : "weaker") + " (" + (pct > 0 ? "+" : "") + Math.round(pct * 100) + "%)" + (changes.length ? ". " + changes.slice(0, 3).join("; ") + "." : ".")});
+  if (Math.abs(delta) < 1) reasons.push({tone: "", text: "Your starting lineup barely changes this season."});
+  else reasons.push({tone: delta > 0 ? "good" : "bad", text: "Your starting lineup " + (delta > 0 ? "gains" : "loses") + " about " + Math.abs(delta).toFixed(1) + " projected points a week" + (changes.length ? ". " + changes.slice(0, 3).join("; ") + "." : ".")});
   holes.forEach(s => reasons.push({tone: "bad", text: "You'd have no healthy starting " + s.slot + " left."}));
   hurtIn.forEach(p => reasons.push({tone: "bad", text: p.name + " is " + p.inj + (p.injPart ? " (" + p.injPart + ")" : "") + ". You'd be buying an injured player."}));
   hurtOut.forEach(p => reasons.push({tone: "good", text: p.name + " is " + p.inj + ", so you'd be selling an injured player."}));
@@ -821,15 +838,19 @@ function gradeTrade(ctx){
 }
 const GRADE_LABEL = s => s >= 9 ? ["Smash accept", "good"] : s >= 7 ? ["Good for you", "good"] : s >= 5 ? ["Fair trade", "mid"] : s >= 3 ? ["Leans bad for you", "bad"] : ["Decline", "bad"];
 
-async function loadValues(ppr, teams, qbs){
-  const k = valuesKey(ppr, teams, qbs);
-  if (tr.values[k]) return tr.values[k];
-  try { const r = await api("/api/values?ppr=" + ppr + "&teams=" + teams + "&qbs=" + qbs); tr.values[k] = {src:"FantasyCalc", v:r.values}; }
+async function loadValues(ppr, teams, qbs, dyn){
+  const k = valuesKey(ppr, teams, qbs, dyn);
+  if (tr.values[k]) { tr.valuesHasFlea = tr.values[k].flea; return tr.values[k]; }
+  try {
+    const r = await api("/api/values?ppr=" + ppr + "&teams=" + teams + "&qbs=" + qbs + (dyn ? "&dyn=1" : ""));
+    const flea = Object.keys(r.values).some(x => x[0] === "f");
+    tr.values[k] = {src:"FantasyCalc", v:r.values, flea}; tr.valuesHasFlea = flea;
+  }
   catch(e){
     // Fallback: season points per game from Sleeper, scaled so stars stand apart.
     const L = leagues[tr.league]; await getSeasonStats(L.meta.season || (await getState()).league_season);
     const v = {}; for (const id in sstats) { const s = sstats[id]; if (s[3]) v[id] = [Math.round(Math.pow(Math.max(0, s[ppr === "1" ? 0 : ppr === "0.5" ? 1 : 2] / s[3]), 1.6) * 40), null, null, 0]; }
-    tr.values[k] = {src:"season points per game (FantasyCalc was unavailable)", v};
+    tr.values[k] = {src:"season points per game (FantasyCalc was unavailable)", v, flea:false}; tr.valuesHasFlea = false;
   }
   return tr.values[k];
 }
@@ -841,29 +862,51 @@ async function renderTrade(v){
   const ready = leagues.map((L, i) => ({L, i})).filter(x => x.L.detail && x.L.detail.teams.find(t => t.mine));
   let h = "<h2>Trade grader</h2>";
   if (!ready.length) { v.innerHTML = h + '<div class="card"><p style="margin:0">' + (hasAccts() ? "Your leagues are still loading, or you haven’t picked your team in a league yet. Open the league once and choose your team." : "Add your leagues under the settings button first.") + "</p></div>"; return; }
-  if (tr.league == null || !ready.find(x => x.i === tr.league)) { tr.league = ready[0].i; tr.other = null; tr.give.clear(); tr.get.clear(); tr.ppr = null; }
+  if (tr.league == null || !ready.find(x => x.i === tr.league)) { tr.league = ready[0].i; tr.other = null; tr.give.clear(); tr.get.clear(); tr.ppr = null; tr.dyn = null; }
   const L = leagues[tr.league], d = L.detail, me = d.teams.find(t => t.mine);
   const others = d.teams.filter(t => t !== me);
   if (!tr.other || !others.find(t => t.id === tr.other)) { tr.other = others[0] && others[0].id; tr.get.clear(); }
   const them = others.find(t => t.id === tr.other);
   if (tr.ppr == null) tr.ppr = L.meta.platform === "sleeper" ? ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1") : "1";
   const qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1;
+  if (tr.dyn == null) { const sv = savedDyn(L); tr.dyn = sv != null ? sv : /dynasty|keeper/i.test(L.meta.name); }
   h += '<p class="muted small" style="margin:-4px 2px 12px">Got an offer? Pick the players from it and get a grade from 1 to 10.</p>';
   h += '<div class="card stackc" style="gap:10px"><label for="trL">League</label><select id="trL">' + ready.map(x => '<option value="' + x.i + '"' + (x.i === tr.league ? " selected" : "") + ">" + esc(x.L.meta.name) + "</option>").join("") + "</select>" +
     '<label for="trT">Trading with</label><select id="trT">' + others.map(t => '<option value="' + esc(t.id) + '"' + (t.id === tr.other ? " selected" : "") + ">" + esc(t.name) + (t.owner ? " (" + esc(t.owner) + ")" : "") + "</option>").join("") + "</select>" +
+    '<div class="seg" role="group" aria-label="League type">' + [[false,"Redraft"],[true,"Dynasty"]].map(x => '<button type="button" data-dyn="' + x[0] + '" aria-pressed="' + (tr.dyn === x[0]) + '">' + x[1] + "</button>").join("") + "</div>" +
     '<div class="seg" role="group" aria-label="Scoring">' + [["1","PPR"],["0.5","Half PPR"],["0","Standard"]].map(x => '<button type="button" data-ppr="' + x[0] + '" aria-pressed="' + (tr.ppr === x[0]) + '">' + x[1] + "</button>").join("") + "</div></div>";
   h += '<div id="trOut"><p class="spin">Loading trade values…</p></div>';
   v.innerHTML = h;
   v.querySelector("#trL").addEventListener("change", e => { tr.league = +e.target.value; tr.other = null; tr.give.clear(); tr.get.clear(); tr.ppr = null; render(); });
   v.querySelector("#trT").addEventListener("change", e => { tr.other = e.target.value; tr.get.clear(); render(); });
   v.querySelectorAll("[data-ppr]").forEach(b => b.addEventListener("click", () => { tr.ppr = b.dataset.ppr; render(); }));
+  v.querySelectorAll("[data-dyn]").forEach(b => b.addEventListener("click", () => { tr.dyn = b.dataset.dyn === "true"; saveDyn(L, tr.dyn); render(); }));
   if (!them) return;
   const token = (tr.loading = Math.random());
-  const pack = await loadValues(tr.ppr, d.teams.length, qbs);
-  const sid = new Map();
+  const pack = await loadValues(tr.ppr, d.teams.length, qbs, tr.dyn);
+  const sid = new Map(), ppg = new Map();
   for (const p of me.roster.concat(them.roster)) sid.set(p, await sleeperIdFor(L, p));
+  try {
+    await getSeasonStats(L.meta.season || (await getState()).league_season);
+    await getPlayers();
+    if (!sidIndex) { sidIndex = {}; for (const id in players) { const q = players[id]; const k = norm(q[0]) + "|" + q[1]; if (!sidIndex[k]) sidIndex[k] = id; } }
+    const col = tr.ppr === "1" ? 0 : tr.ppr === "0.5" ? 1 : 2;
+    const stt = await getState();
+    let proj = {}; try { proj = await api("/api/proj?season=" + (stt.league_season || stt.season) + "&week=" + (stt.display_week || stt.week)); } catch(e){}
+    if (!gamesAt) await loadScoreboard();
+    const hasProj = Object.keys(proj).length > 0;
+    for (const p of me.roster.concat(them.roster)) {
+      const id = L.meta.platform === "sleeper" ? String(p.id) : sidIndex[norm(p.name) + "|" + (p.pos || "")];
+      const st = id && sstats && sstats[id];
+      const avg = st && st[3] ? st[col] / st[3] : 0;
+      const onBye = p.team && gamesAt && !nflGames[tnorm(p.team)];
+      // This week's projection reflects who is actually starting; season average covers bye weeks.
+      const w = hasProj && id && proj[id] ? proj[id][col] : null;
+      ppg.set(p, onBye || !hasProj ? avg : (w != null ? (w > 0 ? 0.75 * w + 0.25 * avg : 0) : 0));
+    }
+  } catch(e){}
   if (token !== tr.loading || cur.tab !== "trade") return;
-  drawTrade({L, me, them, V: pack.v, sid, src: pack.src, teams: d.teams.length});
+  drawTrade({L, me, them, V: pack.v, sid, ppg, src: pack.src, teams: d.teams.length, qbs, dyn: tr.dyn});
 }
 function drawTrade(ctx){
   const el = $("#trOut"); if (!el) return;
@@ -872,10 +915,10 @@ function drawTrade(ctx){
   let h = "";
   if (tr.give.size || tr.get.size) {
     const g = gradeTrade(ctx), [label, tone] = GRADE_LABEL(g.score);
-    h += '<div class="card grade ' + tone + '"><div class="gtop"><div class="gnum"><b>' + g.score + "</b><small>/10</small></div><div><b class='glabel'>" + label + '</b><span class="muted small">' + (tr.give.size && tr.get.size ? "Based on trade value, your starting lineup, injuries and trends." : "Pick players on both sides to finish the grade.") + "</span></div></div>" +
+    h += '<div class="card grade ' + tone + '"><div class="gtop"><div class="gnum"><b>' + g.score + "</b><small>/10</small></div><div><b class='glabel'>" + label + '</b><span class="muted small">' + (tr.give.size && tr.get.size ? "Based on trade value, your weekly starting lineup, injuries and trends." : "Pick players on both sides to finish the grade.") + "</span></div></div>" +
       '<ul class="reasons">' + g.reasons.map(r => '<li class="' + r.tone + '">' + esc(r.text) + "</li>").join("") + "</ul>" +
       (g.ask ? '<p class="small" style="margin:10px 0 0">To even it out, ask them to add <b>' + esc(g.ask.name) + "</b>.</p>" : "") +
-      '<p class="small muted" style="margin:10px 0 0">Values: ' + esc(ctx.src) + ", redraft, " + ctx.teams + "-team " + ({"1":"PPR","0.5":"half PPR","0":"standard"}[tr.ppr]) + ".</p></div>";
+      '<p class="small muted" style="margin:10px 0 0">Values: ' + esc(ctx.src) + ", " + (ctx.dyn ? "dynasty" : "redraft") + (ctx.qbs === 2 ? " superflex" : "") + ", " + ctx.teams + "-team " + ({"1":"PPR","0.5":"half PPR","0":"standard"}[tr.ppr]) + ".</p></div>";
   } else {
     h += '<div class="card"><p style="margin:0" class="small">Tap players below. Your grade shows up here.</p></div>';
   }

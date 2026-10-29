@@ -7,7 +7,7 @@ const HTML = __HTML__;
 
 const FLEA_OK = new Set([
   "FetchUserLeagues", "FetchLeagueStandings", "FetchLeagueScoreboard", "FetchLeagueRosters",
-  "FetchRoster", "FetchLeagueBoxscore", "FetchLeagueActivity", "FetchLeagueTransactions", "FetchPlayerListing"
+  "FetchRoster", "FetchLeagueBoxscore", "FetchLeagueActivity", "FetchLeagueTransactions", "FetchPlayerListing", "FetchLeagueRules"
 ]);
 const UA = { "User-Agent": "SnapCount/1.0 (fantasy dashboard)", "Accept": "application/json" };
 const FANTASY_POS = new Set(["QB", "RB", "WR", "TE", "K", "DEF"]);
@@ -110,19 +110,20 @@ async function playerNews(name, espnId) {
 }
 
 // Redraft trade values from FantasyCalc (built from real trades), keyed by Sleeper player id.
-async function tradeValues(ppr, teams, qbs) {
-  const url = "https://api.fantasycalc.com/values/current?isDynasty=false&numQbs=" + qbs + "&numTeams=" + teams + "&ppr=" + ppr;
+async function tradeValues(ppr, teams, qbs, dyn) {
+  const url = "https://api.fantasycalc.com/values/current?isDynasty=" + (dyn ? "true" : "false") + "&numQbs=" + qbs + "&numTeams=" + teams + "&ppr=" + ppr;
   const r = await fetch(url, { headers: UA });
   if (!r.ok) return json({ error: "FantasyCalc answered " + r.status }, 502, 0);
   const arr = await r.json();
   const out = {};
   for (const x of Array.isArray(arr) ? arr : []) {
-    const p = x.player || {}, id = p.sleeperId;
-    if (!id) continue;
-    out[id] = [Math.round(x.value || 0), x.overallRank || null, x.positionRank || null, Math.round(x.trend30Day || 0), p.name || "", p.position || ""];
+    const p = x.player || {};
+    const row = [Math.round(x.value || 0), x.overallRank || null, x.positionRank || null, Math.round(x.trend30Day || 0), p.name || "", p.position || ""];
+    if (p.sleeperId) out[p.sleeperId] = row;
+    if (p.fleaflickerId) out["f" + p.fleaflickerId] = row;
   }
   if (!Object.keys(out).length) return json({ error: "FantasyCalc returned no players" }, 502, 0);
-  return json({ source: "FantasyCalc", ppr, teams, qbs, values: out }, 200, 21600);
+  return json({ source: "FantasyCalc", ppr, teams, qbs, dynasty: !!dyn, values: out }, 200, 21600);
 }
 
 async function headlines() {
@@ -171,6 +172,22 @@ async function seasonStats(season) {
   return json(out, 200, 1800);
 }
 
+// This week's projected points for every skill player: { sleeperId: [ppr, half, std] }.
+async function weekProjections(season, week) {
+  const out = {};
+  for (const pos of ["QB", "RB", "WR", "TE"]) {
+    const r = await fetch("https://api.sleeper.com/projections/nfl/" + season + "/" + week + "?season_type=regular&position[]=" + pos + "&order_by=pts_ppr", { headers: UA });
+    if (!r.ok) continue;
+    for (const x of await r.json()) {
+      const s = x.stats || {}, id = x.player_id;
+      if (!id) continue;
+      out[id] = [Number(s.pts_ppr || 0), Number(s.pts_half_ppr ?? s.pts_ppr ?? 0), Number(s.pts_std ?? 0)];
+    }
+  }
+  if (!Object.keys(out).length) return json({ error: "Projections unavailable" }, 502, 0);
+  return json(out, 200, 1800);
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -208,7 +225,13 @@ export default {
         const ppr = ["0", "0.5", "1"].includes(url.searchParams.get("ppr")) ? url.searchParams.get("ppr") : "1";
         const t = Number(url.searchParams.get("teams")) || 12, teams = t <= 11 ? 10 : t <= 13 ? 12 : 14;
         const qbs = url.searchParams.get("qbs") === "2" ? 2 : 1;
-        return cached(ctx, "values/" + ppr + "/" + teams + "/" + qbs, 21600, () => tradeValues(ppr, teams, qbs));
+        const dyn = url.searchParams.get("dyn") === "1";
+        return cached(ctx, "values2/" + ppr + "/" + teams + "/" + qbs + "/" + (dyn ? 1 : 0), 21600, () => tradeValues(ppr, teams, qbs, dyn));
+      }
+      if (p === "/api/proj") {
+        const season = url.searchParams.get("season") || "", week = url.searchParams.get("week") || "";
+        if (!/^\d{4}$/.test(season) || !/^\d{1,2}$/.test(week)) return json({ error: "Bad season or week" }, 400, 0);
+        return cached(ctx, "proj/" + season + "/" + week, 1800, () => weekProjections(season, week));
       }
       if (p === "/api/headlines") return cached(ctx, "headlines", 600, headlines);
       if (p === "/api/news") {
