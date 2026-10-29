@@ -117,6 +117,11 @@ button.chip{cursor:pointer;padding:5px 11px;font-weight:600}
 .alitem:first-child{border-top:0}
 .alitem span{font-size:14px}
 .alitem small{color:var(--muted);font-size:12px}
+.install{display:flex;align-items:center;gap:12px;margin-top:14px;border-color:var(--accent)}
+.install img{width:44px;height:44px;border-radius:10px;flex:none}
+.install div{flex:1;min-width:0}
+.install b{display:block}
+.install span{font-size:14px;color:var(--muted)}
 footer{margin-top:28px;color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:12px}
 @media (prefers-reduced-motion:no-preference){.sheet .panel{animation:up .18s ease-out}@keyframes up{from{transform:translateY(24px);opacity:.6}}}
 </style>
@@ -297,17 +302,17 @@ function render(){
   if (cur.tab === "news") return renderNews(v);
   if (cur.tab === "trending") return renderTrending(v);
   if (cur.league != null) return renderLeague(v, leagues[cur.league]);
-  return renderLeagues(v);
+  renderLeagues(v); wireInstall(v);
 }
 function hasAccts(){ return accts.sleeper.length + accts.flea.length > 0; }
 
 function emptyState(v){
-  v.innerHTML = '<h2>Your leagues, one screen</h2><p class="muted">Add a Sleeper username or a Fleaflicker email or league ID. Your rosters, scores and injury flags load straight from the league sites.</p>' + addForm();
+  v.innerHTML = installCard() + '<h2>Your leagues, one screen</h2><p class="muted">Add a Sleeper username or a Fleaflicker email or league ID. Your rosters, scores and injury flags load straight from the league sites.</p>' + addForm();
   wireAdd(v);
 }
 function renderLeagues(v){
   if (!hasAccts()) return emptyState(v);
-  let h = "";
+  let h = installCard();
   leaguesErr.forEach(e => h += '<div class="err">' + esc(e) + "</div>");
   if (!leaguesLoaded) { v.innerHTML = h + '<p class="spin">Loading your leagues…</p>'; return; }
   if (!leagues.length) { v.innerHTML = h + '<p class="muted">No leagues found for this season.</p>'; return; }
@@ -731,6 +736,21 @@ async function renderAlerts(v){
   } catch(e){ const el = $("#alList"); if (el) el.innerHTML = '<div class="err">Couldn’t load your alerts: ' + esc(e.message) + "</div>"; }
 }
 if (pushOK) navigator.serviceWorker.addEventListener("message", e => { if (e.data && e.data.open === "alerts") setTab("alerts"); });
+
+/* ---------- install as an app ---------- */
+let installEvt = null;
+const isInstalled = () => { try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; } catch(e){ return false; } };
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; if (cur.tab === "leagues" && cur.league == null) render(); });
+window.addEventListener("appinstalled", () => { installEvt = null; render(); });
+function installCard(){
+  if (isInstalled() || !installEvt) return "";
+  return '<div class="card install"><img src="/icon-192.png" alt=""><div><b>Get the Snap Count app</b><span>Its own icon, full screen, and alerts.</span></div><button class="btn" id="installBtn">Install</button></div>';
+}
+function wireInstall(v){
+  const b = v.querySelector("#installBtn"); if (!b) return;
+  b.addEventListener("click", async () => { if (!installEvt) return; installEvt.prompt(); try { await installEvt.userChoice; } catch(e){} installEvt = null; render(); });
+}
+if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
 
 /* ---------- boot ---------- */
 accts.flea.forEach(a => { if (a.type === "league") a.team = fleaTeamFor(a.value); });

@@ -280,7 +280,13 @@ export async function runMinute(env) {
 
 /* ---------- files the phone needs ---------- */
 export const SW_JS = `
-self.addEventListener("install", () => self.skipWaiting());
+const SHELL = "snapcount-shell-v1";
+self.addEventListener("install", e => { self.skipWaiting(); e.waitUntil(caches.open(SHELL).then(c => c.addAll(["/", "/icon-192.png"])).catch(() => {})); });
+self.addEventListener("fetch", e => {
+  if (e.request.mode !== "navigate") return;
+  e.respondWith(fetch(e.request).then(r => { const copy = r.clone(); caches.open(SHELL).then(c => c.put("/", copy)); return r; })
+    .catch(() => caches.match("/").then(r => r || new Response("You're offline. Snap Count will load when you're back online.", { headers: { "content-type": "text/plain" } }))));
+});
 self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
 self.addEventListener("push", e => e.waitUntil((async () => {
   let items = [];
@@ -304,9 +310,10 @@ self.addEventListener("notificationclick", e => {
 `;
 
 export const MANIFEST = JSON.stringify({
-  name: "Snap Count", short_name: "Snap Count", start_url: "/", display: "standalone",
+  id: "/", name: "Snap Count", short_name: "Snap Count", start_url: "/", scope: "/", display: "standalone", orientation: "portrait",
+  description: "Live fantasy football rosters, scores, free agents and injury alerts for Sleeper and Fleaflicker leagues.",
   background_color: "#10181f", theme_color: "#14202b",
-  icons: [{ src: "/icon-192.png", sizes: "192x192", type: "image/png" }, { src: "/icon-512.png", sizes: "512x512", type: "image/png" }]
+  icons: [{ src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" }, { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" }]
 });
 
 export function staticRoute(p) {
