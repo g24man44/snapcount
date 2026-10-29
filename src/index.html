@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Snap Count</title>
 <meta name="theme-color" content="#14202b">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
 <style>
@@ -30,7 +32,7 @@ body{background:var(--bg);color:var(--ink);font:16px/1.45 var(--body);
 header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0 10px;border-bottom:3px solid var(--ink)}
 .brand{font:700 30px/1 var(--display);letter-spacing:.02em;text-transform:uppercase;margin:0;display:flex;align-items:baseline;gap:8px}
 .brand span{background:var(--accent);color:var(--accent-ink);padding:0 6px;border-radius:2px}
-.wk{font:600 15px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.wk{white-space:nowrap;font:600 15px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 button{font:inherit;color:inherit;cursor:pointer}
 button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .btn{background:var(--ink);color:var(--bg);border:0;border-radius:6px;padding:10px 14px;font-weight:700}
@@ -102,6 +104,19 @@ button.chip{cursor:pointer;padding:5px 11px;font-weight:600}
 .statrow div{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
 .statrow small{display:block;color:var(--muted);font-size:12px}
 .statrow b{font:700 22px/1.1 var(--display);font-variant-numeric:tabular-nums}
+.hright{display:flex;align-items:center;gap:10px}
+.bell{background:none;border:1px solid var(--line);border-radius:8px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;color:var(--ink)}
+.bell[aria-pressed=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.ticks{margin:0 0 12px;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:15px}
+.alstat{display:flex;align-items:center;gap:8px}
+.alstat .dot{width:10px;height:10px;border-radius:50%;background:var(--ok);flex:none}
+.stackc{display:flex;flex-direction:column;gap:2px}
+.btnrow{display:flex;gap:8px;margin-top:12px}
+.btnrow .btn{flex:1}
+.alitem{display:flex;flex-direction:column;gap:2px;padding:12px;border-top:1px solid var(--line)}
+.alitem:first-child{border-top:0}
+.alitem span{font-size:14px}
+.alitem small{color:var(--muted);font-size:12px}
 footer{margin-top:28px;color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:12px}
 @media (prefers-reduced-motion:no-preference){.sheet .panel{animation:up .18s ease-out}@keyframes up{from{transform:translateY(24px);opacity:.6}}}
 </style>
@@ -110,7 +125,7 @@ footer{margin-top:28px;color:var(--muted);font-size:13px;border-top:1px solid va
 <div class="wrap">
   <header class="top">
     <h1 class="brand">Snap <span>Count</span></h1>
-    <div class="wk" id="wk"></div>
+    <div class="hright"><div class="wk" id="wk"></div><button class="bell" id="bellBtn" aria-label="Alerts" aria-pressed="false"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15L6 17Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M10 21h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>
   </header>
   <nav class="tabs" role="tablist" id="tabs">
     <button role="tab" data-tab="leagues" aria-selected="true">My Leagues</button>
@@ -128,7 +143,7 @@ footer{margin-top:28px;color:var(--muted);font-size:13px;border-top:1px solid va
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const fmt = n => (n == null || isNaN(n)) ? "–" : Number(n).toFixed(2);
-const norm = s => String(s || "").toLowerCase().replace(/\b(jr|sr|ii|iii|iv)\b/g, "").replace(/[^a-z]/g, "");
+const norm = s => String(s || "").toLowerCase().replace(/\b(jr|sr|ii|iii|iv|v)\b/g, "").replace(/[^a-z]/g, "");
 
 /* ---------- storage ---------- */
 const KEY = "snapcount.v1";
@@ -263,17 +278,21 @@ async function loadAll(){
     catch(e){ L.error = e.message; }
     if (cur.tab === "leagues") render();
   }));
+  syncAlerts().catch(() => {});
   const st = await getState().catch(() => null);
-  if (st) $("#wk").textContent = "Week " + (st.display_week || st.week) + " · " + (st.league_season || st.season);
+  if (st) $("#wk").textContent = "Week " + (st.display_week || st.week);
 }
 
 /* ---------- views ---------- */
 const cur = {tab:"leagues", league:null, newsMine:false};
 function setTab(t){ cur.tab = t; cur.league = null; document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === t)); render(); window.scrollTo(0,0); }
+$("#bellBtn").addEventListener("click", () => setTab(cur.tab === "alerts" ? "leagues" : "alerts"));
 $("#tabs").addEventListener("click", e => { const b = e.target.closest("button[data-tab]"); if (b) setTab(b.dataset.tab); });
 
 function render(){
   const v = $("#view");
+  $("#bellBtn").setAttribute("aria-pressed", cur.tab === "alerts");
+  if (cur.tab === "alerts") return renderAlerts(v);
   if (cur.tab === "accounts") return renderAccounts(v);
   if (cur.tab === "news") return renderNews(v);
   if (cur.tab === "trending") return renderTrending(v);
@@ -608,8 +627,114 @@ function renderAccounts(v){
   wireAdd(v);
 }
 
+/* ---------- push alerts ---------- */
+const pushOK = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+async function post(path, body){
+  const r = await fetch(path, {method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify(body)});
+  let j = {}; try { j = await r.json(); } catch(e){}
+  if (!r.ok) throw new Error(j.error || ("Request failed (" + r.status + ")"));
+  return j;
+}
+function alertPrefs(){ try { return Object.assign({mine:true, fa:true, faPos:"ALL"}, JSON.parse(localStorage.getItem(KEY + ".alerts") || "{}")); } catch(e){ return {mine:true, fa:true, faPos:"ALL"}; } }
+function saveAlertPrefs(p){ try { localStorage.setItem(KEY + ".alerts", JSON.stringify(p)); } catch(e){} }
+function b64uBytes(s){ s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; const b = atob(s), a = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; }
+async function getSub(){
+  if (!pushOK) return null;
+  try { const reg = await navigator.serviceWorker.getRegistration("/"); return reg ? await reg.pushManager.getSubscription() : null; } catch(e){ return null; }
+}
+function watchList(){
+  const ids = new Set(), names = new Set();
+  leagues.forEach(L => {
+    const d = L.detail; if (!d) return;
+    const me = d.teams.find(t => t.mine); if (!me) return;
+    me.roster.forEach(p => { if (L.meta.platform === "sleeper") ids.add(String(p.id)); else if (p.name) names.add(norm(p.name) + "|" + (p.pos || "")); });
+  });
+  return {ids:[...ids], names:[...names], leagues: leagues.map(L => ({p:L.meta.platform, id:L.meta.id, name:L.meta.name}))};
+}
+let alertState = {sub:null, watching:null, msg:"", busy:false, list:null};
+async function syncAlerts(sub){
+  sub = sub || await getSub(); if (!sub) return null;
+  const r = await post("/api/push/subscribe", Object.assign({sub: sub.toJSON(), prefs: alertPrefs()}, watchList()));
+  alertState.watching = r;
+  return r;
+}
+async function enableAlerts(){
+  const perm = await Notification.requestPermission();
+  if (perm !== "granted") throw new Error("Notifications are blocked for this site. Allow them in your browser's site settings for this page, then try again.");
+  const reg = await navigator.serviceWorker.register("/sw.js");
+  await navigator.serviceWorker.ready;
+  const {key} = await api("/api/push/key");
+  let sub = await reg.pushManager.getSubscription();
+  let lastKey = null; try { lastKey = localStorage.getItem(KEY + ".vapid"); } catch(e){}
+  if (sub && lastKey && lastKey !== key) { await sub.unsubscribe(); sub = null; }
+  if (!sub) sub = await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64uBytes(key)});
+  try { localStorage.setItem(KEY + ".vapid", key); } catch(e){}
+  await syncAlerts(sub);
+  return sub;
+}
+function fmtWhen(t){ const d = new Date(t); return d.toLocaleDateString([], {weekday:"short"}) + " " + d.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}); }
+
+async function renderAlerts(v){
+  const prefs = alertPrefs();
+  let h = "<h2>Alerts</h2>";
+  if (!pushOK) {
+    v.innerHTML = h + '<div class="card"><p style="margin:0">This browser can’t receive alerts.</p><p class="small muted" style="margin:8px 0 0">On iPhone, tap Share, then Add to Home Screen, and open Snap Count from your home screen. On Android, use Chrome.</p></div>';
+    return;
+  }
+  const sub = alertState.sub = await getSub();
+  if (cur.tab !== "alerts") return;
+  if (!sub) {
+    h += '<div class="card alertpitch"><p style="margin:0 0 10px"><b>Get a notification on this phone when:</b></p><ul class="ticks"><li>A player on your roster is downgraded, ruled out, placed on IR, comes off the injury report, or gets traded</li><li>A starter is ruled out and his backup is a free agent in one of your leagues</li><li>A free agent’s projected points jump, especially at QB</li></ul>' +
+      '<button class="btn" id="alOn" style="width:100%;margin-top:6px">Turn on alerts</button>' +
+      (hasAccts() ? "" : '<p class="small muted" style="margin:10px 0 0">Add your leagues under Accounts first so we know who your players are.</p>') + "</div>";
+    if (alertState.msg) h += '<div class="err" style="margin-top:10px">' + esc(alertState.msg) + "</div>";
+    v.innerHTML = h;
+    v.querySelector("#alOn").addEventListener("click", async e => {
+      e.target.disabled = true; e.target.textContent = "Turning on…"; alertState.msg = "";
+      try { await enableAlerts(); } catch(err){ alertState.msg = err.message; }
+      render();
+    });
+    return;
+  }
+  const w = watchList();
+  const nMine = w.ids.length + w.names.length;
+  h += '<div class="card"><div class="alstat"><span class="dot"></span><b>Alerts are on for this phone</b></div><p class="small muted" style="margin:6px 0 0">' +
+    (nMine ? "Watching " + nMine + " of your players across " + w.leagues.length + " league" + (w.leagues.length === 1 ? "" : "s") + "." : "Your leagues are still loading.") +
+    " QBs are checked every 10 minutes, other positions every 30.</p></div>";
+  h += "<h3>What to send</h3>" + '<div class="card stackc">' +
+    '<label class="toggle"><input type="checkbox" id="alMine"' + (prefs.mine ? " checked" : "") + "> My players: injuries, status changes and trades</label>" +
+    '<label class="toggle"><input type="checkbox" id="alFa"' + (prefs.fa ? " checked" : "") + "> Free agents: new starters and projection jumps</label>" +
+    '<div class="seg" role="group" aria-label="Free agent positions"><button type="button" data-fp="ALL" aria-pressed="' + (prefs.faPos === "ALL") + '">All positions</button><button type="button" data-fp="QB" aria-pressed="' + (prefs.faPos === "QB") + '">QBs only</button></div></div>';
+  h += '<div class="btnrow"><button class="btn ghost" id="alTest">Send a test alert</button><button class="btn ghost" id="alOff">Turn off</button></div>';
+  if (alertState.msg) h += '<p class="small" style="margin:8px 0 0">' + esc(alertState.msg) + "</p>";
+  h += '<h3>Recent alerts</h3><div id="alList"><p class="spin">Loading…</p></div>';
+  v.innerHTML = h;
+  const savePrefs = async p => { saveAlertPrefs(p); alertState.msg = ""; try { await syncAlerts(sub); } catch(e){ alertState.msg = e.message; } render(); };
+  v.querySelector("#alMine").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {mine:e.target.checked})));
+  v.querySelector("#alFa").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {fa:e.target.checked})));
+  v.querySelectorAll("[data-fp]").forEach(b => b.addEventListener("click", () => savePrefs(Object.assign(alertPrefs(), {faPos:b.dataset.fp}))));
+  v.querySelector("#alTest").addEventListener("click", async e => {
+    e.target.disabled = true; e.target.textContent = "Sending…";
+    try { await syncAlerts(sub); await post("/api/push/test", {endpoint: sub.endpoint}); alertState.msg = "Test sent. It should show up on this phone in a few seconds."; }
+    catch(err){ alertState.msg = err.message; }
+    render();
+  });
+  v.querySelector("#alOff").addEventListener("click", async () => {
+    try { await post("/api/push/unsubscribe", {endpoint: sub.endpoint}); } catch(e){}
+    try { await sub.unsubscribe(); } catch(e){}
+    alertState.msg = ""; render();
+  });
+  try {
+    const r = await api("/api/push/alerts?e=" + encodeURIComponent(sub.endpoint));
+    const list = r.alerts || [], el = $("#alList"); if (!el) return;
+    el.innerHTML = list.length ? '<div class="news card" style="padding:0">' + list.map(a => '<div class="alitem"><b>' + esc(a.title) + "</b><span>" + esc(a.body) + "</span><small>" + fmtWhen(a.t) + "</small></div>").join("") + "</div>" : '<p class="muted small">Nothing yet. You’ll see every alert here too.</p>';
+  } catch(e){ const el = $("#alList"); if (el) el.innerHTML = '<div class="err">Couldn’t load your alerts: ' + esc(e.message) + "</div>"; }
+}
+if (pushOK) navigator.serviceWorker.addEventListener("message", e => { if (e.data && e.data.open === "alerts") setTab("alerts"); });
+
 /* ---------- boot ---------- */
 accts.flea.forEach(a => { if (a.type === "league") a.team = fleaTeamFor(a.value); });
+if (location.hash === "#alerts") { cur.tab = "alerts"; try { history.replaceState(null, "", location.pathname); } catch(e){} }
 render();
 async function refreshLive(){
   if (document.hidden || !$("#sheet").hidden || document.activeElement && document.activeElement.tagName === "SELECT") return;
@@ -627,7 +752,7 @@ async function refreshLive(){
   if (cur.tab === "leagues" && (cur.sub || "team") !== "fa") render();
 }
 setInterval(refreshLive, 60000);
-if (hasAccts()) loadAll(); else getState().then(st => $("#wk").textContent = "Week " + (st.display_week || st.week) + " · " + (st.league_season || st.season)).catch(() => {});
+if (hasAccts()) loadAll(); else getState().then(st => $("#wk").textContent = "Week " + (st.display_week || st.week)).catch(() => {});
 </script>
 </body>
 </html>
