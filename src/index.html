@@ -190,6 +190,8 @@ a.alitem{color:var(--ink);text-decoration:none}
 .sres button b{display:block}
 .sres button small{color:var(--muted);font-size:13px}
 .sres .pos{padding:7px 0}
+.sendrow{display:flex;gap:8px;margin-top:12px}
+.sendrow .btn{flex:1;font-size:14px;padding:11px 10px}
 footer{margin-top:28px;color:var(--muted);font-size:12.5px;padding:0 2px}
 @media (prefers-reduced-motion:no-preference){.sheet .panel{animation:up .2s cubic-bezier(.2,.8,.2,1)}@keyframes up{from{transform:translateY(30px);opacity:.6}}}
 </style>
@@ -1072,11 +1074,13 @@ function drawFind(ctx){
     h += '<div class="card offer" style="margin-top:12px"><div class="offhead"><span class="badge">' + esc(r.label) + '</span><span class="ograde ' + tone + '">' + g.score + "/10</span></div>" +
       '<ul class="offlist">' + r.combo.map(a => '<li><span class="pos" data-pos="' + esc(a.p.pos) + '">' + esc(a.p.pos === "PICK" ? "PK" : a.p.pos) + "</span><b>" + esc(a.p.name) + "</b><span class='muted'>" + fmtV(a.v) + "</span></li>").join("") + "</ul>" +
       '<p class="small" style="margin:10px 0 0">Package value <b>' + fmtV(r.eff) + "</b> for " + fmtV(res.T) + " (" + (r.over >= 0 ? "+" : "") + Math.round(r.over * 100) + "%). Your lineup " + (Math.abs(r.delta) < 0.5 ? "stays about the same" : (r.delta > 0 ? "gains " : "loses ") + Math.abs(r.delta).toFixed(1) + " projected points a week") + ".</p>" +
-      '<button class="btn ghost" data-load="' + i + '" style="margin-top:10px;width:100%">Open in the grader</button></div>';
+      sendBlock(L, me, them, r.combo.map(a => a.p), [target]) +
+      '<button class="btn ghost" data-load="' + i + '" style="margin-top:8px;width:100%">Open in the grader</button></div>';
   });
   const lockable = me.roster.concat(myPicks).map(p => ({p, v: val(p)})).filter(a => a.v >= 300).sort((a, b) => b.v - a.v).slice(0, 14);
   h += '<h3>Players you won’t trade</h3><div class="chips">' + lockable.map(a => '<button type="button" class="chip' + (tr.keep.has(a.p.id) ? " on" : "") + '" data-keep="' + esc(a.p.id) + '">' + (tr.keep.has(a.p.id) ? "🔒 " : "") + esc(a.p.name) + "</button>").join("") + '</div><p class="small muted" style="margin:6px 2px 0">Tap to lock a player or pick out of every offer.</p>';
   el.innerHTML = h;
+  wireSend(el, L, me, them);
   el.querySelector("#trP").addEventListener("change", e => { tr.target = e.target.value; drawFind(ctx); });
   el.querySelectorAll("[data-keep]").forEach(b => b.addEventListener("click", () => { const id = b.dataset.keep; if (tr.keep.has(id)) tr.keep.delete(id); else tr.keep.add(id); saveKeep(L, tr.keep); const y = window.scrollY; drawFind(ctx); window.scrollTo(0, y); }));
   el.querySelectorAll("[data-load]").forEach(b => b.addEventListener("click", () => {
@@ -1085,6 +1089,46 @@ function drawFind(ctx){
     render(); window.scrollTo(0, 0);
   }));
 }
+/* ---------- send an offer: Fleaflicker's trade builder link, filled in ---------- */
+function pbVarint(n){ const out = []; n = Number(n); while (n > 127) { out.push((n & 127) | 128); n = Math.floor(n / 128); } out.push(n); return out; }
+function pbField(field, wire, payload){ return pbVarint(field * 8 + wire).concat(wire === 2 ? pbVarint(payload.length).concat(payload) : pbVarint(payload)); }
+function tradeBuilderBytes(myId, theirId, giveIds, getIds){
+  const side = (owner, to, ids) => pbField(1, 0, owner).concat(...ids.map(id => pbField(3, 2, pbField(1, 0, to).concat(pbField(2, 0, id)))));
+  return pbField(1, 2, side(myId, theirId, giveIds)).concat(pbField(1, 2, side(theirId, myId, getIds)), pbField(4, 0, 1));
+}
+async function fleaTradeUrl(L, myId, theirId, giveIds, getIds){
+  const base = "https://www.fleaflicker.com/nfl/leagues/" + L.meta.id + "/trades";
+  try {
+    const bytes = new Uint8Array(tradeBuilderBytes(myId, theirId, giveIds, getIds));
+    const z = new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream("deflate"))).arrayBuffer());
+    let bin = ""; z.forEach(c => bin += String.fromCharCode(c));
+    return base + "/build?TradeBuilder=" + btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  } catch(e){ return base; }
+}
+function offerText(give, get, themName){
+  const names = a => a.map(p => p.name).join(" + ") || "nothing";
+  return "Trade offer to " + themName + ": I send " + names(give) + " for " + names(get) + ".";
+}
+function sendBlock(L, me, them, give, get){
+  const picks = give.concat(get).filter(p => p.pos === "PICK");
+  const text = offerText(give, get, them.name);
+  return '<div class="sendrow"><a class="btn send" href="' + esc(L.meta.platform === "flea" ? "https://www.fleaflicker.com/nfl/leagues/" + L.meta.id + "/trades" : "https://sleeper.com/leagues/" + L.meta.id) + '" target="_blank" rel="noopener" data-send=\'' + esc(JSON.stringify({give: give.filter(p => p.pos !== "PICK").map(p => p.id), get: get.filter(p => p.pos !== "PICK").map(p => p.id)})) + "'>" + (L.meta.platform === "flea" ? "Send in Fleaflicker" : "Open Sleeper") + EXT + '</a><button type="button" class="btn ghost" data-copy="' + esc(text) + '">Copy offer</button></div>' +
+    (picks.length && L.meta.platform === "flea" ? '<p class="small muted" style="margin:8px 0 0">Add ' + esc(picks.map(p => p.name).join(" and ")) + " with “Add a Draft Pick” before you tap Propose.</p>" : "") +
+    (L.meta.platform === "sleeper" ? '<p class="small muted" style="margin:8px 0 0">Sleeper doesn’t allow pre-filled trades. Open the trade there and pick the same players.</p>' : "");
+}
+async function wireSend(root, L, me, them){
+  root.querySelectorAll("a[data-send]").forEach(async a => {
+    if (L.meta.platform !== "flea") return;
+    const s = JSON.parse(a.dataset.send);
+    a.href = await fleaTradeUrl(L, me.id, them.id, s.give, s.get);
+  });
+  root.querySelectorAll("[data-copy]").forEach(b => b.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = "Copied"; }
+    catch(e){ b.textContent = "Copy failed"; }
+    setTimeout(() => { b.textContent = "Copy offer"; }, 1800);
+  }));
+}
+
 function drawTrade(ctx){
   const el = $("#trOut"); if (!el) return;
   const {me, them, V, sid} = ctx;
@@ -1097,6 +1141,7 @@ function drawTrade(ctx){
     h += '<div class="card grade ' + tone + '"><div class="gtop"><div class="gnum"><b>' + (both ? g.score : "–") + "</b><small>/10</small></div><div><b class='glabel'>" + label + '</b><span class="muted small">' + (tr.give.size && tr.get.size ? "Based on trade value, your weekly starting lineup, injuries and trends." : "Pick players on both sides to finish the grade.") + "</span></div></div>" +
       '<ul class="reasons">' + g.reasons.map(r => '<li class="' + r.tone + '">' + esc(r.text) + "</li>").join("") + "</ul>" +
       (g.ask ? '<p class="small" style="margin:10px 0 0">To even it out, ask them to add <b>' + esc(g.ask.name) + "</b>.</p>" : "") +
+      (both ? sendBlock(ctx.L, me, them, me.roster.concat(ctx.myPicks).filter(p => tr.give.has(p.id)), them.roster.concat(ctx.theirPicks).filter(p => tr.get.has(p.id))) : "") +
       '<p class="small muted" style="margin:10px 0 0">Values: ' + esc(ctx.src) + ", " + (ctx.dyn ? "dynasty" : "redraft") + (ctx.qbs === 2 ? " superflex" : "") + ", " + ctx.teams + "-team " + ({"1":"PPR","0.5":"half PPR","0":"standard"}[tr.ppr]) + ".</p></div>";
   } else {
     h += '<div class="card"><p style="margin:0" class="small">Tap players below. Your grade shows up here.</p></div>';
@@ -1105,6 +1150,7 @@ function drawTrade(ctx){
   h += '<h3>You give</h3><ul class="plist">' + me.roster.slice().sort(byVal).map(p => pickRow(p, "give", V, sid, tr.give.has(p.id), ctx.prem)).join("") + "</ul>" + pk(ctx.myPicks, "give");
   h += "<h3>You get from " + esc(them.name) + '</h3><ul class="plist">' + (them.roster.length ? them.roster.slice().sort(byVal).map(p => pickRow(p, "get", V, sid, tr.get.has(p.id), ctx.prem)).join("") : '<li><p class="muted small" style="margin:12px 14px">Their roster isn’t available.</p></li>') + "</ul>" + pk(ctx.theirPicks, "get");
   el.innerHTML = h;
+  wireSend(el, ctx.L, me, them);
   el.querySelectorAll(".pick").forEach(b => b.addEventListener("click", () => {
     const set = b.dataset.side === "give" ? tr.give : tr.get, id = b.dataset.pid;
     if (set.has(id)) set.delete(id); else set.add(id);
