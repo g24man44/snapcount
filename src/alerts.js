@@ -110,6 +110,10 @@ export async function alertsRoute(request, env, p, url) {
       if (url.searchParams.get("mark") === "1" && unread.length) await env.SNAP.put(key, JSON.stringify(list.map(a => Object.assign(a, { read: true }))));
       return out({ alerts: res });
     }
+    if (p === "/api/push/run") {
+      const pos = ["QB", "RB", "WR", "TE"].includes(url.searchParams.get("pos")) ? url.searchParams.get("pos") : "QB";
+      return out(await runChecks(env, pos));
+    }
     if (p === "/api/push/status") {
       const snaps = {};
       for (const pos of ["QB", "RB", "WR", "TE"]) {
@@ -142,7 +146,8 @@ export async function readSlate(pos, season, week, seasonType) {
   const url = "https://api.sleeper.com/projections/nfl/" + season + "/" + week + "?season_type=" + seasonType + "&position[]=" + pos + "&order_by=pts_ppr";
   const r = await fetch(url, { headers: UA });
   if (!r.ok) throw new Error("Sleeper projections answered " + r.status);
-  const arr = await r.json();
+  const text = await r.text();
+  let arr; try { arr = JSON.parse(text); } catch (e) { throw new Error("Sleeper projections weren't JSON: " + text.slice(0, 120)); }
   const now = {};
   for (const x of Array.isArray(arr) ? arr : []) {
     const pl = x.player || {}, id = x.player_id || pl.player_id;
@@ -153,6 +158,7 @@ export async function readSlate(pos, season, week, seasonType) {
     if (!team && !proj) continue;
     now[id] = [((pl.first_name || "") + " " + (pl.last_name || "")).trim(), team, pl.injury_status || "", pl.injury_body_part || "", Math.round(proj * 10) / 10];
   }
+  if (!Object.keys(now).length) throw new Error("Sleeper projections came back empty (" + (Array.isArray(arr) ? arr.length + " rows" : typeof arr) + "): " + text.slice(0, 160));
   return now;
 }
 
@@ -221,7 +227,7 @@ export async function runChecks(env, forcePos) {
   if (!env.SNAP) return { skipped: "no storage" };
   const st = await (await fetch("https://api.sleeper.app/v1/state/nfl", { headers: UA })).json();
   const seasonType = st.season_type === "post" ? "post" : "regular";
-  if (st.season_type === "off" || st.season_type === "pre") return { skipped: "offseason" };
+  if (st.season_type === "off" || st.season_type === "pre") return { skipped: "offseason", seasonType: st.season_type };
   const season = st.league_season || st.season, week = st.display_week || st.week;
   const pos = forcePos || SLOTS[Math.floor(new Date().getUTCMinutes() / 5) % SLOTS.length];
   let now;
@@ -229,9 +235,8 @@ export async function runChecks(env, forcePos) {
   catch (e) {
     const msg = String(e.message || e), prevErr = await env.SNAP.get("err", "json");
     if (!prevErr || prevErr.msg !== msg) await env.SNAP.put("err", JSON.stringify({ msg, at: Date.now(), pos }));
-    return { error: msg };
+    return { error: msg, pos, week, season };
   }
-  if (!Object.keys(now).length) return { skipped: "empty slate" };
   const prev = await env.SNAP.get("snap:" + pos, "json");
   const fresh = !prev || prev.week !== week || String(prev.season) !== String(season);
   const events = fresh ? [] : diffSlate(pos, prev.p || {}, now);
