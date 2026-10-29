@@ -700,7 +700,7 @@ async function renderAlerts(v){
   const nMine = w.ids.length + w.names.length;
   h += '<div class="card"><div class="alstat"><span class="dot"></span><b>Alerts are on for this phone</b></div><p class="small muted" style="margin:6px 0 0">' +
     (nMine ? "Watching " + nMine + " of your players across " + w.leagues.length + " league" + (w.leagues.length === 1 ? "" : "s") + "." : "Your leagues are still loading.") +
-    " QBs are checked every 10 minutes, other positions every 30.</p></div>";
+    " QBs are checked every minute, other positions every 3 minutes.</p></div>";
   h += "<h3>What to send</h3>" + '<div class="card stackc">' +
     '<label class="toggle"><input type="checkbox" id="alMine"' + (prefs.mine ? " checked" : "") + "> My players: injuries, status changes and trades</label>" +
     '<label class="toggle"><input type="checkbox" id="alFa"' + (prefs.fa ? " checked" : "") + "> Free agents: new starters and projection jumps</label>" +

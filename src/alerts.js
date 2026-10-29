@@ -1,13 +1,13 @@
 // Snap Count push alerts.
-// Every 5 minutes a cron run checks one position's projections and injury statuses from Sleeper
-// (QBs every 10 minutes, other positions every 30), compares them with the last snapshot,
+// Every minute a cron run checks QBs plus one other position (RB, WR, TE in turn) from Sleeper,
+// so QBs are checked every minute and other positions every 3 minutes. It compares them with the last snapshot,
 // and sends phone notifications to each subscriber whose players or leagues are affected.
 
 import { ICON_192, ICON_512 } from "./icons.js";
 
 const UA = { "User-Agent": "SnapCount/1.0 (fantasy dashboard)", "Accept": "application/json" };
 const te = new TextEncoder();
-const SLOTS = ["QB", "RB", "QB", "WR", "QB", "TE"];
+const OTHERS = ["RB", "WR", "TE"];
 const THRESH = { QB: { start: 14, jump: 5 }, RB: { start: 10, jump: 4 }, WR: { start: 10, jump: 4 }, TE: { start: 8, jump: 4 } };
 const OUTISH = new Set(["out", "ir", "doubtful", "sus", "suspended", "pup", "na", "cov"]);
 
@@ -229,7 +229,7 @@ export async function runChecks(env, forcePos) {
   const seasonType = st.season_type === "post" ? "post" : "regular";
   if (st.season_type === "off" || st.season_type === "pre") return { skipped: "offseason", seasonType: st.season_type };
   const season = st.league_season || st.season, week = st.display_week || st.week;
-  const pos = forcePos || SLOTS[Math.floor(new Date().getUTCMinutes() / 5) % SLOTS.length];
+  const pos = forcePos || "QB";
   let now;
   try { now = await readSlate(pos, season, week, seasonType); }
   catch (e) {
@@ -271,6 +271,11 @@ export async function runChecks(env, forcePos) {
     await env.SNAP.put("snap:" + pos, JSON.stringify({ week, season, at: Date.now(), p: now, events: lastEvents }));
   }
   return { pos, week, players: Object.keys(now).length, events: events.length, sent, baseline: fresh };
+}
+
+export async function runMinute(env) {
+  await runChecks(env, "QB").catch(() => {});
+  await runChecks(env, OTHERS[new Date().getUTCMinutes() % OTHERS.length]).catch(() => {});
 }
 
 /* ---------- files the phone needs ---------- */

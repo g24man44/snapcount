@@ -1,7 +1,7 @@
 // Snap Count — one Cloudflare Worker that serves the app and fetches live league data.
 // Paste this whole file into a new Cloudflare Worker and deploy. Free plan is fine.
 
-import { alertsRoute, runChecks, staticRoute } from "./src/alerts.js";
+import { alertsRoute, runMinute, staticRoute } from "./src/alerts.js";
 
 const HTML = __HTML__;
 
@@ -181,6 +181,6 @@ export default {
     }
   },
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(runChecks(env).catch(() => {}));
+    ctx.waitUntil(runMinute(env));
   }
 };
