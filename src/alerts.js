@@ -306,7 +306,7 @@ export async function readInjuries() {
       const det = it.details || {};
       const short = it.shortComment || "", long = it.longComment || "";
       map[norm(name) + "|" + pos] = {
-        name, pos, team: (a.team && a.team.abbreviation) || teamGuess,
+        name, pos, eid: a.id ? String(a.id) : "", team: (a.team && a.team.abbreviation) || teamGuess,
         status: it.status || (it.type && it.type.description) || "",
         short, long, date: it.date || "", ret: det.returnDate || "",
         part: [det.side && det.side !== "Not Specified" ? det.side : "", det.type || ""].filter(Boolean).join(" "),
@@ -364,7 +364,7 @@ export async function runInjuryNotes(env) {
       const mine = new Set(rec.names || []);
       return fresh.filter(n => mine.has(n.key)).slice(0, 5).map(n => ({
         id: "note:" + n.key + ":" + sigs[n.key],
-        title: n.name + (n.status ? " (" + n.status + ")" : "") + (n.prac ? " · " + n.prac : ""),
+        title: n.name + (n.status && !/^active$/i.test(n.status) ? " (" + n.status + ")" : "") + (n.prac ? " · " + n.prac : ""),
         body: n.short.slice(0, 220)
       }));
     });

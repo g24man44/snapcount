@@ -129,6 +129,11 @@ button.chip{cursor:pointer;padding:5px 11px;font-weight:600}
 .injhead{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .injhead .inj{margin-left:0}
 a.alitem{color:var(--ink);text-decoration:none}
+.nbody{display:block;font-size:14px;line-height:1.45;margin:3px 0 4px;color:var(--ink)}
+.nitem{display:block;padding:12px;border-top:1px solid var(--line)}
+.nitem:first-child{border-top:0}
+.nitem b{display:block;line-height:1.3}
+.nitem small{color:var(--muted)}
 footer{margin-top:28px;color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:12px}
 @media (prefers-reduced-motion:no-preference){.sheet .panel{animation:up .18s ease-out}@keyframes up{from{transform:translateY(24px);opacity:.6}}}
 </style>
@@ -542,12 +547,24 @@ function ago(d){
   const m = Math.round((Date.now() - t) / 60000);
   if (m < 60) return m + "m ago"; if (m < 1440) return Math.round(m/60) + "h ago"; return Math.round(m/1440) + "d ago";
 }
+let pIndex = null;
+async function espnIdFor(pl){
+  if (players && players[pl.id] && players[pl.id][5]) return players[pl.id][5];
+  const n = injFor(pl); if (n && n.eid) return n.eid;
+  try {
+    await getPlayers();
+    if (players[pl.id] && players[pl.id][5]) return players[pl.id][5];
+    if (!pIndex) { pIndex = {}; for (const id in players) { const p = players[id]; pIndex[norm(p[0]) + "|" + p[1]] = p[5]; } }
+    return pIndex[norm(pl.name) + "|" + (pl.pos || "")] || "";
+  } catch(e){ return ""; }
+}
 function injSection(pl){
   const n = injFor(pl); if (!n) return "";
   const when = n.date ? new Date(n.date) : null;
-  return '<h3>Injury report</h3><div class="card injcard"><div class="injhead"><b>' + esc(n.status || "Listed") + "</b>" + pracChip(n.prac) + (n.part ? '<span class="muted small">' + esc(n.part) + "</span>" : "") + "</div>" +
+  const active = !n.status || /^active$/i.test(n.status);
+  return "<h3>" + (active ? "Latest note" : "Injury report") + '</h3><div class="card injcard"><div class="injhead"><b>' + esc(active ? "Active" : n.status) + "</b>" + pracChip(n.prac) + (n.part ? '<span class="muted small">' + esc(n.part) + "</span>" : "") + "</div>" +
     (n.long || n.short ? "<p>" + esc(n.long || n.short) + "</p>" : "") +
-    '<small class="muted">' + (when && !isNaN(when) ? "Updated " + ago(when) : "") + (n.ret ? (when ? " · " : "") + "Expected back " + esc(new Date(/^\d{4}-\d{2}-\d{2}$/.test(n.ret) ? n.ret + "T12:00:00" : n.ret).toLocaleDateString([], {month:"short", day:"numeric"})) : "") + " · ESPN injury report</small></div>";
+    '<small class="muted">' + (when && !isNaN(when) ? "Updated " + ago(when) : "") + (n.ret ? (when ? " · " : "") + "Expected back " + esc(new Date(/^\d{4}-\d{2}-\d{2}$/.test(n.ret) ? n.ret + "T12:00:00" : n.ret).toLocaleDateString([], {month:"short", day:"numeric"})) : "") + " · ESPN</small></div>";
 }
 async function openPlayer(pl){
   const sh = $("#sheet"), p = $("#sheetPanel");
@@ -557,13 +574,18 @@ async function openPlayer(pl){
   if (pl.tot != null) cells.push(["Season", fmt(pl.tot)]);
   if (pl.avg != null) cells.push(["Per game", fmt(pl.avg)]);
   if (cells.length) stats = '<div class="statrow">' + cells.map(c => '<div><small>' + c[0] + "</small><b>" + c[1] + "</b></div>").join("") + "</div>";
-  p.innerHTML = '<button class="back" id="closeSheet">✕ Close</button><h2 style="margin-top:6px">' + esc(pl.name) + injChip(pl.inj) + '</h2><p class="muted small" style="margin:0">' + esc(pl.pos || "") + " · " + gameLine(pl.team) + (pl.injPart ? " · " + esc(pl.injPart) : "") + "</p>" + stats + injSection(pl) + '<h3>Latest news</h3><div id="pnews"><p class="spin">Searching headlines…</p></div>';
+  p.innerHTML = '<button class="back" id="closeSheet">✕ Close</button><h2 style="margin-top:6px">' + esc(pl.name) + injChip(pl.inj) + '</h2><p class="muted small" style="margin:0">' + esc(pl.pos || "") + " · " + gameLine(pl.team) + (pl.injPart ? " · " + esc(pl.injPart) : "") + "</p>" + stats + injSection(pl) + '<h3>Latest news</h3><div id="pnews"><p class="spin">Loading news…</p></div>';
   sh.hidden = false;
   p.querySelector("#closeSheet").addEventListener("click", closeSheet);
   try {
-    const r = await api("/api/news?q=" + encodeURIComponent('"' + pl.name + '" NFL'));
-    const items = (r.items || []).slice(0, 10);
-    $("#pnews").innerHTML = items.length ? '<div class="news card" style="padding:0">' + items.map(n => '<a href="' + esc(n.link) + '" target="_blank" rel="noopener"><b>' + esc(n.title) + "</b><small>" + esc(n.source || "") + (n.date ? " · " + ago(n.date) : "") + "</small></a>").join("") + "</div>" : '<p class="muted">No recent headlines found.</p>';
+    const eid = await espnIdFor(pl);
+    const r = await api("/api/news?q=" + encodeURIComponent(pl.name) + (eid ? "&espn=" + eid : ""));
+    const items = (r.items || []).slice(0, 12);
+    const el = $("#pnews"); if (!el) return;
+    el.innerHTML = items.length ? '<div class="news card" style="padding:0">' + items.map(n => {
+      const inner = (n.title ? "<b>" + esc(n.title) + "</b>" : "") + (n.body ? '<span class="nbody">' + esc(n.body) + "</span>" : "") + "<small>" + esc(n.source || "") + (n.date ? " · " + ago(n.date) : "") + (n.link ? " · Read more" : "") + "</small>";
+      return n.link ? '<a href="' + esc(n.link) + '" target="_blank" rel="noopener">' + inner + "</a>" : '<div class="nitem">' + inner + "</div>";
+    }).join("") + "</div>" : '<p class="muted">No recent news for this player.</p>';
   } catch(e){ $("#pnews").innerHTML = '<div class="err">Couldn’t load headlines: ' + esc(e.message) + "</div>"; }
 }
 function closeSheet(){ $("#sheet").hidden = true; }

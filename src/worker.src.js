@@ -53,7 +53,7 @@ async function slimPlayers() {
     if (!FANTASY_POS.has(pos)) continue;
     if (!p.active && !p.team && pos !== "DEF") continue;
     const name = p.full_name || [p.first_name, p.last_name].filter(Boolean).join(" ");
-    out[id] = [name, pos, p.team || "", p.injury_status || null, p.injury_body_part || null];
+    out[id] = [name, pos, p.team || "", p.injury_status || null, p.injury_body_part || null, p.espn_id ? String(p.espn_id) : null];
   }
   return json(out, 200, 21600);
 }
@@ -70,25 +70,43 @@ function tag(block, name) {
   return m ? decode(m[1]) : "";
 }
 
-async function playerNews(q) {
-  const url = "https://news.google.com/rss/search?q=" + encodeURIComponent(q + " when:14d") + "&hl=en-US&gl=US&ceid=US:en";
-  const r = await fetch(url, { headers: { "User-Agent": UA["User-Agent"] } });
-  if (!r.ok) return json({ error: "News search unavailable (" + r.status + ")" }, 502, 0);
-  const xml = await r.text();
+const stripHtml = t => decode(String(t || "").replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
+const nameKey = s => String(s || "").toLowerCase().replace(/\b(jr|sr|ii|iii|iv|v)\b/g, "").replace(/[^a-z]/g, "");
+
+// Player news from ESPN: its fantasy news feed for the player, plus ESPN headlines that mention him.
+async function playerNews(name, espnId) {
   const items = [];
-  const re = /<item>([\s\S]*?)<\/item>/g;
-  let m;
-  while ((m = re.exec(xml)) && items.length < 15) {
-    const b = m[1];
-    const source = tag(b, "source");
-    let title = tag(b, "title");
-    if (source && title.endsWith(" - " + source)) title = title.slice(0, -(source.length + 3));
-    const link = tag(b, "link");
-    if (!/^https?:\/\//.test(link)) continue;
-    items.push({ title, link, source, date: tag(b, "pubDate") });
+  let ok = false;
+  if (espnId) {
+    try {
+      const r = await fetch("https://site.api.espn.com/apis/fantasy/v2/games/ffl/news/players?limit=20&playerId=" + encodeURIComponent(espnId), { headers: UA });
+      if (r.ok) {
+        ok = true;
+        const d = await r.json();
+        for (const f of d.feed || []) {
+          const link = (f.links && f.links.web && f.links.web.href) || (f.links && f.links.mobile && f.links.mobile.href) || "";
+          items.push({ title: stripHtml(f.headline), body: stripHtml(f.story || f.description).slice(0, 700), date: f.published || f.lastModified || "", link: /^https?:/.test(link) ? link : "", source: "ESPN Fantasy" });
+        }
+      }
+    } catch (e) {}
   }
+  try {
+    const r = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?limit=50", { headers: UA });
+    if (r.ok) {
+      ok = true;
+      const key = nameKey(name), d = await r.json();
+      for (const a of d.articles || []) {
+        const hit = (a.categories || []).some(c => c.type === "athlete" && nameKey(c.description) === key) || nameKey(a.headline).includes(key);
+        if (!hit) continue;
+        const link = (a.links && a.links.web && a.links.web.href) || "";
+        if (items.some(i => i.title === a.headline)) continue;
+        items.push({ title: a.headline, body: a.description || "", date: a.published || "", link, source: "ESPN" });
+      }
+    }
+  } catch (e) {}
+  if (!ok) return json({ error: "ESPN news is unavailable right now. Try again in a minute." }, 502, 0);
   items.sort((a, b) => (Date.parse(b.date) || 0) - (Date.parse(a.date) || 0));
-  return json({ items }, 200, 900);
+  return json({ items: items.filter(i => i.title || i.body).slice(0, 15) }, 200, 600);
 }
 
 async function headlines() {
@@ -156,7 +174,7 @@ export default {
         const target = "https://api.sleeper.app/v1/" + rest + url.search;
         return cached(ctx, "s/" + rest + url.search, ttl, () => upstream(target, ttl));
       }
-      if (p === "/api/players") return cached(ctx, "players-v1", 21600, slimPlayers);
+      if (p === "/api/players") return cached(ctx, "players-v2", 21600, slimPlayers);
       if (p.startsWith("/api/flea/")) {
         const ep = p.slice("/api/flea/".length);
         if (!FLEA_OK.has(ep)) return json({ error: "Unsupported Fleaflicker request" }, 400, 0);
@@ -173,8 +191,9 @@ export default {
       if (p === "/api/headlines") return cached(ctx, "headlines", 600, headlines);
       if (p === "/api/news") {
         const q = (url.searchParams.get("q") || "").slice(0, 80);
+        const espn = (url.searchParams.get("espn") || "").replace(/[^0-9]/g, "").slice(0, 12);
         if (!q) return json({ error: "Missing player name" }, 400, 0);
-        return cached(ctx, "n/" + encodeURIComponent(q), 900, () => playerNews(q));
+        return cached(ctx, "n2/" + espn + "/" + encodeURIComponent(q), 600, () => playerNews(q, espn));
       }
       return new Response("Not found", { status: 404 });
     } catch (e) {
