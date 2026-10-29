@@ -401,7 +401,7 @@ export async function runMinute(env) {
 
 /* ---------- files the phone needs ---------- */
 export const SW_JS = `
-const SHELL = "snapcount-shell-v2";
+const SHELL = "snapcount-shell-v3";
 self.addEventListener("install", e => { self.skipWaiting(); e.waitUntil(caches.open(SHELL).then(c => c.addAll(["/", "/icon-192.png"])).catch(() => {})); });
 self.addEventListener("fetch", e => {
   if (e.request.mode !== "navigate") return;
@@ -435,7 +435,7 @@ self.addEventListener("notificationclick", e => {
 export const MANIFEST = JSON.stringify({
   id: "/", name: "Snap Count", short_name: "Snap Count", start_url: "/", scope: "/", display: "standalone", orientation: "portrait",
   description: "Live fantasy football rosters, scores, free agents and injury alerts for Sleeper and Fleaflicker leagues.",
-  background_color: "#10181f", theme_color: "#14202b",
+  background_color: "#f3f5f8", theme_color: "#2457f5",
   icons: [{ src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" }, { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" }]
 });
 

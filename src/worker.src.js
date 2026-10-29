@@ -109,6 +109,22 @@ async function playerNews(name, espnId) {
   return json({ items: items.filter(i => i.title || i.body).slice(0, 15) }, 200, 600);
 }
 
+// Redraft trade values from FantasyCalc (built from real trades), keyed by Sleeper player id.
+async function tradeValues(ppr, teams, qbs) {
+  const url = "https://api.fantasycalc.com/values/current?isDynasty=false&numQbs=" + qbs + "&numTeams=" + teams + "&ppr=" + ppr;
+  const r = await fetch(url, { headers: UA });
+  if (!r.ok) return json({ error: "FantasyCalc answered " + r.status }, 502, 0);
+  const arr = await r.json();
+  const out = {};
+  for (const x of Array.isArray(arr) ? arr : []) {
+    const p = x.player || {}, id = p.sleeperId;
+    if (!id) continue;
+    out[id] = [Math.round(x.value || 0), x.overallRank || null, x.positionRank || null, Math.round(x.trend30Day || 0), p.name || "", p.position || ""];
+  }
+  if (!Object.keys(out).length) return json({ error: "FantasyCalc returned no players" }, 502, 0);
+  return json({ source: "FantasyCalc", ppr, teams, qbs, values: out }, 200, 21600);
+}
+
 async function headlines() {
   const r = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?limit=50", { headers: UA });
   if (!r.ok) return json({ error: "ESPN headlines unavailable (" + r.status + ")" }, 502, 0);
@@ -187,6 +203,12 @@ export default {
         const season = url.searchParams.get("season") || "";
         if (!/^\d{4}$/.test(season)) return json({ error: "Bad season" }, 400, 0);
         return cached(ctx, "sstats/" + season, 1800, () => seasonStats(season));
+      }
+      if (p === "/api/values") {
+        const ppr = ["0", "0.5", "1"].includes(url.searchParams.get("ppr")) ? url.searchParams.get("ppr") : "1";
+        const t = Number(url.searchParams.get("teams")) || 12, teams = t <= 11 ? 10 : t <= 13 ? 12 : 14;
+        const qbs = url.searchParams.get("qbs") === "2" ? 2 : 1;
+        return cached(ctx, "values/" + ppr + "/" + teams + "/" + qbs, 21600, () => tradeValues(ppr, teams, qbs));
       }
       if (p === "/api/headlines") return cached(ctx, "headlines", 600, headlines);
       if (p === "/api/news") {
