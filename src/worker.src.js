@@ -7,7 +7,7 @@ const HTML = __HTML__;
 
 const FLEA_OK = new Set([
   "FetchUserLeagues", "FetchLeagueStandings", "FetchLeagueScoreboard", "FetchLeagueRosters",
-  "FetchRoster", "FetchLeagueBoxscore", "FetchLeagueActivity", "FetchLeagueTransactions", "FetchPlayerListing", "FetchLeagueRules"
+  "FetchRoster", "FetchLeagueBoxscore", "FetchLeagueActivity", "FetchLeagueTransactions", "FetchPlayerListing", "FetchLeagueRules", "FetchTeamPicks"
 ]);
 const UA = { "User-Agent": "SnapCount/1.0 (fantasy dashboard)", "Accept": "application/json" };
 const FANTASY_POS = new Set(["QB", "RB", "WR", "TE", "K", "DEF"]);
@@ -119,6 +119,7 @@ async function tradeValues(ppr, teams, qbs, dyn) {
   for (const x of Array.isArray(arr) ? arr : []) {
     const p = x.player || {};
     const row = [Math.round(x.value || 0), x.overallRank || null, x.positionRank || null, Math.round(x.trend30Day || 0), p.name || "", p.position || ""];
+    if (p.position === "PICK" && p.name) out["pick:" + p.name] = row;
     if (p.sleeperId) out[p.sleeperId] = row;
     if (p.fleaflickerId) out["f" + p.fleaflickerId] = row;
   }
@@ -226,7 +227,7 @@ export default {
         const t = Number(url.searchParams.get("teams")) || 12, teams = t <= 11 ? 10 : t <= 13 ? 12 : 14;
         const qbs = url.searchParams.get("qbs") === "2" ? 2 : 1;
         const dyn = url.searchParams.get("dyn") === "1";
-        return cached(ctx, "values2/" + ppr + "/" + teams + "/" + qbs + "/" + (dyn ? 1 : 0), 21600, () => tradeValues(ppr, teams, qbs, dyn));
+        return cached(ctx, "values3/" + ppr + "/" + teams + "/" + qbs + "/" + (dyn ? 1 : 0), 21600, () => tradeValues(ppr, teams, qbs, dyn));
       }
       if (p === "/api/proj") {
         const season = url.searchParams.get("season") || "", week = url.searchParams.get("week") || "";

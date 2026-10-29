@@ -170,6 +170,7 @@ a.alitem{color:var(--ink);text-decoration:none}
 .reasons li::before{content:"";position:absolute;left:3px;top:.5em;width:8px;height:8px;border-radius:50%;background:var(--muted)}
 .reasons li.good::before{background:var(--ok)}
 .reasons li.bad::before{background:var(--bad)}
+.pos[data-pos=PICK]{color:var(--warn);background:var(--warn-soft)}
 footer{margin-top:28px;color:var(--muted);font-size:12.5px;padding:0 2px}
 @media (prefers-reduced-motion:no-preference){.sheet .panel{animation:up .2s cubic-bezier(.2,.8,.2,1)}@keyframes up{from{transform:translateY(30px);opacity:.6}}}
 </style>
@@ -266,7 +267,7 @@ async function sleeperDetail(L){
   });
   const groups = {}; teams.forEach(t => { if (t.matchup) (groups[t.matchup] = groups[t.matchup] || []).push(t); });
   const games = Object.values(groups).filter(g => g.length === 2).map(g => ({a:{id:g[0].id, pts:g[0].wk}, b:{id:g[1].id, pts:g[1].wk}}));
-  return {week, teams, games, starterSplit:true, scoring, slots: (lg && lg.roster_positions) || null};
+  return {week, teams, games, starterSplit:true, scoring, slots: (lg && lg.roster_positions) || null, draftRounds: (lg && lg.settings && lg.settings.draft_rounds) || 4, season: Number((lg && lg.season) || 0)};
 }
 
 /* ---------- Fleaflicker ---------- */
@@ -781,17 +782,17 @@ function bestLineup(roster, slots, val){
 const fmtV = n => Math.round(n).toLocaleString();
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 function gradeTrade(ctx){
-  const {L, me, them, V, sid, ppg} = ctx;
-  const val = p => ((V[sid.get(p)] || [0])[0]) || 0;
+  const {L, me, them, V, sid, ppg, myPicks, theirPicks, prem} = ctx;
+  const val = p => p.pos === "PICK" ? ((V[p.vkey] || V[p.fallback] || [0])[0] || 0) : (((V[sid.get(p)] || [0])[0]) || 0) * (p.pos === "QB" ? prem : 1);
   const pts = p => ppg.get(p) || 0;
-  const give = me.roster.filter(p => tr.give.has(p.id)), get = them.roster.filter(p => tr.get.has(p.id));
+  const give = me.roster.concat(myPicks).filter(p => tr.give.has(p.id)), get = them.roster.concat(theirPicks).filter(p => tr.get.has(p.id));
   const eff = arr => arr.map(val).sort((a, b) => b - a).reduce((s, v, i) => s + v * Math.max(0.4, 1 - 0.15 * i), 0);
   const rawG = give.reduce((s, p) => s + val(p), 0), rawR = get.reduce((s, p) => s + val(p), 0);
   const G = eff(give), R = eff(get), ratio = (R + 50) / (G + 50);
   const valueScore = 5.5 + 4.5 * clamp(Math.log(ratio) / Math.log(1.6), -1, 1);
   const slots = leagueSlots(L);
   const before = bestLineup(me.roster, slots, pts);
-  const afterRoster = me.roster.filter(p => !tr.give.has(p.id)).concat(get);
+  const afterRoster = me.roster.filter(p => !tr.give.has(p.id)).concat(get.filter(p => p.pos !== "PICK"));
   const after = bestLineup(afterRoster, slots, pts);
   const delta = after.total - before.total;
   const pct = before.total ? delta / before.total : 0;
@@ -804,39 +805,84 @@ function gradeTrade(ctx){
   const reasons = [];
   const diff = rawG ? Math.round((rawR - rawG) / rawG * 100) : 100;
   reasons.push({tone: diff >= 5 ? "good" : diff <= -5 ? "bad" : "", text: "Trade value: you get " + fmtV(rawR) + " and give " + fmtV(rawG) + (rawG ? " (" + (diff > 0 ? "+" : "") + diff + "%)" : "") + "."});
-  const all = give.map(p => ({p, side:"give"})).concat(get.map(p => ({p, side:"get"}))).sort((a, b) => val(b.p) - val(a.p));
+  const all = give.filter(p => p.pos !== "PICK").map(p => ({p, side:"give"})).concat(get.filter(p => p.pos !== "PICK").map(p => ({p, side:"get"}))).sort((a, b) => val(b.p) - val(a.p));
   if (all.length && val(all[0].p)) {
     const top = all[0], rk = (V[sid.get(top.p)] || [])[2];
     reasons.push({tone: top.side === "get" ? "good" : "bad", text: "Best player in the deal: " + top.p.name + (rk ? " (" + top.p.pos + rk + ")" : "") + (top.side === "get" ? ". You'd be getting him." : ". You'd be giving him up.")});
   }
-  if (give.length !== get.length) {
-    const n = give.length - get.length;
-    reasons.push({tone: "", text: n > 0 ? "You consolidate " + give.length + " for " + get.length + " and open " + n + " roster spot" + (n > 1 ? "s" : "") + " for a waiver pickup." : "You take on " + (-n) + " extra player" + (n < -1 ? "s" : "") + ", so you'd need to drop someone."});
+  const gp = give.filter(p => p.pos !== "PICK").length, rp = get.filter(p => p.pos !== "PICK").length;
+  if (gp !== rp) {
+    const n = gp - rp;
+    reasons.push({tone: "", text: n > 0 ? "You send " + gp + " player" + (gp > 1 ? "s" : "") + " for " + rp + " and open " + n + " roster spot" + (n > 1 ? "s" : "") + " for a waiver pickup." : "You take on " + (-n) + " extra player" + (n < -1 ? "s" : "") + ", so you'd need to drop someone."});
   }
+  if (prem > 1.001 && give.concat(get).some(p => p.pos === "QB")) reasons.push({tone: "", text: "QBs are valued " + Math.round((prem - 1) * 100) + "% above the chart because every starting QB is rostered in a " + ctx.teams + "-team " + (ctx.qbs === 2 ? "superflex" : "") + " league."});
   const changes = [];
-  after.list.forEach((s, i) => {
-    const b = before.list[i]; if ((s.p && s.p.id) === (b.p && b.p.id)) return;
-    const slot = s.slot.replace("_", " ");
-    changes.push(s.p ? slot + ": " + s.p.name + (b.p ? " replaces " + b.p.name : " fills an empty spot") : slot + ": " + b.p.name + " leaves and nobody replaces him");
-  });
+  const bIds = new Set(before.list.filter(x => x.p).map(x => x.p.id)), aIds = new Set(after.list.filter(x => x.p).map(x => x.p.id));
+  const ins = after.list.filter(x => x.p && !bIds.has(x.p.id)).map(x => x.p.name), outs = before.list.filter(x => x.p && !aIds.has(x.p.id)).map(x => x.p.name);
+  if (ins.length) changes.push("Into your lineup: " + ins.join(", "));
+  if (outs.length) changes.push("out: " + outs.join(", "));
   if (Math.abs(delta) < 1) reasons.push({tone: "", text: "Your starting lineup barely changes this season."});
   else reasons.push({tone: delta > 0 ? "good" : "bad", text: "Your starting lineup " + (delta > 0 ? "gains" : "loses") + " about " + Math.abs(delta).toFixed(1) + " projected points a week" + (changes.length ? ". " + changes.slice(0, 3).join("; ") + "." : ".")});
   holes.forEach(s => reasons.push({tone: "bad", text: "You'd have no healthy starting " + s.slot + " left."}));
   hurtIn.forEach(p => reasons.push({tone: "bad", text: p.name + " is " + p.inj + (p.injPart ? " (" + p.injPart + ")" : "") + ". You'd be buying an injured player."}));
   hurtOut.forEach(p => reasons.push({tone: "good", text: p.name + " is " + p.inj + ", so you'd be selling an injured player."}));
-  give.concat(get).forEach(p => {
+  give.concat(get).filter(p => p.pos !== "PICK").forEach(p => {
     const t = (V[sid.get(p)] || [])[3] || 0;
     if (Math.abs(t) >= 300) reasons.push({tone: "", text: p.name + (/s$/i.test(p.name) ? "’" : "’s") + " value is " + (t > 0 ? "up " : "down ") + fmtV(Math.abs(t)) + " over the last 30 days" + (tr.give.has(p.id) ? (t > 0 ? ", so you'd be selling high." : ", so you may be selling low.") : (t > 0 ? ", so you'd be buying high." : ", so you'd be buying low.")) });
   });
   let ask = null;
   if (ratio < 0.92 && get.length) {
     const gap = G - R;
-    const cand = them.roster.filter(p => !tr.get.has(p.id) && val(p) > 0).map(p => ({p, d: Math.abs(val(p) - gap)})).sort((a, b) => a.d - b.d)[0];
+    const cand = them.roster.concat(theirPicks).filter(p => !tr.get.has(p.id) && val(p) > 0).map(p => ({p, d: Math.abs(val(p) - gap)})).sort((a, b) => a.d - b.d)[0];
     if (cand) ask = cand.p;
   }
   return {score, reasons, ask, ratio};
 }
 const GRADE_LABEL = s => s >= 9 ? ["Smash accept", "good"] : s >= 7 ? ["Good for you", "good"] : s >= 5 ? ["Fair trade", "mid"] : s >= 3 ? ["Leans bad for you", "bad"] : ["Decline", "bad"];
+
+/* draft picks: { teamId: [{id, name, pos:"PICK", label, value-key}] } */
+const ORD = ["", "1st", "2nd", "3rd", "4th"];
+function tierFor(d, origId){
+  const order = d.teams.slice().sort((a, b) => (a.w - b.w) || ((a.pf || 0) - (b.pf || 0))).map(t => t.id);
+  const i = order.indexOf(String(origId)); if (i < 0) return "";
+  return i < order.length / 3 ? " (Early)" : i >= order.length * 2 / 3 ? " (Late)" : " (Mid)";
+}
+function pickObj(d, season, round, ownerId, origId, nextSeason){
+  const orig = d.teams.find(t => t.id === String(origId));
+  const tier = season === nextSeason ? tierFor(d, origId) : "";
+  const label = season + " " + ORD[round];
+  return {id: "pk:" + season + ":" + round + ":" + origId, pos: "PICK", name: label + " (" + (String(origId) === String(ownerId) ? "own" : (orig ? orig.name : "other team")) + ")", vkey: "pick:" + label + tier, fallback: "pick:" + label, round};
+}
+async function loadPicks(L){
+  const d = L.detail; if (d.picks) return d.picks;
+  const out = {}; d.teams.forEach(t => out[t.id] = []);
+  try {
+    if (L.meta.platform === "flea") {
+      const next = Math.min(...(await Promise.all(d.teams.slice(0, 1).map(t => api(fq("FetchTeamPicks", {league_id:L.meta.id, team_id:t.id}))))).flatMap(r => (r.picks || []).map(x => x.season)));
+      await Promise.all(d.teams.map(async t => {
+        const r = await api(fq("FetchTeamPicks", {league_id:L.meta.id, team_id:t.id}));
+        (r.picks || []).forEach(x => {
+          const rd = x.slot && x.slot.round, own = x.ownedBy && String(x.ownedBy.id);
+          if (!rd || rd > 4 || own !== t.id) return;
+          out[t.id].push(pickObj(d, x.season, rd, own, x.originalOwner ? x.originalOwner.id : own, next));
+        });
+      }));
+    } else {
+      const traded = await api("/api/sleeper/league/" + L.meta.id + "/traded_picks").catch(() => []);
+      const first = (d.season || Number(L.meta.season)) + 1, rounds = Math.min(4, d.draftRounds || 4);
+      for (let sy = first; sy < first + 3; sy++) for (let rd = 1; rd <= rounds; rd++) d.teams.forEach(t => {
+        const tp = (traded || []).find(x => Number(x.season) === sy && x.round === rd && String(x.roster_id) === t.id);
+        const owner = tp ? String(tp.owner_id) : t.id;
+        if (out[owner]) out[owner].push(pickObj(d, sy, rd, owner, t.id, first));
+      });
+    }
+  } catch(e){}
+  Object.values(out).forEach(a => a.sort((x, y) => x.id.split(":")[1] - y.id.split(":")[1] || x.round - y.round));
+  d.picks = out;
+  return out;
+}
+// In bigger superflex leagues every starting QB is rostered, so starters are scarcer than the 14-team chart assumes.
+const qbPremium = (teams, qbs) => qbs === 2 ? 1 + 0.06 * Math.max(0, teams - 12) : 1 + 0.03 * Math.max(0, teams - 12);
 
 async function loadValues(ppr, teams, qbs, dyn){
   const k = valuesKey(ppr, teams, qbs, dyn);
@@ -854,8 +900,13 @@ async function loadValues(ppr, teams, qbs, dyn){
   }
   return tr.values[k];
 }
-function pickRow(p, side, V, sid, selected){
-  const v = V[sid.get(p)] || [];
+function draftRow(p, side, V, selected){
+  const v = (V[p.vkey] || V[p.fallback] || [])[0];
+  return '<li><button class="prow pick' + (selected ? " on" : "") + '" data-side="' + side + '" data-pid="' + esc(p.id) + '"><span class="pos" data-pos="PICK">PK</span><span class="pname"><b>' + esc(p.name) + '</b><small>' + esc(p.vkey.slice(5)) + '</small></span><span class="tv">' + (v ? fmtV(v) : "–") + '<span class="check" aria-hidden="true"></span></span></button></li>';
+}
+function pickRow(p, side, V, sid, selected, prem){
+  const v = (V[sid.get(p)] || []).slice();
+  if (v[0] && p.pos === "QB" && prem) v[0] = v[0] * prem;
   return '<li><button class="prow pick' + (selected ? " on" : "") + '" data-side="' + side + '" data-pid="' + esc(p.id) + '"><span class="pos" data-pos="' + esc(p.pos || "") + '">' + esc(p.pos || "–") + '</span><span class="pname"><b>' + esc(p.name) + injChip(p.inj) + "</b><small>" + esc(p.team || "FA") + (v[2] ? " · " + esc(p.pos) + v[2] : "") + '</small></span><span class="tv">' + (v[0] ? fmtV(v[0]) : "–") + '<span class="check" aria-hidden="true"></span></span></button></li>';
 }
 async function renderTrade(v){
@@ -906,7 +957,10 @@ async function renderTrade(v){
     }
   } catch(e){}
   if (token !== tr.loading || cur.tab !== "trade") return;
-  drawTrade({L, me, them, V: pack.v, sid, ppg, src: pack.src, teams: d.teams.length, qbs, dyn: tr.dyn});
+  const allPicks = tr.dyn ? await loadPicks(L) : {};
+  if (token !== tr.loading || cur.tab !== "trade") return;
+  drawTrade({L, me, them, V: pack.v, sid, ppg, src: pack.src, teams: d.teams.length, qbs, dyn: tr.dyn,
+    myPicks: allPicks[me.id] || [], theirPicks: allPicks[them.id] || [], prem: qbPremium(d.teams.length, qbs)});
 }
 function drawTrade(ctx){
   const el = $("#trOut"); if (!el) return;
@@ -922,8 +976,9 @@ function drawTrade(ctx){
   } else {
     h += '<div class="card"><p style="margin:0" class="small">Tap players below. Your grade shows up here.</p></div>';
   }
-  h += '<h3>You give</h3><ul class="plist">' + me.roster.slice().sort(byVal).map(p => pickRow(p, "give", V, sid, tr.give.has(p.id))).join("") + "</ul>";
-  h += "<h3>You get from " + esc(them.name) + '</h3><ul class="plist">' + (them.roster.length ? them.roster.slice().sort(byVal).map(p => pickRow(p, "get", V, sid, tr.get.has(p.id))).join("") : '<li><p class="muted small" style="margin:12px 14px">Their roster isn’t available.</p></li>') + "</ul>";
+  const pk = (arr, side) => arr.length ? '<h3>' + (side === "give" ? "Your" : "Their") + ' draft picks</h3><ul class="plist">' + arr.map(p => draftRow(p, side, V, (side === "give" ? tr.give : tr.get).has(p.id))).join("") + "</ul>" : "";
+  h += '<h3>You give</h3><ul class="plist">' + me.roster.slice().sort(byVal).map(p => pickRow(p, "give", V, sid, tr.give.has(p.id), ctx.prem)).join("") + "</ul>" + pk(ctx.myPicks, "give");
+  h += "<h3>You get from " + esc(them.name) + '</h3><ul class="plist">' + (them.roster.length ? them.roster.slice().sort(byVal).map(p => pickRow(p, "get", V, sid, tr.get.has(p.id), ctx.prem)).join("") : '<li><p class="muted small" style="margin:12px 14px">Their roster isn’t available.</p></li>') + "</ul>" + pk(ctx.theirPicks, "get");
   el.innerHTML = h;
   el.querySelectorAll(".pick").forEach(b => b.addEventListener("click", () => {
     const set = b.dataset.side === "give" ? tr.give : tr.get, id = b.dataset.pid;
