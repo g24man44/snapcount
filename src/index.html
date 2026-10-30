@@ -1005,8 +1005,8 @@ function pickRow(p, side, V, sid, selected, prem){
 }
 async function renderTrade(v){
   const ready = leagues.map((L, i) => ({L, i})).filter(x => x.L.detail && x.L.detail.teams.find(t => t.mine));
-  if (!tr.mode) tr.mode = "grade";
-  let h = "<h2>Trades</h2>" + '<div class="seg" role="group" aria-label="Trade tool" style="margin-bottom:12px"><button type="button" data-mode="grade" aria-pressed="' + (tr.mode === "grade") + '">Grade a trade</button><button type="button" data-mode="find" aria-pressed="' + (tr.mode === "find") + '">Find a price</button></div>';
+  if (!tr.mode) tr.mode = "scan";
+  let h = "<h2>Trades</h2>" + '<div class="seg" role="group" aria-label="Trade tool" style="margin-bottom:12px">' + [["scan","Trade finder"],["find","Find a price"],["grade","Grade"]].map(x => '<button type="button" data-mode="' + x[0] + '" aria-pressed="' + (tr.mode === x[0]) + '">' + x[1] + "</button>").join("") + "</div>";
   if (!ready.length) { v.innerHTML = h + '<div class="card"><p style="margin:0">' + (hasAccts() ? "Your leagues are still loading, or you haven’t picked your team in a league yet. Open the league once and choose your team." : "Add your leagues under the settings button first.") + "</p></div>"; return; }
   if (tr.league == null || !ready.find(x => x.i === tr.league)) { tr.league = ready[0].i; tr.other = null; tr.give.clear(); tr.get.clear(); tr.ppr = null; tr.dyn = null; tr.keep = null; tr.target = null; }
   const L = leagues[tr.league], d = L.detail, me = d.teams.find(t => t.mine);
@@ -1016,16 +1016,16 @@ async function renderTrade(v){
   if (tr.ppr == null) tr.ppr = L.meta.platform === "sleeper" ? ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1") : "1";
   const qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1;
   if (tr.dyn == null) { const sv = savedDyn(L); tr.dyn = sv != null ? sv : /dynasty|keeper/i.test(L.meta.name); }
-  h += '<div class="psearch"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="trS" type="search" placeholder="Search any player in this league" autocomplete="off" aria-label="Search any player in this league"></div><ul id="trSR" class="sres" hidden></ul>';
-  h += '<p class="muted small" style="margin:-4px 2px 12px">' + (tr.mode === "find" ? "Pick a player you want and see the fairest packages from your roster and picks." : "Got an offer? Pick the players from it and get a grade from 1 to 10.") + "</p>";
+  if (tr.mode !== "scan") h += '<div class="psearch"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="trS" type="search" placeholder="Search any player in this league" autocomplete="off" aria-label="Search any player in this league"></div><ul id="trSR" class="sres" hidden></ul>';
+  h += '<p class="muted small" style="margin:' + (tr.mode === "scan" ? "-2px" : "-4px") + ' 2px 12px">' + (tr.mode === "scan" ? "Pick a position. The finder checks every roster for players who would start for you and owners who can spare them, then builds an offer." : tr.mode === "find" ? "Pick a player you want and see the fairest packages from your roster and picks." : "Got an offer? Pick the players from it and get a grade from 1 to 10.") + "</p>";
   h += '<div class="card stackc" style="gap:10px"><label for="trL">League</label><select id="trL">' + ready.map(x => '<option value="' + x.i + '"' + (x.i === tr.league ? " selected" : "") + ">" + esc(x.L.meta.name) + "</option>").join("") + "</select>" +
-    '<label for="trT">Trading with</label><select id="trT">' + others.map(t => '<option value="' + esc(t.id) + '"' + (t.id === tr.other ? " selected" : "") + ">" + esc(t.name) + (t.owner ? " (" + esc(t.owner) + ")" : "") + "</option>").join("") + "</select>" +
+    (tr.mode === "scan" ? "" : '<label for="trT">Trading with</label><select id="trT">' + others.map(t => '<option value="' + esc(t.id) + '"' + (t.id === tr.other ? " selected" : "") + ">" + esc(t.name) + (t.owner ? " (" + esc(t.owner) + ")" : "") + "</option>").join("") + "</select>") +
     '<div class="seg" role="group" aria-label="League type">' + [[false,"Redraft"],[true,"Dynasty"]].map(x => '<button type="button" data-dyn="' + x[0] + '" aria-pressed="' + (tr.dyn === x[0]) + '">' + x[1] + "</button>").join("") + "</div>" +
     '<div class="seg" role="group" aria-label="Scoring">' + [["1","PPR"],["0.5","Half PPR"],["0","Standard"]].map(x => '<button type="button" data-ppr="' + x[0] + '" aria-pressed="' + (tr.ppr === x[0]) + '">' + x[1] + "</button>").join("") + "</div></div>";
   h += '<div id="trOut"><p class="spin">Loading trade values…</p></div>';
   v.innerHTML = h;
   v.querySelectorAll("[data-mode]").forEach(b => b.addEventListener("click", () => { tr.mode = b.dataset.mode; render(); }));
-  const sIn = v.querySelector("#trS"), sOut = v.querySelector("#trSR");
+  const sIn = v.querySelector("#trS") || document.createElement("input"), sOut = v.querySelector("#trSR") || document.createElement("ul");
   const pool = others.flatMap(t => t.roster.filter(p => p.name).map(p => ({p, t})));
   sIn.addEventListener("input", () => {
     const q = norm(sIn.value);
@@ -1041,15 +1041,16 @@ async function renderTrade(v){
     else { tr.get = new Set([b.dataset.sp]); tr.give.clear(); }
     render(); window.scrollTo(0, 0);
   });
-  v.querySelector("#trL").addEventListener("change", e => { tr.league = +e.target.value; tr.other = null; tr.give.clear(); tr.get.clear(); tr.ppr = null; tr.dyn = null; tr.keep = null; tr.target = null; render(); });
-  v.querySelector("#trT").addEventListener("change", e => { tr.other = e.target.value; tr.get.clear(); tr.target = null; render(); });
+  v.querySelector("#trL").addEventListener("change", e => { tr.league = +e.target.value; tr.other = null; tr.give.clear(); tr.get.clear(); tr.ppr = null; tr.dyn = null; tr.keep = null; tr.hide = null; tr.target = null; render(); });
+  if (v.querySelector("#trT")) v.querySelector("#trT").addEventListener("change", e => { tr.other = e.target.value; tr.get.clear(); tr.target = null; render(); });
   v.querySelectorAll("[data-ppr]").forEach(b => b.addEventListener("click", () => { tr.ppr = b.dataset.ppr; render(); }));
   v.querySelectorAll("[data-dyn]").forEach(b => b.addEventListener("click", () => { tr.dyn = b.dataset.dyn === "true"; saveDyn(L, tr.dyn); render(); }));
   if (!them) return;
   const token = (tr.loading = Math.random());
   const pack = await loadValues(tr.ppr, d.teams.length, qbs, tr.dyn);
   const sid = new Map(), ppg = new Map();
-  for (const p of me.roster.concat(them.roster)) sid.set(p, await sleeperIdFor(L, p));
+  const pool2 = tr.mode === "scan" ? d.teams.flatMap(t => t.roster) : me.roster.concat(them.roster);
+  for (const p of pool2) sid.set(p, await sleeperIdFor(L, p));
   try {
     await getSeasonStats(L.meta.season || (await getState()).league_season);
     await getPlayers();
@@ -1059,7 +1060,7 @@ async function renderTrade(v){
     let proj = {}; try { proj = await api("/api/proj?season=" + (stt.league_season || stt.season) + "&week=" + (stt.display_week || stt.week)); } catch(e){}
     if (!gamesAt) await loadScoreboard();
     const hasProj = Object.keys(proj).length > 0;
-    for (const p of me.roster.concat(them.roster)) {
+    for (const p of pool2) {
       const id = L.meta.platform === "sleeper" ? String(p.id) : sidIndex[norm(p.name) + "|" + (p.pos || "")];
       const st = id && sstats && sstats[id];
       const avg = st && st[3] ? st[col] / st[3] : 0;
@@ -1074,35 +1075,36 @@ async function renderTrade(v){
   if (token !== tr.loading || cur.tab !== "trade") return;
   const ctx = {L, me, them, V: pack.v, sid, ppg, src: pack.src, teams: d.teams.length, qbs, dyn: tr.dyn,
     myPicks: allPicks[me.id] || [], theirPicks: allPicks[them.id] || [], prem: qbPremium(d.teams.length, qbs)};
-  if (tr.mode === "find") drawFind(ctx); else drawTrade(ctx);
+  if (tr.mode === "scan") drawScan(ctx, allPicks); else if (tr.mode === "find") drawFind(ctx); else drawTrade(ctx);
 }
 /* ---------- trade finder: what it should take to get a player ---------- */
 function keepKey(L){ return KEY + ".keep." + L.meta.platform + L.meta.id; }
 function loadKeep(L){ try { return new Set(JSON.parse(localStorage.getItem(keepKey(L)) || "[]")); } catch(e){ return new Set(); } }
 function saveKeep(L, set){ try { localStorage.setItem(keepKey(L), JSON.stringify([...set])); } catch(e){} }
 const effOf = vals => vals.slice().sort((a, b) => b - a).reduce((s, v, i) => s + v * Math.max(0.4, 1 - 0.15 * i), 0);
-function findPackages(ctx, target){
+function findPackages(ctx, target, opts){
+  const want = (opts && opts.over != null) ? opts.over : 0.03, exPos = opts && opts.excludePos;
   const {L, me, V, sid, ppg, myPicks, prem} = ctx;
   const val = p => p.pos === "PICK" ? ((V[p.vkey] || V[p.fallback] || [0])[0] || 0) : (((V[sid.get(p)] || [0])[0]) || 0) * (p.pos === "QB" ? prem : 1);
   const pts = p => ppg.get(p) || 0;
   const T = val(target);
   if (!T) return {T, list: []};
   const keep = tr.keep || new Set();
-  const assets = me.roster.concat(myPicks).filter(p => !keep.has(p.id)).map(p => ({p, v: val(p)}))
-    .filter(a => a.v >= Math.max(120, T * 0.05) && a.v <= T * 1.15).sort((a, b) => b.v - a.v).slice(0, 26);
+  const assets = me.roster.concat(myPicks).filter(p => !keep.has(p.id) && (!exPos || p.pos !== exPos)).map(p => ({p, v: val(p)}))
+    .filter(a => a.v >= Math.max(120, T * 0.05) && a.v <= T * (1.12 + want)).sort((a, b) => b.v - a.v).slice(0, 26);
   const slots = leagueSlots(L), base = bestLineup(me.roster, slots, pts).total;
   const tgtIsPlayer = target.pos !== "PICK";
   const out = [];
   const consider = combo => {
     const eff = effOf(combo.map(a => a.v));
-    if (eff < T * 0.97 || eff > T * 1.12) return;
+    if (eff < T * (0.94 + want) || eff > T * (1.09 + want)) return;
     const ids = new Set(combo.map(a => a.p.id));
     const after = me.roster.filter(p => !ids.has(p.id)).concat(tgtIsPlayer ? [target] : []);
     const delta = bestLineup(after, slots, pts).total - base;
     const picks = combo.filter(a => a.p.pos === "PICK").length;
     const over = eff / T - 1;
     out.push({combo, eff, raw: combo.reduce((s, a) => s + a.v, 0), delta, picks, over,
-      score: Math.abs(over - 0.03) * 100 - delta * 1.2 + combo.length * 1.5});
+      score: Math.abs(over - want) * 100 - delta * 1.2 + combo.length * 1.5});
   };
   const n = assets.length;
   for (let i = 0; i < n; i++) {
@@ -1200,6 +1202,104 @@ async function wireSend(root, L, me, them){
     catch(e){ b.textContent = "Copy failed"; }
     setTimeout(() => { b.textContent = "Copy offer"; }, 1800);
   }));
+}
+
+/* ---------- trade finder: scan the league for a position and build offers ---------- */
+const STRENGTH = {fair:[0.03, "Fair"], strong:[0.10, "Strong"], big:[0.18, "Overpay"]};
+function hideKey(L){ return KEY + ".hide." + L.meta.platform + L.meta.id; }
+function loadHide(L){ try { return new Set(JSON.parse(localStorage.getItem(hideKey(L)) || "[]")); } catch(e){ return new Set(); } }
+function saveHide(L, set){ try { localStorage.setItem(hideKey(L), JSON.stringify([...set])); } catch(e){} }
+function drawScan(ctx, allPicks){
+  const el = $("#trOut"); if (!el) return;
+  const {L, me, V, sid, ppg, prem} = ctx, d = L.detail;
+  if (!tr.keep) tr.keep = loadKeep(L);
+  if (!tr.hide) tr.hide = loadHide(L);
+  const pos = tr.scanPos || "QB", str = tr.strength || "fair";
+  const val = p => p.pos === "PICK" ? ((V[p.vkey] || V[p.fallback] || [0])[0] || 0) : (((V[sid.get(p)] || [0])[0]) || 0) * (p.pos === "QB" ? prem : 1);
+  const pts = p => ppg.get(p) || 0;
+  let h = '<div class="card stackc" style="gap:10px;margin-top:12px"><label>Position you need</label><div class="seg" role="group" aria-label="Position">' +
+    ["QB", "RB", "WR", "TE"].map(x => '<button type="button" data-spos="' + x + '" aria-pressed="' + (pos === x) + '">' + x + "</button>").join("") + "</div>" +
+    '<label>Offer strength</label><div class="seg" role="group" aria-label="Offer strength">' +
+    Object.entries(STRENGTH).map(([k, v]) => '<button type="button" data-str="' + k + '" aria-pressed="' + (str === k) + '">' + v[1] + "</button>").join("") + "</div>" +
+    '<p class="small muted" style="margin:0">' + (str === "fair" ? "Offers about 3% over value. Good opening offers." : str === "strong" ? "Offers about 10% over value. Use when fair offers keep getting turned down." : "Offers about 18% over value. For when you need him now.") + "</p>" +
+    '<label class="toggle" style="margin:0"><input type="checkbox" id="scMine"' + (tr.scanMine ? " checked" : "") + "> Include my own " + pos + "s in offers</label></div>";
+  el.innerHTML = h + '<p class="spin">Scanning every roster in the league…</p>';
+  const wire = () => {
+    el.querySelectorAll("[data-spos]").forEach(b => b.addEventListener("click", () => { tr.scanPos = b.dataset.spos; drawScan(ctx, allPicks); }));
+    el.querySelectorAll("[data-str]").forEach(b => b.addEventListener("click", () => { tr.strength = b.dataset.str; drawScan(ctx, allPicks); }));
+    const mc = el.querySelector("#scMine"); if (mc) mc.addEventListener("change", e => { tr.scanMine = e.target.checked; drawScan(ctx, allPicks); });
+  };
+  wire();
+  const token = (tr.scanToken = Math.random());
+  setTimeout(() => {
+    if (token !== tr.scanToken || !$("#trOut")) return;
+    const slots = leagueSlots(L), myBase = bestLineup(me.roster, slots, pts).total;
+    const cands = [];
+    for (const t of d.teams) {
+      if (t === me || !t.roster.length) continue;
+      const tBase = bestLineup(t.roster, slots, pts).total;
+      for (const p of t.roster) {
+        if (p.pos !== pos || tr.hide.has(p.id) || OUTISH_C.test(String(p.inj || ""))) continue;
+        const v = val(p); if (v < 300) continue;
+        const gain = bestLineup(me.roster.concat([p]), slots, pts).total - myBase;
+        if (gain < 2) continue;
+        const loss = Math.max(0, tBase - bestLineup(t.roster.filter(x => x !== p), slots, pts).total);
+        const avail = clamp(1 - loss / Math.max(pts(p), 1), 0, 1);
+        cands.push({p, t, v, gain, loss, avail, rank: gain * (0.35 + 0.65 * avail)});
+      }
+    }
+    cands.sort((a, b) => b.rank - a.rank);
+    const results = [];
+    for (const c of cands.slice(0, 12)) {
+      const cctx = Object.assign({}, ctx, {them: c.t, theirPicks: allPicks[c.t.id] || []});
+      const res = findPackages(cctx, c.p, {over: STRENGTH[str][0], excludePos: tr.scanMine ? null : pos});
+      if (!res.list.length) continue;
+      const contending = c.t.w > c.t.l, rebuilding = c.t.w < c.t.l;
+      const best = (contending && res.list.find(x => x.picks === 0)) || (rebuilding && res.list.find(x => x.picks >= 1)) || res.list[0];
+      const saveG = tr.give, saveR = tr.get;
+      tr.give = new Set(best.combo.map(a => a.p.id)); tr.get = new Set([c.p.id]);
+      const g = gradeTrade(cctx);
+      tr.give = saveG; tr.get = saveR;
+      results.push(Object.assign({best, g, T: res.T}, c));
+      if (results.length >= 6) break;
+    }
+    if (token !== tr.scanToken || !$("#trOut")) return;
+    let out = h;
+    if (!results.length) out += '<div class="card" style="margin-top:12px"><p style="margin:0">' + (cands.length ? "Found " + pos + "s who would help, but no fair package fits. Try a stronger offer, include your own " + pos + "s, or unlock players below." : "No healthy " + pos + " on another roster would start for you right now.") + "</p></div>";
+    results.forEach((r, i) => {
+      const depth = r.t.roster.filter(x => x.pos === pos && x !== r.p && pts(x) >= (pos === "QB" ? 10 : 7)).sort((a, b) => pts(b) - pts(a)).map(x => x.name);
+      const why = [];
+      if (r.loss < 1) why.push({tone:"good", text:"He isn’t in their best lineup this week, so they lose nothing by trading him."});
+      else if (r.avail >= 0.5) why.push({tone:"good", text:"They have " + pos + " depth" + (depth.length ? " (" + depth.slice(0, 3).join(", ") + ")" : "") + ", so they’d lose only about " + r.loss.toFixed(1) + " points a week."});
+      else why.push({tone:"bad", text:"He starts for them (they’d lose about " + r.loss.toFixed(1) + " points a week), so expect to pay full price."});
+      if (r.t.w < r.t.l) why.push({tone:"good", text:"They’re " + r.t.w + "-" + r.t.l + ", so picks and young players may appeal more than points this season."});
+      else if (r.t.w > r.t.l) why.push({tone:"", text:"They’re " + r.t.w + "-" + r.t.l + " and contending, so the offer " + (r.best.picks === 0 ? "uses players who score now instead of picks." : "includes picks because no fair players-only package fit.")});
+      const [lbl, tone] = GRADE_LABEL(r.g.score);
+      const chip = r.avail >= 0.6 ? '<span class="chip ok">Likely available</span>' : r.avail >= 0.3 ? '<span class="chip warn">Possible</span>' : '<span class="chip">Long shot</span>';
+      out += '<div class="card offer scard" data-ti="' + esc(r.t.id) + '" style="margin-top:12px">' +
+        '<div class="shead" style="margin:0">' + avatar(r.p) + '<div style="min-width:0;flex:1"><b style="font-size:18px;display:block">' + esc(r.p.name) + "</b><small class='muted'>" + posTag(r.p) + esc(r.t.name) + (r.t.owner ? " · " + esc(r.t.owner) : "") + '</small></div><span class="ograde ' + tone + '">' + r.g.score + "/10</span></div>" +
+        '<div class="chips" style="margin-top:12px"><span class="chip ok">+' + r.gain.toFixed(1) + " pts a week for you</span>" + chip + '<span class="chip">Worth ' + fmtV(r.T) + "</span></div>" +
+        '<ul class="reasons">' + why.map(w => '<li class="' + w.tone + '">' + esc(w.text) + "</li>").join("") + "</ul>" +
+        '<h3 style="margin:16px 0 4px">Suggested offer</h3><ul class="offlist">' + r.best.combo.map(a => '<li>' + (a.p.pos === "PICK" ? '<span class="pos" data-pos="PICK">PK</span>' : avatar(a.p)) + "<b>" + esc(a.p.name) + "</b><span class='muted'>" + fmtV(a.v) + "</span></li>").join("") + "</ul>" +
+        '<p class="small" style="margin:10px 0 0">Package value <b>' + fmtV(r.best.eff) + "</b> (" + (r.best.over >= 0 ? "+" : "") + Math.round(r.best.over * 100) + "%). After the trade your lineup " + (Math.abs(r.best.delta) < 0.5 ? "stays about the same" : (r.best.delta > 0 ? "gains " : "loses ") + Math.abs(r.best.delta).toFixed(1) + " points a week") + ".</p>" +
+        sendBlock(L, me, r.t, r.best.combo.map(a => a.p), [r.p]) +
+        '<div class="btnrow" style="margin-top:8px"><button type="button" class="btn ghost" data-sload="' + i + '">Adjust in grader</button><button type="button" class="btn ghost" data-shide="' + esc(r.p.id) + '">Not interested</button></div></div>';
+    });
+    if (tr.hide.size) out += '<p class="small muted" style="margin:14px 4px 0">' + tr.hide.size + ' hidden player' + (tr.hide.size > 1 ? "s" : "") + '. <button type="button" class="back" id="scUnhide" style="padding:0;font-size:14px">Show them again</button></p>';
+    const lockable = me.roster.concat(ctx.myPicks).map(p => ({p, v: val(p)})).filter(a => a.v >= 300).sort((a, b) => b.v - a.v).slice(0, 14);
+    out += '<h3>Players you won’t trade</h3><div class="chips">' + lockable.map(a => '<button type="button" class="chip' + (tr.keep.has(a.p.id) ? " on" : "") + '" data-keep="' + esc(a.p.id) + '">' + (tr.keep.has(a.p.id) ? "🔒 " : "") + esc(a.p.name) + "</button>").join("") + "</div>";
+    el.innerHTML = out;
+    wire();
+    el.querySelectorAll(".scard").forEach(cardEl => { const t = d.teams.find(x => x.id === cardEl.dataset.ti); if (t) wireSend(cardEl, L, me, t); });
+    el.querySelectorAll("[data-sload]").forEach(b => b.addEventListener("click", () => {
+      const r = results[+b.dataset.sload];
+      tr.mode = "grade"; tr.other = r.t.id; tr.give = new Set(r.best.combo.map(a => a.p.id)); tr.get = new Set([r.p.id]);
+      render(); window.scrollTo(0, 0);
+    }));
+    el.querySelectorAll("[data-shide]").forEach(b => b.addEventListener("click", () => { tr.hide.add(b.dataset.shide); saveHide(L, tr.hide); drawScan(ctx, allPicks); }));
+    const un = el.querySelector("#scUnhide"); if (un) un.addEventListener("click", () => { tr.hide.clear(); saveHide(L, tr.hide); drawScan(ctx, allPicks); });
+    el.querySelectorAll("[data-keep]").forEach(b => b.addEventListener("click", () => { const id = b.dataset.keep; if (tr.keep.has(id)) tr.keep.delete(id); else tr.keep.add(id); saveKeep(L, tr.keep); drawScan(ctx, allPicks); }));
+  }, 30);
 }
 
 function drawTrade(ctx){
