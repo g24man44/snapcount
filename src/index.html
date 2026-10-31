@@ -210,6 +210,25 @@ form.add{display:flex;flex-direction:column;gap:10px}
 .sres li+li{border-top:1px solid var(--line)}
 .sres button{display:grid;grid-template-columns:46px 1fr;gap:12px;align-items:center;width:100%;background:none;border:0;text-align:left;padding:10px 16px}
 .sres button b{display:block} .sres button small{color:var(--muted);font-size:13px}
+.swaps{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.swaps>div{background:var(--surface2);border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.swaps small{font:700 11px/1.2 var(--body);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.swaps>div:first-child small{color:var(--ok)} .swaps>div:last-child small{color:var(--bad)}
+.swaps b{font-size:14px;overflow-wrap:anywhere}
+.envrow{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.envrow .chip{font-size:11px;padding:2px 7px}
+.otable{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.otable td{padding:8px 6px;vertical-align:middle}
+.otable td:first-child{padding-left:14px;width:46px}
+.otable td b{display:block;font-size:14px;line-height:1.25}
+.otable td small{color:var(--muted);font-size:12px}
+.otable tr+tr td{border-top:1px solid var(--line)}
+.otable tr.me td{background:var(--accent-soft)}
+.otable .obar{width:28%}
+.otable .obar span{display:block;height:7px;border-radius:999px;background:var(--accent);min-width:3px}
+.otable .onum{text-align:right;font-weight:800;white-space:nowrap;padding-right:14px}
+.otable.rank td:first-child{width:56px}
+.otable.rank{margin-top:10px}
 footer{margin-top:30px;color:var(--muted);font-size:12px;padding:0 4px;text-align:center}
 @media (prefers-reduced-motion:no-preference){
   .sheet .panel{animation:up .24s cubic-bezier(.2,.8,.2,1)} @keyframes up{from{transform:translateY(40px);opacity:.5}}
@@ -230,7 +249,7 @@ footer{margin-top:30px;color:var(--muted);font-size:12px;padding:0 4px;text-alig
   <button role="tab" data-tab="leagues" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 4l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1Z"/></svg>Leagues</button>
   <button role="tab" data-tab="trade" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4 3 8l4 4"/><path d="M3 8h13"/><path d="m17 20 4-4-4-4"/><path d="M21 16H8"/></svg>Trade</button>
   <button role="tab" data-tab="news" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></svg>News</button>
-  <button role="tab" data-tab="trending" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 17 6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>Trending</button>
+  <button role="tab" data-tab="edge" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/></svg>Edge</button>
   <button role="tab" data-tab="alerts" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15Z"/><path d="M10 21h4"/></svg>Alerts</button>
 </nav>
 <div id="sheet" class="sheet" hidden><div class="panel" id="sheetPanel" role="dialog" aria-modal="true"></div></div>
@@ -303,13 +322,14 @@ async function sleeperDetail(L){
         slot: starters.has(pid) ? "start" : reserve.has(pid) ? "ir" : "bench", pts: pp[pid]};
     });
     return {id:String(r.roster_id), name:(u.metadata && u.metadata.team_name) || u.display_name || ("Team " + r.roster_id), logo: u.avatar ? "https://sleepercdn.com/avatars/thumbs/" + u.avatar : "",
-      owner:u.display_name || "", w:s.wins||0, l:s.losses||0, t:s.ties||0,
+      owner:u.display_name || "", div: s.division || null, w:s.wins||0, l:s.losses||0, t:s.ties||0,
       pf:(s.fpts||0) + (s.fpts_decimal||0)/100, roster, mine: r.owner_id === L.uid || (r.co_owners||[]).includes(L.uid),
       matchup:m.matchup_id, wk:m.points};
   });
   const groups = {}; teams.forEach(t => { if (t.matchup) (groups[t.matchup] = groups[t.matchup] || []).push(t); });
   const games = Object.values(groups).filter(g => g.length === 2).map(g => ({a:{id:g[0].id, pts:g[0].wk}, b:{id:g[1].id, pts:g[1].wk}}));
-  return {week, teams, games, starterSplit:true, scoring, slots: (lg && lg.roster_positions) || null, draftRounds: (lg && lg.settings && lg.settings.draft_rounds) || 4, season: Number((lg && lg.season) || 0)};
+  return {week, teams, games, starterSplit:true, scoring, slots: (lg && lg.roster_positions) || null, draftRounds: (lg && lg.settings && lg.settings.draft_rounds) || 4, season: Number((lg && lg.season) || 0),
+    playoffTeams: (lg && lg.settings && lg.settings.playoff_teams) || null, playoffStart: (lg && lg.settings && lg.settings.playoff_week_start) || null};
 }
 
 /* ---------- Fleaflicker ---------- */
@@ -343,7 +363,7 @@ async function fleaDetail(L){
   const tinfo = {};
   (stand.divisions || []).forEach(d => (d.teams || []).forEach(t => {
     const rec = t.recordOverall || {};
-    tinfo[t.id] = {name:t.name, logo:t.logoUrl || "", owner:((t.owners||[])[0]||{}).displayName || "", w:rec.wins||0, l:rec.losses||0, t:rec.ties||0, pf:val(t.pointsFor)};
+    tinfo[t.id] = {name:t.name, logo:t.logoUrl || "", div: d.id, owner:((t.owners||[])[0]||{}).displayName || "", w:rec.wins||0, l:rec.losses||0, t:rec.ties||0, pf:val(t.pointsFor)};
   }));
   const teams = (ros.rosters || []).map(r => {
     const t = r.team || {}; const i = tinfo[t.id] || {};
@@ -354,7 +374,7 @@ async function fleaDetail(L){
         injPart: inj ? (inj.description || inj.typeFull) : null, slot:"bench", pts:null};
     });
     return {id:String(t.id), name:t.name || i.name, logo:t.logoUrl || i.logo || "", owner:i.owner || (((t.owners||[])[0]||{}).displayName) || "",
-      w:i.w||0, l:i.l||0, t:i.t||0, pf:i.pf, roster, mine: L.myTeam ? String(t.id) === L.myTeam : false};
+      w:i.w||0, l:i.l||0, t:i.t||0, pf:i.pf, div:i.div, roster, mine: L.myTeam ? String(t.id) === L.myTeam : false};
   });
   Object.keys(tinfo).forEach(id => { if (!teams.find(t => t.id === String(id))) teams.push(Object.assign({id:String(id), roster:[], mine: L.myTeam === String(id)}, tinfo[id])); });
   const games = (board.games || []).map(g => {
@@ -365,8 +385,9 @@ async function fleaDetail(L){
   }).filter(g => g.a.id !== "undefined" && g.b.id !== "undefined");
   const FL = {"RB/WR/TE":"FLEX", "QB/RB/WR/TE":"SUPER_FLEX", "WR/TE":"REC_FLEX", "RB/WR":"WRRB_FLEX"};
   const slots = [];
-  (rules.rosterPositions || []).forEach(rp => { const k = FL[rp.label] || rp.label; if (["QB","RB","WR","TE","FLEX","SUPER_FLEX","REC_FLEX","WRRB_FLEX"].includes(k)) for (let i = 0; i < (rp.start || 0); i++) slots.push(k); });
-  return {week, teams, games, starterSplit:false, slots: slots.length ? slots : null};
+  const kdst = [];
+  (rules.rosterPositions || []).forEach(rp => { const k = FL[rp.label] || rp.label; if (["QB","RB","WR","TE","FLEX","SUPER_FLEX","REC_FLEX","WRRB_FLEX"].includes(k)) for (let i = 0; i < (rp.start || 0); i++) slots.push(k); if (k === "K" || k === "D/ST") for (let i = 0; i < (rp.start || 0); i++) kdst.push(k); });
+  return {week, teams, games, starterSplit:false, slots: slots.length ? slots : null, kdst};
 }
 
 /* ---------- league cache ---------- */
@@ -387,6 +408,8 @@ async function loadAll(){
     catch(e){ L.error = e.message; }
     if (cur.tab === "leagues") render();
   }));
+  await Promise.all(leagues.filter(L => L.meta.platform === "flea" && L.detail).map(L => { const me = L.detail.teams.find(t => t.mine); return me && !me.live ? fleaTeamRoster(L, me) : null; }));
+  if (cur.tab === "leagues" || cur.tab === "edge") render();
   syncAlerts().catch(() => {});
   const st = await getState().catch(() => null);
   if (st) $("#wk").textContent = "Week " + (st.display_week || st.week);
@@ -406,6 +429,7 @@ function render(){
   if (cur.tab === "accounts") return renderAccounts(v);
   if (cur.tab === "news") return renderNews(v);
   if (cur.tab === "trending") return renderTrending(v);
+  if (cur.tab === "edge") return renderEdge(v);
   if (cur.league != null) return renderLeague(v, leagues[cur.league]);
   renderLeagues(v); wireInstall(v);
 }
@@ -715,7 +739,7 @@ async function openPlayer(pl){
   if (pl.tot != null) cells.push(["Season", fmt(pl.tot)]);
   if (pl.avg != null) cells.push(["Per game", fmt(pl.avg)]);
   if (cells.length) stats = '<div class="statrow">' + cells.map(c => '<div><small>' + c[0] + "</small><b>" + c[1] + "</b></div>").join("") + "</div>";
-  p.innerHTML = '<button class="back" id="closeSheet">Close</button><div class="shead">' + avatar(pl).replace('class="av"', 'class="av xl"') + '<div><h2>' + esc(pl.name) + injChip(pl.inj) + '</h2><p class="muted small" style="margin:0">' + posTag(pl) + gameLine(pl.team) + (pl.injPart ? " · " + esc(pl.injPart) : "") + "</p></div></div>" + stats + (pl.act ? '<div class="actions">' + pl.act + "</div>" : "") + injSection(pl) + '<h3>Latest news</h3><div id="pnews"><p class="spin">Loading news…</p></div>';
+  p.innerHTML = '<button class="back" id="closeSheet">Close</button><div class="shead">' + avatar(pl).replace('class="av"', 'class="av xl"') + '<div><h2>' + esc(pl.name) + injChip(pl.inj) + '</h2><p class="muted small" style="margin:0">' + posTag(pl) + gameLine(pl.team) + (pl.injPart ? " · " + esc(pl.injPart) : "") + '</p><div class="chips" style="margin-top:6px">' + envChips(pl.team) + "</div></div></div>" + stats + (pl.act ? '<div class="actions">' + pl.act + "</div>" : "") + injSection(pl) + '<h3>Latest news</h3><div id="pnews"><p class="spin">Loading news…</p></div>';
   sh.hidden = false;
   p.querySelector("#closeSheet").addEventListener("click", closeSheet);
   try {
@@ -1331,6 +1355,401 @@ function drawTrade(ctx){
   }));
 }
 
+/* ======================= EDGE ======================= */
+const ed = {sub: "week", league: null};
+function edgeReady(){ return leagues.map((L, i) => ({L, i})).filter(x => x.L.detail && x.L.detail.teams.find(t => t.mine)); }
+function ensureSidIndex(){
+  if (!sidIndex && players) { sidIndex = {}; for (const id in players) { const q = players[id]; const k = norm(q[0]) + "|" + q[1]; if (!sidIndex[k]) sidIndex[k] = id; } }
+}
+function sleeperKey(L, p){
+  if (L.meta.platform === "sleeper") return String(p.id);
+  ensureSidIndex();
+  return sidIndex ? (sidIndex[norm(p.name) + "|" + (p.pos === "D/ST" ? "DEF" : p.pos || "")] || null) : null;
+}
+function scoringCol(L){ return L.meta.platform === "sleeper" ? ({ppr:0, half:1, std:2}[L.detail.scoring] ?? 0) : 0; }
+let projMap = null, projP = null;
+function getProj(){
+  if (!projP) projP = (async () => { const st = await getState(); try { projMap = await api("/api/proj?season=" + (st.league_season || st.season) + "&week=" + (st.display_week || st.week)); } catch(e){ projMap = {}; } return projMap; })();
+  return projP;
+}
+function projFor(L, p){
+  if (p.proj != null) return p.proj;
+  const id = sleeperKey(L, p), r = id && projMap && projMap[id];
+  return r ? r[scoringCol(L)] : null;
+}
+function edgeSlots(L){
+  const d = L.detail;
+  return leagueSlots(L).concat(d.kdst || (d.slots || []).filter(x => x === "K" || x === "DEF"));
+}
+const slotOk = (slot, pos) => (FLEX[slot] || [slot]).includes(pos) || (slot === "DEF" && pos === "D/ST") || (slot === "D/ST" && pos === "DEF");
+function gameState(team){ const g = team && nflGames[tnorm(team)]; return g ? g.state : (gamesAt ? "bye" : null); }
+const isLocked = p => { const s = gameState(p.team); return s === "in" || s === "post"; };
+function optimize(roster, slots, pj){
+  const open = slots.slice(), list = [];
+  roster.filter(p => p.slot === "start" && isLocked(p)).forEach(p => {
+    let i = open.findIndex(s => s === p.pos || (s === "DEF" && p.pos === "D/ST"));
+    if (i < 0) i = open.findIndex(s => slotOk(s, p.pos));
+    if (i >= 0) { list.push({slot: open[i], p, v: pj(p), locked: true}); open.splice(i, 1); }
+  });
+  const pool = roster.filter(p => p.slot !== "ir" && !isLocked(p) && !OUTISH_C.test(String(p.inj || ""))).map(p => ({p, v: pj(p)})).sort((a, b) => b.v - a.v);
+  const used = new Set();
+  const order = open.filter(s => !FLEX[s]).concat(open.filter(s => FLEX[s]));
+  for (const slot of order) {
+    const pick = pool.find(x => !used.has(x.p) && slotOk(slot, x.p.pos));
+    if (pick) used.add(pick.p);
+    list.push({slot, p: pick ? pick.p : null, v: pick ? pick.v : 0});
+  }
+  return {list, total: list.reduce((s, x) => s + x.v, 0)};
+}
+function impliedTotal(team){
+  const t = tnorm(team), g = nflGames[t]; if (!g || g.ou == null) return null;
+  const m = String(g.line || "").match(/^([A-Z]{2,3})\s*(-?[\d.]+)/);
+  let s = 0, fav = null; if (m) { fav = tnorm(m[1]); s = Math.abs(Number(m[2])) || 0; }
+  return g.ou / 2 + (fav ? (fav === t ? s / 2 : -s / 2) : 0);
+}
+function envChips(team){
+  const t = tnorm(team), g = nflGames[t]; if (!g) return gamesAt ? '<span class="chip">Bye</span>' : "";
+  const it = impliedTotal(team), out = [];
+  if (it != null) out.push('<span class="chip' + (it >= 26 ? " ok" : it <= 18 ? " warn" : "") + '">Team total ' + it.toFixed(1) + "</span>");
+  if (g.indoor) out.push('<span class="chip">Dome</span>');
+  else if (g.temp != null) out.push('<span class="chip' + (/rain|snow|storm|shower/i.test(g.sky) || g.temp <= 32 ? " warn" : "") + '">' + Math.round(g.temp) + "°" + (g.sky ? " " + esc(g.sky) : "") + "</span>");
+  return out.join("");
+}
+const SLOT_LABEL = {FLEX:"Flex", SUPER_FLEX:"Superflex", REC_FLEX:"WR/TE", WRRB_FLEX:"RB/WR", "D/ST":"D/ST", DEF:"DEF"};
+function miniRow(p, right, sub){
+  const i = reg.push(p) - 1;
+  return '<li><button class="prow" data-i="' + i + '">' + avatar(p) + '<span class="pname"><b>' + esc(p.name) + injChip(p.inj) + "</b><small>" + (sub || (posTag(p) + gameLine(p.team))) + '</small></span><span class="pts">' + (right || "") + "</span></button></li>";
+}
+async function rosterFor(L, t){
+  if (L.meta.platform === "flea" && !t.live && t.roster) await fleaTeamRoster(L, t);
+  return t.roster || [];
+}
+
+/* ---------- Edge: This week ---------- */
+async function edgeWeek(L, el){
+  const d = L.detail, me = d.teams.find(t => t.mine);
+  await Promise.all([getPlayers(), getProj(), gamesAt ? null : loadScoreboard(), rosterFor(L, me)]);
+  ensureSidIndex();
+  const pj0 = p => { const v = projFor(L, p); return v == null ? 0 : v; };
+  const pj = p => pj0(p) + (p.slot === "start" ? 0.001 : 0);
+  const hasProjPos = p => L.meta.platform === "flea" || ["QB", "RB", "WR", "TE"].includes(p.pos);
+  const slots = edgeSlots(L), roster = me.roster;
+  const starters = roster.filter(p => p.slot === "start");
+  const cur = starters.reduce((s, p) => s + pj(p), 0);
+  const opt = optimize(roster, slots, pj);
+  const optIds = new Set(opt.list.filter(x => x.p).map(x => x.p.id));
+  const ins = opt.list.filter(x => x.p && x.p.slot !== "start"), outs = starters.filter(p => !optIds.has(p.id));
+  const gain = opt.total - cur - opt.list.filter(x => x.p && x.p.slot === "start").length * 0.001;
+  const flags = starters.filter(p => OUTISH_C.test(String(p.inj || "")) || gameState(p.team) === "bye" || (hasProjPos(p) && !isLocked(p) && pj0(p) <= 0.5));
+  let h = "";
+  h += '<div class="card heroCard"><div class="gtop"><div class="gnum" style="background:' + (gain > 0.5 ? "var(--warn-soft);color:var(--warn)" : "var(--ok-soft);color:var(--ok)") + '"><b>' + (gain > 0.5 ? "+" + gain.toFixed(1) : "✓") + "</b></div><div><b class='glabel'>" + (gain > 0.5 ? "Your lineup is leaving points on the bench" : flags.length ? "Best you can do, but there’s a hole" : "Your lineup is set") + '</b><span class="muted small">Current ' + fmt(cur) + " projected · best possible " + fmt(opt.total) + (starters.length ? "" : " · open your league once so the app knows your lineup") + "</span></div></div>";
+  if (ins.length || outs.length) h += '<div class="swaps"><div><small>Start</small>' + ins.map(x => "<b>" + esc(x.p.name) + " <span class='muted'>" + fmt(x.v) + "</span></b>").join("") + "</div><div><small>Bench</small>" + outs.map(p => "<b>" + esc(p.name) + " <span class='muted'>" + fmt(pj(p)) + "</span></b>").join("") + "</div></div>" +
+    '<div class="actions">' + extBtn(lineupUrl(L, me), "Set lineup in " + siteName(L)) + "</div>";
+  if (flags.length) h += '<ul class="reasons">' + flags.map(p => '<li class="bad">' + esc(p.name) + (OUTISH_C.test(String(p.inj || "")) ? " is " + esc(p.inj) : gameState(p.team) === "bye" ? " is on bye" : " is projected for 0") + "</li>").join("") + "</ul>";
+  h += "</div>";
+  h += "<h3>Best lineup · Week " + (d.week || "") + '</h3><ul class="plist">' + opt.list.map(x => x.p ? miniRow(x.p, fmt(x.v), '<em class="pt" data-pos="' + esc(x.p.pos) + '">' + esc(SLOT_LABEL[x.slot] || x.slot) + "</em>" + gameLine(x.p.team) + (x.p.slot !== "start" ? ' <span class="chip ok" style="padding:2px 7px">In</span>' : "") + (x.locked ? ' <span class="chip" style="padding:2px 7px">Locked</span>' : "") + '<span class="envrow">' + envChips(x.p.team) + "</span>") : '<li><div class="prow"><span class="pos">' + esc(SLOT_LABEL[x.slot] || x.slot) + '</span><span class="muted">No healthy player for this spot</span></div></li>').join("") + "</ul>";
+  h += '<p class="small muted" style="margin:8px 4px 0">' + (L.meta.platform === "flea" ? "Projections use your league’s scoring from Fleaflicker." : "Projections from Sleeper.") + " Team totals come from the betting line: higher means more expected scoring. Players whose games have started are locked.</p>";
+  // opponent
+  const g = d.games.find(x => x.a.id === me.id || x.b.id === me.id);
+  if (g) {
+    const oppId = g.a.id === me.id ? g.b.id : g.a.id, opp = d.teams.find(t => t.id === oppId);
+    if (opp) {
+      await rosterFor(L, opp);
+      const os = opp.roster.filter(p => p.slot === "start"), oCur = os.reduce((s, p) => s + pj(p), 0), oOpt = optimize(opp.roster, slots, pj);
+      const wp = 1 / (1 + Math.exp(-(opt.total - oCur) / 14));
+      const oFlags = os.filter(p => OUTISH_C.test(String(p.inj || "")) || gameState(p.team) === "bye" || (hasProjPos(p) && !isLocked(p) && pj0(p) <= 0.5));
+      const weak = os.filter(p => pj(p) > 0.5).sort((a, b) => pj(a) - pj(b)).slice(0, 2);
+      const top = os.slice().sort((a, b) => pj(b) - pj(a)).slice(0, 3);
+      h += "<h3>Scouting " + esc(opp.name) + '</h3><div class="card">' +
+        '<div class="hero compact"><div class="hteam">' + teamLogo(me) + "<b>You</b><small>" + fmt(opt.total) + ' best</small></div><div class="hmid"><div class="hscores"><span class="' + (opt.total >= oCur ? "win" : "") + '">' + Math.round(wp * 100) + '%</span></div><small>to win if you set your best lineup</small></div><div class="hteam">' + teamLogo(opp) + "<b>" + esc(opp.name) + "</b><small>" + fmt(oCur) + " as set</small></div></div>" +
+        '<ul class="reasons">' +
+        (oFlags.length ? oFlags.map(p => '<li class="good">Their starter ' + esc(p.name) + (OUTISH_C.test(String(p.inj || "")) ? " is " + esc(p.inj) : gameState(p.team) === "bye" ? " is on bye" : " is projected for 0") + ".</li>").join("") : "") +
+        (oOpt.total - oCur > 2 ? '<li class="">They’re leaving ' + (oOpt.total - oCur).toFixed(1) + " points on their bench. If they fix it they project " + fmt(oOpt.total) + ".</li>" : "") +
+        (weak.length ? '<li class="good">Weak spots: ' + weak.map(p => esc(p.name) + " (" + fmt(pj(p)) + ")").join(", ") + ".</li>" : "") +
+        (top.length ? "<li>Their biggest threats: " + top.map(p => esc(p.name) + " (" + fmt(pj(p)) + ")").join(", ") + ".</li>" : "") +
+        "</ul>" + (wp < 0.4 ? '<p class="small" style="margin:10px 0 0"><b>You’re the underdog.</b> Higher-upside starts in high team totals give you a better shot than safe ones.</p>' : wp > 0.65 ? '<p class="small" style="margin:10px 0 0"><b>You’re favored.</b> Favor safe, high-floor starts.</p>' : "") + "</div>";
+    }
+  }
+  // game environment for my starters
+  el.innerHTML = h;
+  wireRows(el);
+}
+
+/* ---------- Edge: Waivers ---------- */
+const WEAK = {QB:15, RB:10, WR:10, TE:7, FLEX:9, SUPER_FLEX:15, REC_FLEX:9, WRRB_FLEX:9};
+async function faPool(L, pos){
+  const d = L.detail;
+  if (L.meta.platform === "flea") {
+    const r = await api(fq("FetchPlayerListing", {league_id: L.meta.id, "filter.free_agent_only": "true", sort: "SORT_PROJECTIONS", "filter.position.eligibility": pos}));
+    return (r.players || []).map(x => {
+      const p = x.proPlayer || {}, inj = p.injury || null, rg = (x.requestedGames || [])[0] || {};
+      return {id: String(p.id), name: p.nameFull, pos: p.position, team: p.proTeamAbbreviation, img: p.headshotUrl || "",
+        inj: inj ? (inj.typeAbbreviaition || inj.typeAbbreviation || inj.typeFull) : null, injPart: inj ? (inj.description || inj.typeFull) : null,
+        proj: val(x.viewingProjectedPoints) ?? val(rg.pointsProjected), avg: val(x.seasonAverage), tot: val(x.seasonTotal)};
+    });
+  }
+  const taken = new Set(); d.teams.forEach(t => t.roster.forEach(p => taken.add(String(p.id))));
+  const out = [];
+  for (const id in players) { const q = players[id]; if (q[1] !== pos || taken.has(id) || !q[2]) continue; const r = projMap && projMap[id]; if (!r) continue;
+    out.push({id, name: q[0], pos: q[1], team: q[2], inj: q[3], injPart: q[4], proj: r[scoringCol(L)]}); }
+  return out.sort((a, b) => (b.proj || 0) - (a.proj || 0)).slice(0, 25);
+}
+function rosteredSet(L){
+  const s = new Set(); L.detail.teams.forEach(t => t.roster.forEach(p => { s.add(norm(p.name) + "|" + (p.pos || "")); if (L.meta.platform === "sleeper") s.add("id:" + p.id); })); return s;
+}
+async function edgeWaivers(L, el){
+  const d = L.detail, me = d.teams.find(t => t.mine);
+  const st = await getState();
+  await Promise.all([getPlayers(), getProj(), getSeasonStats(L.meta.season || st.league_season), gamesAt ? null : loadScoreboard(), rosterFor(L, me)]);
+  ensureSidIndex();
+  const pj = p => { const v = projFor(L, p); return v == null ? 0 : v; };
+  const opt = optimize(me.roster, edgeSlots(L), pj);
+  const weakSlots = opt.list.filter(x => WEAK[x.slot] != null && (!x.p || x.v < WEAK[x.slot]));
+  const need = [...new Set(weakSlots.flatMap(x => FLEX[x.slot] || [x.slot]))];
+  let h = "";
+  // 1. upgrades for weak spots
+  h += '<h3 style="margin-top:6px">Upgrades for your weak spots</h3>';
+  if (!weakSlots.length) h += '<div class="card"><p class="small" style="margin:0">Every starting spot projects above a typical starter this week. Use your bench spots on the stashes below.</p></div>';
+  else {
+    const pools = {}; await Promise.all(need.map(async pos => { try { pools[pos] = await faPool(L, pos); } catch(e){ pools[pos] = []; } }));
+    const used = new Set(), cards = [];
+    for (const x of weakSlots.sort((a, b) => a.v - b.v)) {
+      const cand = (FLEX[x.slot] || [x.slot]).flatMap(pos => pools[pos] || []).filter(p => !used.has(p.id) && !OUTISH_C.test(String(p.inj || "")) && (p.proj || 0) > x.v + 1).sort((a, b) => (b.proj || 0) - (a.proj || 0)).slice(0, 2);
+      cand.forEach(p => used.add(p.id));
+      cards.push('<div class="card" style="margin-bottom:10px"><div class="offhead"><b>' + esc(SLOT_LABEL[x.slot] || x.slot) + ": " + (x.p ? esc(x.p.name) + " <span class='muted'>" + fmt(x.v) + "</span>" : "empty") + '</b><span class="chip warn">Weak spot</span></div>' +
+        (cand.length ? '<ul class="plist" style="margin-top:10px">' + cand.map(p => miniRow(p, '<span class="avg">+' + ((p.proj || 0) - x.v).toFixed(1) + "<small>vs yours</small></span>", posTag(p) + gameLine(p.team) + " · proj " + fmt(p.proj))).join("") + "</ul>" : '<p class="small muted" style="margin:8px 0 0">No free agent projects higher this week.</p>') + "</div>");
+    }
+    h += cards.join("") + '<div class="actions" style="margin-top:0">' + extBtn(waiverUrl(L), "Add players in " + siteName(L)) + "</div>";
+  }
+  // 2. stash: backups behind injured starters
+  const taken = rosteredSet(L), col = scoringCol(L);
+  const byTeam = {};
+  for (const id in players) { const q = players[id]; if (!q[2] || !["QB", "RB"].includes(q[1])) continue; const k = q[2] + "|" + q[1]; (byTeam[k] = byTeam[k] || []).push(id); }
+  const stash = [];
+  for (const k in byTeam) {
+    const ids = byTeam[k].map(id => { const s = sstats && sstats[id]; return {id, ppg: s && s[3] ? s[col] / s[3] : 0, proj: projMap && projMap[id] ? projMap[id][col] : 0}; });
+    const starter = ids.slice().sort((a, b) => b.ppg - a.ppg)[0]; if (!starter || starter.ppg < (k.endsWith("QB") ? 12 : 8)) continue;
+    const sq = players[starter.id], status = sq[3];
+    const backup = ids.filter(x => x.id !== starter.id && !OUTISH_C.test(String(players[x.id][3] || ""))).sort((a, b) => (b.proj - a.proj) || (b.ppg - a.ppg))[0]; if (!backup) continue;
+    const bq = players[backup.id];
+    const free = L.meta.platform === "sleeper" ? !taken.has("id:" + backup.id) : !taken.has(norm(bq[0]) + "|" + bq[1]);
+    if (!free) continue;
+    const sev = OUTISH_C.test(String(status || "")) ? 3 : /questionable/i.test(status || "") ? 2 : 0;
+    if (!sev && !(k.endsWith("QB") && d.slots && d.slots.includes("SUPER_FLEX"))) continue;
+    stash.push({p: {id: backup.id, name: bq[0], pos: bq[1], team: bq[2], inj: bq[3], injPart: bq[4]}, starter: sq[0], status, sev, ppg: starter.ppg, proj: backup.proj});
+  }
+  stash.sort((a, b) => (b.sev - a.sev) || (b.ppg - a.ppg));
+  h += "<h3>Stash these backups</h3>" + (stash.length ? '<ul class="plist">' + stash.slice(0, 8).map(x => miniRow(x.p, x.sev === 3 ? '<span class="chip ok" style="padding:4px 8px">Add now</span>' : x.sev === 2 ? '<span class="chip warn" style="padding:4px 8px">Watch</span>' : '<span class="chip" style="padding:4px 8px">Insurance</span>',
+      posTag(x.p) + esc(x.p.team) + " · behind " + esc(x.starter) + (x.status ? " (" + esc(x.status) + ")" : ""))).join("") + "</ul>" : '<div class="card"><p class="small" style="margin:0">No free backups behind injured starters right now. Alerts will tell you the moment one opens up.</p></div>') +
+    '<p class="small muted" style="margin:8px 4px 0">Free in your league. "Add now" means the starter is out; "Watch" means he’s questionable. In superflex, every starting QB’s backup is worth a bench spot.</p>';
+  // 3. role risers
+  try {
+    const wk = st.display_week || st.week, r = await api("/api/roles?season=" + (st.league_season || st.season) + "&week=" + wk);
+    const rise = [];
+    for (const id in r.players) {
+      const q = players[id]; if (!q || !["RB", "WR", "TE"].includes(q[1])) continue;
+      const free = L.meta.platform === "sleeper" ? !taken.has("id:" + id) : !taken.has(norm(q[0]) + "|" + q[1]); if (!free) continue;
+      const [s0, sp, t0, tp, c0, cp] = r.players[id]; if (sp == null) continue;
+      const snapJump = s0 - sp, tgtJump = t0 - (tp || 0), carJump = c0 - (cp || 0);
+      const score = (snapJump >= 15 && s0 >= 45 ? snapJump : 0) + (tgtJump >= 4 && t0 >= 6 ? tgtJump * 4 : 0) + (carJump >= 6 && c0 >= 10 ? carJump * 2 : 0);
+      if (score > 0) rise.push({p: {id, name: q[0], pos: q[1], team: q[2], inj: q[3]}, s0, sp, t0, tp, c0, cp, score});
+    }
+    rise.sort((a, b) => b.score - a.score);
+    h += "<h3>Roles on the rise · Week " + r.week + "</h3>" + (rise.length ? '<ul class="plist">' + rise.slice(0, 8).map(x => miniRow(x.p, "",
+      posTag(x.p) + esc(x.p.team) + " · snaps " + x.sp + "% → <b>" + x.s0 + "%</b>" + (x.p.pos === "RB" ? " · carries " + Math.round(x.cp || 0) + " → <b>" + x.c0 + "</b>" : " · targets " + Math.round(x.tp || 0) + " → <b>" + x.t0 + "</b>"))).join("") + "</ul>" : '<div class="card"><p class="small" style="margin:0">No free agent saw a big jump in snaps or touches last week.</p></div>') +
+      '<p class="small muted" style="margin:8px 4px 0">Free agents whose playing time or touches jumped last week compared with the two weeks before. Role changes show up here before the points do.</p>';
+  } catch(e){}
+  try {
+    const tr24 = await api("/api/sleeper/players/nfl/trending/add?lookback_hours=24&limit=40");
+    const hot = (tr24 || []).map(t => ({t, q: players[t.player_id]})).filter(x => x.q && ["QB", "RB", "WR", "TE"].includes(x.q[1]) && (L.meta.platform === "sleeper" ? !taken.has("id:" + x.t.player_id) : !taken.has(norm(x.q[0]) + "|" + x.q[1]))).slice(0, 8);
+    h += "<h3>Most added in the last 24 hours</h3>" + (hot.length ? '<ul class="plist">' + hot.map(x => miniRow({id: x.t.player_id, name: x.q[0], pos: x.q[1], team: x.q[2], inj: x.q[3], injPart: x.q[4]}, '<span class="avg">+' + Number(x.t.count).toLocaleString() + "<small>adds</small></span>")).join("") + "</ul>" : '<div class="card"><p class="small" style="margin:0">None of today’s most-added players are free in your league.</p></div>') +
+      '<p class="small muted" style="margin:8px 4px 0">Adds across all Sleeper leagues, filtered to players still free in yours.</p>';
+  } catch(e){}
+  el.innerHTML = h;
+  wireRows(el);
+}
+
+/* ---------- Edge: League outlook + intel ---------- */
+async function getSchedule(L){
+  const d = L.detail; if (d.sched) return d.sched;
+  const st = await getState(), cw = d.week || st.display_week || st.week;
+  let po = {teams: null, start: null};
+  if (L.meta.platform === "sleeper") po = {teams: d.playoffTeams, start: d.playoffStart};
+  else { try { po = await api("/api/flea-playoffs?league_id=" + L.meta.id); } catch(e){} }
+  po.teams = po.teams || (d.teams.length >= 12 ? 6 : 4); po.start = po.start || 15;
+  const ws = []; for (let w = cw; w < po.start; w++) ws.push(w);
+  const weeks = await Promise.all(ws.map(async w => {
+    try {
+      if (L.meta.platform === "flea") {
+        const b = await api(fq("FetchLeagueScoreboard", {league_id: L.meta.id, scoring_period: w}));
+        return {w, games: (b.games || []).map(g => [String((g.away || {}).id), String((g.home || {}).id), val((g.awayScore || {}).projected), val((g.homeScore || {}).projected)])};
+      }
+      const m = await api("/api/sleeper/league/" + L.meta.id + "/matchups/" + w), grp = {};
+      (m || []).forEach(x => { if (x.matchup_id) (grp[x.matchup_id] = grp[x.matchup_id] || []).push(String(x.roster_id)); });
+      return {w, games: Object.values(grp).filter(x => x.length === 2).map(x => [x[0], x[1], null, null])};
+    } catch(e){ return {w, games: []}; }
+  }));
+  d.sched = {weeks, po, cw};
+  return d.sched;
+}
+function simulate(d, sched, boostId, boost, n){
+  n = n || 3000;
+  const T = d.teams, N = T.length, idx = {}; T.forEach((t, i) => idx[t.id] = i);
+  const gp = t => Math.max(1, (t.w || 0) + (t.l || 0) + (t.t || 0));
+  const pnow = {}; (sched.weeks[0] ? sched.weeks[0].games : []).forEach(g => { if (g[2]) pnow[g[0]] = g[2]; if (g[3]) pnow[g[1]] = g[3]; });
+  const mean = T.map(t => { const a = (t.pf || 0) / gp(t), p = pnow[t.id]; return (p ? 0.5 * a + 0.5 * p : a) + (t.id === boostId ? boost : 0); });
+  const P = Math.min(sched.po.teams, N), divs = {}; T.forEach((t, i) => { if (t.div != null) (divs[t.div] = divs[t.div] || []).push(i); });
+  const useDivs = Object.keys(divs).length > 1 && Object.keys(divs).length <= P;
+  const make = new Array(N).fill(0), wins = new Array(N).fill(0), slot = new Array(N).fill(0), seed = new Array(N).fill(0);
+  const rn = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+  for (let s = 0; s < n; s++) {
+    const W = T.map(t => (t.w || 0) + (t.t || 0) / 2), PF = T.map(t => t.pf || 0);
+    for (const wk of sched.weeks) for (const g of wk.games) {
+      const a = idx[g[0]], b = idx[g[1]]; if (a == null || b == null) continue;
+      const sa = mean[a] + 24 * rn(), sb = mean[b] + 24 * rn();
+      PF[a] += sa; PF[b] += sb; if (sa > sb) W[a]++; else W[b]++;
+    }
+    const order = T.map((_, i) => i).sort((x, y) => (W[y] - W[x]) || (PF[y] - PF[x]));
+    let seeds;
+    if (useDivs) { const winners = Object.values(divs).map(m => m.slice().sort((x, y) => order.indexOf(x) - order.indexOf(y))[0]).sort((x, y) => order.indexOf(x) - order.indexOf(y)); seeds = winners.concat(order.filter(i => !winners.includes(i)).slice(0, P - winners.length)); }
+    else seeds = order.slice(0, P);
+    seeds.forEach((i, k) => { make[i]++; seed[i] += k + 1; });
+    order.slice().reverse().forEach((i, k) => slot[i] += k + 1);
+    order.forEach(i => wins[i] += W[i]);
+  }
+  return T.map((t, i) => ({t, odds: make[i] / n, wins: wins[i] / n, slot: slot[i] / n, seed: make[i] ? seed[i] / make[i] : null, mean: mean[i]}));
+}
+async function tradeHistory(L){
+  const d = L.detail; if (d.trades) return d.trades;
+  const out = [];
+  if (L.meta.platform === "flea") {
+    for (const off of [0, 10, 20, 30]) {
+      try { const r = await api(fq("FetchTrades", {league_id: L.meta.id, filter: "TRADES_COMPLETED", result_offset: off})); (r.trades || []).forEach(t => out.push(t)); if (!(r.trades || []).length) break; } catch(e){ break; }
+    }
+  }
+  d.trades = out; return out;
+}
+async function edgeLeague(L, el){
+  const d = L.detail, me = d.teams.find(t => t.mine);
+  el.innerHTML = '<p class="spin">Simulating the rest of the season…</p>';
+  const sched = await getSchedule(L);
+  const base = simulate(d, sched), boosted = simulate(d, sched, me.id, 15);
+  ed.sim = {L: L.meta.id, base};
+  const mine = base.find(x => x.t === me), mineB = boosted.find(x => x.t === me);
+  const left = sched.weeks.length, ord = base.slice().sort((a, b) => b.odds - a.odds || b.wins - a.wins);
+  const sos = sched.weeks.reduce((s, wk) => { const g = wk.games.find(x => x[0] === me.id || x[1] === me.id); if (!g) return s; const o = base.find(x => x.t.id === (g[0] === me.id ? g[1] : g[0])); return s + (o ? o.mean : 0); }, 0) / Math.max(1, left);
+  const sosRank = base.map(x => { const tot = sched.weeks.reduce((s, wk) => { const g = wk.games.find(y => y[0] === x.t.id || y[1] === x.t.id); if (!g) return s; const o = base.find(z => z.t.id === (g[0] === x.t.id ? g[1] : g[0])); return s + (o ? o.mean : 0); }, 0); return {id: x.t.id, v: tot}; }).sort((a, b) => b.v - a.v).findIndex(x => x.id === me.id) + 1;
+  const pct = x => Math.round(x * 100) + "%";
+  let call, tone;
+  if (mine.odds >= 0.65) { call = "Buy. You’re a playoff team, so trade picks and depth for players who score now."; tone = "good"; }
+  else if (mine.odds >= 0.3) { call = "Bubble. A starting QB is your swing: about +15 points a week moves you from " + pct(mine.odds) + " to " + pct(mineB.odds) + "."; tone = "mid"; }
+  else if (mineB.odds >= 0.35) { call = "Buy a QB, cheaply. You’re at " + pct(mine.odds) + " now, but +15 points a week gets you to " + pct(mineB.odds) + ". Don’t spend your best young players to do it."; tone = "mid"; }
+  else { call = "Sell. Even with a QB you’d be at " + pct(mineB.odds) + ". Trade veterans to contenders for picks and young players, and build for next year."; tone = "bad"; }
+  let h = '<div class="card grade ' + tone + '"><div class="gtop"><div class="gnum"><b>' + Math.round(mine.odds * 100) + '</b><small>%</small></div><div><b class="glabel">Playoff odds</b><span class="muted small">Projected ' + mine.wins.toFixed(1) + " wins after week " + (sched.po.start - 1) + " · top " + sched.po.teams + " make it" + (mine.seed ? " · avg seed " + mine.seed.toFixed(1) : "") + "</span></div></div>" +
+    '<ul class="reasons"><li class="' + (tone === "good" ? "good" : tone === "bad" ? "bad" : "") + '"><b>' + esc(call) + "</b></li>" +
+    "<li>With a +15 point-a-week upgrade (a starting QB for you): " + pct(mineB.odds) + ".</li>" +
+    "<li>Remaining schedule: " + left + " games, " + (sosRank <= 5 ? "one of the hardest" : sosRank >= d.teams.length - 4 ? "one of the easiest" : "about average") + " in the league (opponents average " + fmt(sos) + ").</li>" +
+    "<li>Projected draft slot for your own pick: about #" + Math.round(mine.slot) + ".</li></ul></div>";
+  h += '<h3>Playoff odds · ' + sched.po.teams + " of " + d.teams.length + ' make it</h3><div class="card" style="padding:6px 0"><table class="otable"><tbody>' + ord.map(x => '<tr class="' + (x.t === me ? "me" : "") + '"><td>' + teamLogo(x.t) + '</td><td><b>' + esc(x.t.name) + "</b><small>" + x.t.w + "-" + x.t.l + " · " + x.wins.toFixed(1) + ' proj wins</small></td><td class="obar"><span style="width:' + Math.round(x.odds * 100) + '%"></span></td><td class="onum">' + pct(x.odds) + "</td></tr>").join("") + "</tbody></table></div>" +
+    '<p class="small muted" style="margin:8px 4px 0">3,000 simulated seasons using each team’s scoring average and this week’s projections, your remaining schedule, and ' + (Object.keys(d.teams.reduce((o, t) => (t.div != null && (o[t.div] = 1), o), {})).length > 1 ? "division winners getting in" : "best records getting in") + ".</p>";
+  // intel
+  el.innerHTML = h + '<p class="spin">Reading the league’s trade history…</p>';
+  const qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1, ppr = L.meta.platform === "sleeper" ? ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1") : "1";
+  const dyn = savedDyn(L) != null ? savedDyn(L) : /dynasty|keeper/i.test(L.meta.name);
+  const pack = await loadValues(ppr, d.teams.length, qbs, dyn), V = pack.v, prem = qbPremium(d.teams.length, qbs);
+  const vkey = p => L.meta.platform === "sleeper" ? String(p.id) : pack.flea ? "f" + p.id : sleeperKey(L, p);
+  const pv = p => ((V[vkey(p)] || [0])[0] || 0) * (p.pos === "QB" ? prem : 1), age = p => (V[vkey(p)] || [])[6];
+  await Promise.all([getProj(), getPlayers()]);
+  const pj = p => { const v = projFor(L, p); return v == null ? 0 : v; };
+  const trades = await tradeHistory(L), tstats = {};
+  const pickVal = x => { const pk = x.draftPick || x, sy = pk.season, rd = (pk.slot || {}).round; return (V["pick:" + sy + " " + ORD[rd]] || [0])[0] || 0; };
+  trades.forEach(t => (t.teams || []).forEach(side => {
+    const id = String((side.team || {}).id), s = tstats[id] = tstats[id] || {n: 0, inP: 0, inK: 0, out: 0};
+    s.n++;
+    (side.playersObtained || []).forEach(x => s.inP += ((V[pack.flea ? "f" + x.proPlayer.id : ""] || [0])[0] || 0));
+    (side.picksObtained || []).forEach(x => s.inK += pickVal(x));
+  }));
+  trades.forEach(t => { const sides = t.teams || []; sides.forEach(side => { const id = String((side.team || {}).id); const others = sides.filter(x => x !== side); others.forEach(o => { tstats[id].out += (o.playersObtained || []).reduce((s, x) => s + ((V[pack.flea ? "f" + x.proPlayer.id : ""] || [0])[0] || 0), 0) + (o.picksObtained || []).reduce((s, x) => s + pickVal(x), 0); }); }); });
+  const intel = base.filter(x => x.t !== me).map(x => {
+    const t = x.t, tags = [], notes = [];
+    const vets = t.roster.filter(p => (age(p) || 0) >= 28 && pv(p) >= 2000).sort((a, b) => pv(b) - pv(a));
+    if (x.odds < 0.2 && vets.length) { tags.push(["Seller", "ok"]); notes.push((x.odds < 0.05 ? "Out of the race" : "Long shot for the playoffs") + " (" + pct(x.odds) + "). Veterans they could sell: " + vets.slice(0, 3).map(p => p.name).join(", ") + "."); }
+    const hurt = t.roster.filter(p => p.slot === "start" && OUTISH_C.test(String(p.inj || "")));
+    if (x.odds >= 0.5 && hurt.length) { tags.push(["Needs help", "warn"]); notes.push("Contender with " + hurt.map(p => p.name + " (" + p.pos + ", " + p.inj + ")").join(", ") + " out. They may overpay to replace them."); }
+    const qbStarters = t.roster.filter(p => p.pos === "QB" && pj(p) >= 12);
+    if (qbStarters.length > qbs) { tags.push(["Extra QB", "ok"]); notes.push("Has " + qbStarters.length + " starting QBs: " + qbStarters.map(p => p.name).join(", ") + "."); }
+    const s = tstats[t.id];
+    if (s && s.n) { const net = s.inP + s.inK - s.out; notes.push(s.n + " of the league’s last " + trades.length + " trades, mostly for " + (s.inK > s.inP ? "picks" : "players") + ". By today’s values they’ve " + (Math.abs(net) < 300 ? "broken even" : net > 0 ? "come out ahead by " + fmtV(net) : "overpaid by " + fmtV(-net)) + "."); if (net < -800) tags.push(["Overpays", "ok"]); if (s.n >= 4) tags.push(["Active trader", ""]); }
+    return {t, x, tags, notes};
+  }).filter(r => r.tags.length).sort((a, b) => b.tags.length - a.tags.length);
+  h += "<h3>Trade intel</h3>" + (intel.length ? intel.map(r => '<div class="card" style="margin-bottom:10px"><div class="offhead"><div style="display:flex;align-items:center;gap:10px;min-width:0">' + teamLogo(r.t) + "<b>" + esc(r.t.name) + "</b></div><span class='muted small'>" + r.t.w + "-" + r.t.l + '</span></div><div class="chips" style="margin-top:8px">' + r.tags.map(g => '<span class="chip ' + g[1] + '">' + g[0] + "</span>").join("") + '</div><ul class="reasons">' + r.notes.map(n => "<li>" + esc(n) + "</li>").join("") + "</ul></div>").join("") : '<div class="card"><p class="small" style="margin:0">No obvious sellers or needy contenders right now.</p></div>') +
+    (L.meta.platform === "sleeper" ? '<p class="small muted" style="margin:8px 4px 0">Trade history is available for Fleaflicker leagues.</p>' : '<p class="small muted" style="margin:8px 4px 0">Based on the last ' + trades.length + " completed trades in your league, valued at today’s trade values.</p>");
+  el.innerHTML = h;
+}
+
+/* ---------- Edge: Dynasty ---------- */
+async function edgeDynasty(L, el){
+  const d = L.detail, me = d.teams.find(t => t.mine);
+  const qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1, ppr = L.meta.platform === "sleeper" ? ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1") : "1";
+  await getPlayers(); ensureSidIndex();
+  const pack = await loadValues(ppr, d.teams.length, qbs, true), V = pack.v, prem = qbPremium(d.teams.length, qbs);
+  const vkey = p => L.meta.platform === "sleeper" ? String(p.id) : pack.flea ? "f" + p.id : sleeperKey(L, p);
+  const row = p => V[vkey(p)] || [];
+  const pv = p => (row(p)[0] || 0) * (p.pos === "QB" ? prem : 1);
+  const picks = await loadPicks(L);
+  const pickV = p => (V[p.vkey] || V[p.fallback] || [0])[0] || 0;
+  const POS = ["QB", "RB", "WR", "TE"];
+  const teamVals = d.teams.map(t => { const o = {t}; POS.forEach(ps => o[ps] = t.roster.filter(p => p.pos === ps).reduce((s, p) => s + pv(p), 0)); o.PK = (picks[t.id] || []).reduce((s, p) => s + pickV(p), 0); o.TOT = POS.reduce((s, ps) => s + o[ps], 0) + o.PK;
+    const core = t.roster.filter(p => row(p)[6]).sort((a, b) => pv(b) - pv(a)).slice(0, 10); o.age = core.length ? core.reduce((s, p) => s + row(p)[6], 0) / core.length : null; return o; });
+  const rank = (k, t) => teamVals.slice().sort((a, b) => b[k] - a[k]).findIndex(x => x.t === t) + 1;
+  const mv = teamVals.find(x => x.t === me), n = d.teams.length;
+  const ageRank = teamVals.filter(x => x.age).sort((a, b) => a.age - b.age).findIndex(x => x.t === me) + 1;
+  let h = '<div class="card"><div class="offhead"><b style="font-size:18px">Your dynasty value</b><span class="chip ' + (rank("TOT", me) <= n / 3 ? "ok" : rank("TOT", me) > n * 2 / 3 ? "warn" : "") + '">#' + rank("TOT", me) + " of " + n + '</span></div><table class="otable rank"><tbody>' +
+    POS.concat(["PK"]).map(k => { const r = rank(k, me); return '<tr><td><b>' + (k === "PK" ? "Picks" : k) + '</b></td><td class="obar"><span style="width:' + Math.round((1 - (r - 1) / (n - 1)) * 100) + '%;background:' + (r <= n / 3 ? "var(--ok)" : r > n * 2 / 3 ? "var(--bad)" : "var(--warn)") + '"></span></td><td class="onum">#' + r + '</td><td class="onum muted">' + fmtV(mv[k]) + "</td></tr>"; }).join("") +
+    "</tbody></table>" + (mv.age ? '<p class="small muted" style="margin:10px 0 0">Your top 10 players average ' + mv.age.toFixed(1) + " years old, " + (ageRank <= n / 3 ? "one of the youngest cores" : ageRank > n * 2 / 3 ? "one of the oldest cores" : "middle of the pack") + " in the league (#" + ageRank + " youngest).</p>" : "") + "</div>";
+  // trends
+  const mine = me.roster.filter(p => row(p)[0] >= 500).map(p => ({p, v: pv(p), tr: row(p)[3] || 0, age: row(p)[6]}));
+  const up = mine.filter(x => x.tr >= 300).sort((a, b) => b.tr - a.tr), down = mine.filter(x => x.tr <= -300).sort((a, b) => a.tr - b.tr);
+  const trendRow = (x, upDir) => miniRow(x.p, '<span class="avg" style="color:' + (upDir ? "var(--ok)" : "var(--bad)") + '">' + (upDir ? "+" : "") + fmtV(x.tr) + "<small>30 days</small></span>",
+    posTag(x.p) + "Worth " + fmtV(x.v) + (x.age ? " · age " + x.age : "") + " · " + (upDir ? ((x.age || 0) >= 27 ? "<b>Sell-high window</b>" : "Rising") : ((x.age || 0) <= 25 ? "Hold, likely a dip" : "Falling, consider moving")));
+  h += "<h3>Value on the move</h3>" + (up.length || down.length ? '<ul class="plist">' + up.slice(0, 6).map(x => trendRow(x, true)).join("") + down.slice(0, 6).map(x => trendRow(x, false)).join("") + "</ul>" : '<div class="card"><p class="small" style="margin:0">No big value swings on your roster in the last 30 days.</p></div>') +
+    '<p class="small muted" style="margin:8px 4px 0">Change in FantasyCalc dynasty value over 30 days. Older players spiking in value are your best sell-high chances.</p>';
+  // draft prep
+  const sim = ed.sim && ed.sim.L === L.meta.id ? ed.sim.base : null;
+  const slotOf = id => { const s = sim && sim.find(x => x.t.id === String(id)); if (s) return s.slot; const ordr = d.teams.slice().sort((a, b) => (a.w - b.w) || ((a.pf || 0) - (b.pf || 0))); return ordr.findIndex(t => t.id === String(id)) + 1; };
+  const myPicks = (picks[me.id] || []).filter(p => p.round <= 2);
+  h += "<h3>Rookie draft capital</h3>" + (myPicks.length ? '<ul class="plist">' + myPicks.map(p => { const orig = p.id.split(":")[3], sl = slotOf(orig), yr = p.id.split(":")[1];
+      return '<li><div class="prow"><span class="pos" data-pos="PICK">' + yr.slice(2) + "</span><span class='pname'><b>" + esc(p.name) + "</b><small>" + (p.round === 1 && Number(yr) === Math.min(...myPicks.map(x => Number(x.id.split(":")[1]))) ? "Projects as pick " + p.round + "." + String(Math.round(sl)).padStart(2, "0") + (sim ? " (from simulated standings)" : " (from current standings)") : "Future pick") + '</small></span><span class="pts">' + fmtV(pickV(p)) + "</span></div></li>"; }).join("") + "</ul>" : '<div class="card"><p class="small" style="margin:0">You don’t own any 1st or 2nd round picks.</p></div>') +
+    '<p class="small muted" style="margin:8px 4px 0">Your pick capital ranks #' + rank("PK", me) + " of " + n + ". " + (sim ? "" : "Open the League tab first for draft slots based on simulated standings. ") + "Prospect rankings aren’t available from free sources yet, so use pick values to judge trade-ups and trade-downs.</p>";
+  el.innerHTML = h;
+  wireRows(el);
+}
+
+async function renderEdge(v){
+  reg = [];
+  const ready = edgeReady();
+  let h = "<h2>Edge</h2>";
+  if (!ready.length) { v.innerHTML = h + '<div class="card"><p style="margin:0">' + (hasAccts() ? "Your leagues are still loading, or you haven’t picked your team yet. Open your league once and choose your team." : "Add your league first: tap the settings button.") + "</p></div>"; return; }
+  if (ed.league == null || !ready.find(x => x.i === ed.league)) ed.league = ready[0].i;
+  const L = leagues[ed.league];
+  if (ready.length > 1) h += '<select id="edL" style="margin-bottom:10px">' + ready.map(x => '<option value="' + x.i + '"' + (x.i === ed.league ? " selected" : "") + ">" + esc(x.L.meta.name) + "</option>").join("") + "</select>";
+  h += '<div class="seg" role="tablist" style="margin-bottom:6px">' + [["week", "This week"], ["waivers", "Waivers"], ["league", "League"], ["dynasty", "Dynasty"]].map(x => '<button type="button" data-esub="' + x[0] + '" aria-pressed="' + (ed.sub === x[0]) + '">' + x[1] + "</button>").join("") + "</div>";
+  h += '<div id="edOut"><p class="spin">Crunching the numbers…</p></div>';
+  v.innerHTML = h;
+  v.querySelectorAll("[data-esub]").forEach(b => b.addEventListener("click", () => { ed.sub = b.dataset.esub; render(); }));
+  const sel = v.querySelector("#edL"); if (sel) sel.addEventListener("change", e => { ed.league = +e.target.value; render(); });
+  const out = v.querySelector("#edOut"), sub = ed.sub, token = (ed.token = Math.random());
+  const guard = el => { const wrap = document.createElement("div"); return {wrap, done: () => { if (token === ed.token && cur.tab === "edge" && out.isConnected) { out.replaceWith(wrap); wrap.id = "edOut"; } }}; };
+  const g = guard();
+  try {
+    if (sub === "week") await edgeWeek(L, g.wrap);
+    else if (sub === "waivers") await edgeWaivers(L, g.wrap);
+    else if (sub === "league") await edgeLeague(L, g.wrap);
+    else await edgeDynasty(L, g.wrap);
+    g.done();
+  } catch(e){ if (token === ed.token && out.isConnected) out.innerHTML = '<div class="err">Couldn’t load this section: ' + esc(e.message) + "</div>"; }
+}
+
 /* ---------- push alerts ---------- */
 const pushOK = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 async function post(path, body){
@@ -1353,7 +1772,10 @@ function watchList(){
     const me = d.teams.find(t => t.mine); if (!me) return;
     me.roster.forEach(p => { if (L.meta.platform === "sleeper") ids.add(String(p.id)); if (p.name) names.add(norm(p.name) + "|" + (p.pos || "")); });
   });
-  return {ids:[...ids], names:[...names], leagues: leagues.map(L => ({p:L.meta.platform, id:L.meta.id, name:L.meta.name}))};
+  const starters = [], bench = [];
+  leagues.forEach(L => { const me = L.detail && L.detail.teams.find(t => t.mine); if (!me) return;
+    me.roster.forEach(p => { if (!p.name) return; const k = norm(p.name) + "|" + (p.pos || ""); if (p.slot === "start") starters.push(k); else if (p.slot === "bench") bench.push(k); }); });
+  return {ids:[...ids], names:[...names], starters, bench, leagues: leagues.map(L => ({p:L.meta.platform, id:L.meta.id, name:L.meta.name}))};
 }
 let alertState = {sub:null, watching:null, msg:"", busy:false, list:null};
 async function syncAlerts(sub){

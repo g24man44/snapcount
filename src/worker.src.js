@@ -7,7 +7,7 @@ const HTML = __HTML__;
 
 const FLEA_OK = new Set([
   "FetchUserLeagues", "FetchLeagueStandings", "FetchLeagueScoreboard", "FetchLeagueRosters",
-  "FetchRoster", "FetchLeagueBoxscore", "FetchLeagueActivity", "FetchLeagueTransactions", "FetchPlayerListing", "FetchLeagueRules", "FetchTeamPicks"
+  "FetchRoster", "FetchLeagueBoxscore", "FetchLeagueActivity", "FetchLeagueTransactions", "FetchPlayerListing", "FetchLeagueRules", "FetchTeamPicks", "FetchTrades"
 ]);
 const UA = { "User-Agent": "SnapCount/1.0 (fantasy dashboard)", "Accept": "application/json" };
 const FANTASY_POS = new Set(["QB", "RB", "WR", "TE", "K", "DEF"]);
@@ -118,7 +118,7 @@ async function tradeValues(ppr, teams, qbs, dyn) {
   const out = {};
   for (const x of Array.isArray(arr) ? arr : []) {
     const p = x.player || {};
-    const row = [Math.round(x.value || 0), x.overallRank || null, x.positionRank || null, Math.round(x.trend30Day || 0), p.name || "", p.position || ""];
+    const row = [Math.round(x.value || 0), x.overallRank || null, x.positionRank || null, Math.round(x.trend30Day || 0), p.name || "", p.position || "", p.maybeAge ? Math.round(p.maybeAge * 10) / 10 : null];
     if (p.position === "PICK" && p.name) out["pick:" + p.name] = row;
     if (p.sleeperId) out[p.sleeperId] = row;
     if (p.fleaflickerId) out["f" + p.fleaflickerId] = row;
@@ -150,10 +150,14 @@ async function scoreboard() {
     const c = (e.competitions || [])[0] || {};
     const side = k => (c.competitors || []).find(x => x.homeAway === k) || {};
     const st = (c.status || e.status || {}).type || {};
+    const odds = (c.odds || [])[0] || {}, w = e.weather || c.weather || null;
     return {
       away: (side("away").team || {}).abbreviation, home: (side("home").team || {}).abbreviation,
       awayScore: side("away").score || "0", homeScore: side("home").score || "0",
-      state: st.state || "pre", detail: st.shortDetail || st.detail || ""
+      state: st.state || "pre", detail: st.shortDetail || st.detail || "",
+      ou: odds.overUnder != null ? Number(odds.overUnder) : null, line: odds.details || "",
+      temp: w && w.temperature != null ? w.temperature : null, sky: (w && w.displayValue) || "",
+      indoor: !!(c.venue && c.venue.indoor), date: c.date || e.date || ""
     };
   }).filter(g => g.away && g.home);
   return json({ games }, 200, 30);
@@ -187,6 +191,41 @@ async function weekProjections(season, week) {
   }
   if (!Object.keys(out).length) return json({ error: "Projections unavailable" }, 502, 0);
   return json(out, 200, 1800);
+}
+
+// Snap share and usage for the last three weeks: { sleeperId: [snap%, prev snap%, targets, prev targets, carries, prev carries] }.
+async function roles(season, week) {
+  const weeks = [week - 1, week - 2, week - 3].filter(w => w >= 1);
+  if (!weeks.length) return json({ week: 0, players: {} }, 200, 3600);
+  const data = await Promise.all(weeks.map(w => fetch("https://api.sleeper.app/v1/stats/nfl/regular/" + season + "/" + w, { headers: UA }).then(r => r.ok ? r.json() : {}).catch(() => ({}))));
+  const pct = s => s && s.tm_off_snp ? (s.off_snp || 0) / s.tm_off_snp : null;
+  const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+  const r1 = n => n == null ? null : Math.round(n * 10) / 10;
+  const out = {};
+  for (const id in data[0]) {
+    const s0 = data[0][id], p0 = pct(s0);
+    if (p0 == null) continue;
+    const prev = data.slice(1).map(d => d[id]).filter(x => pct(x) != null);
+    out[id] = [Math.round(p0 * 100), prev.length ? Math.round(avg(prev.map(pct)) * 100) : null,
+      s0.rec_tgt || 0, prev.length ? r1(avg(prev.map(x => x.rec_tgt || 0))) : null,
+      s0.rush_att || 0, prev.length ? r1(avg(prev.map(x => x.rush_att || 0))) : null];
+  }
+  return json({ week: weeks[0], players: out }, 200, 21600);
+}
+
+// Playoff format from the league's public playoffs page: first playoff week and number of playoff teams.
+async function fleaPlayoffs(id) {
+  const r = await fetch("https://www.fleaflicker.com/nfl/leagues/" + id + "/playoffs", { headers: { "User-Agent": UA["User-Agent"] } });
+  if (!r.ok) return json({ error: "Playoff page unavailable" }, 502, 0);
+  const t = (await r.text()).replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+  const i = t.indexOf("Round 1 ");
+  let start = null, teams = null;
+  if (i >= 0) {
+    const m = t.slice(i).match(/^Round 1 (\d+)/); if (m) start = Number(m[1]);
+    const seeds = [...t.slice(i, i + 4000).matchAll(/#(\d+) /g)].map(x => Number(x[1]));
+    if (seeds.length) teams = Math.max(...seeds);
+  }
+  return json({ start, teams }, 200, 86400);
 }
 
 export default {
@@ -227,12 +266,22 @@ export default {
         const t = Number(url.searchParams.get("teams")) || 12, teams = t <= 11 ? 10 : t <= 13 ? 12 : 14;
         const qbs = url.searchParams.get("qbs") === "2" ? 2 : 1;
         const dyn = url.searchParams.get("dyn") === "1";
-        return cached(ctx, "values3/" + ppr + "/" + teams + "/" + qbs + "/" + (dyn ? 1 : 0), 21600, () => tradeValues(ppr, teams, qbs, dyn));
+        return cached(ctx, "values4/" + ppr + "/" + teams + "/" + qbs + "/" + (dyn ? 1 : 0), 21600, () => tradeValues(ppr, teams, qbs, dyn));
       }
       if (p === "/api/proj") {
         const season = url.searchParams.get("season") || "", week = url.searchParams.get("week") || "";
         if (!/^\d{4}$/.test(season) || !/^\d{1,2}$/.test(week)) return json({ error: "Bad season or week" }, 400, 0);
         return cached(ctx, "proj/" + season + "/" + week, 1800, () => weekProjections(season, week));
+      }
+      if (p === "/api/roles") {
+        const season = url.searchParams.get("season") || "", week = Number(url.searchParams.get("week") || 0);
+        if (!/^\d{4}$/.test(season) || !(week >= 1 && week <= 22)) return json({ error: "Bad season or week" }, 400, 0);
+        return cached(ctx, "roles/" + season + "/" + week, 21600, () => roles(season, week));
+      }
+      if (p === "/api/flea-playoffs") {
+        const id = (url.searchParams.get("league_id") || "").replace(/\D/g, "");
+        if (!id) return json({ error: "Missing league" }, 400, 0);
+        return cached(ctx, "fpo/" + id, 86400, () => fleaPlayoffs(id));
       }
       if (p === "/api/headlines") return cached(ctx, "headlines", 600, headlines);
       if (p === "/api/news") {

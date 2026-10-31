@@ -83,6 +83,8 @@ export async function alertsRoute(request, env, p, url) {
           sub: { endpoint, keys: (body.sub && body.sub.keys) || {} },
           ids: (body.ids || []).slice(0, 400).map(String),
           names: (body.names || []).slice(0, 400).map(String),
+          starters: (body.starters || []).slice(0, 80).map(String),
+          bench: (body.bench || []).slice(0, 120).map(String),
           leagues: (body.leagues || []).slice(0, 30).map(l => ({ p: l.p === "flea" ? "flea" : "sleeper", id: String(l.id), name: String(l.name || "").slice(0, 80) })),
           prefs: { mine: body.prefs?.mine !== false, fa: body.prefs?.fa !== false, news: body.prefs?.news !== false, faPos: body.prefs?.faPos === "QB" ? "QB" : "ALL" },
           origin: url.origin
@@ -204,7 +206,7 @@ async function leagueRostered(L, cache) {
   return set;
 }
 
-export function messagesFor(rec, events, week) {
+export function messagesFor(rec, events, week, now) {
   const ids = new Set(rec.ids), names = new Set(rec.names);
   const mine = e => ids.has(e.id) || names.has(norm(e.name) + "|" + e.pos);
   const minePush = [], faCandidates = [];
@@ -212,7 +214,14 @@ export function messagesFor(rec, events, week) {
     const tag = e.kind + ":" + e.id + ":" + week + ":" + norm(String(e.to ?? e.starter ?? ""));
     if (mine(e)) {
       if (!rec.prefs.mine) continue;
-      if (e.kind === "status") minePush.push({ id: tag, title: e.name + " " + labelFor(e.to), body: e.pos + " · " + e.team + (e.part ? " · " + e.part : "") + ". He's on your roster." });
+      const key = norm(e.name) + "|" + e.pos;
+      if (e.kind === "status" && OUTISH.has(norm(e.to)) && (rec.starters || []).includes(key)) {
+        const bench = new Set(rec.bench || []);
+        let alt = null;
+        for (const id in (now || {})) { const v = now[id]; if (bench.has(norm(v[0]) + "|" + e.pos) && !OUTISH.has(norm(v[2])) && (!alt || v[4] > alt[4])) alt = v; }
+        minePush.push({ id: tag, title: "Bench " + e.name + ": " + labelFor(e.to).replace(/^is |^has been |^was /, ""), body: alt ? "Start " + alt[0] + " instead (projected " + fmtPts(alt[4]) + "). Change your lineup before kickoff." : "He's in your starting lineup. Find a replacement before kickoff." });
+      }
+      else if (e.kind === "status") minePush.push({ id: tag, title: e.name + " " + labelFor(e.to), body: e.pos + " · " + e.team + (e.part ? " · " + e.part : "") + ". He's on your roster." });
       else if (e.kind === "team") minePush.push({ id: tag, title: e.name + " traded to " + e.to, body: e.pos + ", formerly " + e.from + ". He's on your roster." });
       else if (e.kind === "nextup") minePush.push({ id: tag, title: e.name + " is in line to start", body: e.starter + " " + labelFor(e.starterStatus).replace(/^is |^has been |^was /, "") + ". Projected " + fmtPts(e.proj) + " pts this week." });
     } else if (rec.prefs.fa && (e.kind === "jump" || e.kind === "nextup") && (rec.prefs.faPos === "ALL" || rec.prefs.faPos === e.pos)) {
@@ -250,7 +259,7 @@ export async function runChecks(env, forcePos) {
     for (const k of list.keys) {
       const rec = await env.SNAP.get(k.name, "json");
       if (!rec) continue;
-      const { minePush, faCandidates } = messagesFor(rec, events, week);
+      const { minePush, faCandidates } = messagesFor(rec, events, week, now);
       const items = minePush.slice();
       for (const e of faCandidates) {
         const free = [];
@@ -391,7 +400,32 @@ export async function runHeadlines(env) {
   return { articles: items.length, fresh: fresh.length, sent, baseline: !prev };
 }
 
+// Sunday 11:30 AM Eastern: one push per person listing starters who are out or projected for zero.
+export async function lineupCheck(env, force) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()).map(x => [x.type, x.value]));
+  if (!force && (parts.weekday !== "Sun" || Number(parts.hour) !== 11 || Number(parts.minute) < 30)) return { skipped: true };
+  const key = "lc:" + parts.year + parts.month + parts.day;
+  if (!force) { if (await env.SNAP.get(key)) return { skipped: "sent" }; await env.SNAP.put(key, "1", { expirationTtl: 172800 }); }
+  const byName = {};
+  for (const pos of ["QB", "RB", "WR", "TE"]) {
+    const sn = await env.SNAP.get("snap:" + pos, "json"); if (!sn) continue;
+    for (const id in sn.p) { const v = sn.p[id]; byName[norm(v[0]) + "|" + pos] = v; }
+  }
+  const sent = await eachSubscriber(env, rec => {
+    const issues = [];
+    for (const k of rec.starters || []) {
+      const v = byName[k]; if (!v) continue;
+      if (OUTISH.has(norm(v[2]))) issues.push(v[0] + " is " + v[2]);
+      else if (!v[4] && !v[2]) issues.push(v[0] + " is projected for 0 (bye or inactive)");
+    }
+    if (!issues.length) return [];
+    return [{ id: key + ":" + issues.length, title: "Lineup check: " + issues.length + " problem" + (issues.length > 1 ? "s" : ""), body: issues.slice(0, 4).join(". ") + ". Fix your lineup before the 1 PM games." }];
+  });
+  return { sent };
+}
+
 export async function runMinute(env) {
+  await lineupCheck(env).catch(() => {});
   await runChecks(env, "QB").catch(() => {});
   const m = new Date().getUTCMinutes();
   await runChecks(env, OTHERS[m % OTHERS.length]).catch(() => {});
