@@ -229,6 +229,8 @@ form.add{display:flex;flex-direction:column;gap:10px}
 .otable .onum{text-align:right;font-weight:800;white-space:nowrap;padding-right:14px}
 .otable.rank td:first-child{width:56px}
 .otable.rank{margin-top:10px}
+.kwhy{display:block;margin-top:4px;color:var(--ink);opacity:.9;font-size:13px;line-height:1.4}
+.krank{color:var(--ink);margin-right:2px}
 footer{margin-top:30px;color:var(--muted);font-size:12px;padding:0 4px;text-align:center}
 @media (prefers-reduced-motion:no-preference){
   .sheet .panel{animation:up .24s cubic-bezier(.2,.8,.2,1)} @keyframes up{from{transform:translateY(40px);opacity:.5}}
@@ -324,11 +326,12 @@ async function sleeperDetail(L){
     return {id:String(r.roster_id), name:(u.metadata && u.metadata.team_name) || u.display_name || ("Team " + r.roster_id), logo: u.avatar ? "https://sleepercdn.com/avatars/thumbs/" + u.avatar : "",
       owner:u.display_name || "", div: s.division || null, w:s.wins||0, l:s.losses||0, t:s.ties||0,
       pf:(s.fpts||0) + (s.fpts_decimal||0)/100, roster, mine: r.owner_id === L.uid || (r.co_owners||[]).includes(L.uid),
-      matchup:m.matchup_id, wk:m.points};
+      matchup:m.matchup_id, wk:m.points, keepers: r.keepers || []};
   });
   const groups = {}; teams.forEach(t => { if (t.matchup) (groups[t.matchup] = groups[t.matchup] || []).push(t); });
   const games = Object.values(groups).filter(g => g.length === 2).map(g => ({a:{id:g[0].id, pts:g[0].wk}, b:{id:g[1].id, pts:g[1].wk}}));
   return {week, teams, games, starterSplit:true, scoring, slots: (lg && lg.roster_positions) || null, draftRounds: (lg && lg.settings && lg.settings.draft_rounds) || 4, season: Number((lg && lg.season) || 0),
+    maxKeepers: (lg && lg.settings && lg.settings.max_keepers) || null,
     playoffTeams: (lg && lg.settings && lg.settings.playoff_teams) || null, playoffStart: (lg && lg.settings && lg.settings.playoff_week_start) || null};
 }
 
@@ -1725,6 +1728,93 @@ async function edgeDynasty(L, el){
   wireRows(el);
 }
 
+/* ---------- Edge: Keepers ---------- */
+// How a player's production holds up with age, relative to now (1.0 = same).
+function ageFactor(pos, age){
+  if (!age) return 0.95;
+  if (pos === "RB") return age <= 24 ? 1.05 : age <= 25 ? 1.0 : age <= 26 ? 0.95 : age <= 27 ? 0.88 : age <= 28 ? 0.78 : age <= 29 ? 0.68 : 0.55;
+  if (pos === "WR") return age <= 23 ? 1.1 : age <= 25 ? 1.05 : age <= 28 ? 1.0 : age <= 29 ? 0.95 : age <= 30 ? 0.88 : age <= 31 ? 0.8 : 0.7;
+  if (pos === "TE") return age <= 24 ? 1.1 : age <= 26 ? 1.05 : age <= 29 ? 1.0 : age <= 30 ? 0.93 : age <= 31 ? 0.85 : 0.75;
+  if (pos === "QB") return age <= 24 ? 1.08 : age <= 32 ? 1.0 : age <= 34 ? 0.94 : age <= 36 ? 0.86 : age <= 38 ? 0.76 : 0.65;
+  return 0.9;
+}
+async function keepersFor(L, me){
+  if (L.meta.platform === "sleeper") return {max: L.detail.maxKeepers || null, kept: new Set((me.keepers || []).map(String))};
+  try { const r = await api("/api/flea-keepers?league_id=" + L.meta.id + "&team_id=" + me.id); return {max: r.max, kept: new Set((r.kept || []).map(String))}; }
+  catch(e){ return {max: null, kept: new Set()}; }
+}
+function keeperScores(L, roster, V, vkey, prem){
+  return roster.map(p => {
+    const r = V[vkey(p)] || [], age = r[6], dyn = (r[0] || 0), red = (r[7] || 0);
+    const qb = p.pos === "QB" ? prem : 1;
+    // Next-season basis: blend this-season and dynasty value; backups and injured players have no this-season value, so use dynasty.
+    const basis = red > 0 ? 0.5 * red + 0.5 * dyn : dyn;
+    const y1 = basis * ageFactor(p.pos, age ? age + 1 : null) * qb, y2 = basis * ageFactor(p.pos, age ? age + 2 : null) * qb;
+    const score = p.pos === "K" || p.pos === "D/ST" || p.pos === "DEF" ? 0 : 0.5 * dyn * qb + 0.3 * y1 + 0.2 * y2;
+    return {p, age, dyn: dyn * qb, red: red * qb, basis: basis * qb, y1, y2, score, trend: r[3] || 0};
+  }).sort((a, b) => b.score - a.score);
+}
+function keeperWhy(x, rank, N){
+  const p = x.p, a = x.age;
+  if (p.pos === "K" || p.pos === "D/ST" || p.pos === "DEF") return "Kickers and defenses are easy to replace each year, so a keeper spot is better used on a player.";
+  if (x.dyn < 300) return "Very little trade value (" + fmtV(x.dyn) + "). A rookie pick or free agent can fill this spot.";
+  const bits = [];
+  if (p.pos === "QB" && x.qbBoost) bits.push("QBs are scarce in your league, every starting QB is rostered");
+  if (a) {
+    if (p.pos === "RB" && a >= 27) bits.push("RB turning " + Math.ceil(a + 1) + " next year, when production usually drops");
+    else if (a <= 24) bits.push("only " + a + ", with his best years ahead");
+    else if ((p.pos === "WR" && a >= 30) || (p.pos === "QB" && a >= 35) || (p.pos === "TE" && a >= 31)) bits.push("age " + a + ", likely past his peak by next season");
+  }
+  if (x.trend >= 500) bits.push("value up " + fmtV(x.trend) + " in 30 days");
+  else if (x.trend <= -500) bits.push("value down " + fmtV(-x.trend) + " in 30 days");
+  if (x.y2 < x.basis * 0.8 && x.basis > 1000) bits.push("projected to lose about " + Math.round((1 - x.y2 / x.basis) * 100) + "% of his value over two seasons");
+  if (!bits.length) bits.push(rank <= N ? "solid value for the next two seasons" : "low value for a keeper spot");
+  const s = bits.join("; ");
+  return s.charAt(0).toUpperCase() + s.slice(1) + ".";
+}
+async function edgeKeepers(L, el){
+  const d = L.detail, me = d.teams.find(t => t.mine);
+  const qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1, ppr = L.meta.platform === "sleeper" ? ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1") : "1";
+  await Promise.all([getPlayers(), rosterFor(L, me)]); ensureSidIndex();
+  const pack = await loadValues(ppr, d.teams.length, qbs, true), V = pack.v, prem = qbPremium(d.teams.length, qbs);
+  const vkey = p => L.meta.platform === "sleeper" ? String(p.id) : pack.flea ? "f" + p.id : sleeperKey(L, p);
+  const kp = await keepersFor(L, me);
+  const N = kp.max || L.detail.maxKeepers || 0;
+  const list = keeperScores(L, me.roster, V, vkey, prem);
+  list.forEach(x => x.qbBoost = qbs === 2);
+  const NN = N || Math.min(list.length, 10);
+  const keepSet = new Set(list.slice(0, NN).map(x => x.p.id));
+  const isKept = p => kp.kept.has(String(p.id));
+  const addThese = list.slice(0, NN).filter(x => !isKept(x.p) && x.dyn >= 300);
+  const openSpots = list.slice(0, NN).filter(x => !isKept(x.p) && x.dyn < 300).length;
+  const dropThese = list.filter(x => isKept(x.p) && !keepSet.has(x.p.id));
+  const curVal = list.filter(x => isKept(x.p)).reduce((s, x) => s + x.score, 0), bestVal = list.slice(0, NN).reduce((s, x) => s + x.score, 0);
+  // league comparison: each team's best possible keeper set
+  const leagueRank = d.teams.map(t => ({t, v: keeperScores(L, t.roster, V, vkey, prem).slice(0, NN).reduce((s, x) => s + x.score, 0)})).sort((a, b) => b.v - a.v).findIndex(x => x.t === me) + 1;
+  const changes = addThese.length + dropThese.length;
+  void openSpots;
+  let h = '<div class="card grade ' + (changes ? "mid" : "good") + '"><div class="gtop"><div class="gnum"><b>' + kp.kept.size + "</b><small>/" + (N || "–") + '</small></div><div><b class="glabel">' + (changes ? changes + " keeper change" + (changes > 1 ? "s" : "") + " suggested" : "Your keepers look right") + '</b><span class="muted small">' + (kp.kept.size < N ? (N - kp.kept.size) + " keeper spot" + (N - kp.kept.size > 1 ? "s" : "") + " unused. " : "") + (bestVal > curVal + 1 ? "The suggested set is worth about " + Math.round((bestVal / Math.max(curVal, 1) - 1) * 100) + "% more over the next two seasons." : "Your current set already holds the most value.") + "</span></div></div>" +
+    '<p class="small muted" style="margin:10px 0 0">Your best possible keeper group ranks #' + leagueRank + " of " + d.teams.length + " in the league.</p>" +
+    '<div class="actions">' + extBtn(L.meta.platform === "flea" ? "https://www.fleaflicker.com/nfl/leagues/" + L.meta.id + "/teams/" + me.id : "https://sleeper.com/leagues/" + L.meta.id + "/team", "Change keepers in " + siteName(L)) + "</div></div>";
+  const row = (x, i, tag) => {
+    const rk = list.indexOf(x) + 1;
+    return miniRow(x.p, '<span class="avg">' + fmtV(x.score) + "<small>keeper score</small></span>", posTag(x.p) + (x.age ? "Age " + x.age + " · " : "") + tag + '<span class="kwhy">' + esc(keeperWhy(x, rk, NN)) + "</span>");
+  };
+  if (addThese.length) h += "<h3>Make these keepers</h3>" + '<ul class="plist">' + addThese.map(x => row(x, 0, '<span class="chip ok" style="padding:2px 7px">Add</span> ')).join("") + "</ul>";
+  if (openSpots) h += '<p class="small muted" style="margin:8px 4px 0">Nobody else on your roster is worth a keeper spot. Leave ' + (openSpots > 1 ? openSpots + " spots" : "the last spot") + " for a waiver pickup or a player you trade for before the deadline.</p>";
+  if (dropThese.length) h += "<h3>Let these go</h3>" + '<ul class="plist">' + dropThese.map(x => row(x, 0, '<span class="chip warn" style="padding:2px 7px">Drop</span> ')).join("") + "</ul>";
+  const bubble = list.slice(Math.max(0, NN - 3), NN + 3).filter(x => !addThese.includes(x) && !dropThese.includes(x));
+  if (bubble.length) h += "<h3>On the bubble</h3>" + '<ul class="plist">' + bubble.map(x => row(x, 0, (keepSet.has(x.p.id) ? '<span class="chip" style="padding:2px 7px">Keep, barely</span> ' : '<span class="chip" style="padding:2px 7px">Just missed</span> '))).join("") + "</ul>";
+  h += "<h3>Full keeper ranking</h3>" + '<ul class="plist">' + list.map((x, i) => {
+    const kept = isKept(x.p), should = keepSet.has(x.p.id);
+    const tag = '<b class="krank">#' + (i + 1) + "</b> " + (kept ? '<span class="chip" style="padding:2px 7px">Kept</span> ' : "");
+    return miniRow(x.p, '<span class="avg" style="color:' + (should ? "var(--ok)" : "var(--muted)") + '">' + fmtV(x.score) + "<small>" + (should ? "keep" : "let go") + "</small></span>", tag + posTag(x.p) + (x.age ? "Age " + x.age : "") + " · next yr " + fmtV(x.y1) + " · yr after " + fmtV(x.y2));
+  }).join("") + "</ul>";
+  h += '<p class="small muted" style="margin:8px 4px 0">Keeper score blends dynasty value (50%) with projected value next season (30%) and the season after (20%), adjusted for age at each position' + (qbs === 2 ? " and the superflex QB premium" : "") + ". Values from FantasyCalc. Kickers and defenses score 0 since they’re easy to replace.</p>";
+  el.innerHTML = h;
+  wireRows(el);
+}
+
 async function renderEdge(v){
   reg = [];
   const ready = edgeReady();
@@ -1733,7 +1823,7 @@ async function renderEdge(v){
   if (ed.league == null || !ready.find(x => x.i === ed.league)) ed.league = ready[0].i;
   const L = leagues[ed.league];
   if (ready.length > 1) h += '<select id="edL" style="margin-bottom:10px">' + ready.map(x => '<option value="' + x.i + '"' + (x.i === ed.league ? " selected" : "") + ">" + esc(x.L.meta.name) + "</option>").join("") + "</select>";
-  h += '<div class="seg" role="tablist" style="margin-bottom:6px">' + [["week", "This week"], ["waivers", "Waivers"], ["league", "League"], ["dynasty", "Dynasty"]].map(x => '<button type="button" data-esub="' + x[0] + '" aria-pressed="' + (ed.sub === x[0]) + '">' + x[1] + "</button>").join("") + "</div>";
+  h += '<div class="seg" role="tablist" style="margin-bottom:6px">' + [["week", "Week"], ["waivers", "Waivers"], ["league", "League"], ["dynasty", "Dynasty"], ["keepers", "Keepers"]].map(x => '<button type="button" data-esub="' + x[0] + '" aria-pressed="' + (ed.sub === x[0]) + '">' + x[1] + "</button>").join("") + "</div>";
   h += '<div id="edOut"><p class="spin">Crunching the numbers…</p></div>';
   v.innerHTML = h;
   v.querySelectorAll("[data-esub]").forEach(b => b.addEventListener("click", () => { ed.sub = b.dataset.esub; render(); }));
@@ -1745,6 +1835,7 @@ async function renderEdge(v){
     if (sub === "week") await edgeWeek(L, g.wrap);
     else if (sub === "waivers") await edgeWaivers(L, g.wrap);
     else if (sub === "league") await edgeLeague(L, g.wrap);
+    else if (sub === "keepers") await edgeKeepers(L, g.wrap);
     else await edgeDynasty(L, g.wrap);
     g.done();
   } catch(e){ if (token === ed.token && out.isConnected) out.innerHTML = '<div class="err">Couldn’t load this section: ' + esc(e.message) + "</div>"; }

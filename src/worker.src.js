@@ -118,7 +118,7 @@ async function tradeValues(ppr, teams, qbs, dyn) {
   const out = {};
   for (const x of Array.isArray(arr) ? arr : []) {
     const p = x.player || {};
-    const row = [Math.round(x.value || 0), x.overallRank || null, x.positionRank || null, Math.round(x.trend30Day || 0), p.name || "", p.position || "", p.maybeAge ? Math.round(p.maybeAge * 10) / 10 : null];
+    const row = [Math.round(x.value || 0), x.overallRank || null, x.positionRank || null, Math.round(x.trend30Day || 0), p.name || "", p.position || "", p.maybeAge ? Math.round(p.maybeAge * 10) / 10 : null, Math.round(x.redraftValue || 0)];
     if (p.position === "PICK" && p.name) out["pick:" + p.name] = row;
     if (p.sleeperId) out[p.sleeperId] = row;
     if (p.fleaflickerId) out["f" + p.fleaflickerId] = row;
@@ -213,6 +213,19 @@ async function roles(season, week) {
   return json({ week: weeks[0], players: out }, 200, 21600);
 }
 
+// Players marked as keepers on a Fleaflicker team page (pin icon), plus the league's keeper limit.
+async function fleaKeepers(lid, tid) {
+  const r = await fetch("https://www.fleaflicker.com/nfl/leagues/" + lid + "/teams/" + tid, { headers: { "User-Agent": UA["User-Agent"] } });
+  if (!r.ok) return json({ error: "Team page unavailable" }, 502, 0);
+  const h = await r.text(), kept = [];
+  for (const row of h.split("<tr")) {
+    const m = row.match(/\/players\/[a-z0-9-]*?-(\d+)"/);
+    if (m && row.includes("fa-thumb-tack")) kept.push(m[1]);
+  }
+  const mx = h.match(/data-max-allowed="(\d+)"/);
+  return json({ max: mx ? Number(mx[1]) : null, kept: [...new Set(kept)] }, 200, 600);
+}
+
 // Playoff format from the league's public playoffs page: first playoff week and number of playoff teams.
 async function fleaPlayoffs(id) {
   const r = await fetch("https://www.fleaflicker.com/nfl/leagues/" + id + "/playoffs", { headers: { "User-Agent": UA["User-Agent"] } });
@@ -266,7 +279,7 @@ export default {
         const t = Number(url.searchParams.get("teams")) || 12, teams = t <= 11 ? 10 : t <= 13 ? 12 : 14;
         const qbs = url.searchParams.get("qbs") === "2" ? 2 : 1;
         const dyn = url.searchParams.get("dyn") === "1";
-        return cached(ctx, "values4/" + ppr + "/" + teams + "/" + qbs + "/" + (dyn ? 1 : 0), 21600, () => tradeValues(ppr, teams, qbs, dyn));
+        return cached(ctx, "values5/" + ppr + "/" + teams + "/" + qbs + "/" + (dyn ? 1 : 0), 21600, () => tradeValues(ppr, teams, qbs, dyn));
       }
       if (p === "/api/proj") {
         const season = url.searchParams.get("season") || "", week = url.searchParams.get("week") || "";
@@ -277,6 +290,11 @@ export default {
         const season = url.searchParams.get("season") || "", week = Number(url.searchParams.get("week") || 0);
         if (!/^\d{4}$/.test(season) || !(week >= 1 && week <= 22)) return json({ error: "Bad season or week" }, 400, 0);
         return cached(ctx, "roles/" + season + "/" + week, 21600, () => roles(season, week));
+      }
+      if (p === "/api/flea-keepers") {
+        const lid = (url.searchParams.get("league_id") || "").replace(/\D/g, ""), tid = (url.searchParams.get("team_id") || "").replace(/\D/g, "");
+        if (!lid || !tid) return json({ error: "Missing league or team" }, 400, 0);
+        return cached(ctx, "fkp/" + lid + "/" + tid, 600, () => fleaKeepers(lid, tid));
       }
       if (p === "/api/flea-playoffs") {
         const id = (url.searchParams.get("league_id") || "").replace(/\D/g, "");
