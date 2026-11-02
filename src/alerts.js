@@ -86,12 +86,19 @@ export async function alertsRoute(request, env, p, url) {
           starters: (body.starters || []).slice(0, 80).map(String),
           bench: (body.bench || []).slice(0, 120).map(String),
           leagues: (body.leagues || []).slice(0, 30).map(l => ({ p: l.p === "flea" ? "flea" : "sleeper", id: String(l.id), name: String(l.name || "").slice(0, 80) })),
-          prefs: { mine: body.prefs?.mine !== false, fa: body.prefs?.fa !== false, news: body.prefs?.news !== false, faPos: body.prefs?.faPos === "QB" ? "QB" : "ALL" },
+          prefs: { mine: body.prefs?.mine !== false, fa: body.prefs?.fa !== false, news: body.prefs?.news !== false, league: body.prefs?.league !== false, faPos: body.prefs?.faPos === "QB" ? "QB" : "ALL" },
           origin: url.origin
         };
         const prev = await env.SNAP.get("sub:" + id);
         const s = JSON.stringify(rec);
         if (prev !== s) await env.SNAP.put("sub:" + id, s);
+        const fl = rec.leagues.filter(x => x.p === "flea");
+        if (fl.length) {
+          const idx = (await env.SNAP.get("fleaLeagues", "json")) || {};
+          let changed = false;
+          fl.forEach(x => { if (idx[x.id] !== x.name) { idx[x.id] = x.name; changed = true; } });
+          if (changed) await env.SNAP.put("fleaLeagues", JSON.stringify(idx));
+        }
         return out({ ok: true, watching: rec.ids.length + rec.names.length, leagues: rec.leagues.length });
       }
       if (p === "/api/push/unsubscribe") { await env.SNAP.delete("sub:" + id); await env.SNAP.delete("al:" + id); return out({ ok: true }); }
@@ -112,6 +119,7 @@ export async function alertsRoute(request, env, p, url) {
       if (url.searchParams.get("mark") === "1" && unread.length) await env.SNAP.put(key, JSON.stringify(list.map(a => Object.assign(a, { read: true }))));
       return out({ alerts: res });
     }
+    if (p === "/api/push/run" && url.searchParams.get("what") === "league") return out(await leagueWatch(env, true));
     if (p === "/api/push/run" && url.searchParams.get("what") === "notes") return out(await runInjuryNotes(env));
     if (p === "/api/push/run" && url.searchParams.get("what") === "news") return out(await runHeadlines(env));
     if (p === "/api/push/run") {
@@ -424,7 +432,51 @@ export async function lineupCheck(env, force) {
   return { sent };
 }
 
+// Every 5 minutes: new trades, trades up for review, trade-block posts and QB pickups in each Fleaflicker league people follow.
+const ORDN = r => r + (r === 1 ? "st" : r === 2 ? "nd" : r === 3 ? "rd" : "th");
+export function activityMessages(lname, fresh, newReview) {
+  const msgs = [], trades = {};
+  for (const it of fresh) {
+    const t = it.transaction, ts = it.timeEpochMilli;
+    if (t && t.type === "TRANSACTION_TRADE") {
+      const g = trades[t.tradeId] = trades[t.tradeId] || {};
+      const nm = (t.team || {}).name || "?";
+      (g[nm] = g[nm] || []).push(t.player ? t.player.proPlayer.nameFull : t.draftPick ? t.draftPick.season + " " + ORDN(t.draftPick.round) : "?");
+    } else if (it.tradeBlock && it.tradeBlock.player) {
+      const p = it.tradeBlock.player.proPlayer;
+      msgs.push({ id: "tb:" + p.id + ":" + ts, title: "Trade block: " + p.nameFull + " (" + p.position + ", " + p.proTeamAbbreviation + ")", body: ((it.tradeBlock.team || {}).name || "A team") + " is shopping him in " + lname + "." });
+    } else if (t && !t.type && t.player && t.player.proPlayer.position === "QB") {
+      const p = t.player.proPlayer;
+      msgs.push({ id: "add:" + p.id + ":" + ts, title: ((t.team || {}).name || "A team") + " added QB " + p.nameFull, body: "QB pickup in " + lname + ". One fewer quarterback on waivers." });
+    }
+  }
+  for (const id in trades) msgs.push({ id: "trade:" + id, title: "Trade in " + lname, body: Object.entries(trades[id]).map(([tm, got]) => tm + " gets " + got.join(", ")).join(". ") + "." });
+  for (const t of newReview) msgs.push({ id: "rev:" + t.id, title: "Trade up for review in " + lname, body: (t.teams || []).map(s => ((s.team || {}).name || "?") + " gets " + (s.playersObtained || []).map(x => x.proPlayer.nameFull).concat((s.picksObtained || []).map(x => { const pk = x.draftPick || x; return pk.season + " " + ORDN((pk.slot || {}).round || pk.round); })).join(", ")).join(". ") + ". You can veto it in Fleaflicker." });
+  return msgs;
+}
+export async function leagueWatch(env, force) {
+  if (!force && new Date().getUTCMinutes() % 5 !== 2) return { skipped: true };
+  const idx = (await env.SNAP.get("fleaLeagues", "json")) || {};
+  const out = {};
+  for (const lid in idx) {
+    let items = [], review = [];
+    try { const r = await fetch("https://www.fleaflicker.com/api/FetchLeagueActivity?sport=NFL&league_id=" + lid, { headers: UA }); if (r.ok) items = (await r.json()).items || []; else continue; } catch (e) { continue; }
+    try { const r = await fetch("https://www.fleaflicker.com/api/FetchTrades?sport=NFL&league_id=" + lid + "&filter=TRADES_UNDER_REVIEW", { headers: UA }); if (r.ok) review = (await r.json()).trades || []; } catch (e) {}
+    const key = "act:" + lid, prev = await env.SNAP.get(key, "json");
+    const newest = items.reduce((m, it) => Math.max(m, Number(it.timeEpochMilli) || 0), 0), rids = review.map(t => String(t.id));
+    if (!prev) { await env.SNAP.put(key, JSON.stringify({ t: newest, r: rids })); out[lid] = "baseline"; continue; }
+    const fresh = items.filter(it => Number(it.timeEpochMilli) > prev.t), newReview = review.filter(t => !prev.r.includes(String(t.id)));
+    if (fresh.length || rids.join() !== prev.r.join()) await env.SNAP.put(key, JSON.stringify({ t: Math.max(newest, prev.t), r: rids }));
+    const msgs = activityMessages(idx[lid] || "your league", fresh, newReview);
+    out[lid] = msgs.length;
+    if (!msgs.length) continue;
+    await eachSubscriber(env, rec => (rec.prefs.league === false || !(rec.leagues || []).some(x => x.p === "flea" && x.id === lid)) ? [] : msgs);
+  }
+  return out;
+}
+
 export async function runMinute(env) {
+  await leagueWatch(env).catch(() => {});
   await lineupCheck(env).catch(() => {});
   await runChecks(env, "QB").catch(() => {});
   const m = new Date().getUTCMinutes();

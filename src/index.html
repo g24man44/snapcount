@@ -231,6 +231,20 @@ form.add{display:flex;flex-direction:column;gap:10px}
 .otable.rank{margin-top:10px}
 .kwhy{display:block;margin-top:4px;color:var(--ink);opacity:.9;font-size:13px;line-height:1.4}
 .krank{color:var(--ink);margin-right:2px}
+.tapable{cursor:pointer}
+.pastebox summary{cursor:pointer;list-style:none}
+.pastebox summary::-webkit-details-marker{display:none}
+.pastebox textarea{font:inherit;width:100%;margin-top:10px;padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:var(--surface2);color:var(--ink);font-size:14px;resize:vertical}
+.bx{display:flex;flex-direction:column;gap:6px}
+.bxr{display:grid;grid-template-columns:1fr 34px 1fr;gap:6px;align-items:stretch}
+.bxslot{display:grid;place-items:center;font:800 10.5px/1.1 var(--body);color:var(--muted);text-align:center;background:var(--surface2);border-radius:10px}
+.bxp{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:8px;text-align:left;min-width:0}
+.bxp.r{grid-template-columns:auto 1fr auto}
+.bxp .av{width:32px;height:32px} .bxp .av i{font-size:11px}
+.bxp.empty{display:grid;place-items:center;color:var(--muted)}
+.bxn{min-width:0} .bxn b{display:block;font-size:12.5px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bxn small{display:block;font-size:10.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bxs{text-align:right;font-variant-numeric:tabular-nums} .bxs b{display:block;font:800 15px/1 var(--body)} .bxs small{font-size:10px;color:var(--muted)}
 footer{margin-top:30px;color:var(--muted);font-size:12px;padding:0 4px;text-align:center}
 @media (prefers-reduced-motion:no-preference){
   .sheet .panel{animation:up .24s cubic-bezier(.2,.8,.2,1)} @keyframes up{from{transform:translateY(40px);opacity:.5}}
@@ -366,23 +380,23 @@ async function fleaDetail(L){
   const tinfo = {};
   (stand.divisions || []).forEach(d => (d.teams || []).forEach(t => {
     const rec = t.recordOverall || {};
-    tinfo[t.id] = {name:t.name, logo:t.logoUrl || "", div: d.id, owner:((t.owners||[])[0]||{}).displayName || "", w:rec.wins||0, l:rec.losses||0, t:rec.ties||0, pf:val(t.pointsFor)};
+    tinfo[t.id] = {name:t.name, logo:t.logoUrl || "", div: d.id, waiver: t.waiverPosition || null, faab: val(t.waiverAcquisitionBudget), owner:((t.owners||[])[0]||{}).displayName || "", w:rec.wins||0, l:rec.losses||0, t:rec.ties||0, pf:val(t.pointsFor)};
   }));
   const teams = (ros.rosters || []).map(r => {
     const t = r.team || {}; const i = tinfo[t.id] || {};
     const roster = (r.players || []).map(lp => {
       const p = lp.proPlayer || {}; const inj = p.injury || null;
-      return {id:String(p.id), name:p.nameFull, pos:p.position, team:p.proTeamAbbreviation, img: p.headshotUrl || "",
+      return Object.assign({id:String(p.id), name:p.nameFull, pos:p.position, team:p.proTeamAbbreviation, img: p.headshotUrl || "",
         inj: inj ? (inj.typeAbbreviaition || inj.typeAbbreviation || inj.typeFull) : null,
-        injPart: inj ? (inj.description || inj.typeFull) : null, slot:"bench", pts:null};
+        injPart: inj ? (inj.description || inj.typeFull) : null, slot:"bench", pts:null}, fleaExtras(lp, p, L.id));
     });
     return {id:String(t.id), name:t.name || i.name, logo:t.logoUrl || i.logo || "", owner:i.owner || (((t.owners||[])[0]||{}).displayName) || "",
-      w:i.w||0, l:i.l||0, t:i.t||0, pf:i.pf, div:i.div, roster, mine: L.myTeam ? String(t.id) === L.myTeam : false};
+      w:i.w||0, l:i.l||0, t:i.t||0, pf:i.pf, div:i.div, waiver:i.waiver, faab:i.faab, roster, mine: L.myTeam ? String(t.id) === L.myTeam : false};
   });
   Object.keys(tinfo).forEach(id => { if (!teams.find(t => t.id === String(id))) teams.push(Object.assign({id:String(id), roster:[], mine: L.myTeam === String(id)}, tinfo[id])); });
   const games = (board.games || []).map(g => {
     const hs = g.homeScore || {}, as = g.awayScore || {};
-    return {a:{id:String((g.away||{}).id), pts: val(as.score) ?? 0, proj: val(as.projected)},
+    return {id: String(g.id), a:{id:String((g.away||{}).id), pts: val(as.score) ?? 0, proj: val(as.projected)},
             b:{id:String((g.home||{}).id), pts: val(hs.score) ?? 0, proj: val(hs.projected)},
             live: !!g.isInProgress, final: !!g.isFinalScore};
   }).filter(g => g.a.id !== "undefined" && g.b.id !== "undefined");
@@ -577,7 +591,7 @@ async function fleaTeamRoster(L, team){
         inj: inj ? (inj.typeAbbreviaition || inj.typeAbbreviation || inj.typeFull) : null,
         injPart: inj ? (inj.description || inj.typeFull) : null,
         slot: grp === "START" ? "start" : (grp === "INJURED" || grp === "IR") ? "ir" : "bench",
-        pts: pts, proj: proj, avg: val(lp.seasonAverage), tot: val(lp.seasonTotal)});
+        pts: pts, proj: proj, avg: val(lp.seasonAverage), tot: val(lp.seasonTotal), ...fleaExtras(lp, p, L.meta.id)});
     }));
     if (out.length) { team.roster = out; team.live = true; }
   } catch(e){ team.liveErr = e.message; }
@@ -604,7 +618,7 @@ function renderLeague(v, L){
   if (L.error) { v.innerHTML = h + '<div class="err">' + esc(L.error) + "</div>"; return wireBack(v); }
   if (!d) { v.innerHTML = h + '<p class="spin">Loading…</p>'; return wireBack(v); }
   const sub = cur.sub || "team";
-  h += '<div class="seg sub" role="tablist">' + [["team","My team"],["fa","Free agents"],["league","League"]].map(x => '<button type="button" data-sub="' + x[0] + '" aria-pressed="' + (sub === x[0]) + '">' + x[1] + "</button>").join("") + "</div>";
+  h += '<div class="seg sub" role="tablist">' + [["team","My team"],["fa","Free agents"],["league","League"]].concat(m.platform === "flea" ? [["act","Activity"]] : []).map(x => '<button type="button" data-sub="' + x[0] + '" aria-pressed="' + (sub === x[0]) + '">' + x[1] + "</button>").join("") + "</div>";
   let me = cur.team ? d.teams.find(t => t.id === cur.team) : d.teams.find(t => t.mine);
   if (sub === "team") {
     if (!me) h += '<div class="card install" style="margin-top:12px"><img src="/icon-192.png" alt=""><div><b>' + (cur.joined ? "Welcome to Snap Count" : "Which team is yours?") + '</b><span>Pick your team below. Your scores, alerts and trade tools all follow it.</span></div></div>';
@@ -617,7 +631,7 @@ function renderLeague(v, L){
       if (g) {
         const mine = g.a.id === me.id ? g.a : g.b, opp = g.a.id === me.id ? g.b : g.a;
         const ot = d.teams.find(t => t.id === opp.id) || {name:"Opponent"};
-        h += '<div class="card heroCard">' + matchupHero(d, me, g, false) + "</div>";
+        h += '<div class="card heroCard' + (m.platform === "flea" && g.id ? ' tapable" data-game="' + esc(g.id) : "") + '">' + matchupHero(d, me, g, false) + (m.platform === "flea" && g.id ? '<p class="small" style="text-align:center;margin:10px 0 0;color:var(--accent);font-weight:700">See the full box score ›</p>' : "") + "</div>";
       }
       const right = p => {
         if (p.pts != null) return fmt(p.pts);
@@ -640,18 +654,20 @@ function renderLeague(v, L){
     const pos = cur.faPos || "ALL";
     h += '<div class="actions">' + extBtn(waiverUrl(L), "Add players in " + siteName(L)) + "</div>";
     h += '<div class="chips posf">' + ["ALL","QB","RB","WR","TE","K","DEF"].map(x => '<button type="button" class="chip' + (pos === x ? " on" : "") + '" data-pos="' + x + '">' + x + "</button>").join("") + '</div><div id="fa"><p class="spin">Loading free agents…</p></div>';
+  } else if (sub === "act") {
+    h += '<div id="actBox"><p class="spin">Loading league activity…</p></div>';
   } else {
     if (d.games.length) {
       h += "<h3>Matchups" + (d.week ? " · Week " + d.week : "") + '</h3><div class="stack">';
       d.games.forEach(g => {
         const A = d.teams.find(t => t.id === g.a.id) || {name:"Team"}, B = d.teams.find(t => t.id === g.b.id) || {name:"Team"};
         const aLead = (g.a.pts||0) > (g.b.pts||0), bLead = (g.b.pts||0) > (g.a.pts||0);
-        h += '<div class="card score"><span class="t' + (me && A.id === me.id ? " me" : "") + '">' + esc(A.name) + '</span><span class="p ' + (aLead ? "lead" : "") + '">' + fmt(g.a.pts) + '</span><span class="t' + (me && B.id === me.id ? " me" : "") + '">' + esc(B.name) + '</span><span class="p ' + (bLead ? "lead" : "") + '">' + fmt(g.b.pts) + "</span></div>";
+        h += '<div class="card score' + (m.platform === "flea" && g.id ? ' tapable" data-game="' + esc(g.id) : "") + '"><span class="t' + (me && A.id === me.id ? " me" : "") + '">' + esc(A.name) + '</span><span class="p ' + (aLead ? "lead" : "") + '">' + fmt(g.a.pts) + '</span><span class="t' + (me && B.id === me.id ? " me" : "") + '">' + esc(B.name) + '</span><span class="p ' + (bLead ? "lead" : "") + '">' + fmt(g.b.pts) + "</span></div>";
       });
       h += "</div>";
     }
     const stand = d.teams.slice().sort((a,b) => b.w - a.w || (b.pf||0) - (a.pf||0));
-    h += '<h3>Standings</h3><ul class="plist">' + stand.map((t,i) => '<li><div class="prow" style="grid-template-columns:28px 1fr auto"><span class="muted" style="font-variant-numeric:tabular-nums">' + (i+1) + '</span><span class="pname"><b' + (me && t.id === me.id ? ' class="me"' : "") + ">" + esc(t.name) + "</b><small>" + t.w + "-" + t.l + (t.t ? "-" + t.t : "") + '</small></span><span class="small muted" style="font-variant-numeric:tabular-nums">' + fmt(t.pf) + " PF</span></div></li>").join("") + "</ul>";
+    h += '<h3>Standings</h3><ul class="plist">' + stand.map((t,i) => '<li><div class="prow" style="grid-template-columns:28px 1fr auto"><span class="muted" style="font-variant-numeric:tabular-nums">' + (i+1) + '</span><span class="pname"><b' + (me && t.id === me.id ? ' class="me"' : "") + ">" + esc(t.name) + "</b><small>" + t.w + "-" + t.l + (t.t ? "-" + t.t : "") + (t.waiver ? " · waiver #" + t.waiver : "") + (t.faab != null ? " · $" + Math.round(t.faab) + " FAAB" : "") + '</small></span><span class="small muted" style="font-variant-numeric:tabular-nums">' + fmt(t.pf) + " PF</span></div></li>").join("") + "</ul>";
   }
   v.innerHTML = h;
   wireBack(v);
@@ -665,6 +681,8 @@ function renderLeague(v, L){
   v.querySelectorAll("[data-pos]").forEach(b => b.addEventListener("click", () => { cur.faPos = b.dataset.pos; render(); }));
   wireRows(v);
   if (sub === "fa") loadFreeAgents(L, cur.faPos || "ALL");
+  if (sub === "act") renderActivity(L, $("#actBox"), me).catch(e => { const b = $("#actBox"); if (b) b.innerHTML = '<div class="err">Couldn’t load activity: ' + esc(e.message) + "</div>"; });
+  v.querySelectorAll("[data-game]").forEach(b => b.addEventListener("click", () => openMatchup(L, b.dataset.game)));
 }
 
 /* ---------- free agents ---------- */
@@ -693,12 +711,12 @@ async function loadFreeAgents(L, pos){
         const p = x.proPlayer || {}, inj = p.injury || null;
         return {id:String(p.id), name:p.nameFull, pos:p.position, team:p.proTeamAbbreviation, img: p.headshotUrl || "",
           inj: inj ? (inj.typeAbbreviaition || inj.typeAbbreviation || inj.typeFull) : null, injPart: inj ? (inj.description || inj.typeFull) : null,
-          tot: val(x.seasonTotal), avg: val(x.seasonAverage)};
+          tot: val(x.seasonTotal), avg: val(x.seasonAverage), ...fleaExtras(x, p, L.meta.id)};
       });
     }
     if (token !== cur.faToken || !el()) return;
     if (!list.length) { el().innerHTML = '<p class="muted">No free agents found' + (pos !== "ALL" ? " at " + pos : "") + ".</p>"; return; }
-    list.forEach(p => { p.extra = p.avg != null ? '<small class="muted"> · ' + fmt(p.avg) + " per game</small>" : ""; p.act = extBtn(waiverUrl(L), "Add in " + siteName(L)); });
+    list.forEach(p => { p.extra = p.avg != null ? '<small class="muted"> · ' + fmt(p.avg) + " per game</small>" : ""; p.act = p.fl ? extBtn(fleaPlayerUrl(p), "Add in Fleaflicker") : extBtn(waiverUrl(L), "Add in " + siteName(L)); });
     el().innerHTML = '<p class="small muted" style="margin:10px 0 6px">Ranked by season points' + (L.meta.platform === "sleeper" ? " (" + ({ppr:"PPR", half:"half PPR", std:"standard"}[L.detail.scoring] || "PPR") + ")" : "") + '</p><ul class="plist">' + list.map(p => playerRow(p, fmt(p.tot))).join("") + "</ul>";
     wireRows(el());
   } catch(e){ if (el()) el().innerHTML = '<div class="err">Couldn’t load free agents: ' + esc(e.message) + "</div>"; }
@@ -740,9 +758,11 @@ async function openPlayer(pl){
   const cells = [];
   if (pl.pts != null) cells.push(["This week", fmt(pl.pts)]);
   if (pl.tot != null) cells.push(["Season", fmt(pl.tot)]);
+  if (pl.last3 != null) cells.push(["Last 3", fmt(pl.last3)]);
+  if (pl.frank) cells.push(["Rank", esc(pl.frank)]);
   if (pl.avg != null) cells.push(["Per game", fmt(pl.avg)]);
   if (cells.length) stats = '<div class="statrow">' + cells.map(c => '<div><small>' + c[0] + "</small><b>" + c[1] + "</b></div>").join("") + "</div>";
-  p.innerHTML = '<button class="back" id="closeSheet">Close</button><div class="shead">' + avatar(pl).replace('class="av"', 'class="av xl"') + '<div><h2>' + esc(pl.name) + injChip(pl.inj) + '</h2><p class="muted small" style="margin:0">' + posTag(pl) + gameLine(pl.team) + (pl.injPart ? " · " + esc(pl.injPart) : "") + '</p><div class="chips" style="margin-top:6px">' + envChips(pl.team) + "</div></div></div>" + stats + (pl.act ? '<div class="actions">' + pl.act + "</div>" : "") + injSection(pl) + '<h3>Latest news</h3><div id="pnews"><p class="spin">Loading news…</p></div>';
+  p.innerHTML = '<button class="back" id="closeSheet">Close</button><div class="shead">' + avatar(pl).replace('class="av"', 'class="av xl"') + '<div><h2>' + esc(pl.name) + injChip(pl.inj) + '</h2><p class="muted small" style="margin:0">' + posTag(pl) + gameLine(pl.team) + (pl.injPart ? " · " + esc(pl.injPart) : "") + '</p><div class="chips" style="margin-top:6px">' + envChips(pl.team) + "</div></div></div>" + stats + (pl.act || pl.fl ? '<div class="actions">' + (pl.act || "") + (pl.fl && !pl.act ? extBtn(fleaPlayerUrl(pl), "Open in Fleaflicker") : "") + "</div>" : "") + (pl.keeper ? '<p class="small muted" style="margin:8px 2px 0">Marked as a keeper on his Fleaflicker roster.</p>' : "") + fleaNoteCard(pl) + injSection(pl) + '<h3>Latest news</h3><div id="pnews"><p class="spin">Loading news…</p></div>';
   sh.hidden = false;
   p.querySelector("#closeSheet").addEventListener("click", closeSheet);
   try {
@@ -921,9 +941,18 @@ function gradeTrade(ctx){
   const lineupAdj = clamp(delta / 5, -2, 2) - 3 * holes.length;
   const hurtIn = get.filter(p => OUTISH_C.test(String(p.inj || ""))), hurtOut = give.filter(p => OUTISH_C.test(String(p.inj || "")));
   const injAdj = clamp(-0.6 * hurtIn.length, -1.2, 0) + clamp(0.3 * hurtOut.length, 0, 0.6);
-  let score = clamp(Math.round(valueScore + lineupAdj + injAdj), 1, 10);
+  let ageAdj = 0, ageNote = null;
+  if (ctx.dyn) {
+    const ageOf = p => p.pos === "PICK" ? null : (V[sid.get(p)] || [])[6];
+    const wAge = arr => { const xs = arr.map(p => ({a: ageOf(p), v: val(p)})).filter(x => x.a && x.v); const tv = xs.reduce((s, x) => s + x.v, 0); return tv ? xs.reduce((s, x) => s + x.a * x.v, 0) / tv : null; };
+    const ga = wAge(give), ra = wAge(get);
+    if (ga && ra && ra - ga >= 2.5) { ageAdj = -1.5; ageNote = ({tone: "bad", text: "You’d get older: the value you receive averages age " + ra.toFixed(1) + " vs " + ga.toFixed(1) + " for what you give. In dynasty that value fades faster."}); }
+    else if (ga && ra && ga - ra >= 2.5) { ageAdj = 0.5; ageNote = ({tone: "good", text: "You’d get younger: " + ra.toFixed(1) + " vs " + ga.toFixed(1) + " average age, value that should hold up."}); }
+  }
+  let score = clamp(Math.round(valueScore + lineupAdj + injAdj + ageAdj), 1, 10);
   if (holes.length) score = Math.min(score, 5);
   const reasons = [];
+  if (ageNote) reasons.push(ageNote);
   const diff = rawG ? Math.round((rawR - rawG) / rawG * 100) : 100;
   reasons.push({tone: diff >= 5 ? "good" : diff <= -5 ? "bad" : "", text: "Trade value: you get " + fmtV(rawR) + " and give " + fmtV(rawG) + (rawG ? " (" + (diff > 0 ? "+" : "") + diff + "%)" : "") + "."});
   const all = give.filter(p => p.pos !== "PICK").map(p => ({p, side:"give"})).concat(get.filter(p => p.pos !== "PICK").map(p => ({p, side:"get"}))).sort((a, b) => val(b.p) - val(a.p));
@@ -1099,9 +1128,10 @@ async function renderTrade(v){
   } catch(e){}
   if (token !== tr.loading || cur.tab !== "trade") return;
   const allPicks = tr.dyn ? await loadPicks(L) : {};
+  const block = await tradeBlock(L).catch(() => ({}));
   if (token !== tr.loading || cur.tab !== "trade") return;
   const ctx = {L, me, them, V: pack.v, sid, ppg, src: pack.src, teams: d.teams.length, qbs, dyn: tr.dyn,
-    myPicks: allPicks[me.id] || [], theirPicks: allPicks[them.id] || [], prem: qbPremium(d.teams.length, qbs)};
+    myPicks: allPicks[me.id] || [], theirPicks: allPicks[them.id] || [], prem: qbPremium(d.teams.length, qbs), block};
   if (tr.mode === "scan") drawScan(ctx, allPicks); else if (tr.mode === "find") drawFind(ctx); else drawTrade(ctx);
 }
 /* ---------- trade finder: what it should take to get a player ---------- */
@@ -1271,8 +1301,9 @@ function drawScan(ctx, allPicks){
         const gain = bestLineup(me.roster.concat([p]), slots, pts).total - myBase;
         if (gain < 2) continue;
         const loss = Math.max(0, tBase - bestLineup(t.roster.filter(x => x !== p), slots, pts).total);
-        const avail = clamp(1 - loss / Math.max(pts(p), 1), 0, 1);
-        cands.push({p, t, v, gain, loss, avail, rank: gain * (0.35 + 0.65 * avail)});
+        const onBlock = ctx.block && ctx.block[p.id];
+        const avail = onBlock ? Math.max(0.85, clamp(1 - loss / Math.max(pts(p), 1), 0, 1)) : clamp(1 - loss / Math.max(pts(p), 1), 0, 1);
+        cands.push({p, t, v, gain, loss, avail, onBlock, rank: gain * (0.35 + 0.65 * avail)});
       }
     }
     cands.sort((a, b) => b.rank - a.rank);
@@ -1296,13 +1327,14 @@ function drawScan(ctx, allPicks){
     results.forEach((r, i) => {
       const depth = r.t.roster.filter(x => x.pos === pos && x !== r.p && pts(x) >= (pos === "QB" ? 10 : 7)).sort((a, b) => pts(b) - pts(a)).map(x => x.name);
       const why = [];
+      if (r.onBlock) why.push({tone:"good", text:"His owner put him on the trade block " + ago(r.onBlock.t) + ", so they’re actively shopping him."});
       if (r.loss < 1) why.push({tone:"good", text:"He isn’t in their best lineup this week, so they lose nothing by trading him."});
       else if (r.avail >= 0.5) why.push({tone:"good", text:"They have " + pos + " depth" + (depth.length ? " (" + depth.slice(0, 3).join(", ") + ")" : "") + ", so they’d lose only about " + r.loss.toFixed(1) + " points a week."});
       else why.push({tone:"bad", text:"He starts for them (they’d lose about " + r.loss.toFixed(1) + " points a week), so expect to pay full price."});
       if (r.t.w < r.t.l) why.push({tone:"good", text:"They’re " + r.t.w + "-" + r.t.l + ", so picks and young players may appeal more than points this season."});
       else if (r.t.w > r.t.l) why.push({tone:"", text:"They’re " + r.t.w + "-" + r.t.l + " and contending, so the offer " + (r.best.picks === 0 ? "uses players who score now instead of picks." : "includes picks because no fair players-only package fit.")});
       const [lbl, tone] = GRADE_LABEL(r.g.score);
-      const chip = r.avail >= 0.6 ? '<span class="chip ok">Likely available</span>' : r.avail >= 0.3 ? '<span class="chip warn">Possible</span>' : '<span class="chip">Long shot</span>';
+      const chip = r.onBlock ? '<span class="chip ok">On the trade block</span>' : r.avail >= 0.6 ? '<span class="chip ok">Likely available</span>' : r.avail >= 0.3 ? '<span class="chip warn">Possible</span>' : '<span class="chip">Long shot</span>';
       out += '<div class="card offer scard" data-ti="' + esc(r.t.id) + '" style="margin-top:12px">' +
         '<div class="shead" style="margin:0">' + avatar(r.p) + '<div style="min-width:0;flex:1"><b style="font-size:18px;display:block">' + esc(r.p.name) + "</b><small class='muted'>" + posTag(r.p) + esc(r.t.name) + (r.t.owner ? " · " + esc(r.t.owner) : "") + '</small></div><span class="ograde ' + tone + '">' + r.g.score + "/10</span></div>" +
         '<div class="chips" style="margin-top:12px"><span class="chip ok">+' + r.gain.toFixed(1) + " pts a week for you</span>" + chip + '<span class="chip">Worth ' + fmtV(r.T) + "</span></div>" +
@@ -1332,8 +1364,21 @@ function drawScan(ctx, allPicks){
 function drawTrade(ctx){
   const el = $("#trOut"); if (!el) return;
   const {me, them, V, sid} = ctx;
+  if (tr.paste) {
+    const pr = parseTradeText(tr.paste, ctx.L.detail, me);
+    if (!pr.error && pr.other !== them) { tr.other = pr.other.id; render(); return; }
+    if (pr.error) tr.pasteMsg = pr.error;
+    else {
+      const g1 = matchItems(pr.myGets, them.roster, ctx.theirPicks), g2 = matchItems(pr.theyGet, me.roster, ctx.myPicks);
+      tr.get = new Set(g1.ids); tr.give = new Set(g2.ids);
+      const miss = g1.miss.concat(g2.miss);
+      tr.pasteMsg = miss.length ? "Couldn’t find: " + miss.join(", ") + ". Tap them below to add them." : "Loaded the trade from your email.";
+    }
+    tr.paste = null;
+  }
   const byVal = (a, b) => ((V[sid.get(b)] || [0])[0] || 0) - ((V[sid.get(a)] || [0])[0] || 0);
   let h = "";
+  h += '<details class="card pastebox"' + (tr.give.size || tr.get.size ? "" : " open") + '><summary><b>Paste a trade offer</b><span class="muted small"> from your Fleaflicker email</span></summary><textarea id="trPaste" rows="4" placeholder="* Bumblebee tuna gets: D. Swift; 2028 1st round pick 1.16 #16 (Jaxon the Box)&#10;* Here comes the McBride gets: A. Jeanty"></textarea><button type="button" class="btn" id="trPasteGo" style="width:100%;margin-top:8px">Grade this offer</button>' + (tr.pasteMsg ? '<p class="small" style="margin:8px 0 0">' + esc(tr.pasteMsg) + "</p>" : "") + "</details>";
   if (tr.give.size || tr.get.size) {
     const both = tr.give.size && tr.get.size;
     const g = gradeTrade(ctx), [label, tone] = both ? GRADE_LABEL(g.score) : ["Add the other side", ""];
@@ -1350,12 +1395,144 @@ function drawTrade(ctx){
   h += '<h3>You give</h3><ul class="plist">' + me.roster.slice().sort(byVal).map(p => pickRow(p, "give", V, sid, tr.give.has(p.id), ctx.prem)).join("") + "</ul>" + pk(ctx.myPicks, "give");
   h += "<h3>You get from " + esc(them.name) + '</h3><ul class="plist">' + (them.roster.length ? them.roster.slice().sort(byVal).map(p => pickRow(p, "get", V, sid, tr.get.has(p.id), ctx.prem)).join("") : '<li><p class="muted small" style="margin:12px 14px">Their roster isn’t available.</p></li>') + "</ul>" + pk(ctx.theirPicks, "get");
   el.innerHTML = h;
+  const pg = el.querySelector("#trPasteGo");
+  if (pg) pg.addEventListener("click", () => { const t = el.querySelector("#trPaste").value; if (!t.trim()) return; tr.paste = t; tr.pasteMsg = ""; drawTrade(ctx); });
   wireSend(el, ctx.L, me, them);
   el.querySelectorAll(".pick").forEach(b => b.addEventListener("click", () => {
     const set = b.dataset.side === "give" ? tr.give : tr.get, id = b.dataset.pid;
     if (set.has(id)) set.delete(id); else set.add(id);
     const y = window.scrollY; drawTrade(ctx); window.scrollTo(0, y);
   }));
+}
+
+/* ======================= FLEAFLICKER EXTRAS ======================= */
+const slugify = s => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/['’.]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const fleaPlayerUrl = p => "https://www.fleaflicker.com/nfl/leagues/" + p.lg + "/players/" + slugify(p.name) + "-" + p.id;
+function fleaExtras(lp, p, lid){
+  const n = (p.news || [])[0], l3 = ((lp && lp.lastX) || []).find(x => x.duration === 3);
+  const rk = lp && lp.rankFantasy && (lp.rankFantasy.positions || [])[0];
+  return {fl: true, lg: String(lid), fnews: n ? {title: n.title || "", text: n.contents || "", t: Number(n.timeEpochMilli) || 0} : null,
+    last3: l3 ? val(l3.value) : null, frank: rk && rk.position ? rk.position.label + rk.formatted : null, keeper: !!(lp && lp.isKeeper)};
+}
+function fleaNoteCard(pl){
+  if (!pl.fl || !pl.fnews || !pl.fnews.text) return "";
+  return '<h3>Fleaflicker note</h3><div class="card injcard">' + (pl.fnews.title ? "<b>" + esc(pl.fnews.title) + "</b>" : "") + "<p>" + esc(pl.fnews.text) + '</p><small class="muted">' + (pl.fnews.t ? ago(pl.fnews.t) + " · " : "") + '<a href="' + esc(fleaPlayerUrl(pl)) + '" target="_blank" rel="noopener" style="color:var(--accent)">More on Fleaflicker</a></small></div>';
+}
+
+/* activity feed */
+async function fleaActivity(L, pages){
+  const d = L.detail;
+  if (d.act && Date.now() - d.act.at < 120000 && d.act.pages >= (pages || 1)) return d.act.items;
+  const items = []; let off = 0;
+  for (let i = 0; i < (pages || 1); i++) {
+    try { const r = await api(fq("FetchLeagueActivity", {league_id: L.meta.id, result_offset: off})); (r.items || []).forEach(x => items.push(x)); if (!r.resultOffsetNext) break; off = r.resultOffsetNext; } catch(e){ break; }
+  }
+  d.act = {at: Date.now(), items, pages: pages || 1};
+  return items;
+}
+async function tradeBlock(L){
+  if (L.meta.platform !== "flea") return {};
+  const items = await fleaActivity(L, 3), out = {}, cutoff = Date.now() - 28 * 86400000;
+  items.forEach(it => { const tb = it.tradeBlock; if (!tb || !tb.player || Number(it.timeEpochMilli) < cutoff) return; const id = String(tb.player.proPlayer.id); if (!out[id]) out[id] = {team: tb.team && tb.team.name, t: Number(it.timeEpochMilli)}; });
+  return out;
+}
+const ORDN = r => r + (r === 1 ? "st" : r === 2 ? "nd" : r === 3 ? "rd" : "th");
+function groupActivity(items){
+  const out = [], trades = {};
+  items.forEach(it => {
+    const t = Number(it.timeEpochMilli) || 0;
+    if (it.transaction) {
+      const x = it.transaction, pp = x.player && x.player.proPlayer, team = x.team || {};
+      if (x.type === "TRANSACTION_TRADE") {
+        const g = trades[x.tradeId] = trades[x.tradeId] || {kind: "trade", t, sides: {}, id: x.tradeId};
+        const s = g.sides[team.name] = g.sides[team.name] || [];
+        s.push(pp ? pp.nameFull : x.draftPick ? x.draftPick.season + " " + ORDN(x.draftPick.round) : "?");
+        if (!out.includes(g)) out.push(g);
+      } else if (pp) out.push({kind: x.type === "TRANSACTION_DROP" ? "drop" : "add", t, team: team.name, p: pp});
+    } else if (it.tradeBlock && it.tradeBlock.player) out.push({kind: "block", t, team: (it.tradeBlock.team || {}).name, p: it.tradeBlock.player.proPlayer});
+    else if (it.reserveChange && it.reserveChange.player) out.push({kind: "ir", t, team: ((it.reserveChange.team || {}).name) || "", p: it.reserveChange.player.proPlayer});
+  });
+  return out.sort((a, b) => b.t - a.t);
+}
+async function renderActivity(L, el, me){
+  const [items, review] = await Promise.all([fleaActivity(L, 2), api(fq("FetchTrades", {league_id: L.meta.id, filter: "TRADES_UNDER_REVIEW"})).catch(() => ({}))]);
+  const rows = groupActivity(items);
+  let h = "";
+  const rv = (review.trades || []);
+  if (rv.length) h += "<h3>Trades under review</h3>" + rv.map(t => '<div class="card" style="margin-bottom:10px">' + (t.teams || []).map(s => "<p class='small' style='margin:0 0 6px'><b>" + esc((s.team || {}).name) + "</b> gets " + esc((s.playersObtained || []).map(x => x.proPlayer.nameFull).concat((s.picksObtained || []).map(x => { const pk = x.draftPick || x; return pk.season + " " + ORDN((pk.slot || {}).round || pk.round); })).join(", ") || "nothing") + "</p>").join("") +
+    (t.tentativeExecutionTime ? '<p class="small muted" style="margin:0">Goes through ' + new Date(Number(t.tentativeExecutionTime)).toLocaleString([], {weekday: "short", hour: "numeric", minute: "2-digit"}) + " unless " + (t.numVetoesRequired || "enough") + " owners veto.</p>" : "") +
+    '<div class="actions">' + extBtn("https://www.fleaflicker.com/nfl/leagues/" + L.meta.id + "/trades/" + t.id, "Review or veto") + "</div></div>").join("");
+  h += "<h3>League activity</h3>";
+  const icon = {add: ["Added", "ok"], drop: ["Dropped", ""], block: ["Trade block", "warn"], ir: ["IR move", ""], trade: ["Trade", "ok"]};
+  h += rows.length ? '<ul class="plist">' + rows.slice(0, 40).map(r => {
+    if (r.kind === "trade") return '<li><div class="prow" style="grid-template-columns:46px 1fr"><span class="pos" data-pos="PICK">⇄</span><span class="pname" style="white-space:normal"><b>Trade</b>' + Object.entries(r.sides).map(([tm, got]) => "<small style='display:block'>" + esc(tm) + " gets " + esc(got.join(", ")) + "</small>").join("") + "<small>" + ago(r.t) + "</small></span></div></li>";
+    const p = Object.assign({id: String(r.p.id), name: r.p.nameFull, pos: r.p.position, team: r.p.proTeamAbbreviation, img: r.p.headshotUrl || ""}, fleaExtras(null, r.p, L.meta.id));
+    const [lab, tone] = icon[r.kind];
+    return miniRow(p, '<span class="chip ' + tone + '" style="padding:4px 8px">' + lab + "</span>", posTag(p) + esc(r.team || "") + " · " + ago(r.t) + (r.kind === "block" && me && r.team !== me.name ? " · <b>shopping him</b>" : ""));
+  }).join("") + "</ul>" : '<div class="card"><p class="small" style="margin:0">No recent activity.</p></div>';
+  el.innerHTML = h;
+  wireRows(el);
+}
+
+/* live matchup box score */
+async function openMatchup(L, gid){
+  const sh = $("#sheet"), p = $("#sheetPanel");
+  p.innerHTML = '<button class="back" id="closeSheet">Close</button><p class="spin">Loading the box score…</p>';
+  sh.hidden = false; p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+  try {
+    const b = await api(fq("FetchLeagueBoxscore", {league_id: L.meta.id, fantasy_game_id: gid, scoring_period: L.detail.week || ""}));
+    const g = b.game || {}, A = g.away || {}, H = g.home || {}, pa = b.pointsAway || {}, ph = b.pointsHome || {};
+    const tot = x => val(((x || {}).total || {}).value) ?? 0, pro = x => val(((x || {}).total || {}).projected), opt = x => val(((x || {}).total || {}).optimum);
+    const pl = lp => lp && lp.proPlayer ? Object.assign({id: String(lp.proPlayer.id), name: lp.proPlayer.nameFull, pos: lp.proPlayer.position, team: lp.proPlayer.proTeamAbbreviation, img: lp.proPlayer.headshotUrl || "",
+      inj: lp.proPlayer.injury ? (lp.proPlayer.injury.typeAbbreviaition || lp.proPlayer.injury.typeFull) : null, pts: val(lp.viewingActualPoints), proj: val(lp.viewingProjectedPoints)}, fleaExtras(lp, lp.proPlayer, L.meta.id)) : null;
+    reg = [];
+    const cell = (x, side) => { if (!x) return '<div class="bxp ' + side + ' empty">—</div>'; const i = reg.push(x) - 1;
+      return '<button class="bxp ' + side + '" data-i="' + i + '">' + avatar(x) + '<span class="bxn"><b>' + esc(x.name) + injChip(x.inj) + "</b><small>" + gameLine(x.team) + '</small></span><span class="bxs"><b>' + fmt(x.pts || 0) + "</b><small>" + (x.proj != null ? fmt(x.proj) : "") + "</small></span></button>"; };
+    let h = '<div class="hero" style="margin:8px 0 6px"><div class="hteam">' + teamLogo({name: A.name, logo: A.logoUrl}, true) + "<b>" + esc(A.name) + "</b><small>Proj " + fmt(pro(pa)) + '</small></div><div class="hmid"><div class="hscores"><span class="' + (tot(pa) >= tot(ph) ? "win" : "") + '">' + fmt(tot(pa)) + '</span><span class="dash">–</span><span class="' + (tot(ph) > tot(pa) ? "win" : "") + '">' + fmt(tot(ph)) + "</span></div><small>" + (g.isInProgress ? "Live" : "Week " + (L.detail.week || "")) + '</small></div><div class="hteam">' + teamLogo({name: H.name, logo: H.logoUrl}, true) + "<b>" + esc(H.name) + "</b><small>Proj " + fmt(pro(ph)) + "</small></div></div>";
+    const lost = x => { const o = opt(x), t = tot(x); return o != null && o - t > 0.5 ? (o - t).toFixed(1) : null; };
+    if (lost(pa) || lost(ph)) h += '<p class="small muted" style="text-align:center;margin:0 0 10px">Points left on the bench: ' + esc(A.name) + " " + (lost(pa) || "0") + " · " + esc(H.name) + " " + (lost(ph) || "0") + "</p>";
+    (b.lineups || []).forEach(grp => {
+      const label = grp.group === "START" ? "Starters" : grp.group === "INJURED" ? "Injured reserve" : "Bench";
+      const rows = (grp.slots || []).filter(s => s.away || s.home);
+      if (!rows.length) return;
+      h += "<h3>" + label + '</h3><div class="bx">' + rows.map(s => '<div class="bxr">' + cell(pl(s.away), "l") + '<span class="bxslot">' + esc(((s.position || {}).label || "").replace("QB/RB/WR/TE", "SF").replace("RB/WR/TE", "FLX")) + "</span>" + cell(pl(s.home), "r") + "</div>").join("") + "</div>";
+    });
+    p.innerHTML = '<button class="back" id="closeSheet">Close</button>' + h;
+    p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+    p.querySelectorAll(".bxp[data-i]").forEach(bt => bt.addEventListener("click", () => openPlayer(reg[+bt.dataset.i])));
+  } catch(e){ p.innerHTML = '<button class="back" id="closeSheet">Close</button><div class="err">Couldn’t load the box score: ' + esc(e.message) + "</div>"; p.querySelector("#closeSheet").addEventListener("click", closeSheet); }
+}
+
+/* paste a trade email to grade it */
+function parseTradeText(text, d, me){
+  const lines = String(text || "").split(/\n/).map(x => x.replace(/^[\s*•\-]+/, "").trim()).filter(x => / gets:/.test(x));
+  const sides = lines.map(x => { const i = x.indexOf(" gets:"); return {team: x.slice(0, i).trim(), items: x.slice(i + 6).split(/[;,]\s*/).map(s => s.trim()).filter(Boolean)}; });
+  const nm = s => norm(String(s).replace(/[’]/g, "'"));
+  const findTeam = name => d.teams.find(t => nm(t.name) === nm(name)) || d.teams.find(t => nm(t.name).startsWith(nm(name).slice(0, 8)));
+  const res = sides.map(s => ({s, t: findTeam(s.team)}));
+  if (res.length !== 2) return {error: res.length > 2 ? "Only two-team trades can be graded." : "Paste the lines that say “Team gets: …” from the trade email."};
+  if (res.some(r => !r.t)) return {error: "Couldn’t match a team name: " + res.filter(r => !r.t).map(r => r.s.team).join(", ")};
+  const mine = res.find(r => r.t === me); if (!mine) return {error: "This trade doesn’t include your team."};
+  const other = res.find(r => r !== mine);
+  return {other: other.t, myGets: mine.s.items, theyGet: other.s.items};
+}
+function matchItems(items, roster, picks){
+  const ids = [], miss = [];
+  items.forEach(it => {
+    const pk = it.match(/^(\d{4})\s+(\d)(?:st|nd|rd|th)\s+round/i);
+    if (pk) {
+      const orig = (it.match(/\(([^)]+)\)/) || [])[1];
+      const cands = picks.filter(p => p.id.split(":")[1] === pk[1] && String(p.round) === pk[2]);
+      const hit = (orig && cands.find(p => norm(p.name).includes(norm(orig.replace(/\.\.$/, ""))))) || cands[0];
+      if (hit) ids.push(hit.id); else miss.push(it);
+      return;
+    }
+    const m = it.replace(/\s+(jr|sr|ii|iii|iv)\.?$/i, "").match(/^([A-Za-z])\.?\s+(.+)$/);
+    const last = m ? norm(m[2]) : norm(it), first = m ? m[1].toLowerCase() : null;
+    const hit = roster.find(p => { const parts = String(p.name).replace(/\s+(Jr\.?|Sr\.?|II|III|IV)$/i, "").split(" "); return norm(parts.slice(1).join(" ")) === last && (!first || parts[0].toLowerCase().startsWith(first)); }) || roster.find(p => norm(p.name) === norm(it));
+    if (hit) ids.push(hit.id); else miss.push(it);
+  });
+  return {ids, miss};
 }
 
 /* ======================= EDGE ======================= */
@@ -1488,7 +1665,7 @@ async function faPool(L, pos){
       const p = x.proPlayer || {}, inj = p.injury || null, rg = (x.requestedGames || [])[0] || {};
       return {id: String(p.id), name: p.nameFull, pos: p.position, team: p.proTeamAbbreviation, img: p.headshotUrl || "",
         inj: inj ? (inj.typeAbbreviaition || inj.typeAbbreviation || inj.typeFull) : null, injPart: inj ? (inj.description || inj.typeFull) : null,
-        proj: val(x.viewingProjectedPoints) ?? val(rg.pointsProjected), avg: val(x.seasonAverage), tot: val(x.seasonTotal)};
+        proj: val(x.viewingProjectedPoints) ?? val(rg.pointsProjected), avg: val(x.seasonAverage), tot: val(x.seasonTotal), ...fleaExtras(x, p, L.meta.id)};
     });
   }
   const taken = new Set(); d.teams.forEach(t => t.roster.forEach(p => taken.add(String(p.id))));
@@ -1849,7 +2026,7 @@ async function post(path, body){
   if (!r.ok) throw new Error(j.error || ("Request failed (" + r.status + ")"));
   return j;
 }
-function alertPrefs(){ try { return Object.assign({mine:true, fa:true, news:true, faPos:"ALL"}, JSON.parse(localStorage.getItem(KEY + ".alerts") || "{}")); } catch(e){ return {mine:true, fa:true, news:true, faPos:"ALL"}; } }
+function alertPrefs(){ try { return Object.assign({mine:true, fa:true, news:true, league:true, faPos:"ALL"}, JSON.parse(localStorage.getItem(KEY + ".alerts") || "{}")); } catch(e){ return {mine:true, fa:true, news:true, league:true, faPos:"ALL"}; } }
 function saveAlertPrefs(p){ try { localStorage.setItem(KEY + ".alerts", JSON.stringify(p)); } catch(e){} }
 function b64uBytes(s){ s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; const b = atob(s), a = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; }
 async function getSub(){
@@ -1922,6 +2099,7 @@ async function renderAlerts(v){
     '<label class="toggle"><input type="checkbox" id="alMine"' + (prefs.mine ? " checked" : "") + "> My players: injuries, status changes and trades</label>" +
     '<label class="toggle"><input type="checkbox" id="alFa"' + (prefs.fa ? " checked" : "") + "> Free agents: new starters and projection jumps</label>" +
     '<label class="toggle"><input type="checkbox" id="alNews"' + (prefs.news ? " checked" : "") + "> News: injury report notes and headlines about my players</label>" +
+    '<label class="toggle"><input type="checkbox" id="alLeague"' + (prefs.league ? " checked" : "") + "> League activity: trades, trade-block posts and QB pickups (Fleaflicker)</label>" +
     '<div class="seg" role="group" aria-label="Free agent positions"><button type="button" data-fp="ALL" aria-pressed="' + (prefs.faPos === "ALL") + '">All positions</button><button type="button" data-fp="QB" aria-pressed="' + (prefs.faPos === "QB") + '">QBs only</button></div></div>';
   h += '<div class="btnrow"><button class="btn ghost" id="alTest">Send a test alert</button><button class="btn ghost" id="alOff">Turn off</button></div>';
   if (alertState.msg) h += '<p class="small" style="margin:8px 0 0">' + esc(alertState.msg) + "</p>";
@@ -1930,6 +2108,7 @@ async function renderAlerts(v){
   const savePrefs = async p => { saveAlertPrefs(p); alertState.msg = ""; try { await syncAlerts(sub); } catch(e){ alertState.msg = e.message; } render(); };
   v.querySelector("#alMine").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {mine:e.target.checked})));
   v.querySelector("#alFa").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {fa:e.target.checked})));
+  v.querySelector("#alLeague").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {league:e.target.checked})));
   v.querySelector("#alNews").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {news:e.target.checked})));
   v.querySelectorAll("[data-fp]").forEach(b => b.addEventListener("click", () => savePrefs(Object.assign(alertPrefs(), {faPos:b.dataset.fp}))));
   v.querySelector("#alTest").addEventListener("click", async e => {

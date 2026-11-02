@@ -7,7 +7,7 @@ const HTML = __HTML__;
 
 const FLEA_OK = new Set([
   "FetchUserLeagues", "FetchLeagueStandings", "FetchLeagueScoreboard", "FetchLeagueRosters",
-  "FetchRoster", "FetchLeagueBoxscore", "FetchLeagueActivity", "FetchLeagueTransactions", "FetchPlayerListing", "FetchLeagueRules", "FetchTeamPicks", "FetchTrades"
+  "FetchRoster", "FetchLeagueBoxscore", "FetchLeagueActivity", "FetchLeagueTransactions", "FetchPlayerListing", "FetchLeagueRules", "FetchTeamPicks", "FetchTrades", "FetchLeagueDraftBoard"
 ]);
 const UA = { "User-Agent": "SnapCount/1.0 (fantasy dashboard)", "Accept": "application/json" };
 const FANTASY_POS = new Set(["QB", "RB", "WR", "TE", "K", "DEF"]);
