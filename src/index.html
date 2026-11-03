@@ -2200,6 +2200,74 @@ async function openCompare(){
   draw();
 }
 
+/* ---------- draft center: every draft in league history graded with hindsight ---------- */
+// One season's draft as a flat list, from either Fleaflicker board format (finished: orderedSelections; current: rows/cells).
+async function draftBoard(L, season){
+  const b = await api(fq("FetchLeagueDraftBoard", {league_id: L.meta.id, season}));
+  // Fleaflicker answers a season with no draft with the current board, so only trust the grid format for the current season.
+  const now = new Date(), cur = now.getMonth() < 2 ? now.getFullYear() - 1 : now.getFullYear();
+  if (!b.orderedSelections && Number(season) !== cur) return [];
+  const cells = (b.orderedSelections || []).concat(...(b.rows || []).map(r => r.cells || []));
+  return cells.filter(c => c.slot).map(c => { const pp = (c.player || {}).proPlayer; return {overall: c.slot.overall, round: c.slot.round, slot: c.slot.slot, team: {id: String((c.team || {}).id || ""), name: (c.team || {}).name || "", logo: (c.team || {}).logoUrl || ""},
+    player: pp ? {id: String(pp.id), name: pp.nameFull, pos: pp.position, team: pp.proTeamAbbreviation, img: pp.headshotUrl || "", rookie: !!pp.isRookie} : null, traded: !!c.fromOtherTeam}; }).sort((a, b2) => a.overall - b2.overall);
+}
+const dc = {};
+async function openDraftCenter(L){
+  const sh = $("#sheet"), p = $("#sheetPanel"), d = L.detail, me = d.teams.find(t => t.mine);
+  p.innerHTML = '<button class="back" id="closeSheet">Close</button><h2>Draft center</h2><p class="spin" id="dcMsg">Reading your league’s drafts…</p>';
+  sh.hidden = false; p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+  const k = L.meta.id, S = dc[k] = dc[k] || {boards: {}, year: null};
+  const now = new Date(), cur = now.getMonth() < 2 ? now.getFullYear() - 1 : now.getFullYear();
+  if (!S.years) {
+    S.years = [];
+    for (let y = cur; y > cur - 16; y -= 4) {
+      const got = await Promise.all([0, 1, 2, 3].map(i => draftBoard(L, y - i).then(b => [y - i, b]).catch(() => [y - i, []])));
+      let stop = false;
+      got.forEach(([yy, b]) => { if (b.some(x => x.player)) { S.boards[yy] = b; S.years.push(yy); } });
+      if (!got.some(([, b]) => b.some(x => x.player))) stop = true;
+      const m = $("#dcMsg"); if (m) m.textContent = "Read " + S.years.length + " drafts…";
+      if (stop) break;
+    }
+  }
+  if (sh.hidden) return;
+  if (!S.years.length) { p.innerHTML = '<button class="back" id="closeSheet">Close</button><h2>Draft center</h2><div class="card"><p class="small" style="margin:0">No drafts found for this league yet.</p></div>'; p.querySelector("#closeSheet").addEventListener("click", closeSheet); return; }
+  const qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1, ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1");
+  const pack = await loadValues(ppr, d.teams.length, qbs, true), V = pack.v, prem = qbPremium(d.teams.length, qbs);
+  const pv = pl => ((V[pack.flea ? "f" + pl.id : sleeperKey(L, pl)] || [0])[0] || 0) * (pl.pos === "QB" ? prem : 1);
+  const curName = id => { const t = d.teams.find(x => x.id === id); return t ? t.name : null; };
+  const draw = () => {
+    const y = S.year && S.years.includes(S.year) ? S.year : S.years[0]; S.year = y;
+    const picks = S.boards[y].filter(x => x.player).map(x => Object.assign({}, x, {v: pv(x.player)}));
+    // Hindsight: the k-th best value in this draft is what the k-th pick "should" have returned.
+    const sorted = picks.map(x => x.v).sort((a, b) => b - a);
+    const byV = picks.slice().sort((a, b) => b.v - a.v); byV.forEach((x, i) => x.hr = i + 1);
+    picks.forEach((x, i) => { x.exp = sorted[i] || 0; x.gap = x.overall - x.hr; });
+    const teams = {};
+    picks.forEach(x => { const t = teams[x.team.id] = teams[x.team.id] || {id: x.team.id, name: curName(x.team.id) || x.team.name, logo: x.team.logo, v: 0, exp: 0, n: 0, best: null}; t.v += x.v; t.exp += x.exp; t.n++; if (!t.best || x.v > t.best.v) t.best = x; });
+    const board = Object.values(teams).map(t => Object.assign(t, {ratio: (t.v + 300) / (t.exp + 300)})).map(t => Object.assign(t, {letter: trLetter(t.ratio)})).sort((a, b) => b.ratio - a.ratio);
+    const steals = picks.filter(x => x.v >= 1500 && x.gap >= 10).sort((a, b) => b.gap - a.gap).slice(0, 5);
+    const busts = picks.filter(x => x.overall <= Math.max(16, d.teams.length * 2) && x.hr - x.overall >= 25).sort((a, b) => (b.hr - b.overall) - (a.hr - a.overall)).slice(0, 5);
+    const rookies = picks.filter(x => x.player.rookie).length;
+    let h = '<button class="back" id="closeSheet">Close</button><h2>Draft center</h2>' +
+      '<div class="chips" style="margin:2px 0 10px">' + S.years.map(yy => '<button type="button" class="chip' + (yy === y ? " on" : "") + '" data-dy="' + yy + '">' + yy + "</button>").join("") + "</div>";
+    const mine = me && board.find(t => t.id === me.id);
+    h += '<div class="card heroCard"><div class="gtop"><div class="gnum" style="background:var(--ok-soft);color:var(--ok)"><b>' + esc(board[0].letter) + '</b></div><div><b class="glabel">Best ' + y + " draft: " + esc(board[0].name) + '</b><span class="muted small">' + picks.length + " picks" + (rookies ? " · " + rookies + " rookies" : "") + " · graded by what each pick is worth today</span></div></div>" +
+      '<ul class="reasons">' + (mine ? '<li class="' + trTone(mine.letter) + '">You: <b>' + mine.letter + "</b>, " + mine.n + " picks worth " + fmtV(mine.v) + " today (an average draft from your slots: " + fmtV(mine.exp) + ")" + (mine.best ? ". Best pick: " + esc(mine.best.player.name) + " at " + mine.best.round + "." + String(mine.best.slot).padStart(2, "0") : "") + ".</li>" : "") +
+      (byV[0] ? "<li>Would go #1 today: <b>" + esc(byV[0].player.name) + "</b>, taken " + ORDN(byV[0].overall) + " by " + esc(curName(byV[0].team.id) || byV[0].team.name) + ".</li>" : "") + "</ul></div>";
+    h += '<h3>Draft grades</h3><div class="card" style="padding:6px 0"><table class="otable"><tbody>' + board.map((t, i) => '<tr class="' + (me && t.id === me.id ? "me" : "") + '"><td class="muted" style="width:24px;text-align:center">' + (i + 1) + "</td><td>" + teamLogo(t) + "</td><td><b>" + esc(t.name) + "</b><small>" + t.n + " picks · " + fmtV(t.v) + " today" + (t.best && t.best.v ? " · best: " + esc(t.best.player.name) : "") + '</small></td><td style="text-align:right"><span class="ltg ' + trTone(t.letter) + '">' + esc(t.letter) + "</span></td></tr>").join("") + "</tbody></table></div>";
+    const prow = (x, right) => { const i = reg.push(Object.assign({}, x.player, {fl: true})) - 1; return '<li><button class="prow" data-i="' + i + '">' + avatar(x.player) + '<span class="pname"><b>' + esc(x.player.name) + "</b><small>" + posTag(x.player) + "pick " + x.round + "." + String(x.slot).padStart(2, "0") + " by " + esc(curName(x.team.id) || x.team.name) + '</small></span><span class="pts">' + right + "</span></button></li>"; };
+    if (steals.length) h += '<h3>Steals</h3><ul class="plist">' + steals.map(x => prow(x, '<span class="avg">#' + x.hr + "<small>value rank</small></span>")).join("") + "</ul>";
+    if (busts.length) h += '<h3>Busts</h3><ul class="plist">' + busts.map(x => prow(x, '<span class="avg" style="color:var(--bad)">#' + x.hr + "<small>value rank</small></span>")).join("") + "</ul>";
+    h += '<h3>Hindsight re-draft · top 12</h3><ul class="plist">' + byV.slice(0, 12).map((x, i) => prow(x, '<span class="avg">' + (i + 1) + "<small>was " + ORDN(x.overall) + "</small></span>")).join("") + "</ul>";
+    h += '<p class="small muted" style="margin:10px 4px 0">Each pick is valued at today’s dynasty ' + esc(pack.src) + " value. A team’s grade compares what its picks are worth now with what the same draft slots returned on average, so it rewards finding value late.</p>";
+    p.innerHTML = h;
+    p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+    p.querySelectorAll("[data-dy]").forEach(b => b.addEventListener("click", () => { S.year = Number(b.dataset.dy); draw(); p.scrollTop = 0; }));
+    wireRows(p);
+  };
+  draw();
+}
+
 /* ---------- league history and rivalries ---------- */
 const lh = {};
 async function histSeasons(L, onProgress){
@@ -2388,7 +2456,7 @@ async function ltBoards(L, S, seasons){
   if (L.meta.platform !== "flea") return;
   const need = [...new Set(seasons)].filter(y => y && y <= new Date().getFullYear() && !(y in S.boards));
   await Promise.all(need.map(async y => {
-    try { const b = await api(fq("FetchLeagueDraftBoard", {league_id: L.meta.id, season: y})); const m = {byTeam: {}}; (b.orderedSelections || []).forEach(s => { const pp = (s.player || {}).proPlayer; if (!pp || !s.slot) return; const x = {id: String(pp.id), name: pp.nameFull, pos: pp.position, team: pp.proTeamAbbreviation, round: s.slot.round, slot: s.slot.slot}; m[s.slot.overall] = x; const k = String((s.team || {}).id) + ":" + s.slot.round; (m.byTeam[k] = m.byTeam[k] || []).push(x); }); S.boards[y] = m; }
+    try { const b = await draftBoard(L, y); const m = {byTeam: {}}; b.forEach(s => { if (!s.player) return; const x = Object.assign({}, s.player, {round: s.round, slot: s.slot}); m[s.overall] = x; const k = s.team.id + ":" + s.round; (m.byTeam[k] = m.byTeam[k] || []).push(x); }); S.boards[y] = m; }
     catch(e){ S.boards[y] = {}; }
   }));
 }
@@ -3012,7 +3080,7 @@ async function edgeDynasty(L, el){
   const rank = (k, t) => teamVals.slice().sort((a, b) => b[k] - a[k]).findIndex(x => x.t === t) + 1;
   const mv = teamVals.find(x => x.t === me), n = d.teams.length;
   const ageRank = teamVals.filter(x => x.age).sort((a, b) => a.age - b.age).findIndex(x => x.t === me) + 1;
-  let h = '<div class="card"><div class="offhead"><b style="font-size:18px">Your dynasty value</b><span class="chip ' + (rank("TOT", me) <= n / 3 ? "ok" : rank("TOT", me) > n * 2 / 3 ? "warn" : "") + '">#' + rank("TOT", me) + " of " + n + '</span></div><table class="otable rank"><tbody>' +
+  let h = (L.meta.platform === "flea" ? '<button type="button" class="btn ghost" id="dcBtn" style="width:100%;margin:6px 0 12px">🏈 Draft center: every draft graded</button>' : "") + '<div class="card"><div class="offhead"><b style="font-size:18px">Your dynasty value</b><span class="chip ' + (rank("TOT", me) <= n / 3 ? "ok" : rank("TOT", me) > n * 2 / 3 ? "warn" : "") + '">#' + rank("TOT", me) + " of " + n + '</span></div><table class="otable rank"><tbody>' +
     POS.concat(["PK"]).map(k => { const r = rank(k, me); return '<tr><td><b>' + (k === "PK" ? "Picks" : k) + '</b></td><td class="obar"><span style="width:' + Math.round((1 - (r - 1) / (n - 1)) * 100) + '%;background:' + (r <= n / 3 ? "var(--ok)" : r > n * 2 / 3 ? "var(--bad)" : "var(--warn)") + '"></span></td><td class="onum">#' + r + '</td><td class="onum muted">' + fmtV(mv[k]) + "</td></tr>"; }).join("") +
     "</tbody></table>" + (mv.age ? '<p class="small muted" style="margin:10px 0 0">Your top 10 players average ' + mv.age.toFixed(1) + " years old, " + (ageRank <= n / 3 ? "one of the youngest cores" : ageRank > n * 2 / 3 ? "one of the oldest cores" : "middle of the pack") + " in the league (#" + ageRank + " youngest).</p>" : "") + "</div>";
   // trends
@@ -3031,6 +3099,7 @@ async function edgeDynasty(L, el){
     '<p class="small muted" style="margin:8px 4px 0">Your pick capital ranks #' + rank("PK", me) + " of " + n + ". " + (sim ? "" : "Open the League tab first for draft slots based on simulated standings. ") + "Prospect rankings aren’t available from free sources yet, so use pick values to judge trade-ups and trade-downs.</p>";
   el.innerHTML = h;
   wireRows(el);
+  const dcb = el.querySelector("#dcBtn"); if (dcb) dcb.addEventListener("click", () => openDraftCenter(L));
 }
 
 /* ---------- Edge: Keepers ---------- */
