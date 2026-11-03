@@ -13,7 +13,6 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 ## Next up (top first)
 - [ ] Negotiate mode: role-play the other manager with AI to practice a trade pitch, then send the final offer.
 - [ ] Rest-of-season strength of schedule for each of your starters and for your fantasy schedule.
-- [ ] Player comparison: pick 2–4 players, see projections, matchups, trends, values side by side, with an AI verdict.
 - [ ] Rookie draft board for dynasty (Fleaflicker FetchLeagueDraftBoard + FantasyCalc rookie values).
 - [ ] Accessibility and light-theme polish pass.
 
@@ -32,3 +31,4 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [x] League trade report card: every trade in the league graded A+ to F for each side, best/worst traders, most lopsided deals, all-time history (Leagues › your league › Trades)
 - [x] Waiver bids: FAAB bid and range for the top free agents (your budget, rivals' budgets, value, week), or claim-vs-wait advice in waiver-priority leagues (Edge › Waivers)
 - [x] League history & rivalries: every season's games, head-to-head for any team (nemesis, favorite victim, fiercest rivalry), champions, all-time standings, record book (Leagues › League › League history)
+- [x] Player comparison: 2–4 players side by side (projection, matchup, team total, points per game, snaps, usage, dynasty and season values, rank, trend, age, who owns him) with an AI verdict (Trade tab, or Compare on any player)

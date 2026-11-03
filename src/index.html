@@ -192,6 +192,10 @@ form.add{display:flex;flex-direction:column;gap:10px}
 .mine{background:var(--accent-soft);color:var(--accent);border-radius:6px;padding:1px 5px;font-weight:700}
 .posf{margin:12px 0 0}
 .seg.sub{margin-top:8px}
+.cmpwrap{overflow-x:auto;margin:0 -4px;padding:0 4px}.cmpt{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums;table-layout:fixed;min-width:320px}
+.cmpt th,.cmpt td{padding:8px 6px;text-align:center;vertical-align:middle;border-bottom:1px solid var(--line)}.cmpt td:first-child,.cmpt th:first-child{text-align:left;color:var(--muted);font-size:12.5px;width:92px}
+.cmpt th{position:relative;font-weight:600}.cmpt th .av{margin:0 auto 4px;display:flex}.cmpt th b{display:block;font-size:13.5px;line-height:1.2}.cmpt th small{display:block;color:var(--muted);font-size:11.5px;margin-top:2px}
+.cmpt td.win{color:var(--ok);font-weight:800}.cmpx{position:absolute;top:0;right:0;border:0;background:var(--surface2);color:var(--muted);width:24px;height:24px;border-radius:50%;font-size:16px;line-height:1}
 .ltc{margin-bottom:10px}.lth{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-bottom:8px}
 .lts{display:grid;grid-template-columns:44px 1fr;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
 .ltg{display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:40px;border-radius:12px;font-weight:900;font-size:17px;background:var(--surface2);color:var(--ink)}
@@ -1026,9 +1030,10 @@ async function openPlayer(pl){
   if (pl.frank) cells.push(["Rank", esc(pl.frank)]);
   if (pl.avg != null) cells.push(["Per game", fmt(pl.avg)]);
   if (cells.length) stats = '<div class="statrow">' + cells.map(c => '<div><small>' + c[0] + "</small><b>" + c[1] + "</b></div>").join("") + "</div>";
-  p.innerHTML = '<button class="back" id="closeSheet">Close</button><div class="shead">' + avatar(pl).replace('class="av"', 'class="av xl"') + '<div><h2>' + esc(pl.name) + injChip(pl.inj) + '</h2><p class="muted small" style="margin:0">' + posTag(pl) + gameLine(pl.team) + (pl.injPart ? " · " + esc(pl.injPart) : "") + '</p><div class="chips" style="margin-top:6px">' + envChips(pl.team) + "</div></div></div>" + stats + (pl.act || pl.fl ? '<div class="actions">' + (pl.act || "") + (pl.fl && !pl.act ? extBtn(fleaPlayerUrl(pl), "Open in Fleaflicker") : "") + "</div>" : "") + (pl.keeper ? '<p class="small muted" style="margin:8px 2px 0">Marked as a keeper on his Fleaflicker roster.</p>' : "") + fleaNoteCard(pl) + injSection(pl) + '<h3>Latest news</h3><div id="pnews"><p class="spin">Loading news…</p></div>';
+  p.innerHTML = '<button class="back" id="closeSheet">Close</button><div class="shead">' + avatar(pl).replace('class="av"', 'class="av xl"') + '<div><h2>' + esc(pl.name) + injChip(pl.inj) + '</h2><p class="muted small" style="margin:0">' + posTag(pl) + gameLine(pl.team) + (pl.injPart ? " · " + esc(pl.injPart) : "") + '</p><div class="chips" style="margin-top:6px">' + envChips(pl.team) + "</div></div></div>" + stats + (pl.act || pl.fl ? '<div class="actions">' + (pl.act || "") + (pl.fl && !pl.act ? extBtn(fleaPlayerUrl(pl), "Open in Fleaflicker") : "") + "</div>" : "") + (pl.keeper ? '<p class="small muted" style="margin:8px 2px 0">Marked as a keeper on his Fleaflicker roster.</p>' : "") + fleaNoteCard(pl) + injSection(pl) + '<button type="button" class="btn ghost" id="pCmp" style="width:100%;margin-top:12px">⚖ Compare with other players</button><h3>Latest news</h3><div id="pnews"><p class="spin">Loading news…</p></div>';
   sh.hidden = false;
   p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+  const cb = p.querySelector("#pCmp"); if (cb) cb.addEventListener("click", async () => { cb.disabled = true; const ok = await addToCompare(pl).catch(() => false); if (ok) openCompare(); else { cb.textContent = "Couldn’t find him in the player list"; } });
   try {
     const eid = await espnIdFor(pl);
     const r = await api("/api/news?q=" + encodeURIComponent(pl.name) + (eid ? "&espn=" + eid : ""));
@@ -1637,6 +1642,7 @@ async function renderTrade(v){
   const ready = leagues.map((L, i) => ({L, i})).filter(x => x.L.detail && x.L.detail.teams.find(t => t.mine));
   if (!tr.mode) tr.mode = "scan";
   let h = "<h2>Trades</h2>" + '<div class="seg" role="group" aria-label="Trade tool" style="margin-bottom:12px">' + [["scan","Trade finder"],["find","Find a price"],["grade","Grade"]].map(x => '<button type="button" data-mode="' + x[0] + '" aria-pressed="' + (tr.mode === x[0]) + '">' + x[1] + "</button>").join("") + "</div>";
+  h += '<button type="button" class="btn ghost" id="cmpOpen" style="width:100%;margin:-2px 0 12px">⚖ Compare players side by side' + (cmpList.length ? " (" + cmpList.length + ")" : "") + "</button>";
   if (!ready.length) { v.innerHTML = h + '<div class="card"><p style="margin:0">' + (hasAccts() ? "Your leagues are still loading, or you haven’t picked your team in a league yet. Open the league once and choose your team." : "Add your leagues under the settings button first.") + "</p></div>"; return; }
   if (tr.league == null || !ready.find(x => x.i === tr.league)) { tr.league = ready[0].i; tr.other = null; tr.give.clear(); tr.get.clear(); tr.ppr = null; tr.dyn = null; tr.keep = null; tr.target = null; }
   const L = leagues[tr.league], d = L.detail, me = d.teams.find(t => t.mine);
@@ -1655,6 +1661,7 @@ async function renderTrade(v){
   h += '<div id="trOut"><p class="spin">Loading trade values…</p></div>';
   v.innerHTML = h;
   v.querySelectorAll("[data-mode]").forEach(b => b.addEventListener("click", () => { tr.mode = b.dataset.mode; render(); }));
+  const co = v.querySelector("#cmpOpen"); if (co) co.addEventListener("click", openCompare);
   const sIn = v.querySelector("#trS") || document.createElement("input"), sOut = v.querySelector("#trSR") || document.createElement("ul");
   const pool = others.flatMap(t => t.roster.filter(p => p.name).map(p => ({p, t})));
   sIn.addEventListener("input", () => {
@@ -2086,6 +2093,108 @@ async function openMatchup(L, gid){
     p.querySelector("#closeSheet").addEventListener("click", closeSheet);
     p.querySelectorAll(".bxp[data-i]").forEach(bt => bt.addEventListener("click", () => openPlayer(reg[+bt.dataset.i])));
   } catch(e){ p.innerHTML = '<button class="back" id="closeSheet">Close</button><div class="err">Couldn’t load the box score: ' + esc(e.message) + "</div>"; p.querySelector("#closeSheet").addEventListener("click", closeSheet); }
+}
+
+/* ---------- player comparison: 2-4 players side by side, with an AI verdict ---------- */
+let cmpList = (() => { try { return JSON.parse(localStorage.getItem(KEY + ".cmp") || "[]").slice(0, 4); } catch(e){ return []; } })();
+const saveCmp = () => { try { localStorage.setItem(KEY + ".cmp", JSON.stringify(cmpList)); } catch(e){} };
+function sidOf(pl){
+  if (players && players[pl.id] && norm(players[pl.id][0]) === norm(pl.name)) return String(pl.id);
+  ensureSidIndex();
+  return sidIndex ? sidIndex[norm(pl.name) + "|" + (pl.pos === "D/ST" ? "DEF" : pl.pos || "")] || null : null;
+}
+async function addToCompare(pl){
+  await getPlayers();
+  const sid = sidOf(pl);
+  if (!sid) return false;
+  if (!cmpList.includes(sid)) { cmpList.push(sid); if (cmpList.length > 4) cmpList.shift(); saveCmp(); }
+  return true;
+}
+function cmpLeague(){
+  const ready = leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine));
+  return (tr.league != null && leagues[tr.league] && ready.includes(leagues[tr.league])) ? leagues[tr.league] : ready[0] || null;
+}
+async function openCompare(){
+  const sh = $("#sheet"), p = $("#sheetPanel");
+  p.innerHTML = '<button class="back" id="closeSheet">Close</button><h2>⚖ Compare players</h2><p class="spin">Loading…</p>';
+  sh.hidden = false; p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+  const st = await getState();
+  const season = st.league_season || st.season, week = st.display_week || st.week;
+  await Promise.all([getPlayers(), getProj(), getSeasonStats(season), gamesAt ? null : loadScoreboard()]);
+  const L = cmpLeague(), d = L && L.detail;
+  const qbs = d && (d.slots || []).includes("SUPER_FLEX") ? 2 : 1, ppr = d ? ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1") : "1";
+  const dyn = L ? (savedDyn(L) != null ? savedDyn(L) : /dynasty|keeper/i.test(L.meta.name)) : false;
+  const col = {"1": 0, "0.5": 1, "0": 2}[ppr];
+  const [pack, roles] = await Promise.all([loadValues(ppr, d ? d.teams.length : 12, qbs, true).catch(() => ({v: {}})), api("/api/roles?season=" + season + "&week=" + week).catch(() => ({players: {}}))]);
+  const V = pack.v || {}, prem = d ? qbPremium(d.teams.length, qbs) : 1;
+  const owner = sid => { const q = players[sid]; if (!q) return []; const k = norm(q[0]) + "|" + q[1]; return leagues.filter(x => x.detail).map(x => { const t = x.detail.teams.find(t2 => t2.roster.some(r => (x.meta.platform === "sleeper" ? String(r.id) === sid : norm(r.name) + "|" + (r.pos === "D/ST" ? "DEF" : r.pos) === k))); return t ? (t.mine ? "You" : t.name) + (leagues.length > 1 ? " (" + x.meta.name + ")" : "") : null; }).filter(Boolean); };
+  const row = sid => {
+    const q = players[sid] || [sid, "", ""], s = sstats && sstats[sid], r = (roles.players || {})[sid], v = V[sid] || [];
+    const pr = projMap && projMap[sid] ? projMap[sid][col] : null;
+    return {sid, p: {id: sid, name: q[0], pos: q[1], team: q[2], inj: q[3], injPart: q[4]}, proj: pr, ppg: s && s[3] ? s[col] / s[3] : null, gp: s ? s[3] : null,
+      snap: r ? r[0] : null, use: r ? (q[1] === "RB" ? r[4] + (r[2] ? r[2] : 0) : r[2]) : null, useLbl: q[1] === "RB" ? "touches" : "targets",
+      val: v[0] ? Math.round(v[0] * (q[1] === "QB" ? prem : 1)) : null, ros: v[7] ? Math.round(v[7] * (q[1] === "QB" ? prem : 1)) : null, rank: v[2] ? q[1] + v[2] : null, trend: v[3] != null ? v[3] : null, age: v[6] || null,
+      imp: impliedTotal(q[2]), owned: owner(sid)};
+  };
+  let aiText = "";
+  const draw = () => {
+    const rows = cmpList.map(row);
+    let h = '<button class="back" id="closeSheet">Close</button><h2>⚖ Compare players</h2>';
+    h += '<div class="psearch"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="cmpS" type="search" placeholder="' + (rows.length >= 4 ? "Four max: remove one to add another" : "Add a player to compare") + '" autocomplete="off" aria-label="Add a player"></div><ul class="sres" id="cmpR" hidden></ul>';
+    if (!rows.length) {
+      // Quick start: my closest start/sit calls.
+      const me = d && d.teams.find(t => t.mine), sugg = [];
+      if (me) ["QB", "RB", "WR", "TE"].forEach(pos => { const xs = me.roster.filter(x => x.pos === pos && x.slot !== "ir").map(x => ({x, sid: sidOf(x)})).filter(y => y.sid && projMap && projMap[y.sid]).sort((a, b) => projMap[b.sid][col] - projMap[a.sid][col]); const st2 = xs.filter(y => y.x.slot === "start").pop(), bn = xs.find(y => y.x.slot !== "start"); if (st2 && bn) sugg.push([st2, bn]); });
+      h += '<div class="card"><p class="small" style="margin:0 0 8px">Pick 2 to 4 players: this week’s projection and matchup, season scoring, playing time, trade values and an AI verdict, side by side.</p>' + (sugg.length ? '<p class="small muted" style="margin:0 0 6px">Your closest lineup calls:</p><div class="chips">' + sugg.map((s2, i) => '<button type="button" class="chip" data-qs="' + i + '">' + esc(s2[0].x.name.split(" ").slice(-1)[0]) + " vs " + esc(s2[1].x.name.split(" ").slice(-1)[0]) + "</button>").join("") + "</div>" : "") + "</div>";
+      draw.sugg = sugg;
+    } else {
+      const best = (k, lowBetter) => { const xs = rows.map(r => r[k]).filter(x => x != null); if (xs.length < 2) return null; return lowBetter ? Math.min(...xs) : Math.max(...xs); };
+      const lines = [
+        ["This week", "proj", x => x == null ? "—" : fmt(x)],
+        ["Matchup", null, (x, r) => gameLine(r.p.team)],
+        ["Team total", "imp", x => x == null ? "—" : x.toFixed(1)],
+        ["Points a game", "ppg", (x, r) => x == null ? "—" : fmt(x) + '<small class="muted"> · ' + r.gp + "g</small>"],
+        ["Snap share", "snap", x => x == null ? "—" : x + "%"],
+        ["Usage (last wk)", "use", (x, r) => x == null ? "—" : x + " " + r.useLbl],
+        [dyn ? "Dynasty value" : "Trade value", dyn ? "val" : "ros", x => x == null ? "—" : fmtV(x)],
+        [dyn ? "This season value" : "Dynasty value", dyn ? "ros" : "val", x => x == null ? "—" : fmtV(x)],
+        ["Position rank", null, (x, r) => r.rank || "—"],
+        ["30-day trend", "trend", x => x == null ? "—" : (x > 0 ? '<span style="color:var(--ok)">▲ ' + fmtV(x) : x < 0 ? '<span style="color:var(--bad)">▼ ' + fmtV(-x) : "<span>0") + "</span>"],
+        ["Age", "age", x => x == null ? "—" : x.toFixed(1)],
+        ["Rostered by", null, (x, r) => r.owned.length ? esc(r.owned.join(", ")) : '<span style="color:var(--ok)">Free agent</span>']
+      ];
+      h += '<div class="cmpwrap"><table class="cmpt"><thead><tr><th></th>' + rows.map((r, i) => '<th><button type="button" class="cmpx" data-rm="' + i + '" aria-label="Remove ' + esc(r.p.name) + '">×</button>' + avatar(r.p) + "<b>" + esc(r.p.name) + injChip(r.p.inj) + "</b><small>" + posTag(r.p) + esc(r.p.team || "FA") + "</small></th>").join("") + "</tr></thead><tbody>" +
+        lines.map(([lab, k, f]) => { const b = k ? best(k, k === "age") : null; return "<tr><td>" + lab + "</td>" + rows.map(r => '<td class="' + (b != null && r[k] === b ? "win" : "") + '">' + f(k ? r[k] : null, r) + "</td>").join("") + "</tr>"; }).join("") + "</tbody></table></div>";
+      if (rows.length >= 2) h += '<button type="button" class="btn aibtn" id="cmpAI" style="width:100%;margin-top:12px"><span class="spark">✦</span> AI verdict</button><div id="cmpOut"' + (aiText ? "" : " hidden") + ' class="card recap" style="margin-top:10px">' + (aiText ? mdLite(aiText) : "") + "</div>";
+      h += '<p class="small muted" style="margin:10px 4px 0">Green marks the best in each row. Values from ' + esc(pack.src || "FantasyCalc") + (L ? " for " + esc(L.meta.name) + "’s format" : "") + ".</p>";
+    }
+    p.innerHTML = h;
+    p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+    const sIn = p.querySelector("#cmpS"), sOut = p.querySelector("#cmpR");
+    sIn.addEventListener("input", () => {
+      const q = norm(sIn.value);
+      if (q.length < 2) { sOut.hidden = true; return; }
+      const hits = [];
+      for (const id in players) { const x = players[id]; if (!["QB", "RB", "WR", "TE", "K"].includes(x[1]) || cmpList.includes(id)) continue; const n = norm(x[0]), i = n.indexOf(q); if (i < 0) continue; hits.push({id, x, i, team: x[2] ? 0 : 1, v: (V[id] || [0])[0] || 0}); }
+      hits.sort((a, b) => a.team - b.team || a.i - b.i || b.v - a.v);
+      sOut.innerHTML = hits.slice(0, 8).map(hh => '<li><button type="button" data-add="' + esc(hh.id) + '">' + avatar({name: hh.x[0], pos: hh.x[1], id: hh.id}) + "<span><b>" + esc(hh.x[0]) + "</b><small>" + esc(hh.x[1] + " · " + (hh.x[2] || "FA")) + "</small></span></button></li>").join("") || '<li class="muted small" style="padding:12px 14px">No match.</li>';
+      sOut.hidden = false;
+      sOut.querySelectorAll("[data-add]").forEach(b => b.addEventListener("click", () => { if (cmpList.length >= 4) cmpList.shift(); cmpList.push(b.dataset.add); saveCmp(); aiText = ""; draw(); }));
+    });
+    p.querySelectorAll("[data-rm]").forEach(b => b.addEventListener("click", () => { cmpList.splice(+b.dataset.rm, 1); saveCmp(); aiText = ""; draw(); }));
+    p.querySelectorAll("[data-qs]").forEach(b => b.addEventListener("click", () => { const s2 = draw.sugg[+b.dataset.qs]; cmpList = [s2[0].sid, s2[1].sid]; saveCmp(); draw(); }));
+    const ab = p.querySelector("#cmpAI");
+    if (ab) ab.addEventListener("click", async () => {
+      ab.disabled = true; const out = p.querySelector("#cmpOut"); out.hidden = false; out.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
+      const rows2 = cmpList.map(row);
+      const ctx = (L ? "League: " + L.meta.name + ", " + (d.teams.length) + " teams, " + (qbs === 2 ? "superflex, " : "") + (dyn ? "dynasty, " : "redraft, ") + ({"1": "PPR", "0.5": "half PPR", "0": "standard"}[ppr]) + " scoring. Week " + week + ".\n" : "") + "PLAYERS:\n" +
+        rows2.map(r => "- " + r.p.name + " (" + r.p.pos + ", " + (r.p.team || "FA") + (r.p.inj ? ", " + r.p.inj : "") + "): this week projected " + (r.proj != null ? fmt(r.proj) : "n/a") + (r.imp != null ? ", team implied total " + r.imp.toFixed(1) : "") + "; season " + (r.ppg != null ? fmt(r.ppg) + " pts/game over " + r.gp + " games" : "n/a") + (r.snap != null ? "; snap share " + r.snap + "%" : "") + (r.use != null ? ", " + r.use + " " + r.useLbl + " last week" : "") + (r.val != null ? "; dynasty value " + r.val : "") + (r.ros != null ? ", this-season value " + r.ros : "") + (r.rank ? ", " + r.rank : "") + (r.trend ? ", 30-day value change " + r.trend : "") + (r.age ? ", age " + r.age : "") + "; rostered by " + (r.owned.join(", ") || "nobody (free agent)") + ".").join("\n");
+      try { aiText = await streamAI({mode: "coach", ctx, q: "Compare these players. Who should I start this week, who is the better rest-of-season asset" + (dyn ? ", and who is the better dynasty asset" : "") + "? Give a clear ranking for each and the key reason."}, t => { out.innerHTML = mdLite(t); }); }
+      catch(e){ out.innerHTML = '<div class="err">' + esc(e.message) + "</div>"; }
+      ab.disabled = false;
+    });
+  };
+  draw();
 }
 
 /* ---------- league history and rivalries ---------- */
