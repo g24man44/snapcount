@@ -13,6 +13,7 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 ## Next up (top first)
 
 ## Blocked (needs the owner)
+- [ ] Save lineups straight to Fleaflicker and Sleeper: neither has a public way for other apps to change lineups. Fleaflicker would need a sample of the request its site sends when you move a player (from the browser's network tab while signed in).
 - [ ] Yahoo leagues: needs a Yahoo developer app (client ID and secret) for sign-in.
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
@@ -38,3 +39,4 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [x] Live draft board: when a draft is scheduled or under way, Draft center shows your next pick, who picks before you, best available by value with position filters, and the next 12 picks
 - [x] Friday noon ET matchup preview (push + connected apps): projected score and win odds, their threats, your best, injured starters on both sides, lineup holes
 - [x] Tuesday power rankings auto-post to each Fleaflicker league's connected Discord/Slack after the AI recap
+- [x] Lineup editor: set your lineup in the app (tap a slot, pick a player, or Best lineup). Saves straight to ESPN (with espn_s2/SWID) and MyFantasyLeague (sign in once); Fleaflicker and Sleeper get a move-by-move checklist and a link

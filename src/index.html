@@ -200,6 +200,8 @@ form.add{display:flex;flex-direction:column;gap:10px}
 .sosw{display:flex;gap:4px;overflow-x:auto;margin-top:6px;scrollbar-width:none}.sosx{flex:none;min-width:44px;padding:4px 2px;border-radius:8px;font-size:11.5px;font-weight:700;text-align:center;background:var(--surface2);color:var(--muted);display:flex;flex-direction:column;gap:1px;border:1.5px solid transparent}
 .sosx small{font-size:9.5px;font-weight:600}.sosx.easy{background:var(--ok-soft);color:var(--ok)}.sosx.hard{background:var(--bad-soft);color:var(--bad)}.sosx.bye{background:transparent;border:1.5px dashed var(--line);color:var(--muted)}.sosx.po{border-color:var(--accent)}
 .swbar{display:block;height:4px;border-radius:4px;background:var(--surface3);margin-top:6px;overflow:hidden}.swbar span{display:block;height:100%;border-radius:4px}
+.luslot{grid-template-columns:52px 40px 1fr auto}.luslot.on{background:var(--accent-soft)}.lusl{font:800 12px/1 var(--body);color:var(--muted);text-align:center}.lubtn{padding:7px 10px;font-size:13px}.lupick{margin:0 0 6px 18px;border-left:2px solid var(--accent)}
+.lucheck{list-style:none;margin:0;padding:0;display:grid;gap:8px}.lucheck label{color:var(--ink);display:grid;grid-template-columns:22px 1fr;gap:10px;align-items:center;justify-items:start;text-align:left;font-size:15px;margin:0}.lucheck input{width:20px;height:20px;margin:0;padding:0}.lucheck li.done{opacity:.55;text-decoration:line-through}
 .ltc{margin-bottom:10px}.lth{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-bottom:8px}
 .lts{display:grid;grid-template-columns:44px 1fr;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
 .ltg{display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:40px;border-radius:12px;font-weight:900;font-size:17px;background:var(--surface2);color:var(--ink)}
@@ -519,7 +521,7 @@ async function espnDetail(m){
       const pp = (e.playerPoolEntry || {}).player || {};
       const base = espnPlayer(pp, sp);
       const slot = e.lineupSlotId === 21 ? "ir" : e.lineupSlotId === 20 ? "bench" : "start";
-      return Object.assign(base, {slot, pts: espnStat(pp, 0, 1, sp), proj: espnStat(pp, 1, 1, sp), keeper: !!e.keeperValue && e.keeperValue > 0 && !!(e.playerPoolEntry || {}).keeperValueFuture});
+      return Object.assign(base, {slot, espnSlot: e.lineupSlotId, locked: !!(e.playerPoolEntry || {}).lineupLocked, pts: espnStat(pp, 0, 1, sp), proj: espnStat(pp, 1, 1, sp), keeper: !!e.keeperValue && e.keeperValue > 0 && !!(e.playerPoolEntry || {}).keeperValueFuture});
     });
     const mine = m.myTeam ? String(t.id) === String(m.myTeam) : !!(swid && ((t.owners || []).map(x => String(x).toUpperCase()).includes(swid) || String(t.primaryOwner || "").toUpperCase() === swid));
     return {id:String(t.id), name:t.name || ((t.location || "") + " " + (t.nickname || "")).trim() || ("Team " + t.id), logo:t.logo || "", owner: owner.displayName || [owner.firstName, owner.lastName].filter(Boolean).join(" "),
@@ -534,7 +536,7 @@ async function espnDetail(m){
   const recItem = (((set.scoringSettings || {}).scoringItems) || []).find(x => x.statId === 53);
   const recPts = recItem ? recItem.points : 0;
   const sch = set.scheduleSettings || {};
-  return {week, teams, games, starterSplit:true, scoring: recPts >= 1 ? "ppr" : recPts >= 0.5 ? "half" : "std", slots: slots.length ? slots : null, kdst, season:Number(m.season),
+  return {week, sp, teams, games, starterSplit:true, scoring: recPts >= 1 ? "ppr" : recPts >= 0.5 ? "half" : "std", slots: slots.length ? slots : null, kdst, season:Number(m.season),
     maxKeepers: ((set.draftSettings || {}).keeperCount) || null, playoffTeams: sch.playoffTeamCount || null, playoffStart: sch.matchupPeriodCount ? sch.matchupPeriodCount + 1 : null};
 }
 async function espnFreeAgents(L, pos){
@@ -882,7 +884,7 @@ function renderLeague(v, L){
     h += '<label for="teamPick" style="display:block;margin-top:12px">Team</label><select id="teamPick">' + (me ? "" : '<option value="">Pick your team…</option>') +
       d.teams.map(t => '<option value="' + esc(t.id) + '"' + (me && me.id === t.id ? " selected" : "") + ">" + esc(t.name) + (t.owner ? " (" + esc(t.owner) + ")" : "") + "</option>").join("") + "</select>";
     if (me) {
-      h += '<div class="actions">' + extBtn(lineupUrl(L, me), "Set lineup") + extBtn(waiverUrl(L), "Waivers", true) + "</div>";
+      h += '<div class="actions">' + (me.mine ? '<button type="button" class="btn" data-luopen="1">✎ Set lineup</button>' : extBtn(lineupUrl(L, me), "Set lineup")) + extBtn(waiverUrl(L), "Waivers", true) + "</div>";
       if (m.platform === "flea" && !me.live && !me.liveLoading && !me.liveErr) { me.liveLoading = true; fleaTeamRoster(L, me).then(() => { me.liveLoading = false; if (cur.league === leagues.indexOf(L)) render(); }); }
       const g = d.games.find(g => g.a.id === me.id || g.b.id === me.id);
       if (g) {
@@ -950,6 +952,7 @@ function renderLeague(v, L){
   v.querySelectorAll("[data-game]").forEach(b => b.addEventListener("click", () => openMatchup(L, b.dataset.game)));
   const rb = v.querySelector("#recapBtn"); if (rb) rb.addEventListener("click", () => openRecap(L));
   const hb = v.querySelector("#histBtn"); if (hb) hb.addEventListener("click", () => openHistory(L));
+  v.querySelectorAll("[data-luopen]").forEach(b => b.addEventListener("click", () => openLineup(L)));
   const pw = v.querySelector("#pwBtn"); if (pw) pw.addEventListener("click", () => openPower(L));
 }
 
@@ -2444,6 +2447,108 @@ async function openSweat(){
   }, 60000);
 }
 
+/* ---------- lineup editor: set your lineup from the app ---------- */
+const ESPN_SLOT_ID = {QB: 0, RB: 2, WR: 4, TE: 6, FLEX: 23, SUPER_FLEX: 7, REC_FLEX: 5, WRRB_FLEX: 3, K: 17, "D/ST": 16, DEF: 16};
+function mflCookie(){ try { return localStorage.getItem(KEY + ".mflc") || ""; } catch(e){ return ""; } }
+function setMflCookie(v){ try { if (v) localStorage.setItem(KEY + ".mflc", v); else localStorage.removeItem(KEY + ".mflc"); } catch(e){} }
+const canWrite = L => L.meta.platform === "espn" ? !!(L.meta.s2 && L.meta.swid) : L.meta.platform === "mfl";
+// Seat each current starter in a slot: exact positions first, then flex spots (ESPN tells us the real slot).
+function seatStarters(L, slots, roster){
+  const seat = slots.map(() => null), starters = roster.filter(p => p.slot === "start");
+  const place = (p, test) => { const i = seat.findIndex((x, j) => !x && test(slots[j], p)); if (i >= 0) { seat[i] = p; return true; } return false; };
+  const espnName = p => p.espnSlot != null ? Object.keys(ESPN_SLOT_ID).find(k => ESPN_SLOT_ID[k] === p.espnSlot && slots.includes(k)) : null;
+  starters.forEach(p => { const n = espnName(p); if (n) place(p, s => s === n); });
+  starters.filter(p => !seat.includes(p)).forEach(p => place(p, s => s === p.pos || (s === "DEF" && p.pos === "D/ST") || (s === "D/ST" && p.pos === "DEF")));
+  starters.filter(p => !seat.includes(p)).forEach(p => place(p, s => slotOk(s, p.pos)));
+  return seat;
+}
+async function openLineup(L){
+  const sh = $("#sheet"), p = $("#sheetPanel"), d = L.detail, me = d.teams.find(t => t.mine);
+  p.innerHTML = '<button class="back" id="closeSheet">Close</button><h2>Set lineup</h2><p class="spin">Loading your roster…</p>';
+  sh.hidden = false; p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+  await Promise.all([getPlayers(), getProj(), gamesAt ? null : loadScoreboard(), rosterFor(L, me)]);
+  ensureSidIndex();
+  const pj = x => { const v = projFor(L, x); return v == null ? 0 : v; };
+  const slots = edgeSlots(L), roster = me.roster.filter(x => x.name);
+  const orig = seatStarters(L, slots, roster);
+  let seat = orig.slice(), picking = null, msg = "", busy = false;
+  const locked = x => isLocked(x) || x.locked === true;
+  const lab = s => SLOT_LABEL[s] || s;
+  const total = () => seat.reduce((s, x) => s + (x ? pj(x) : 0), 0);
+  // Seat a set of starters, keeping everyone who's already in a valid spot where he is, so only real moves show up.
+  const seatSet = T => {
+    const out = slots.map((s, i) => orig[i] && T.has(orig[i]) ? orig[i] : null), rest = [...T].filter(x => !out.includes(x));
+    const fits = (arr, left) => { if (!left.length) return arr; const [x, ...more] = left;
+      const idx = slots.map((s, i) => i).filter(i => !arr[i] && slotOk(slots[i], x.pos)).sort((a, b) => (slots[a] === x.pos ? 0 : 1) - (slots[b] === x.pos ? 0 : 1) || (FLEX[slots[a]] || []).length - (FLEX[slots[b]] || []).length);
+      for (const i of idx) { const n = arr.slice(); n[i] = x; const r = fits(n, more); if (r) return r; } return null; };
+    const byNeed = a => a.slice().sort((a2, b2) => slots.filter(s => slotOk(s, a2.pos)).length - slots.filter(s => slotOk(s, b2.pos)).length);
+    return fits(out, byNeed(rest)) || fits(slots.map((s, i) => orig[i] && locked(orig[i]) ? orig[i] : null), byNeed([...T].filter(x => !(orig.includes(x) && locked(x))))) || out;
+  };
+  const changes = () => {
+    const now = new Set(seat.filter(Boolean)), was = new Set(orig.filter(Boolean)), out = [];
+    seat.forEach((x, i) => { if (x && orig[i] !== x && !(was.has(x) && slots[orig.indexOf(x)] === slots[i])) out.push({p: x, slot: slots[i], from: was.has(x) ? slots[orig.indexOf(x)] : "Bench"}); });
+    orig.forEach((x, i) => { if (x && !now.has(x)) out.push({p: x, slot: "Bench", from: slots[i]}); });
+    return out;
+  };
+  const draw = () => {
+    const ch = changes(), opt = optimize(roster, slots, pj), plat = L.meta.platform;
+    let h = '<button class="back" id="closeSheet">Close</button><h2>Set lineup</h2><p class="small muted" style="margin:-4px 0 10px">' + esc(L.meta.name) + " · week " + (d.week || "") + " · projected <b>" + fmt(total()) + "</b> (best possible " + fmt(opt.total) + ")</p>";
+    h += '<div class="sendrow" style="margin-top:0"><button type="button" class="btn ghost" id="luBest">✦ Best lineup</button><button type="button" class="btn ghost" id="luReset"' + (ch.length ? "" : " disabled") + ">Undo changes</button></div>";
+    h += '<ul class="plist" style="margin-top:12px">' + slots.map((s, i) => { const x = seat[i], lk = x && locked(x), ri = x ? reg.push(x) - 1 : -1;
+      return '<li><div class="prow luslot' + (picking === i ? " on" : "") + '"><span class="lusl">' + esc(lab(s)) + "</span>" + (x ? avatar(x) + '<span class="pname"><b>' + esc(x.name) + injChip(x.inj) + "</b><small>" + posTag(x) + gameLine(x.team) + "</small></span>" : '<span class="pname"><b class="muted">Empty</b></span>') +
+        '<span class="pts">' + (x ? '<span class="avg">' + fmt(pj(x)) + "<small>proj</small></span>" : "") + (lk ? '<span class="chip" title="His game has started">🔒</span>' : '<button type="button" class="btn ghost lubtn" data-pick="' + i + '" aria-label="Change ' + esc(lab(s)) + '">' + (picking === i ? "Cancel" : "Change") + "</button>") + "</span></div>" +
+        (picking === i ? '<ul class="plist lupick">' + roster.filter(y => y !== x && y.slot !== "ir" && slotOk(s, y.pos) && !locked(y) && !(seat.includes(y) && slots[seat.indexOf(y)] === s)).sort((a, b) => pj(b) - pj(a)).map(y => { const where = seat.indexOf(y); return '<li><button type="button" class="prow" data-put="' + i + '" data-pid="' + esc(y.id) + '">' + avatar(y) + '<span class="pname"><b>' + esc(y.name) + injChip(y.inj) + "</b><small>" + posTag(y) + (where >= 0 ? "now at " + esc(lab(slots[where])) : "bench") + " · " + gameLine(y.team) + '</small></span><span class="pts"><span class="avg">' + fmt(pj(y)) + "<small>proj</small></span></span></button></li>"; }).join("") + (x ? '<li><button type="button" class="prow" data-put="' + i + '" data-pid=""><span class="pname"><b>Move ' + esc(x.name) + " to the bench</b></span></button></li>" : "") + "</ul>" : "") + "</li>"; }).join("") + "</ul>";
+    if (ch.length) h += '<h3>Your changes</h3><div class="card"><ul class="reasons" style="margin:0">' + ch.map(c => "<li>" + esc(c.p.name) + ": " + esc(c.from === "Bench" ? "bench" : lab(c.from)) + " → <b>" + esc(c.slot === "Bench" ? "bench" : lab(c.slot)) + "</b></li>").join("") + "</ul></div>";
+    if (plat === "espn") h += L.meta.s2 && L.meta.swid ? '<button type="button" class="btn" id="luSave" style="width:100%;margin-top:12px"' + (ch.length && !busy ? "" : " disabled") + ">" + (busy ? "Saving to ESPN…" : "Save lineup to ESPN") + "</button>" : '<div class="card" style="margin-top:12px"><p class="small" style="margin:0">To save lineups from here, add your <b>espn_s2</b> and <b>SWID</b> to this league under Accounts (the settings button). They stay on this phone and go only to ESPN.</p></div>';
+    else if (plat === "mfl") h += mflCookie() ? '<button type="button" class="btn" id="luSave" style="width:100%;margin-top:12px"' + (ch.length && !busy ? "" : " disabled") + ">" + (busy ? "Saving to MyFantasyLeague…" : "Save lineup to MyFantasyLeague") + '</button><button type="button" class="btn ghost" id="luOut" style="width:100%;margin-top:8px">Sign out of MyFantasyLeague</button>' :
+      '<div class="card stackc" style="margin-top:12px;gap:8px"><p class="small" style="margin:0"><b>Sign in to MyFantasyLeague</b> to save lineups from here. Your password goes straight to MFL once; only the sign-in cookie is kept, on this phone.</p><input id="mflU" autocomplete="username" placeholder="MFL username or email" aria-label="MFL username"><input id="mflP" type="password" autocomplete="current-password" placeholder="Password" aria-label="MFL password"><button type="button" class="btn" id="mflIn">Sign in</button></div>';
+    else {
+      h += '<div class="card" style="margin-top:12px"><p class="small" style="margin:0 0 8px">' + esc(siteName(L)) + " doesn’t let other apps change lineups, so make " + (ch.length ? "these " + ch.length + " moves" : "your moves") + " there. Tick each one off as you go.</p>" +
+        (ch.length ? '<ul class="lucheck">' + ch.map((c, i) => '<li><label><input type="checkbox" data-chk="' + i + '"><span>' + (c.slot === "Bench" ? "Bench <b>" + esc(c.p.name) + "</b>" : "Start <b>" + esc(c.p.name) + "</b> at " + esc(lab(c.slot))) + "</span></label></li>").join("") + "</ul>" : "") +
+        '<div class="actions">' + extBtn(lineupUrl(L, me), "Open lineup in " + siteName(L)) + (ch.length ? '<button type="button" class="btn ghost" id="luCopy">Copy moves</button>' : "") + "</div></div>";
+    }
+    if (msg) h += '<p class="small" style="margin:10px 2px 0;' + (/^✓/.test(msg) ? "color:var(--ok)" : "color:var(--bad)") + '">' + esc(msg) + "</p>";
+    const y = p.scrollTop; p.innerHTML = h; p.scrollTop = y;
+    p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+    p.querySelector("#luBest").addEventListener("click", () => {
+      const T = new Set(optimize(roster, slots, pj).list.map(x => x.p).filter(Boolean));
+      orig.forEach(x => { if (x && locked(x)) T.add(x); });
+      seat = seatSet(T); picking = null; msg = ""; draw(); });
+    const rs = p.querySelector("#luReset"); if (rs) rs.addEventListener("click", () => { seat = orig.slice(); picking = null; msg = ""; draw(); });
+    p.querySelectorAll("[data-pick]").forEach(b => b.addEventListener("click", () => { const i = +b.dataset.pick; picking = picking === i ? null : i; draw(); }));
+    p.querySelectorAll("[data-put]").forEach(b => b.addEventListener("click", () => {
+      const i = +b.dataset.put, y = roster.find(z => z.id === b.dataset.pid) || null, cur = seat[i], from = y ? seat.indexOf(y) : -1;
+      seat[i] = y; if (from >= 0) seat[from] = cur && slotOk(slots[from], cur.pos) ? cur : null;
+      picking = null; msg = ""; draw(); }));
+    p.querySelectorAll("[data-chk]").forEach(c => c.addEventListener("change", () => c.closest("li").classList.toggle("done", c.checked)));
+    const cp = p.querySelector("#luCopy"); if (cp) cp.addEventListener("click", async () => { const t = ch.map(c => c.slot === "Bench" ? "Bench " + c.p.name : "Start " + c.p.name + " at " + lab(c.slot)).join("\n"); try { await navigator.clipboard.writeText(t); cp.textContent = "Copied"; } catch(e){ cp.textContent = "Couldn’t copy"; } });
+    const mi = p.querySelector("#mflIn"); if (mi) mi.addEventListener("click", async () => {
+      mi.disabled = true; mi.textContent = "Signing in…";
+      try { const r = await post("/api/mfl-login", {year: L.meta.season, username: p.querySelector("#mflU").value.trim(), password: p.querySelector("#mflP").value}); setMflCookie(r.cookie); msg = "✓ Signed in to MyFantasyLeague."; }
+      catch(e){ msg = e.message; }
+      draw(); });
+    const mo = p.querySelector("#luOut"); if (mo) mo.addEventListener("click", () => { setMflCookie(""); msg = ""; draw(); });
+    const sv = p.querySelector("#luSave"); if (sv) sv.addEventListener("click", async () => {
+      busy = true; msg = ""; draw();
+      try {
+        if (plat === "espn") {
+          const items = changes().map(c => ({playerId: c.p.id, from: c.p.espnSlot != null ? c.p.espnSlot : (c.from === "Bench" ? 20 : ESPN_SLOT_ID[c.from]), to: c.slot === "Bench" ? 20 : ESPN_SLOT_ID[c.slot]}));
+          const r = await fetch("/api/espn-lineup", {method: "POST", headers: Object.assign({"content-type": "application/json"}, espnHeaders(L.meta) || {}), body: JSON.stringify({lid: L.meta.id, season: L.meta.season, teamId: me.id, sp: d.sp || d.week, items})});
+          const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "ESPN answered " + r.status);
+        } else {
+          const r = await fetch("/api/mfl-lineup", {method: "POST", headers: {"content-type": "application/json", "x-mfl-cookie": mflCookie()}, body: JSON.stringify({year: L.meta.season, L: L.meta.id, W: d.week, host: (L.meta.host || "https://api.myfantasyleague.com"), starters: seat.filter(Boolean).map(x => x.id)})});
+          const j = await r.json().catch(() => ({})); if (!r.ok) { if (j.login) setMflCookie(""); throw new Error(j.error || "MyFantasyLeague answered " + r.status); }
+        }
+        roster.forEach(x => { const i = seat.indexOf(x); if (i >= 0) { x.slot = "start"; if (plat === "espn") x.espnSlot = ESPN_SLOT_ID[slots[i]]; } else if (x.slot === "start") { x.slot = "bench"; if (plat === "espn") x.espnSlot = 20; } });
+        for (let i = 0; i < seat.length; i++) orig[i] = seat[i];
+        msg = "✓ Saved. Your lineup is set in " + siteName(L) + ".";
+      } catch(e){ msg = e.message; }
+      busy = false; draw();
+    });
+  };
+  draw();
+}
+
 /* ---------- league history and rivalries ---------- */
 const lh = {};
 async function histSeasons(L, onProgress){
@@ -2875,7 +2980,7 @@ async function edgeWeek(L, el){
   let h = "";
   h += '<div class="card heroCard"><div class="gtop"><div class="gnum" style="background:' + (gain > 0.5 ? "var(--warn-soft);color:var(--warn)" : "var(--ok-soft);color:var(--ok)") + '"><b>' + (gain > 0.5 ? "+" + gain.toFixed(1) : "✓") + "</b></div><div><b class='glabel'>" + (gain > 0.5 ? "Your lineup is leaving points on the bench" : flags.length ? "Best you can do, but there’s a hole" : "Your lineup is set") + '</b><span class="muted small">Current ' + fmt(cur) + " projected · best possible " + fmt(opt.total) + (starters.length ? "" : " · open your league once so the app knows your lineup") + "</span></div></div>";
   if (ins.length || outs.length) h += '<div class="swaps"><div><small>Start</small>' + ins.map(x => "<b>" + esc(x.p.name) + " <span class='muted'>" + fmt(x.v) + "</span></b>").join("") + "</div><div><small>Bench</small>" + outs.map(p => "<b>" + esc(p.name) + " <span class='muted'>" + fmt(pj(p)) + "</span></b>").join("") + "</div></div>" +
-    '<div class="actions">' + extBtn(lineupUrl(L, me), "Set lineup in " + siteName(L)) + "</div>";
+    '<div class="actions"><button type="button" class="btn" data-luopen="1">' + "Make these changes" + "</button>" + extBtn(lineupUrl(L, me), "Open " + siteName(L), true) + "</div>";
   if (flags.length) h += '<ul class="reasons">' + flags.map(p => '<li class="bad">' + esc(p.name) + (OUTISH_C.test(String(p.inj || "")) ? " is " + esc(p.inj) : gameState(p.team) === "bye" ? " is on bye" : " is projected for 0") + "</li>").join("") + "</ul>";
   h += "</div>";
   h += "<h3>Best lineup · Week " + (d.week || "") + '</h3><ul class="plist">' + opt.list.map(x => x.p ? miniRow(x.p, fmt(x.v), '<em class="pt" data-pos="' + esc(x.p.pos) + '">' + esc(SLOT_LABEL[x.slot] || x.slot) + "</em>" + gameLine(x.p.team) + (x.p.slot !== "start" ? ' <span class="chip ok" style="padding:2px 7px">In</span>' : "") + (x.locked ? ' <span class="chip" style="padding:2px 7px">Locked</span>' : "") + '<span class="envrow">' + envChips(x.p.team) + "</span>") : '<li><div class="prow"><span class="pos">' + esc(SLOT_LABEL[x.slot] || x.slot) + '</span><span class="muted">No healthy player for this spot</span></div></li>').join("") + "</ul>";
@@ -2902,8 +3007,10 @@ async function edgeWeek(L, el){
     }
   }
   // game environment for my starters
+  if (!/data-luopen/.test(h)) h += '<button type="button" class="btn ghost" data-luopen="1" style="width:100%;margin-top:10px">✎ Set your lineup</button>';
   el.innerHTML = h;
   wireRows(el);
+  el.querySelectorAll("[data-luopen]").forEach(b => b.addEventListener("click", () => openLineup(L)));
 }
 
 /* ---------- Edge: Waivers ---------- */

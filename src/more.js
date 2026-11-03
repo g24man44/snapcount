@@ -342,3 +342,61 @@ export async function weeklyRecaps(env, force) {
   }
   return { posted: done };
 }
+
+/* ---------- set lineups from the app ---------- */
+// ESPN: one atomic ROSTER transaction of LINEUP moves, sent with the user's own espn_s2/SWID (passed through, never stored).
+const ESPN_LINEUP_ERR = { TRAN_LINEUP_LOCKED: "One of those players’ games has already started, so ESPN locked him.", TRAN_INVALID_SCORINGPERIOD_NOT_CURRENT: "ESPN only takes lineup changes for the current week.", TRAN_ROSTER_SAME_SLOT: "A player was already in that spot.", AUTH_MISSING_CREDENTIALS: "ESPN didn’t accept your sign-in cookies. Copy fresh espn_s2 and SWID values under Accounts." };
+export async function espnLineupRoute(request) {
+  if (request.method !== "POST") return out({ error: "POST only" }, 405);
+  const b = await request.json().catch(() => ({}));
+  const s2 = request.headers.get("x-espn-s2"), swid = request.headers.get("x-espn-swid");
+  if (!s2 || !swid) return out({ error: "Add your espn_s2 and SWID under Accounts to change lineups from here." }, 401);
+  const lid = String(b.lid || ""), season = String(b.season || ""), teamId = Number(b.teamId), sp = Number(b.sp);
+  if (!/^\d{1,12}$/.test(lid) || !/^\d{4}$/.test(season) || !(teamId > 0) || !(sp > 0)) return out({ error: "Bad lineup request" }, 400);
+  const SLOTS = new Set([0, 2, 3, 4, 5, 6, 7, 16, 17, 20, 23]);
+  const items = (Array.isArray(b.items) ? b.items : []).slice(0, 40).map(x => ({ playerId: Number(x.playerId), type: "LINEUP", fromLineupSlotId: Number(x.from), toLineupSlotId: Number(x.to) }))
+    .filter(x => x.playerId > 0 && SLOTS.has(x.fromLineupSlotId) && SLOTS.has(x.toLineupSlotId) && x.fromLineupSlotId !== x.toLineupSlotId);
+  if (!items.length) return out({ error: "No changes to make." }, 400);
+  const body = { isLeagueManager: false, teamId, type: "ROSTER", memberId: swid.replace(/[\r\n]/g, ""), scoringPeriodId: sp, executionType: "EXECUTE", items };
+  const r = await fetch("https://lm-api-writes.fantasy.espn.com/apis/v3/games/ffl/seasons/" + season + "/segments/0/leagues/" + lid + "/transactions/", {
+    method: "POST", headers: { "content-type": "application/json", "Accept": "application/json", "User-Agent": UA["User-Agent"], Cookie: "espn_s2=" + s2.replace(/[;\r\n]/g, "") + "; SWID=" + swid.replace(/[;\r\n]/g, "") }, body: JSON.stringify(body) });
+  const text = await r.text(); let j = {}; try { j = JSON.parse(text); } catch (e) {}
+  if (r.ok && (!j.status || /EXECUTED|PENDING/.test(j.status))) return out({ ok: true, status: j.status || "EXECUTED", moved: items.length });
+  const code = (((j.details || [])[0] || {}).type) || j.messages && j.messages[0] || (text.match(/TRAN_[A-Z_]+|AUTH_[A-Z_]+/) || [])[0] || "";
+  return out({ error: ESPN_LINEUP_ERR[code] || "ESPN said no (" + r.status + (code ? " " + code : "") + ").", code }, r.status === 401 ? 401 : 409);
+}
+
+// MyFantasyLeague: sign in once (the password goes to MFL and is never stored), then import the starters list.
+const mflHostOk = h => /^https:\/\/(www\d*|api)\.myfantasyleague\.com$/.test(h);
+export async function mflLoginRoute(request) {
+  if (request.method !== "POST") return out({ error: "POST only" }, 405);
+  const b = await request.json().catch(() => ({}));
+  const year = String(b.year || ""), user = String(b.username || "").slice(0, 80), pass = String(b.password || "").slice(0, 120);
+  if (!/^\d{4}$/.test(year) || !user || !pass) return out({ error: "Enter your MyFantasyLeague username and password." }, 400);
+  const r = await fetch("https://api.myfantasyleague.com/" + year + "/login?USERNAME=" + encodeURIComponent(user) + "&PASSWORD=" + encodeURIComponent(pass) + "&XML=1", { headers: { "User-Agent": UA["User-Agent"] } });
+  const t = await r.text();
+  const m = t.match(/MFL_USER_ID="([^"]+)"/) || t.match(/cookie_value="([^"]+)"/);
+  if (!m) return out({ error: /invalid|incorrect|error/i.test(t) ? "MyFantasyLeague didn’t accept that username and password." : "MyFantasyLeague sign-in failed (" + r.status + ")." }, 401);
+  return out({ ok: true, cookie: m[1] });
+}
+export async function mflLineupRoute(request) {
+  if (request.method !== "POST") return out({ error: "POST only" }, 405);
+  const b = await request.json().catch(() => ({}));
+  const year = String(b.year || ""), L = String(b.L || ""), W = String(b.W || ""), host = String(b.host || "https://api.myfantasyleague.com").replace(/\/+$/, "");
+  const cookie = request.headers.get("x-mfl-cookie") || "";
+  const starters = (Array.isArray(b.starters) ? b.starters : []).map(String).filter(x => /^\d{1,6}$/.test(x)).slice(0, 40);
+  if (!/^\d{4}$/.test(year) || !/^\d{1,8}$/.test(L) || !/^\d{1,2}$/.test(W) || !mflHostOk(host)) return out({ error: "Bad lineup request" }, 400);
+  if (!cookie) return out({ error: "Sign in to MyFantasyLeague first.", login: true }, 401);
+  if (!starters.length) return out({ error: "No starters to set." }, 400);
+  const u = host + "/" + year + "/import?TYPE=lineup&L=" + L + "&W=" + W + "&STARTERS=" + starters.join(",") + "&XML=1";
+  let r = await fetch(u, { headers: { "User-Agent": UA["User-Agent"], Cookie: "MFL_USER_ID=" + cookie.replace(/[;\r\n]/g, "") }, redirect: "manual" });
+  if (r.status >= 300 && r.status < 400 && r.headers.get("location")) {
+    const loc = new URL(r.headers.get("location"), u);
+    if (!mflHostOk(loc.origin)) return out({ error: "MyFantasyLeague redirected somewhere unexpected." }, 502);
+    r = await fetch(loc.toString(), { headers: { "User-Agent": UA["User-Agent"], Cookie: "MFL_USER_ID=" + cookie.replace(/[;\r\n]/g, "") } });
+  }
+  const t = await r.text();
+  if (/<status>\s*OK\s*<\/status>|"status"\s*:\s*"OK"/i.test(t)) return out({ ok: true });
+  const err = (t.match(/<error[^>]*>([\s\S]*?)<\/error>/i) || [])[1] || t.replace(/<[^>]+>/g, " ").trim().slice(0, 160);
+  return out({ error: /login|cookie|not logged|permission/i.test(err) ? "MyFantasyLeague needs you to sign in again." : "MyFantasyLeague said: " + err, login: /login|cookie|not logged/i.test(err) }, r.ok ? 409 : r.status);
+}
