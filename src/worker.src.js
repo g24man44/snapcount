@@ -242,6 +242,22 @@ async function fleaPlayoffs(id) {
   return json({ start, teams }, 200, 86400);
 }
 
+// One page (10) of a Fleaflicker league's completed trades, slimmed to what the trade report card needs.
+async function fleaTrades(lid, offset) {
+  const r = await fetch("https://www.fleaflicker.com/api/FetchTrades?sport=NFL&filter=TRADES_COMPLETED&league_id=" + lid + (offset ? "&result_offset=" + offset : ""), { headers: UA });
+  if (!r.ok) return json({ error: "Fleaflicker answered " + r.status + " for this league's trades." }, 502, 0);
+  const d = await r.json();
+  const team = t => ({ id: String((t || {}).id || ""), name: (t || {}).name || "", logo: (t || {}).logoUrl || "" });
+  const trades = (d.trades || []).map(t => ({
+    id: String(t.id), t: Number(t.approvedOn || t.proposedOn || 0), desc: t.description || "",
+    sides: (t.teams || []).map(s => Object.assign(team(s.team), {
+      players: (s.playersObtained || []).map(x => { const p = x.proPlayer || {}; return { id: String(p.id), name: p.nameFull || "", pos: p.position || "", team: p.proTeamAbbreviation || "", img: p.headshotUrl || "" }; }),
+      picks: (s.picksObtained || []).map(x => { const pk = x.draftPick || x, sl = pk.slot || {}; return { season: Number(pk.season) || 0, round: Number(sl.round || pk.round) || 0, slot: Number(sl.slot) || 0, overall: Number(sl.overall) || 0, from: ((pk.originalOwner || {}).name) || "" }; })
+    }))
+  }));
+  return json({ total: Number(d.resultTotal) || trades.length, next: d.resultOffsetNext != null ? Number(d.resultOffsetNext) : null, trades }, 200, 600);
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -302,6 +318,11 @@ export default {
         const lid = (url.searchParams.get("league_id") || "").replace(/\D/g, ""), tid = (url.searchParams.get("team_id") || "").replace(/\D/g, "");
         if (!lid || !tid) return json({ error: "Missing league or team" }, 400, 0);
         return cached(ctx, "fkp/" + lid + "/" + tid, 600, () => fleaKeepers(lid, tid));
+      }
+      if (p === "/api/flea-trades") {
+        const lid = (url.searchParams.get("league_id") || "").replace(/\D/g, ""), off = Math.min(5000, Number((url.searchParams.get("offset") || "0").replace(/\D/g, "")) || 0);
+        if (!lid) return json({ error: "Missing league" }, 400, 0);
+        return cached(ctx, "ftr/" + lid + "/" + off, 600, () => fleaTrades(lid, off));
       }
       if (p === "/api/flea-playoffs") {
         const id = (url.searchParams.get("league_id") || "").replace(/\D/g, "");

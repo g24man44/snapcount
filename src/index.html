@@ -192,6 +192,14 @@ form.add{display:flex;flex-direction:column;gap:10px}
 .mine{background:var(--accent-soft);color:var(--accent);border-radius:6px;padding:1px 5px;font-weight:700}
 .posf{margin:12px 0 0}
 .seg.sub{margin-top:8px}
+.ltc{margin-bottom:10px}.lth{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-bottom:8px}
+.lts{display:grid;grid-template-columns:44px 1fr;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
+.ltg{display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:40px;border-radius:12px;font-weight:900;font-size:17px;background:var(--surface2);color:var(--ink)}
+.ltg.good{background:var(--ok-soft);color:var(--ok)}.ltg.bad{background:var(--bad-soft);color:var(--bad)}.ltg.mid{background:var(--warn-soft);color:var(--warn)}
+.ltl{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:4px}.ltl li{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;font-size:14px}.ltl li span:nth-child(2){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ltl .pos{font-size:11px;padding:2px 6px}.ltshare{width:100%;margin-top:8px;padding:9px}
+.seg.sub{overflow-x:auto;scrollbar-width:none}.seg.sub button{white-space:nowrap;flex:1 1 auto;padding:10px 5px;font-size:13px}
+
 /* news + alerts */
 .news a,.nitem,.alitem{color:var(--ink);text-decoration:none;display:block;padding:14px 16px}
 .news a+a,.nitem+.nitem,.alitem+.alitem,.news a+.nitem,.nitem+a{border-top:1px solid var(--line)}
@@ -856,7 +864,7 @@ function renderLeague(v, L){
   if (L.error) { v.innerHTML = h + '<div class="err">' + esc(L.error) + "</div>"; return wireBack(v); }
   if (!d) { v.innerHTML = h + '<p class="spin">Loading…</p>'; return wireBack(v); }
   const sub = cur.sub || "team";
-  h += '<div class="seg sub" role="tablist">' + [["team","My team"],["fa","Free agents"],["league","League"]].concat(m.platform === "flea" ? [["act","Activity"]] : []).map(x => '<button type="button" data-sub="' + x[0] + '" aria-pressed="' + (sub === x[0]) + '">' + x[1] + "</button>").join("") + "</div>";
+  h += '<div class="seg sub" role="tablist">' + [["team","My team"],["fa","Free agents"],["league","League"]].concat(m.platform === "flea" ? [["act","Activity"]] : []).concat(["flea", "sleeper"].includes(m.platform) ? [["trades","Trades"]] : []).map(x => '<button type="button" data-sub="' + x[0] + '" aria-pressed="' + (sub === x[0]) + '">' + x[1] + "</button>").join("") + "</div>";
   let me = cur.team ? d.teams.find(t => t.id === cur.team) : d.teams.find(t => t.mine);
   if (sub === "team") {
     if (!me) h += '<div class="card install" style="margin-top:12px"><img src="/icon-192.png" alt=""><div><b>' + (cur.joined ? "Welcome to Snap Count" : "Which team is yours?") + '</b><span>Pick your team below. Your scores, alerts and trade tools all follow it.</span></div></div>';
@@ -894,6 +902,8 @@ function renderLeague(v, L){
     h += '<div class="chips posf">' + ["ALL","QB","RB","WR","TE","K","DEF"].map(x => '<button type="button" class="chip' + (pos === x ? " on" : "") + '" data-pos="' + x + '">' + x + "</button>").join("") + '</div><div id="fa"><p class="spin">Loading free agents…</p></div>';
   } else if (sub === "act") {
     h += '<div id="actBox"><p class="spin">Loading league activity…</p></div>';
+  } else if (sub === "trades") {
+    h += '<div id="ltBox"><p class="spin">Reading every trade in your league…</p></div>';
   } else {
     if (d.games.length) {
       h += '<button type="button" class="btn aibtn" id="recapBtn" style="width:100%;margin-top:14px"><span class="spark">✦</span> Write this week’s recap</button>';
@@ -911,6 +921,7 @@ function renderLeague(v, L){
   v.innerHTML = h;
   wireBack(v);
   v.querySelectorAll("[data-sub]").forEach(b => b.addEventListener("click", () => { cur.sub = b.dataset.sub; render(); }));
+  const onSub = v.querySelector('.seg.sub [aria-pressed="true"]'); if (onSub && onSub.parentNode.scrollWidth > onSub.parentNode.clientWidth) onSub.parentNode.scrollLeft = onSub.offsetLeft - 8;
   const sel = v.querySelector("#teamPick");
   if (sel) sel.addEventListener("change", () => {
     cur.team = sel.value || null;
@@ -920,6 +931,7 @@ function renderLeague(v, L){
   v.querySelectorAll("[data-pos]").forEach(b => b.addEventListener("click", () => { cur.faPos = b.dataset.pos; render(); }));
   wireRows(v);
   if (sub === "fa") loadFreeAgents(L, cur.faPos || "ALL");
+  if (sub === "trades") renderLeagueTrades(L, $("#ltBox")).catch(e => { const b = $("#ltBox"); if (b) b.innerHTML = '<div class="err">Couldn’t grade trades: ' + esc(e.message) + "</div>"; });
   if (sub === "act") renderActivity(L, $("#actBox"), me).catch(e => { const b = $("#actBox"); if (b) b.innerHTML = '<div class="err">Couldn’t load activity: ' + esc(e.message) + "</div>"; });
   v.querySelectorAll("[data-game]").forEach(b => b.addEventListener("click", () => openMatchup(L, b.dataset.game)));
   const rb = v.querySelector("#recapBtn"); if (rb) rb.addEventListener("click", () => openRecap(L));
@@ -2069,6 +2081,200 @@ async function openMatchup(L, gid){
     p.querySelector("#closeSheet").addEventListener("click", closeSheet);
     p.querySelectorAll(".bxp[data-i]").forEach(bt => bt.addEventListener("click", () => openPlayer(reg[+bt.dataset.i])));
   } catch(e){ p.innerHTML = '<button class="back" id="closeSheet">Close</button><div class="err">Couldn’t load the box score: ' + esc(e.message) + "</div>"; p.querySelector("#closeSheet").addEventListener("click", closeSheet); }
+}
+
+/* ---------- league trade report card: every trade in the league, graded ---------- */
+const lt = {};   // per-league state: {trades, total, next, loading, boards, year, team, sort}
+const TR_LETTERS = [[1.5, "A+"], [1.3, "A"], [1.15, "A-"], [1.06, "B+"], [0.94, "B"], [0.87, "B-"], [0.77, "C"], [0.67, "D"], [0, "F"]];
+const trLetter = r => TR_LETTERS.find(x => r >= x[0])[1];
+const trTone = g => /^A/.test(g) ? "good" : /^[DF]/.test(g) ? "bad" : /^C/.test(g) ? "mid" : "";
+const GP = {"A+": 4.3, A: 4, "A-": 3.7, "B+": 3.3, B: 3, "B-": 2.7, "C+": 2.3, C: 2, "C-": 1.7, D: 1, F: 0};
+const gpaLetter = x => x >= 4.15 ? "A+" : x >= 3.85 ? "A" : x >= 3.5 ? "A-" : x >= 3.15 ? "B+" : x >= 2.85 ? "B" : x >= 2.5 ? "B-" : x >= 2.15 ? "C+" : x >= 1.85 ? "C" : x >= 1.5 ? "C-" : x >= 0.5 ? "D" : "F";
+function ltState(L){ const k = L.meta.platform + ":" + L.meta.id; return lt[k] = lt[k] || {trades: [], total: null, next: 0, loading: false, boards: {}, team: "", sort: "new", year: null}; }
+
+async function ltFleaPage(L, S, off){
+  const r = await api("/api/flea-trades?league_id=" + L.meta.id + "&offset=" + off);
+  if (S.total == null) S.total = r.total;
+  return r;
+}
+// Load trades until we have everything from `year` (or `all`), a few pages at a time.
+async function ltLoad(L, S, until){
+  if (S.loading) return; S.loading = true;
+  try {
+    if (L.meta.platform === "sleeper") return await ltLoadSleeper(L, S, until);
+    while (S.next != null) {
+      const offs = []; for (let i = 0; i < 6 && S.next != null && (S.total == null || S.next + i * 10 < S.total); i++) offs.push(S.next + i * 10);
+      if (!offs.length) { S.next = null; break; }
+      const pages = await Promise.all(offs.map(o => ltFleaPage(L, S, o).catch(() => null)));
+      let stop = false;
+      for (const pg of pages) {
+        if (!pg) { stop = true; break; }
+        const seen = new Set(S.trades.map(t => t.id));
+        pg.trades.forEach(t => { if (!seen.has(t.id)) S.trades.push(t); });
+        if (!pg.trades.length || pg.next == null) { S.next = null; S.total = S.trades.length; stop = true; break; }
+        S.next = pg.next;
+      }
+      if (S.onProgress) S.onProgress();
+      if (stop) { if (S.next != null && pages.some(p => !p)) S.err = "Fleaflicker stopped answering partway through. Try again in a minute."; break; }
+      const oldest = Math.min(...S.trades.map(t => t.t || Infinity));
+      if (until !== "all" && oldest && new Date(oldest).getFullYear() < until) break;
+    }
+  } finally { S.loading = false; }
+}
+async function ltLoadSleeper(L, S, until){
+  // Sleeper keeps one league per season; walk back through previous seasons as needed.
+  S.sl = S.sl || {lid: L.meta.id, done: []};
+  for (let guard = 0; guard < 8 && S.sl.lid; guard++) {
+    const lg = await api("/api/sleeper/league/" + S.sl.lid).catch(() => null);
+    if (!lg) { S.sl.lid = null; break; }
+    const season = Number(lg.season) || 0;
+    if (S.sl.done.includes(S.sl.lid)) { S.sl.lid = lg.previous_league_id && lg.previous_league_id !== "0" ? lg.previous_league_id : null; continue; }
+    const weeks = await Promise.all(Array.from({length: 19}, (_, w) => api("/api/sleeper/league/" + S.sl.lid + "/transactions/" + w).catch(() => [])));
+    const rosters = await api("/api/sleeper/league/" + S.sl.lid + "/rosters").catch(() => []), users = await api("/api/sleeper/league/" + S.sl.lid + "/users").catch(() => []);
+    const uById = {}; (users || []).forEach(u => uById[u.user_id] = u);
+    const tname = rid => { const ro = (rosters || []).find(r => r.roster_id === rid) || {}, u = uById[ro.owner_id] || {}; const cur = L.detail.teams.find(t => t.id === String(rid)); return {name: (u.metadata && u.metadata.team_name) || u.display_name || (cur && cur.name) || "Team " + rid, logo: u.avatar ? "https://sleepercdn.com/avatars/thumbs/" + u.avatar : (cur && cur.logo) || ""}; };
+    weeks.flat().filter(x => x && x.type === "trade" && x.status === "complete").forEach(x => {
+      if (S.trades.some(t => t.id === String(x.transaction_id))) return;
+      S.trades.push({id: String(x.transaction_id), t: Number(x.status_updated || x.created || 0), sides: (x.roster_ids || []).map(rid => Object.assign({id: String(rid)}, tname(rid), {
+        players: Object.entries(x.adds || {}).filter(([, r]) => r === rid).map(([pid]) => { const p = players[pid] || [pid, "", ""]; return {id: pid, name: p[0], pos: p[1], team: p[2]}; }),
+        picks: (x.draft_picks || []).filter(pk => pk.owner_id === rid).map(pk => ({season: Number(pk.season), round: pk.round, slot: 0, overall: 0, from: tname(pk.roster_id).name}))
+      }))});
+    });
+    S.sl.done.push(S.sl.lid);
+    S.sl.lid = lg.previous_league_id && lg.previous_league_id !== "0" ? lg.previous_league_id : null;
+    S.total = S.sl.lid ? null : S.trades.length;
+    if (S.onProgress) S.onProgress();
+    if (until !== "all" && season <= until) break;
+  }
+  if (!S.sl.lid) S.next = null;
+  S.loading = false;
+}
+
+// What a traded pick is worth today: the player it became, or the market price of that pick.
+async function ltBoards(L, S, seasons){
+  if (L.meta.platform !== "flea") return;
+  const need = [...new Set(seasons)].filter(y => y && y <= new Date().getFullYear() && !(y in S.boards));
+  await Promise.all(need.map(async y => {
+    try { const b = await api(fq("FetchLeagueDraftBoard", {league_id: L.meta.id, season: y})); const m = {byTeam: {}}; (b.orderedSelections || []).forEach(s => { const pp = (s.player || {}).proPlayer; if (!pp || !s.slot) return; const x = {id: String(pp.id), name: pp.nameFull, pos: pp.position, team: pp.proTeamAbbreviation, round: s.slot.round, slot: s.slot.slot}; m[s.slot.overall] = x; const k = String((s.team || {}).id) + ":" + s.slot.round; (m.byTeam[k] = m.byTeam[k] || []).push(x); }); S.boards[y] = m; }
+    catch(e){ S.boards[y] = {}; }
+  }));
+}
+function ltValuer(L, S, V, flea, prem, nTeams){
+  const pv = p => { const k = L.meta.platform === "sleeper" ? String(p.id) : flea ? "f" + p.id : sleeperKey(L, p); return ((V[k] || [0])[0] || 0) * (p.pos === "QB" ? prem : 1); };
+  const pickSeasons = Object.keys(V).filter(k => /^pick:\d{4} 1st$/.test(k)).map(k => Number(k.slice(5, 9))).sort();
+  const pk = (x, owner) => {
+    const bd = S.boards[x.season];
+    // Older picks often have no slot; if the team that got it made exactly one pick in that round, that's the player.
+    const byTeam = !x.overall && bd && owner && bd.byTeam && bd.byTeam[owner + ":" + x.round];
+    const drafted = (x.overall && bd && bd[x.overall]) || (byTeam && byTeam.length === 1 ? byTeam[0] : null);
+    if (drafted && !x.overall) return {v: pv(drafted), label: x.season + " " + drafted.round + "." + String(drafted.slot).padStart(2, "0") + " → " + drafted.name, drafted};
+    if (drafted) { const v = pv(drafted); return {v, label: x.season + " " + x.round + "." + String(x.slot).padStart(2, "0") + " → " + drafted.name, drafted}; }
+    const yr = pickSeasons.length ? Math.min(Math.max(x.season, pickSeasons[0]), pickSeasons[pickSeasons.length - 1]) : x.season;
+    const rd = Math.min(4, x.round || 4), tier = x.slot && nTeams ? (x.slot <= nTeams / 3 ? " (Early)" : x.slot <= nTeams * 2 / 3 ? " (Mid)" : " (Late)") : "";
+    let v = ((V["pick:" + yr + " " + ORD[rd] + tier] || V["pick:" + yr + " " + ORD[rd]] || [0])[0]) || 0;
+    if ((x.round || 0) > 4) v *= Math.pow(0.6, x.round - 4);
+    return {v, label: x.season + " " + (x.slot ? x.round + "." + String(x.slot).padStart(2, "0") : ORDN(x.round) + " round") + (x.from ? " (" + x.from + ")" : "")};
+  };
+  return {pv, pk};
+}
+const trEff = vals => vals.slice().sort((a, b) => b - a).reduce((s, v, i) => s + v * Math.max(0.4, 1 - 0.15 * i), 0);
+function ltGrade(t, val){
+  const sides = t.sides.map(s => {
+    const items = s.players.map(p => ({name: p.name, pos: p.pos, team: p.team, v: val.pv(p), p})).concat(s.picks.map(x => { const r = val.pk(x, s.id); return {name: r.label, pos: "PICK", v: r.v}; })).sort((a, b) => b.v - a.v);
+    return {s, items, raw: items.reduce((a, b) => a + b.v, 0), eff: trEff(items.map(i => i.v))};
+  });
+  const n = sides.length;
+  sides.forEach(sd => {
+    const given = n === 2 ? sides.find(x => x !== sd) : null;
+    const gEff = given ? given.eff : sides.filter(x => x !== sd).reduce((a, b) => a + b.eff, 0) / Math.max(1, n - 1);
+    sd.gaveRaw = given ? given.raw : sides.filter(x => x !== sd).reduce((a, b) => a + b.raw, 0) / Math.max(1, n - 1);
+    // Small trades can't be a fleecing: shrink the gap when little value changed hands.
+    const m = Math.max(0.25, Math.min(1, Math.max(sd.eff, gEff) / 3000));
+    sd.ratio = Math.exp(Math.log((sd.eff + 300) / (gEff + 300)) * m);
+    sd.letter = trLetter(sd.ratio); sd.net = sd.raw - sd.gaveRaw;
+  });
+  if (sides.every(sd => sd.raw < 250)) { sides.forEach(sd => sd.letter = "–"); return {t, sides, verdict: "Both sides have faded", gap: 1, top: null, tone: "", faded: true}; }
+  const best = sides.slice().sort((a, b) => b.ratio - a.ratio)[0], gap = best.ratio;
+  const top = sides.flatMap(sd => sd.items.map(i => Object.assign({side: sd}, i))).sort((a, b) => b.v - a.v)[0];
+  const swing = Math.max(0, best.net);
+  const lvl = gap < 1.06 ? 0 : gap < 1.3 || swing < 1200 ? 1 : gap < 1.6 || swing < 2500 ? 2 : 3;
+  const verdict = [ "Fair trade", best.s.name + " wins", best.s.name + " won big", "Fleeced: " + best.s.name + " robbed " + (n === 2 ? sides.find(x => x !== best).s.name : "the others")][lvl];
+  return {t, sides, verdict, gap, swing, top, tone: ["", "", "mid", "bad"][lvl]};
+}
+
+async function renderLeagueTrades(L, el){
+  const S = ltState(L), d = L.detail, me = d.teams.find(t => t.mine);
+  if (!["flea", "sleeper"].includes(L.meta.platform)) { el.innerHTML = '<div class="card"><p class="small" style="margin:0">League trade history is available for Fleaflicker and Sleeper leagues.</p></div>'; return; }
+  const year = new Date().getFullYear();
+  if (S.year == null) S.year = year;
+  if (!S.trades.length && S.next != null) { el.innerHTML = '<p class="spin">Reading every trade in ' + esc(L.meta.name) + "…</p>"; await ltLoad(L, S, S.year === "all" ? "all" : S.year); }
+  const qbs = (d.slots || []).some(x => /SUPER_FLEX|QB\/RB\/WR\/TE/.test(x)) || (d.slots || []).filter(x => x === "QB").length > 1 ? 2 : 1, ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1");
+  const dyn = savedDyn(L) != null ? savedDyn(L) : /dynasty|keeper/i.test(L.meta.name);
+  await getPlayers();
+  const pack = await loadValues(ppr, d.teams.length, qbs, dyn), prem = qbPremium(d.teams.length, qbs);
+  await ltBoards(L, S, S.trades.flatMap(t => t.sides.flatMap(s => s.picks.map(x => x.season))));
+  const val = ltValuer(L, S, pack.v, pack.flea, prem, d.teams.length);
+  const graded = S.trades.slice().sort((a, b) => b.t - a.t).map(t => ltGrade(t, val));
+  const years = [...new Set(graded.map(g => new Date(g.t.t).getFullYear()).filter(Boolean))].sort((a, b) => b - a);
+  const inYear = graded.filter(g => S.year === "all" || new Date(g.t.t).getFullYear() === S.year);
+  // Report card: every team's record as a trader in this window.
+  const card = {};
+  inYear.filter(g => !g.faded).forEach(g => g.sides.forEach(sd => { const c = card[sd.s.id] = card[sd.s.id] || {id: sd.s.id, name: sd.s.name, logo: sd.s.logo, n: 0, net: 0, gp: 0, w: 0, l: 0}; c.n++; c.net += sd.net; c.gp += GP[sd.letter]; if (sd.ratio >= 1.06) c.w++; else if (sd.ratio < 0.94) c.l++; if (!c.logo) c.logo = sd.s.logo; }));
+  const nGraded = inYear.filter(g => !g.faded).length;
+  const board = Object.values(card).map(c => Object.assign(c, {letter: gpaLetter(c.gp / c.n)})).sort((a, b) => b.net - a.net);
+  let h = '<div class="chips" style="margin:12px 0 4px">' + years.map(y => '<button type="button" class="chip' + (S.year === y ? " on" : "") + '" data-ly="' + y + '">' + y + "</button>").join("") + '<button type="button" class="chip' + (S.year === "all" ? " on" : "") + '" data-ly="all">All time</button></div>';
+  const loaded = S.trades.length, more = S.next != null;
+  if (!nGraded) h += '<div class="card"><p class="small" style="margin:0">No completed trades ' + (S.year === "all" ? "yet" : "in " + S.year) + ".</p></div>";
+  else {
+    const best = board[0], worst = board[board.length - 1], fleece = inYear.slice().sort((a, b) => (b.swing || 0) - (a.swing || 0))[0];
+    h += '<div class="card heroCard"><div class="gtop"><div class="gnum" style="background:var(--ok-soft);color:var(--ok)"><b>' + esc(best.letter) + '</b></div><div><b class="glabel">Best trader: ' + esc(best.name) + '</b><span class="muted small">' + best.n + " trade" + (best.n > 1 ? "s" : "") + ", up " + fmtV(best.net) + " in value · " + nGraded + " trades graded" + (S.year === "all" ? "" : " in " + S.year) + "</span></div></div>" +
+      (S.year === "all" || S.year < new Date().getFullYear() - 1 ? '<p class="small muted" style="margin:10px 0 0">Older trades are graded by how they aged: what each side has today. Players who retired count for nothing.</p>' : "") +
+      '<ul class="reasons">' + (worst !== best && worst.net < 0 ? '<li class="bad">Most fleeced: <b>' + esc(worst.name) + "</b>, down " + fmtV(-worst.net) + " across " + worst.n + " trade" + (worst.n > 1 ? "s" : "") + ".</li>" : "") +
+      (fleece && fleece.swing >= 1200 ? (() => { const w = fleece.sides.slice().sort((a, b) => b.ratio - a.ratio)[0], rest = fleece.sides.filter(x => x !== w); return '<li>Most lopsided: <b>' + esc(w.s.name) + "</b> got " + esc(w.items.slice(0, 2).map(i => i.name).join(" and ")) + " from " + esc(rest.map(x => x.s.name).join(" and ")) + " for " + esc(rest.flatMap(x => x.items).slice(0, 2).map(i => i.name).join(" and ") || "almost nothing") + ".</li>"; })() : "") +
+      (me && card[me.id] ? '<li class="' + trTone(card[me.id].letter) + '">You: ' + card[me.id].letter + " as a trader, " + card[me.id].w + " won, " + card[me.id].l + " lost, " + (card[me.id].net >= 0 ? "up " : "down ") + fmtV(Math.abs(card[me.id].net)) + ".</li>" : "") + "</ul></div>";
+    h += '<h3>Trader report card</h3><div class="card" style="padding:6px 0"><table class="otable"><tbody>' + board.map((c, i) => '<tr class="' + (me && c.id === me.id ? "me" : "") + '"><td class="muted" style="width:26px;text-align:center">' + (i + 1) + "</td><td>" + teamLogo(c) + "</td><td><b>" + esc(c.name) + "</b><small>" + c.n + " trade" + (c.n > 1 ? "s" : "") + " · " + c.w + "W " + c.l + "L · " + (c.net >= 0 ? "+" : "−") + fmtV(Math.abs(c.net)) + '</small></td><td style="text-align:right"><span class="ltg ' + trTone(c.letter) + '">' + esc(c.letter) + "</span></td></tr>").join("") + "</tbody></table></div>";
+    const teams = board.map(c => c).sort((a, b) => a.name.localeCompare(b.name));
+    h += '<div style="display:flex;gap:8px;align-items:center;margin:18px 0 8px"><h3 style="margin:0;flex:1">Every trade</h3><select id="ltTeam" style="max-width:52%"><option value="">All teams</option>' + teams.map(c => '<option value="' + esc(c.id) + '"' + (S.team === c.id ? " selected" : "") + ">" + esc(c.name) + "</option>").join("") + '</select></div>' +
+      '<div class="seg" role="group" aria-label="Sort trades" style="margin-bottom:10px"><button type="button" data-ls="new" aria-pressed="' + (S.sort === "new") + '">Newest</button><button type="button" data-ls="gap" aria-pressed="' + (S.sort === "gap") + '">Most lopsided</button></div>';
+    let list = inYear.filter(g => !S.team || g.sides.some(sd => sd.s.id === S.team));
+    if (S.sort === "gap") list = list.slice().sort((a, b) => (b.swing || 0) - (a.swing || 0));
+    S.shown = list;
+    h += list.slice(0, S.limit || 40).map((g, i) => {
+      return '<div class="card ltc"><div class="lth"><small class="muted">' + new Date(g.t.t).toLocaleDateString([], {month: "short", day: "numeric", year: "numeric"}) + '</small><span class="chip ' + (g.tone === "bad" ? "warn" : g.tone === "mid" ? "" : "ok") + '">' + esc(g.verdict) + "</span></div>" +
+        g.sides.map(sd => '<div class="lts"><span class="ltg ' + (g.faded ? "" : trTone(sd.letter)) + '">' + esc(sd.letter) + '</span><div style="min-width:0"><b' + (me && sd.s.id === me.id ? ' class="me"' : "") + ">" + esc(sd.s.name) + '</b><small class="muted"> gets ' + fmtV(sd.raw) + "</small>" +
+          '<ul class="ltl">' + (sd.items.length ? sd.items.map(it => "<li>" + (it.pos !== "PICK" ? '<span class="pos" data-pos="' + esc(it.pos) + '">' + esc(it.pos) + "</span>" : '<span class="pos" data-pos="PICK">PK</span>') + "<span>" + esc(it.name) + '</span><span class="muted">' + (it.v ? fmtV(it.v) : "—") + "</span></li>").join("") : '<li class="muted">Nothing</li>') + "</ul></div></div>").join("") +
+        '<button type="button" class="btn ghost ltshare" data-li="' + i + '">Share this grade</button></div>';
+    }).join("");
+    if (list.length > (S.limit || 40)) h += '<button type="button" class="btn ghost" id="ltMore" style="width:100%">Show more trades</button>';
+  }
+  if (more) h += '<button type="button" class="btn ghost" id="ltOlder" style="width:100%;margin-top:10px">' + (S.loading ? "Loading…" : "Load older trades") + "</button>";
+  if (S.err) h += '<p class="small" style="color:var(--bad)">' + esc(S.err) + "</p>";
+  h += '<p class="small muted" style="margin:10px 4px 0">' + loaded + (S.total ? " of " + S.total : "") + " trades loaded. Graded at today’s " + (dyn ? "dynasty" : "redraft") + " " + esc(pack.src) + " values" + (qbs === 2 ? " with the superflex QB boost" : "") + ", so older trades show how they aged. Picks already used count as the player drafted with them.</p>";
+  el.innerHTML = h;
+  const rerender = () => renderLeagueTrades(L, el).catch(e => { el.innerHTML = '<div class="err">Couldn’t grade trades: ' + esc(e.message) + "</div>"; });
+  el.querySelectorAll("[data-ly]").forEach(b => b.addEventListener("click", async () => {
+    S.year = b.dataset.ly === "all" ? "all" : Number(b.dataset.ly); S.limit = 40;
+    if (S.next != null) { b.textContent = "Loading…"; S.onProgress = null; await ltLoad(L, S, S.year === "all" ? "all" : S.year); }
+    rerender();
+  }));
+  const ts = el.querySelector("#ltTeam"); if (ts) ts.addEventListener("change", () => { S.team = ts.value; rerender(); });
+  el.querySelectorAll("[data-ls]").forEach(b => b.addEventListener("click", () => { S.sort = b.dataset.ls; rerender(); }));
+  const mb = el.querySelector("#ltMore"); if (mb) mb.addEventListener("click", () => { S.limit = (S.limit || 40) + 40; rerender(); });
+  const ob = el.querySelector("#ltOlder"); if (ob) ob.addEventListener("click", async () => {
+    ob.disabled = true; ob.textContent = "Loading…";
+    const oldest = Math.min(...S.trades.map(t => t.t || Infinity));
+    const prog = () => { ob.textContent = "Loading… " + S.trades.length + (S.total ? " of " + S.total : ""); }; S.onProgress = prog;
+    await ltLoad(L, S, isFinite(oldest) ? new Date(oldest).getFullYear() - 1 : "all");
+    S.onProgress = null; rerender();
+  });
+  el.querySelectorAll(".ltshare").forEach(b => b.addEventListener("click", async () => {
+    const g = S.shown[+b.dataset.li]; if (!g) return;
+    const w = g.sides.slice().sort((a, b2) => b2.ratio - a.ratio)[0];
+    b.textContent = "Making image…";
+    const r = await shareCard({kicker: L.meta.name + " · trade grade", big: w.letter, color: "#3ddc97", title: g.verdict,
+      lines: g.sides.map(sd => ({tone: sd === w ? "good" : sd.ratio < 0.94 ? "bad" : "", text: sd.s.name + " (" + sd.letter + ") gets " + (sd.items.map(i => i.name).join(", ") || "nothing")}))});
+    b.textContent = r === "saved" ? "Image saved" : "Share this grade";
+  }));
 }
 
 /* paste a trade email to grade it */

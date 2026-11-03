@@ -31,3 +31,4 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [x] AI coach (voice, streaming), AI weekly recap (manual + Tuesday auto-post)
 - [x] Live win probability, every-sport scores, offline mode, app shortcuts, app badge
 - [x] Sunday 11:00 ET AI pregame briefing: push + Discord/Slack post with start/sit calls, risky starters, best pickup (Alerts › Sunday pregame briefing, with preview)
+- [x] League trade report card: every trade in the league graded A+ to F for each side, best/worst traders, most lopsided deals, all-time history (Leagues › your league › Trades)
