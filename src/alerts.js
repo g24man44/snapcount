@@ -646,14 +646,64 @@ export async function pregameBriefings(env, force) {
 
 // Every 5 minutes: new trades, trades up for review, trade-block posts and QB pickups in each Fleaflicker league people follow.
 const ORDN = r => r + (r === 1 ? "st" : r === 2 ? "nd" : r === 3 ? "rd" : "th");
-export function activityMessages(lname, fresh, newReview) {
-  const msgs = [], trades = {};
+// Trade grades for alerts: the same method as the app's trade report card (today's FantasyCalc values).
+const TR_L = [[1.5, "A+"], [1.3, "A"], [1.15, "A-"], [1.06, "B+"], [0.94, "B"], [0.87, "B-"], [0.77, "C"], [0.67, "D"], [0, "F"]];
+const PICK_ORD = ["", "1st", "2nd", "3rd", "4th"];
+export function gradeTradeSides(sides, V) {
+  // sides: [{ name, assets: [{ id (fleaflicker player id) | season+round, pos }] }]; V: { "f<id>": value, "pick:2027 1st": value }, QB premium already applied.
+  const val = a => a.season ? ((V["pick:" + a.season + " " + PICK_ORD[Math.min(4, a.round || 4)]] || 0) * (a.round > 4 ? Math.pow(0.6, a.round - 4) : 1)) : (V["f" + a.id] || 0);
+  const eff = vs => vs.slice().sort((x, y) => y - x).reduce((s, v, i) => s + v * Math.max(0.4, 1 - 0.15 * i), 0);
+  const S = sides.map(sd => { const vs = sd.assets.map(val); return { name: sd.name, raw: vs.reduce((a, b) => a + b, 0), eff: eff(vs) }; });
+  if (S.length < 2 || S.every(x => x.raw < 250)) return null;
+  S.forEach(sd => {
+    const others = S.filter(x => x !== sd), g = others.reduce((a, b) => a + b.eff, 0) / others.length;
+    const m = Math.max(0.25, Math.min(1, Math.max(sd.eff, g) / 3000));
+    sd.ratio = Math.exp(Math.log((sd.eff + 300) / (g + 300)) * m);
+    sd.letter = TR_L.find(x => sd.ratio >= x[0])[1];
+    sd.net = sd.raw - others.reduce((a, b) => a + b.raw, 0) / others.length;
+  });
+  const best = S.slice().sort((a, b) => b.ratio - a.ratio)[0], swing = Math.max(0, best.net);
+  const lvl = best.ratio < 1.06 ? 0 : best.ratio < 1.3 || swing < 1200 ? 1 : best.ratio < 1.6 || swing < 2500 ? 2 : 3;
+  const loser = S.length === 2 ? S.find(x => x !== best).name : "the others";
+  return { sides: S, verdict: ["Fair trade.", best.name + " wins it.", best.name + " won big.", "Fleeced: " + best.name + " robbed " + loser + "."][lvl] };
+}
+async function leagueValues(env, lid, lname) {
+  // League format (teams, superflex) cached a week; values cached 6 hours at the edge.
+  let fmt = await env.SNAP.get("fmt:" + lid, "json");
+  if (!fmt) {
+    const [st, rules] = await Promise.all(["FetchLeagueStandings", "FetchLeagueRules"].map(ep => fetch("https://www.fleaflicker.com/api/" + ep + "?sport=NFL&league_id=" + lid, { headers: UA }).then(r => r.ok ? r.json() : null).catch(() => null)));
+    if (!st || !rules) return null;
+    const teams = (st.divisions || []).reduce((n, d) => n + (d.teams || []).length, 0) || 12;
+    const sf = (rules.rosterPositions || []).some(p => (p.start || 0) > 0 && (p.eligibility || []).includes("QB") && (p.eligibility || []).length > 1);
+    fmt = { teams, qbs: sf ? 2 : 1, ppr: "1", dyn: /dynasty|keeper/i.test(lname || (st.league || {}).name || "") };
+    await env.SNAP.put("fmt:" + lid, JSON.stringify(fmt), { expirationTtl: 604800 });
+  }
+  const T = fmt.teams <= 11 ? 10 : fmt.teams <= 13 ? 12 : 14;
+  const u = "https://api.fantasycalc.com/values/current?isDynasty=" + (fmt.dyn ? "true" : "false") + "&numQbs=" + fmt.qbs + "&numTeams=" + T + "&ppr=" + fmt.ppr;
+  const cache = caches.default, key = new Request("https://snapcount.cache/fcalerts/" + encodeURIComponent(u));
+  let arr = null;
+  const hit = await cache.match(key);
+  if (hit) arr = await hit.json();
+  else {
+    const r = await fetch(u, { headers: UA }); if (!r.ok) return null;
+    arr = await r.json();
+    await cache.put(key, new Response(JSON.stringify(arr), { headers: { "cache-control": "public, max-age=21600" } }));
+  }
+  const prem = fmt.qbs === 2 ? 1 + 0.06 * Math.max(0, fmt.teams - 12) : 1 + 0.03 * Math.max(0, fmt.teams - 12);
+  const V = {};
+  for (const x of Array.isArray(arr) ? arr : []) { const p = x.player || {}, v = Math.round(x.value || 0) * (p.position === "QB" ? prem : 1); if (p.position === "PICK" && p.name) V["pick:" + p.name] = v; if (p.fleaflickerId) V["f" + p.fleaflickerId] = v; }
+  return V;
+}
+export function activityMessages(lname, fresh, newReview, V) {
+  const msgs = [], trades = {}, assets = {};
   for (const it of fresh) {
     const t = it.transaction, ts = it.timeEpochMilli;
     if (t && t.type === "TRANSACTION_TRADE") {
       const g = trades[t.tradeId] = trades[t.tradeId] || {};
       const nm = (t.team || {}).name || "?";
       (g[nm] = g[nm] || []).push(t.player ? t.player.proPlayer.nameFull : t.draftPick ? t.draftPick.season + " " + ORDN(t.draftPick.round) : "?");
+      const a = (assets[t.tradeId] = assets[t.tradeId] || {});
+      (a[nm] = a[nm] || []).push(t.player ? { id: t.player.proPlayer.id, pos: t.player.proPlayer.position } : t.draftPick ? { season: t.draftPick.season, round: t.draftPick.round } : {});
     } else if (it.tradeBlock && it.tradeBlock.player) {
       const p = it.tradeBlock.player.proPlayer;
       msgs.push({ id: "tb:" + p.id + ":" + ts, title: "Trade block: " + p.nameFull + " (" + p.position + ", " + p.proTeamAbbreviation + ")", body: ((it.tradeBlock.team || {}).name || "A team") + " is shopping him in " + lname + "." });
@@ -662,7 +712,12 @@ export function activityMessages(lname, fresh, newReview) {
       msgs.push({ id: "add:" + p.id + ":" + ts, title: ((t.team || {}).name || "A team") + " added QB " + p.nameFull, body: "QB pickup in " + lname + ". One fewer quarterback on waivers." });
     }
   }
-  for (const id in trades) msgs.push({ id: "trade:" + id, title: "Trade in " + lname, body: Object.entries(trades[id]).map(([tm, got]) => tm + " gets " + got.join(", ")).join(". ") + "." });
+  for (const id in trades) {
+    let g = null;
+    try { if (V) g = gradeTradeSides(Object.entries(assets[id] || {}).map(([name, list]) => ({ name, assets: list })), V); } catch (e) {}
+    const grade = n => { const x = g && g.sides.find(y => y.name === n); return x ? " (" + x.letter + ")" : ""; };
+    msgs.push({ id: "trade:" + id, title: "Trade in " + lname + (g ? ": " + g.sides.map(x => x.letter).join(" / ") : ""), body: Object.entries(trades[id]).map(([tm, got]) => tm + grade(tm) + " gets " + got.join(", ")).join(". ") + "." + (g ? " " + g.verdict + " Graded at today’s trade values." : "") });
+  }
   for (const t of newReview) msgs.push({ id: "rev:" + t.id, title: "Trade up for review in " + lname, body: (t.teams || []).map(s => ((s.team || {}).name || "?") + " gets " + (s.playersObtained || []).map(x => x.proPlayer.nameFull).concat((s.picksObtained || []).map(x => { const pk = x.draftPick || x; return pk.season + " " + ORDN((pk.slot || {}).round || pk.round); })).join(", ")).join(". ") + ". You can veto it in Fleaflicker." });
   return msgs;
 }
@@ -679,7 +734,9 @@ export async function leagueWatch(env, force) {
     if (!prev) { await env.SNAP.put(key, JSON.stringify({ t: newest, r: rids })); out[lid] = "baseline"; continue; }
     const fresh = items.filter(it => Number(it.timeEpochMilli) > prev.t), newReview = review.filter(t => !prev.r.includes(String(t.id)));
     if (fresh.length || rids.join() !== prev.r.join()) await env.SNAP.put(key, JSON.stringify({ t: Math.max(newest, prev.t), r: rids }));
-    const msgs = activityMessages(idx[lid] || "your league", fresh, newReview);
+    const hasTrade = fresh.some(it => it.transaction && it.transaction.type === "TRANSACTION_TRADE");
+    const V = hasTrade ? await leagueValues(env, lid, idx[lid]).catch(() => null) : null;
+    const msgs = activityMessages(idx[lid] || "your league", fresh, newReview, V);
     out[lid] = msgs.length;
     if (!msgs.length) continue;
     await eachSubscriber(env, rec => (rec.prefs.league === false || !(rec.leagues || []).some(x => x.p === "flea" && x.id === lid)) ? [] : msgs);

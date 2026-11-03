@@ -11,7 +11,6 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - Never break what works. Test in a headless browser against real Fleaflicker data before pushing. If tests fail, don't push.
 
 ## Next up (top first)
-- [ ] Grade new league trades in the trade alerts (push + Discord): letter grade per side at today's values, same method as the trade report card.
 - [ ] Tuesday auto-post of power rankings (with luck) to connected Discord/Slack, alongside the AI recap.
 - [ ] Game-day sweat board: every starter across all leagues, live points vs projection, sorted by who's playing now.
 - [ ] Friday AI matchup preview push: your opponent's lineup, the key matchup, win odds.
@@ -38,3 +37,4 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [x] Negotiate mode: practice a trade pitch against an AI playing the other manager (their roster, record, needs, values), then send the deal (Trade › Grade › Practice the pitch)
 - [x] Accessibility and light-theme pass: zero automated WCAG A/AA violations across every screen in light and dark mode (stronger light-mode colors, labels, keyboard focus into and out of sheets)
 - [x] Power rankings with schedule luck: scoring, recent form and all-play record, week-over-week movement, luckiest/unluckiest/hottest, share or post to Discord (Leagues › League)
+- [x] Trade alerts now carry grades: every new league trade pushed/posted with a letter per side and a verdict
