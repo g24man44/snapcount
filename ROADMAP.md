@@ -15,7 +15,6 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Rest-of-season strength of schedule for each of your starters and for your fantasy schedule.
 - [ ] Player comparison: pick 2–4 players, see projections, matchups, trends, values side by side, with an AI verdict.
 - [ ] Rookie draft board for dynasty (Fleaflicker FetchLeagueDraftBoard + FantasyCalc rookie values).
-- [ ] League history and rivalries (head-to-head records, biggest blowouts).
 - [ ] Accessibility and light-theme polish pass.
 
 ## Blocked (needs the owner)
@@ -32,3 +31,4 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [x] Sunday 11:00 ET AI pregame briefing: push + Discord/Slack post with start/sit calls, risky starters, best pickup (Alerts › Sunday pregame briefing, with preview)
 - [x] League trade report card: every trade in the league graded A+ to F for each side, best/worst traders, most lopsided deals, all-time history (Leagues › your league › Trades)
 - [x] Waiver bids: FAAB bid and range for the top free agents (your budget, rivals' budgets, value, week), or claim-vs-wait advice in waiver-priority leagues (Edge › Waivers)
+- [x] League history & rivalries: every season's games, head-to-head for any team (nemesis, favorite victim, fiercest rivalry), champions, all-time standings, record book (Leagues › League › League history)

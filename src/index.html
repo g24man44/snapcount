@@ -908,6 +908,9 @@ function renderLeague(v, L){
   } else {
     if (d.games.length) {
       h += '<button type="button" class="btn aibtn" id="recapBtn" style="width:100%;margin-top:14px"><span class="spark">✦</span> Write this week’s recap</button>';
+    }
+    if (["flea", "sleeper"].includes(m.platform)) h += '<button type="button" class="btn ghost" id="histBtn" style="width:100%;margin-top:10px">🏆 League history & rivalries</button>';
+    if (d.games.length) {
       h += "<h3>Matchups" + (d.week ? " · Week " + d.week : "") + '</h3><div class="stack">';
       d.games.forEach(g => {
         const A = d.teams.find(t => t.id === g.a.id) || {name:"Team"}, B = d.teams.find(t => t.id === g.b.id) || {name:"Team"};
@@ -936,6 +939,7 @@ function renderLeague(v, L){
   if (sub === "act") renderActivity(L, $("#actBox"), me).catch(e => { const b = $("#actBox"); if (b) b.innerHTML = '<div class="err">Couldn’t load activity: ' + esc(e.message) + "</div>"; });
   v.querySelectorAll("[data-game]").forEach(b => b.addEventListener("click", () => openMatchup(L, b.dataset.game)));
   const rb = v.querySelector("#recapBtn"); if (rb) rb.addEventListener("click", () => openRecap(L));
+  const hb = v.querySelector("#histBtn"); if (hb) hb.addEventListener("click", () => openHistory(L));
 }
 
 /* ---------- free agents ---------- */
@@ -2082,6 +2086,122 @@ async function openMatchup(L, gid){
     p.querySelector("#closeSheet").addEventListener("click", closeSheet);
     p.querySelectorAll(".bxp[data-i]").forEach(bt => bt.addEventListener("click", () => openPlayer(reg[+bt.dataset.i])));
   } catch(e){ p.innerHTML = '<button class="back" id="closeSheet">Close</button><div class="err">Couldn’t load the box score: ' + esc(e.message) + "</div>"; p.querySelector("#closeSheet").addEventListener("click", closeSheet); }
+}
+
+/* ---------- league history and rivalries ---------- */
+const lh = {};
+async function histSeasons(L, onProgress){
+  const k = L.meta.platform + ":" + L.meta.id;
+  if (lh[k]) return lh[k];
+  const out = [];
+  if (L.meta.platform === "flea") {
+    const now = new Date(), cur = now.getMonth() < 2 ? now.getFullYear() - 1 : now.getFullYear();
+    for (let y = cur; y > cur - 20; y -= 4) {
+      const batch = await Promise.all([0, 1, 2, 3].map(i => api("/api/flea-history?league_id=" + L.meta.id + "&season=" + (y - i)).catch(() => ({missing: true}))));
+      let stop = false;
+      batch.forEach(b => { if (b.missing || !b.games) stop = true; else out.push(b); });
+      if (onProgress) onProgress(out.length);
+      if (stop) break;
+    }
+  } else if (L.meta.platform === "sleeper") {
+    let lid = L.meta.id;
+    for (let i = 0; i < 12 && lid && lid !== "0"; i++) {
+      const lg = await api("/api/sleeper/league/" + lid).catch(() => null); if (!lg) break;
+      const [users, rosters, bracket] = await Promise.all([api("/api/sleeper/league/" + lid + "/users").catch(() => []), api("/api/sleeper/league/" + lid + "/rosters").catch(() => []), api("/api/sleeper/league/" + lid + "/winners_bracket").catch(() => [])]);
+      const po = Number((lg.settings || {}).playoff_week_start) || 15, last = Math.min(18, po + 3);
+      const weeks = await Promise.all(Array.from({length: last}, (_, w) => api("/api/sleeper/league/" + lid + "/matchups/" + (w + 1)).catch(() => [])));
+      const uById = {}; (users || []).forEach(u => uById[u.user_id] = u);
+      const owner = {}; (rosters || []).forEach(r => owner[r.roster_id] = r.owner_id || ("r" + r.roster_id));
+      const tm = rid => { const u = uById[owner[rid]] || {}; return {id: "o:" + owner[rid], name: (u.metadata && u.metadata.team_name) || u.display_name || "Team " + rid, logo: u.avatar ? "https://sleepercdn.com/avatars/thumbs/" + u.avatar : ""}; };
+      const finalM = (bracket || []).find(m => m.p === 1), champRid = finalM ? finalM.w : null;
+      const games = [];
+      weeks.forEach((ms, i) => {
+        const wk = i + 1, g = {}; (ms || []).forEach(m => { if (m.matchup_id) (g[m.matchup_id] = g[m.matchup_id] || []).push(m); });
+        Object.values(g).forEach(p => { if (p.length !== 2 || (!p[0].points && !p[1].points)) return; const isPo = wk >= po;
+          // Playoff weeks: only count games in the winners bracket.
+          if (isPo && !(bracket || []).some(m => [m.t1, m.t2].includes(p[0].roster_id) && [m.t1, m.t2].includes(p[1].roster_id))) return;
+          games.push({wk, a: tm(p[0].roster_id), h: tm(p[1].roster_id), as: p[0].points, hs: p[1].points, po: isPo, ch: isPo && finalM && [finalM.t1, finalM.t2].includes(p[0].roster_id) && [finalM.t1, finalM.t2].includes(p[1].roster_id) && wk === Math.max(...weeks.map((x, j) => (x || []).some(m => m.points) ? j + 1 : 0)), cons: false}); });
+      });
+      if (games.length || i === 0) out.push({season: Number(lg.season), teams: (rosters || []).map(r => tm(r.roster_id)), games, champ: champRid ? tm(champRid).id : null, live: lg.status !== "complete"});
+      lid = lg.previous_league_id;
+      if (onProgress) onProgress(out.length);
+    }
+  }
+  return lh[k] = out.sort((a, b) => b.season - a.season);
+}
+function histCrunch(L, seasons){
+  const name = {}, logo = {};
+  // Newest name wins; current league names override.
+  seasons.slice().reverse().forEach(s => s.teams.forEach(t => { name[t.id] = t.name; if (t.logo) logo[t.id] = t.logo; }));
+  if (L.meta.platform === "flea") L.detail.teams.forEach(t => { name[t.id] = t.name; if (t.logo) logo[t.id] = t.logo; });
+  const T = id => (T[id] = T[id] || {id, w: 0, l: 0, t: 0, pf: 0, pa: 0, g: 0, pw: 0, pl: 0, titles: [], finals: 0, seasons: new Set()});
+  const H = {}, h2 = (a, b) => ((H[a] = H[a] || {})[b] = H[a][b] || {w: 0, l: 0, t: 0, pf: 0, pa: 0, g: 0, po: 0, last: null});
+  const recs = [], champs = [];
+  seasons.forEach(s => {
+    let champ = s.champ || null;
+    s.games.forEach(g => {
+      if (g.cons || g.as == null || g.hs == null) return;
+      const A = T(g.a.id), B = T(g.h.id); A.seasons.add(s.season); B.seasons.add(s.season);
+      const res = g.as > g.hs ? 1 : g.as < g.hs ? -1 : 0;
+      if (g.po) { if (res > 0) { A.pw++; B.pl++; } else if (res < 0) { B.pw++; A.pl++; } if (g.ch) { A.finals++; B.finals++; if (!s.champ && res) champ = res > 0 ? g.a.id : g.h.id; } }
+      else { A.g++; B.g++; A.pf += g.as; A.pa += g.hs; B.pf += g.hs; B.pa += g.as; if (res > 0) { A.w++; B.l++; } else if (res < 0) { B.w++; A.l++; } else { A.t++; B.t++; } }
+      [[g.a.id, g.h.id, g.as, g.hs], [g.h.id, g.a.id, g.hs, g.as]].forEach(([x, y, px, py]) => { const r = h2(x, y); r.g++; r.pf += px; r.pa += py; if (px > py) r.w++; else if (px < py) r.l++; else r.t++; if (g.po) r.po++; if (!r.last || s.season > r.last.season || (s.season === r.last.season && g.wk > r.last.wk)) r.last = {season: s.season, wk: g.wk, pf: px, pa: py, po: g.po}; });
+      recs.push({season: s.season, wk: g.wk, a: g.a.id, h: g.h.id, as: g.as, hs: g.hs, po: g.po, ch: g.ch});
+    });
+    if (champ) { T(champ).titles.push(s.season); champs.push({season: s.season, id: champ}); }
+    else if (!s.live && s.teams.length) champs.push({season: s.season, id: null});
+  });
+  const teams = Object.values(T).filter(x => x && x.id && (x.g || x.pw || x.pl)).map(x => Object.assign(x, {name: name[x.id] || "Team", logo: logo[x.id] || "", pct: x.g ? (x.w + x.t / 2) / x.g : 0}));
+  return {teams, H, recs, champs, name, logo};
+}
+async function openHistory(L){
+  const sh = $("#sheet"), p = $("#sheetPanel");
+  p.innerHTML = '<button class="back" id="closeSheet">Close</button><h2>League history</h2><p class="spin" id="lhMsg">Reading every season of ' + esc(L.meta.name) + "…</p>";
+  sh.hidden = false; p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+  let seasons;
+  try { seasons = await histSeasons(L, n => { const m = $("#lhMsg"); if (m) m.textContent = "Read " + n + " season" + (n === 1 ? "" : "s") + "…"; }); }
+  catch(e){ p.innerHTML = '<button class="back" id="closeSheet">Close</button><div class="err">Couldn’t load league history: ' + esc(e.message) + "</div>"; p.querySelector("#closeSheet").addEventListener("click", closeSheet); return; }
+  if (sh.hidden) return;
+  const X = histCrunch(L, seasons), d = L.detail;
+  const meT = d.teams.find(t => t.mine), myId = meT ? (L.meta.platform === "sleeper" ? null : meT.id) : null;
+  let sel = lh.sel && X.teams.some(t => t.id === lh.sel) ? lh.sel : (myId && X.teams.some(t => t.id === myId) ? myId : null);
+  if (!sel && L.meta.platform === "sleeper" && meT) { const nm = X.teams.find(t => t.name === meT.name); sel = nm ? nm.id : null; }
+  if (!sel && X.teams.length) sel = X.teams.slice().sort((a, b) => b.pct - a.pct)[0].id;
+  const draw = () => {
+    const yrs = seasons.map(s => s.season), span = yrs.length ? Math.min(...yrs) + "–" + Math.max(...yrs) : "";
+    const tm = id => X.teams.find(t => t.id === id) || {name: X.name[id] || "Team", logo: X.logo[id] || ""};
+    const rec = t => t.w + "-" + t.l + (t.t ? "-" + t.t : "");
+    let h = '<button class="back" id="closeSheet">Close</button><h2>League history</h2><p class="small muted" style="margin:-4px 0 12px">' + seasons.length + " season" + (seasons.length === 1 ? "" : "s") + " · " + span + " · " + X.recs.length.toLocaleString() + " games</p>";
+    // rivalries
+    const me2 = tm(sel), rows = Object.entries(X.H[sel] || {}).map(([oid, r]) => Object.assign({o: tm(oid), oid}, r, {pct: r.g ? (r.w + r.t / 2) / r.g : 0, mg: r.g ? (r.pf - r.pa) / r.g : 0})).sort((a, b) => b.g - a.g || b.pct - a.pct);
+    const q = rows.filter(r => r.g >= 3), nem = q.slice().sort((a, b) => a.pct - b.pct || a.mg - b.mg)[0], vic = q.slice().sort((a, b) => b.pct - a.pct || b.mg - a.mg)[0], riv = q.slice().sort((a, b) => (Math.abs(a.w - a.l) - Math.abs(b.w - b.l)) || b.g - a.g)[0];
+    h += '<select id="lhTeam" style="margin-bottom:10px">' + X.teams.slice().sort((a, b) => a.name.localeCompare(b.name)).map(t => '<option value="' + esc(t.id) + '"' + (t.id === sel ? " selected" : "") + ">" + esc(t.name) + (t.id === myId ? " (you)" : "") + "</option>").join("") + "</select>";
+    h += '<div class="card heroCard"><div class="gtop"><div class="gnum" style="background:var(--surface2)"><b style="font-size:26px">' + (me2.titles && me2.titles.length ? "🏆" + (me2.titles.length > 1 ? "×" + me2.titles.length : "") : Math.round((me2.pct || 0) * 100) + "%") + '</b></div><div><b class="glabel">' + esc(me2.name) + '</b><span class="muted small">' + rec(me2) + " all time" + (me2.g ? " · " + fmt(me2.pf / me2.g) + " pts a game" : "") + " · playoffs " + me2.pw + "-" + me2.pl + (me2.titles && me2.titles.length ? " · champion " + me2.titles.sort().join(", ") : "") + "</span></div></div>" +
+      '<ul class="reasons">' + (nem ? '<li class="bad"><b>Nemesis:</b> ' + esc(nem.o.name) + ", " + nem.w + "-" + nem.l + (nem.t ? "-" + nem.t : "") + " against them (" + (nem.mg >= 0 ? "+" : "") + nem.mg.toFixed(1) + " a game).</li>" : "") +
+      (vic && vic !== nem ? '<li class="good"><b>Favorite victim:</b> ' + esc(vic.o.name) + ", " + vic.w + "-" + vic.l + (vic.t ? "-" + vic.t : "") + " (" + (vic.mg >= 0 ? "+" : "") + vic.mg.toFixed(1) + " a game).</li>" : "") +
+      (riv && riv !== nem && riv !== vic ? "<li><b>Fiercest rivalry:</b> " + esc(riv.o.name) + ", " + riv.w + "-" + riv.l + (riv.t ? "-" + riv.t : "") + " over " + riv.g + " games" + (riv.po ? ", " + riv.po + " in the playoffs" : "") + ".</li>" : "") + "</ul></div>";
+    h += '<h3>Head to head</h3><div class="card" style="padding:6px 0"><table class="otable"><tbody>' + rows.map(r => '<tr><td>' + teamLogo(r.o) + "</td><td><b>" + esc(r.o.name) + "</b><small>" + r.g + " game" + (r.g === 1 ? "" : "s") + (r.po ? " · " + r.po + " playoff" : "") + (r.last ? " · last " + r.last.season + (r.last.pf > r.last.pa ? " W " : r.last.pf < r.last.pa ? " L " : " T ") + fmt(r.last.pf) + "–" + fmt(r.last.pa) : "") + '</small></td><td style="text-align:right;white-space:nowrap"><span class="ltg ' + (r.pct > 0.55 ? "good" : r.pct < 0.45 ? "bad" : "") + '" style="min-width:58px;font-size:15px">' + r.w + "-" + r.l + (r.t ? "-" + r.t : "") + "</span></td></tr>").join("") + "</tbody></table></div>";
+    // trophy case
+    if (X.champs.length) h += '<h3>Champions</h3><div class="card" style="padding:6px 0"><table class="otable"><tbody>' + X.champs.map(c => { const t = c.id ? tm(c.id) : null; return "<tr><td class='muted' style='width:52px'>" + c.season + "</td><td>" + (t ? teamLogo(t) : "") + "</td><td><b>" + (t ? "🏆 " + esc(t.name) : '<span class="muted">Not recorded</span>') + "</b></td></tr>"; }).join("") + "</tbody></table></div>";
+    // all-time standings
+    const st = X.teams.slice().sort((a, b) => b.titles.length - a.titles.length || b.pct - a.pct);
+    h += '<h3>All-time standings</h3><div class="card" style="padding:6px 0"><table class="otable"><tbody>' + st.map((t, i) => '<tr class="' + (t.id === sel ? "me" : "") + '"><td class="muted" style="width:24px;text-align:center">' + (i + 1) + "</td><td>" + teamLogo(t) + "</td><td><b>" + esc(t.name) + "</b><small>" + rec(t) + " · " + Math.round(t.pct * 1000) / 10 + "% · " + (t.g ? fmt(t.pf / t.g) : "0") + " ppg · playoffs " + t.pw + "-" + t.pl + '</small></td><td style="text-align:right">' + (t.titles.length ? "🏆" + (t.titles.length > 1 ? "×" + t.titles.length : "") : "") + "</td></tr>").join("") + "</tbody></table></div>";
+    // record book
+    const g = X.recs, by = f => g.slice().sort(f)[0], hi = (x) => Math.max(x.as, x.hs), lo = x => Math.min(x.as, x.hs), mg = x => Math.abs(x.as - x.hs);
+    const line = (x, what) => { const aw = x.as >= x.hs, W = tm(aw ? x.a : x.h), Lz = tm(aw ? x.h : x.a); return "<li><b>" + what + ":</b> " + esc(W.name) + " " + fmt(Math.max(x.as, x.hs)) + ", " + esc(Lz.name) + " " + fmt(Math.min(x.as, x.hs)) + ' <span class="muted">(' + x.season + " week " + x.wk + (x.ch ? ", championship" : x.po ? ", playoffs" : "") + ")</span></li>"; };
+    if (g.length) {
+      const top = by((a, b) => hi(b) - hi(a)), low = by((a, b) => lo(a) - lo(b)), blow = by((a, b) => mg(b) - mg(a)), close = g.filter(x => mg(x) > 0).sort((a, b) => mg(a) - mg(b))[0], loss = by((a, b) => lo(b) - lo(a));
+      const lowT = low.as <= low.hs ? low.a : low.h;
+      h += '<h3>Record book</h3><div class="card"><ul class="reasons" style="margin:0">' + line(top, "Highest score") +
+        "<li><b>Lowest score:</b> " + esc(tm(lowT).name) + " " + fmt(lo(low)) + ' <span class="muted">(' + low.season + " week " + low.wk + ")</span></li>" +
+        line(blow, "Biggest blowout (" + fmt(mg(blow)) + ")") + (close ? line(close, "Closest game (" + fmt(mg(close)) + ")") : "") + line(loss, "Most points in a loss") + "</ul></div>";
+    }
+    h += '<p class="small muted" style="margin:10px 4px 0">Regular-season records; playoff games counted separately. Head to head includes the playoffs. Consolation games are left out.</p>';
+    p.innerHTML = h;
+    p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+    p.querySelector("#lhTeam").addEventListener("change", e => { sel = lh.sel = e.target.value; draw(); });
+  };
+  draw();
 }
 
 /* ---------- league trade report card: every trade in the league, graded ---------- */

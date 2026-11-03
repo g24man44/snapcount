@@ -258,6 +258,35 @@ async function fleaTrades(lid, offset) {
   return json({ total: Number(d.resultTotal) || trades.length, next: d.resultOffsetNext != null ? Number(d.resultOffsetNext) : null, trades }, 200, 600);
 }
 
+// Every game of one Fleaflicker season (regular season and playoffs), for league history and rivalries.
+async function fleaHistory(lid, season) {
+  const get = u => fetch("https://www.fleaflicker.com/api/" + u, { headers: UA }).then(r => r.ok ? r.json() : null).catch(() => null);
+  const st = await get("FetchLeagueStandings?sport=NFL&league_id=" + lid + "&season=" + season);
+  if (!st) return json({ error: "Fleaflicker didn't answer for " + season + "." }, 502, 0);
+  if (Number(st.season) !== Number(season)) return json({ season: Number(season), missing: true }, 200, 86400);
+  const first = await get("FetchLeagueScoreboard?sport=NFL&league_id=" + lid + "&season=" + season + "&scoring_period=1");
+  const periods = ((first || {}).eligibleSchedulePeriods || []).map(x => x.ordinal || x.value).filter(Boolean).slice(0, 22);
+  // Fleaflicker answers a season the league didn't exist in with the current season, without a season tag.
+  const low = ((first || {}).schedulePeriod || {}).low || {}, now = new Date(), curSeason = now.getUTCMonth() < 2 ? now.getUTCFullYear() - 1 : now.getUTCFullYear();
+  if (!first || (low.season ? Number(low.season) !== Number(season) : Number(season) !== curSeason)) return json({ season: Number(season), missing: true }, 200, 86400);
+  const boards = [first].concat(await Promise.all(periods.filter(w => w !== 1).map(w => get("FetchLeagueScoreboard?sport=NFL&league_id=" + lid + "&season=" + season + "&scoring_period=" + w))));
+  const team = t => ({ id: String((t || {}).id || ""), name: (t || {}).name || "", logo: (t || {}).logoUrl || "" });
+  const sc = x => { const v = ((x || {}).score || {}).value; return v == null ? null : Number(v); };
+  const games = [];
+  let live = false;
+  boards.forEach((b, i) => {
+    if (!b) return;
+    const wk = (b.schedulePeriod || {}).ordinal || periods[i] || i + 1;
+    (b.games || []).forEach(g => {
+      if (!g.isFinalScore) { live = true; return; }
+      games.push({ wk, a: team(g.away), h: team(g.home), as: sc(g.awayScore), hs: sc(g.homeScore), po: !!g.isPlayoffs, ch: !!g.isChampionshipGame, cons: !!g.isConsolation });
+    });
+  });
+  const teams = [];
+  (st.divisions || []).forEach(d => (d.teams || []).forEach(t => teams.push(Object.assign(team(t), { w: (t.recordOverall || {}).wins || 0, l: (t.recordOverall || {}).losses || 0, t: (t.recordOverall || {}).ties || 0, pf: Number((t.pointsFor || {}).value) || 0 }))));
+  return json({ season: Number(season), teams, games, live }, 200, live ? 1800 : 604800);
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -318,6 +347,11 @@ export default {
         const lid = (url.searchParams.get("league_id") || "").replace(/\D/g, ""), tid = (url.searchParams.get("team_id") || "").replace(/\D/g, "");
         if (!lid || !tid) return json({ error: "Missing league or team" }, 400, 0);
         return cached(ctx, "fkp/" + lid + "/" + tid, 600, () => fleaKeepers(lid, tid));
+      }
+      if (p === "/api/flea-history") {
+        const lid = (url.searchParams.get("league_id") || "").replace(/\D/g, ""), season = (url.searchParams.get("season") || "").replace(/\D/g, "");
+        if (!lid || !/^\d{4}$/.test(season)) return json({ error: "Missing league or season" }, 400, 0);
+        return cached(ctx, "fhist/" + lid + "/" + season, Number(season) >= new Date().getUTCFullYear() ? 1800 : 604800, () => fleaHistory(lid, season));
       }
       if (p === "/api/flea-trades") {
         const lid = (url.searchParams.get("league_id") || "").replace(/\D/g, ""), off = Math.min(5000, Number((url.searchParams.get("offset") || "0").replace(/\D/g, "")) || 0);
