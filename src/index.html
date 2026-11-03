@@ -196,6 +196,9 @@ form.add{display:flex;flex-direction:column;gap:10px}
 .cmpt th,.cmpt td{padding:8px 6px;text-align:center;vertical-align:middle;border-bottom:1px solid var(--line)}.cmpt td:first-child,.cmpt th:first-child{text-align:left;color:var(--muted);font-size:12.5px;width:92px}
 .cmpt th{position:relative;font-weight:600}.cmpt th .av{margin:0 auto 4px;display:flex}.cmpt th b{display:block;font-size:13.5px;line-height:1.2}.cmpt th small{display:block;color:var(--muted);font-size:11.5px;margin-top:2px}
 .cmpt td.win{color:var(--ok);font-weight:800}.cmpx{position:absolute;top:0;right:0;border:0;background:var(--surface2);color:var(--muted);width:24px;height:24px;border-radius:50%;font-size:16px;line-height:1}
+.sosc{padding:10px 12px}.sosr+.sosr{border-top:1px solid var(--line);margin-top:8px;padding-top:8px}.sosn{display:block;width:100%;text-align:left;background:none;border:0;color:var(--ink);padding:0}.sosn b{display:block;font-size:15px}.sosn small{display:flex;flex-wrap:wrap;gap:4px;align-items:center;font-size:12px;margin-top:2px}
+.sosw{display:flex;gap:4px;overflow-x:auto;margin-top:6px;scrollbar-width:none}.sosx{flex:none;min-width:44px;padding:4px 2px;border-radius:8px;font-size:11.5px;font-weight:700;text-align:center;background:var(--surface2);color:var(--muted);display:flex;flex-direction:column;gap:1px;border:1.5px solid transparent}
+.sosx small{font-size:9.5px;font-weight:600;opacity:.75}.sosx.easy{background:var(--ok-soft);color:var(--ok)}.sosx.hard{background:var(--bad-soft);color:var(--bad)}.sosx.bye{opacity:.6}.sosx.po{border-color:var(--accent)}
 .ltc{margin-bottom:10px}.lth{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-bottom:8px}
 .lts{display:grid;grid-template-columns:44px 1fr;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
 .ltg{display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:40px;border-radius:12px;font-weight:900;font-size:17px;background:var(--surface2);color:var(--ink)}
@@ -2908,6 +2911,7 @@ async function edgeLeague(L, el){
     "<li>Projected draft slot for your own pick: about #" + Math.round(mine.slot) + ".</li></ul></div>";
   h += '<h3>Playoff odds · ' + sched.po.teams + " of " + d.teams.length + ' make it</h3><div class="card" style="padding:6px 0"><table class="otable"><tbody>' + ord.map(x => '<tr class="' + (x.t === me ? "me" : "") + '"><td>' + teamLogo(x.t) + '</td><td><b>' + esc(x.t.name) + "</b><small>" + x.t.w + "-" + x.t.l + " · " + x.wins.toFixed(1) + ' proj wins</small></td><td class="obar"><span style="width:' + Math.round(x.odds * 100) + '%"></span></td><td class="onum">' + pct(x.odds) + "</td></tr>").join("") + "</tbody></table></div>" +
     '<p class="small muted" style="margin:8px 4px 0">3,000 simulated seasons using each team’s scoring average and this week’s projections, your remaining schedule, and ' + (Object.keys(d.teams.reduce((o, t) => (t.div != null && (o[t.div] = 1), o), {})).length > 1 ? "division winners getting in" : "best records getting in") + ".</p>";
+  try { h += await sosHtml(L, me, sched, base); } catch(e){}
   // intel
   el.innerHTML = h + '<p class="spin">Reading the league’s trade history…</p>';
   const qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1, ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1");
@@ -2941,6 +2945,54 @@ async function edgeLeague(L, el){
   h += "<h3>Trade intel</h3>" + (intel.length ? intel.map(r => '<div class="card" style="margin-bottom:10px"><div class="offhead"><div style="display:flex;align-items:center;gap:10px;min-width:0">' + teamLogo(r.t) + "<b>" + esc(r.t.name) + "</b></div><span class='muted small'>" + r.t.w + "-" + r.t.l + '</span></div><div class="chips" style="margin-top:8px">' + r.tags.map(g => '<span class="chip ' + g[1] + '">' + g[0] + "</span>").join("") + '</div><ul class="reasons">' + r.notes.map(n => "<li>" + esc(n) + "</li>").join("") + "</ul></div>").join("") : '<div class="card"><p class="small" style="margin:0">No obvious sellers or needy contenders right now.</p></div>') +
     (L.meta.platform === "sleeper" ? '<p class="small muted" style="margin:8px 4px 0">Trade history is available for Fleaflicker leagues.</p>' : '<p class="small muted" style="margin:8px 4px 0">Based on the last ' + trades.length + " completed trades in your league, valued at today’s trade values.</p>");
   el.innerHTML = h;
+  el.querySelectorAll(".sosn[data-i]").forEach(b => b.addEventListener("click", () => openPlayer(reg[+b.dataset.i])));
+}
+
+/* ---------- rest-of-season strength of schedule ---------- */
+let allowedP = null;
+async function allowedTable(season, upto){
+  if (!allowedP) allowedP = (async () => {
+    const weeks = []; for (let w = Math.max(1, upto - 8); w < upto; w++) weeks.push(w);
+    const res = await Promise.all(weeks.map(w => api("/api/allowed?season=" + season + "&week=" + w).catch(() => null)));
+    const sum = {}, n = {};
+    res.forEach(r => { if (!r) return; for (const t in r.teams) for (const pos in r.teams[t]) { const k = t + "|" + pos; sum[k] = (sum[k] || [0, 0, 0]).map((x, i) => x + r.teams[t][pos][i]); n[k] = (n[k] || 0) + 1; } });
+    const avg = {}; for (const k in sum) avg[k] = sum[k].map(x => x / n[k]);
+    return avg;
+  })();
+  return allowedP;
+}
+async function sosHtml(L, me, sched, base){
+  const st = await getState(), season = st.league_season || st.season, cw = sched.cw || st.display_week || st.week;
+  const [sch, avg] = await Promise.all([api("/api/nflsched?season=" + season), allowedTable(season, cw)]);
+  const col = ({ppr: 0, half: 1, std: 2})[L.detail.scoring] || 0;
+  const POS = ["QB", "RB", "WR", "TE"], rank = {};
+  POS.forEach(pos => { const xs = Object.keys(avg).filter(k => k.endsWith("|" + pos)).map(k => ({t: k.split("|")[0], v: avg[k][col]})).sort((a, b) => b.v - a.v); xs.forEach((x, i) => rank[x.t + "|" + pos] = {r: i + 1, v: x.v, n: xs.length}); });
+  if (!Object.keys(rank).length) return "";
+    const gs = Object.values(nflGames || {}), first = gs.length && gs.every(g => g.state === "post") ? cw + 1 : cw;
+  const poS = sched.po.start || 15, last = Math.min(18, poS + 2), weeks = []; for (let w = first; w <= last; w++) weeks.push(w);
+  const tier = r => !r ? "bye" : r.r <= 8 ? "easy" : r.r > r.n - 8 ? "hard" : "mid";
+  const starters = me.roster.filter(p => p.slot === "start" && POS.includes(p.pos) && p.team);
+  const rows = starters.map(p => {
+    const team = teamAbbr(p.team);
+    const cells = weeks.map(w => { const o = ((sch.weeks || {})[w] || {})[team]; if (!o) return {w, bye: true}; const oa = o.replace("@", ""); return {w, o, r: rank[oa + "|" + p.pos]}; });
+    const rs = cells.filter(c => c.r), poC = rs.filter(c => c.w >= poS);
+    const score = rs.length ? rs.reduce((s, c) => s + c.r.r, 0) / rs.length : null, poScore = poC.length ? poC.reduce((s, c) => s + c.r.r, 0) / poC.length : null;
+    return {p, cells, score, poScore};
+  }).filter(r => r.score != null).sort((a, b) => a.score - b.score);
+  const word = s => s == null ? "—" : s <= 13.5 ? "Easy" : s >= 19.5 ? "Tough" : "Average";
+  const tone = s => s == null ? "" : s <= 13.5 ? "ok" : s >= 19.5 ? "warn" : "";
+  let h = '<h3>Your starters’ schedule · weeks ' + first + "–" + last + '</h3><div class="card sosc">' +
+    rows.map(r => { const i = reg.push(r.p) - 1; return '<div class="sosr"><button type="button" class="sosn" data-i="' + i + '"><b>' + esc(r.p.name) + '</b><small class="muted">' + esc(r.p.pos) + " · rest of season " + '<span class="chip ' + tone(r.score) + '" style="padding:1px 7px">' + word(r.score) + "</span>" + (r.poScore != null ? " · playoffs " + '<span class="chip ' + tone(r.poScore) + '" style="padding:1px 7px">' + word(r.poScore) + "</span>" : "") + '</small></button><div class="sosw">' +
+      r.cells.map(c => '<span class="sosx ' + (c.bye ? "bye" : tier(c.r)) + (c.w >= poS ? " po" : "") + '" title="Week ' + c.w + (c.bye ? ": bye" : ": " + c.o + (c.r ? ", " + ORDN(c.r.r) + " easiest vs " + r.p.pos : "")) + '"><small>' + c.w + "</small>" + (c.bye ? "BYE" : esc(c.o.replace("@", "@"))) + "</span>").join("") + "</div></div>"; }).join("") +
+    '<p class="small muted" style="margin:10px 0 0"><span class="sosx easy" style="display:inline-flex;min-width:0;padding:0 6px">easy</span> gives up the most fantasy points to that position, <span class="sosx hard" style="display:inline-flex;min-width:0;padding:0 6px">tough</span> the fewest, over the last ' + Math.min(8, cw - 1) + " weeks. Outlined weeks are your fantasy playoffs.</p></div>";
+  // fantasy schedule
+  const fs = sched.weeks.map(wk => { const g = wk.games.find(x => x[0] === me.id || x[1] === me.id); if (!g) return null; const oid = g[0] === me.id ? g[1] : g[0], o = base.find(x => x.t.id === oid); return o ? {w: wk.w, o} : null; }).filter(Boolean);
+  if (fs.length) {
+    const means = base.map(x => x.mean).sort((a, b) => b - a);
+    h += '<h3>Your fantasy schedule</h3><div class="card" style="padding:6px 0"><table class="otable"><tbody>' + fs.map(x => { const r = means.indexOf(x.o.mean) + 1, N = means.length; const t = r <= Math.ceil(N / 3) ? ["Tough", "warn"] : r > Math.floor(N * 2 / 3) ? ["Easy", "ok"] : ["Average", ""];
+      return "<tr><td class='muted' style='width:44px'>Wk " + x.w + "</td><td>" + teamLogo(x.o.t) + "</td><td><b>" + esc(x.o.t.name) + "</b><small>" + x.o.t.w + "-" + x.o.t.l + " · scores about " + fmt(x.o.mean) + '</small></td><td style="text-align:right"><span class="chip ' + t[1] + '">' + t[0] + "</span></td></tr>"; }).join("") + "</tbody></table></div>";
+  }
+  return h;
 }
 
 /* ---------- Edge: Dynasty ---------- */

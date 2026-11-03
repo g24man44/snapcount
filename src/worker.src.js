@@ -287,6 +287,56 @@ async function fleaHistory(lid, season) {
   return json({ season: Number(season), teams, games, live }, 200, live ? 1800 : 604800);
 }
 
+// NFL schedule for a season: { week: { TEAM: "OPP" or "@OPP" } } (ESPN abbreviations).
+async function nflSchedule(season) {
+  const weeks = await Promise.all(Array.from({ length: 18 }, (_, i) => fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=" + season + "&seasontype=2&week=" + (i + 1), { headers: UA }).then(r => r.ok ? r.json() : null).catch(() => null)));
+  const out = {};
+  weeks.forEach((d, i) => {
+    if (!d) return;
+    const w = out[i + 1] = {};
+    for (const e of d.events || []) {
+      const c = (e.competitions || [])[0] || {}, cs = c.competitors || [];
+      const home = cs.find(x => x.homeAway === "home"), away = cs.find(x => x.homeAway === "away");
+      if (!home || !away) continue;
+      const h = (home.team || {}).abbreviation, a = (away.team || {}).abbreviation;
+      w[h] = a; w[a] = "@" + h;
+    }
+  });
+  if (!Object.keys(out).length) return json({ error: "NFL schedule unavailable" }, 502, 0);
+  return json({ season: Number(season), weeks: out }, 200, 86400);
+}
+
+// Fantasy points each defense allowed to each position in one week: { TEAM: { QB, RB, WR, TE } } (PPR, half, std).
+async function allowedWeek(ctx, season, week) {
+  const [statsR, boardR, plR] = await Promise.all([
+    fetch("https://api.sleeper.app/v1/stats/nfl/regular/" + season + "/" + week, { headers: UA }),
+    fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=" + season + "&seasontype=2&week=" + week, { headers: UA }),
+    cached(ctx, "players-v2", 21600, slimPlayers)
+  ]);
+  if (!statsR.ok || !boardR.ok || plR.status !== 200) return json({ error: "Stats unavailable for week " + week }, 502, 0);
+  const [stats, board, pl] = await Promise.all([statsR.json(), boardR.json(), plR.json()]);
+  const opp = {};
+  for (const e of board.events || []) {
+    const c = (e.competitions || [])[0] || {}, st = ((c.status || {}).type || {}).state;
+    if (st !== "post") continue;
+    const cs = (c.competitors || []).map(x => (x.team || {}).abbreviation);
+    if (cs.length === 2) { opp[cs[0]] = cs[1]; opp[cs[1]] = cs[0]; }
+  }
+  const ESPN = { WAS: "WSH", LA: "LAR", JAC: "JAX" };
+  const out = {};
+  for (const id in stats) {
+    const p = pl[id], s = stats[id];
+    if (!p || !["QB", "RB", "WR", "TE"].includes(p[1]) || !s || !(s.gp || s.off_snp)) continue;
+    const t = ESPN[p[2]] || p[2], o = opp[t];
+    if (!o) continue;
+    const a = (out[o] = out[o] || {}), v = (a[p[1]] = a[p[1]] || [0, 0, 0]);
+    v[0] += s.pts_ppr || 0; v[1] += s.pts_half_ppr || 0; v[2] += s.pts_std || 0;
+  }
+  for (const t in out) for (const pos in out[t]) out[t][pos] = out[t][pos].map(x => Math.round(x * 10) / 10);
+  const done = Object.keys(opp).length > 0;
+  return json({ season: Number(season), week: Number(week), teams: out }, 200, done ? 604800 : 1800);
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -347,6 +397,16 @@ export default {
         const lid = (url.searchParams.get("league_id") || "").replace(/\D/g, ""), tid = (url.searchParams.get("team_id") || "").replace(/\D/g, "");
         if (!lid || !tid) return json({ error: "Missing league or team" }, 400, 0);
         return cached(ctx, "fkp/" + lid + "/" + tid, 600, () => fleaKeepers(lid, tid));
+      }
+      if (p === "/api/nflsched") {
+        const season = url.searchParams.get("season") || "";
+        if (!/^\d{4}$/.test(season)) return json({ error: "Bad season" }, 400, 0);
+        return cached(ctx, "nflsched/" + season, 86400, () => nflSchedule(season));
+      }
+      if (p === "/api/allowed") {
+        const season = url.searchParams.get("season") || "", week = Number(url.searchParams.get("week") || 0);
+        if (!/^\d{4}$/.test(season) || !(week >= 1 && week <= 18)) return json({ error: "Bad season or week" }, 400, 0);
+        return cached(ctx, "allowed/" + season + "/" + week, 21600, () => allowedWeek(ctx, season, week));
       }
       if (p === "/api/flea-history") {
         const lid = (url.searchParams.get("league_id") || "").replace(/\D/g, ""), season = (url.searchParams.get("season") || "").replace(/\D/g, "");
