@@ -1971,6 +1971,7 @@ function drawTrade(ctx){
       '<ul class="reasons">' + g.reasons.map(r => '<li class="' + r.tone + '">' + esc(r.text) + "</li>").join("") + "</ul>" +
       (both && g.accept != null ? '<div class="accbar"><div class="acchead"><b>Chance ' + esc(them.name) + ' says yes</b><b class="accn">' + g.accept + '%</b></div><div class="wpbar"><span style="width:' + g.accept + '%"></span></div><p class="small muted" style="margin:6px 0 0">' + esc(g.acceptWhy.charAt(0).toUpperCase() + g.acceptWhy.slice(1)) + ".</p></div>" : "") +
       (g.ask ? '<p class="small" style="margin:10px 0 0">To even it out, ask them to add <b>' + esc(g.ask.name) + "</b>.</p>" : "") +
+      (both ? '<button type="button" class="btn aibtn" id="negoBtn" style="width:100%;margin-top:12px">🤝 Practice the pitch with ' + esc(them.name) + "</button>" : "") +
       (both ? '<button type="button" class="btn ghost" id="shareGrade" style="width:100%;margin-top:10px">Share this grade as an image</button>' : "") +
       (both ? sendBlock(ctx.L, me, them, me.roster.concat(ctx.myPicks).filter(p => tr.give.has(p.id)), them.roster.concat(ctx.theirPicks).filter(p => tr.get.has(p.id))) : "") +
       '<p class="small muted" style="margin:10px 0 0">Values: ' + esc(ctx.src) + ", " + (ctx.dyn ? "dynasty" : "redraft") + (ctx.qbs === 2 ? " superflex" : "") + ", " + ctx.teams + "-team " + ({"1":"PPR","0.5":"half PPR","0":"standard"}[tr.ppr]) + ".</p></div>";
@@ -1981,6 +1982,8 @@ function drawTrade(ctx){
   h += '<h3>You give</h3><ul class="plist">' + me.roster.slice().sort(byVal).map(p => pickRow(p, "give", V, sid, tr.give.has(p.id), ctx.prem)).join("") + "</ul>" + pk(ctx.myPicks, "give");
   h += "<h3>You get from " + esc(them.name) + '</h3><ul class="plist">' + (them.roster.length ? them.roster.slice().sort(byVal).map(p => pickRow(p, "get", V, sid, tr.get.has(p.id), ctx.prem)).join("") : '<li><p class="muted small" style="margin:12px 14px">Their roster isn’t available.</p></li>') + "</ul>" + pk(ctx.theirPicks, "get");
   el.innerHTML = h;
+  const nb = el.querySelector("#negoBtn");
+  if (nb) nb.addEventListener("click", () => openNegotiate(ctx, me, them, me.roster.concat(ctx.myPicks).filter(p => tr.give.has(p.id)), them.roster.concat(ctx.theirPicks).filter(p => tr.get.has(p.id))));
   const sgb = el.querySelector("#shareGrade");
   if (sgb) sgb.addEventListener("click", async () => {
     const g = gradeTrade(ctx), [label, tone] = GRADE_LABEL(g.score);
@@ -2096,6 +2099,53 @@ async function openMatchup(L, gid){
     p.querySelector("#closeSheet").addEventListener("click", closeSheet);
     p.querySelectorAll(".bxp[data-i]").forEach(bt => bt.addEventListener("click", () => openPlayer(reg[+bt.dataset.i])));
   } catch(e){ p.innerHTML = '<button class="back" id="closeSheet">Close</button><div class="err">Couldn’t load the box score: ' + esc(e.message) + "</div>"; p.querySelector("#closeSheet").addEventListener("click", closeSheet); }
+}
+
+/* ---------- negotiate: practice the pitch against an AI playing the other manager ---------- */
+function negoCtx(ctx, me, them, give, get){
+  const {L, V, sid, prem} = ctx, d = L.detail;
+  const val = p => p.pos === "PICK" ? ((V[p.vkey] || V[p.fallback] || [0])[0] || 0) : (((V[sid.get(p)] || [0])[0]) || 0) * (p.pos === "QB" ? prem : 1);
+  const age = p => p.pos === "PICK" ? null : (V[sid.get(p)] || [])[6];
+  const line = p => p.name + " (" + p.pos + (p.team ? ", " + p.team : "") + (age(p) ? ", age " + age(p) : "") + (p.inj ? ", " + p.inj : "") + ") value " + Math.round(val(p));
+  const order = d.teams.slice().sort((a, b) => b.w - a.w || (b.pf || 0) - (a.pf || 0)), rank = order.indexOf(them) + 1, N = order.length;
+  const mode = rank <= Math.ceil(N / 3) ? "contending" : rank > Math.floor(N * 2 / 3) ? "rebuilding" : "in the middle of the pack";
+  const needs = ["QB", "RB", "WR", "TE"].map(pos => ({pos, v: them.roster.filter(p => p.pos === pos).map(val).sort((a, b) => b - a).slice(0, pos === "QB" && ctx.qbs === 2 ? 2 : pos === "TE" || pos === "QB" ? 1 : 2).reduce((a, b) => a + b, 0)})).sort((a, b) => a.v - b.v);
+  const G = give.reduce((s, p) => s + val(p), 0), R = get.reduce((s, p) => s + val(p), 0);
+  return "League: " + L.meta.name + ", " + N + " teams" + (ctx.qbs === 2 ? ", superflex" : "") + (ctx.dyn ? ", dynasty" : ", redraft") + ".\n" +
+    "YOU ARE: " + them.name + (them.owner ? " (" + them.owner + ")" : "") + ", record " + them.w + "-" + them.l + ", " + ORDN(rank) + " of " + N + ", " + mode + ". Your weakest positions: " + needs.slice(0, 2).map(x => x.pos).join(" and ") + ".\n" +
+    "THE USER: " + me.name + ", record " + me.w + "-" + me.l + ".\n" +
+    "THE OFFER: you would get " + give.map(line).join("; ") + " (total value " + Math.round(G) + "). You would give up " + get.map(line).join("; ") + " (total value " + Math.round(R) + ").\n" +
+    "By value the offer is " + (G >= R * 1.05 ? "in your favor" : G >= R * 0.95 ? "about even" : "in the user's favor by " + Math.round((1 - G / Math.max(1, R)) * 100) + "%") + ".\n" +
+    "YOUR ROSTER: " + them.roster.slice().sort((a, b) => val(b) - val(a)).slice(0, 18).map(line).join("; ") + ".\n" +
+    "THE USER'S ROSTER (what you could ask for): " + me.roster.concat(ctx.myPicks).slice().sort((a, b) => val(b) - val(a)).slice(0, 18).map(line).join("; ") + ".";
+}
+function openNegotiate(ctx, me, them, give, get){
+  const sh = $("#sheet"), p = $("#sheetPanel"), data = negoCtx(ctx, me, them, give, get), msgs = [];
+  p.innerHTML = '<div class="coachhead"><button class="back" id="closeSheet">Close</button><b class="ctitle">🤝 Negotiate</b><span></span></div>' +
+    '<p class="small muted" style="margin:4px 2px 0">Practice your pitch. The AI plays <b>' + esc(them.name) + "</b>, using their roster, record and needs. You give " + esc(give.map(x => x.name).join(", ")) + " for " + esc(get.map(x => x.name).join(", ")) + ".</p>" +
+    '<div id="nLog" class="clog"></div><div class="chips cq" id="nChips">' + ["Here’s my offer. What do you think?", "This fills your biggest need.", "What would it take?"].map(q => '<button type="button" class="chip" data-q="' + esc(q) + '">' + esc(q) + "</button>").join("") + "</div>" +
+    '<div id="nDeal"></div><form id="nForm" class="cform"><input id="nIn" autocomplete="off" placeholder="Make your pitch…"><button class="btn" type="submit" id="nGo">Send</button></form>';
+  sh.hidden = false;
+  p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+  const log = p.querySelector("#nLog");
+  const drawLog = () => { log.innerHTML = msgs.map(m => '<div class="cmsg ' + (m.role === "user" ? "u" : "a") + '"><p>' + (m.role === "user" ? esc(m.content) : mdLite(m.content.replace(/^DEAL:\s*/i, "🤝 "))) + "</p></div>").join(""); log.scrollTop = log.scrollHeight; };
+  const send = async q => {
+    q = String(q || "").trim(); if (!q) return;
+    const inp = p.querySelector("#nIn"), go = p.querySelector("#nGo"); inp.value = ""; go.disabled = true; p.querySelector("#nChips").hidden = true;
+    const history = msgs.slice(-12);
+    msgs.push({role: "user", content: q}, {role: "assistant", content: ""}); drawLog();
+    const last = log.lastElementChild; if (last) last.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
+    try { const t = await streamAI({mode: "negotiate", ctx: data, q, history}, t2 => { msgs[msgs.length - 1].content = t2; drawLog(); }); msgs[msgs.length - 1].content = t || "…"; }
+    catch(e){ msgs[msgs.length - 1].content = "(" + e.message + ")"; }
+    drawLog(); go.disabled = false;
+    if (/^\s*DEAL:/i.test(msgs[msgs.length - 1].content)) {
+      const dl = p.querySelector("#nDeal");
+      dl.innerHTML = '<div class="card grade good" style="margin:0 0 10px"><b>They said yes.</b><p class="small" style="margin:6px 0 0">If the deal they described matches your offer, send it for real. If they changed it, adjust the players in the grader first.</p>' + sendBlock(ctx.L, me, them, give, get) + "</div>";
+      wireSend(dl, ctx.L, me, them);
+    }
+  };
+  p.querySelector("#nForm").addEventListener("submit", e => { e.preventDefault(); send(p.querySelector("#nIn").value); });
+  p.querySelectorAll("#nChips [data-q]").forEach(b => b.addEventListener("click", () => send(b.dataset.q)));
 }
 
 /* ---------- player comparison: 2-4 players side by side, with an AI verdict ---------- */

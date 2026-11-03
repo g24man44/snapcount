@@ -234,21 +234,27 @@ Rules:
 const RECAP_SYS = `You write a punchy, funny weekly fantasy football league recap for a league group chat, like a sports columnist roasting friends.
 Use ONLY the matchups, scores, standings and player points in LEAGUE DATA. Never invent stats or events.
 Format: a headline line, then one short paragraph per matchup (winner, score, the star or the dud from the data), then a "Power rankings" list of every team (one line each with a quip), then one closing line. Under 380 words. No emojis overload: at most one per section.`;
+const NEGO_SYS = `You role-play the other manager in a fantasy football trade negotiation over text. The user is pitching you a trade.
+Stay in character as that manager: casual, competitive, a little stubborn, protective of your best players, like a real league-mate in a group chat. Never say you are an AI.
+Use ONLY the facts in TRADE DATA (your roster, your record and needs, the offer, values). Never invent players, picks, stats or injuries.
+Judge every offer from YOUR team's point of view: does it fill your needs, fit contending or rebuilding, and is the value fair to you? Lowball offers get pushback; good arguments that match your real needs make you more open.
+Reply in 1 to 4 short sentences. You can reject, ask for more, or counter by naming specific players or picks from the user's roster in TRADE DATA.
+When you agree to a deal, start the reply with "DEAL:" and then restate the exact final trade (who gets what). Only do that when you truly accept.`;
 export async function coachRoute(request, env) {
   if (request.method !== "POST") return out({ error: "POST only" }, 405);
   if (!env.AI) return out({ error: "The AI coach isn't switched on for this app yet." }, 503);
   const b = await request.json().catch(() => ({}));
-  const mode = b.mode === "recap" ? "recap" : "coach";
+  const mode = b.mode === "recap" ? "recap" : b.mode === "negotiate" ? "negotiate" : "coach";
   const ctx = String(b.ctx || "").slice(0, 14000);
   const q = String(b.q || "").slice(0, 600);
-  if (mode === "coach" && !q.trim()) return out({ error: "Ask a question." }, 400);
-  const hist = (Array.isArray(b.history) ? b.history : []).slice(-6).map(m => ({ role: m.role === "assistant" ? "assistant" : "user", content: String(m.content || "").slice(0, 1500) }));
-  const messages = [{ role: "system", content: (mode === "recap" ? RECAP_SYS : COACH_SYS) + "\n\nLEAGUE DATA:\n" + ctx }]
+  if (mode !== "recap" && !q.trim()) return out({ error: "Ask a question." }, 400);
+  const hist = (Array.isArray(b.history) ? b.history : []).slice(mode === "negotiate" ? -12 : -6).map(m => ({ role: m.role === "assistant" ? "assistant" : "user", content: String(m.content || "").slice(0, 1500) }));
+  const messages = [{ role: "system", content: mode === "negotiate" ? NEGO_SYS + "\n\nTRADE DATA:\n" + ctx : (mode === "recap" ? RECAP_SYS : COACH_SYS) + "\n\nLEAGUE DATA:\n" + ctx }]
     .concat(hist).concat([{ role: "user", content: mode === "recap" ? "Write this week's recap." : q }]);
   let lastErr = null;
   for (const model of COACH_MODELS) {
     try {
-      const stream = await env.AI.run(model, { messages, stream: true, max_tokens: mode === "recap" ? 900 : 600, temperature: mode === "recap" ? 0.8 : 0.4 });
+      const stream = await env.AI.run(model, { messages, stream: true, max_tokens: mode === "recap" ? 900 : mode === "negotiate" ? 260 : 600, temperature: mode === "recap" ? 0.8 : mode === "negotiate" ? 0.7 : 0.4 });
       return new Response(stream, { headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store", "x-model": model } });
     } catch (e) { lastErr = e; }
   }

@@ -11,7 +11,6 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - Never break what works. Test in a headless browser against real Fleaflicker data before pushing. If tests fail, don't push.
 
 ## Next up (top first)
-- [ ] Negotiate mode: role-play the other manager with AI to practice a trade pitch, then send the final offer.
 - [ ] Accessibility and light-theme polish pass.
 
 ## Blocked (needs the owner)
@@ -32,3 +31,4 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [x] Player comparison: 2–4 players side by side (projection, matchup, team total, points per game, snaps, usage, dynasty and season values, rank, trend, age, who owns him) with an AI verdict (Trade tab, or Compare on any player)
 - [x] Rest-of-season strength of schedule: week-by-week matchup difficulty for each starter (points allowed to his position), playoff weeks flagged, plus your remaining fantasy opponents (Edge › League)
 - [x] Draft center: every league draft graded with hindsight (team grades, steals, busts, top-12 re-draft) (Edge › Dynasty); traded picks in trade grades now resolve to the player drafted, including this season's draft
+- [x] Negotiate mode: practice a trade pitch against an AI playing the other manager (their roster, record, needs, values), then send the deal (Trade › Grade › Practice the pitch)
