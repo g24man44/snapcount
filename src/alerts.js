@@ -4,7 +4,7 @@
 // and sends phone notifications to each subscriber whose players or leagues are affected.
 
 import { ICON_192, ICON_512 } from "./icons.js";
-import { hookKind, sendHook, espnLeagueTaken, mflLeagueTaken } from "./more.js";
+import { hookKind, sendHook, espnLeagueTaken, mflLeagueTaken, weeklyRecaps } from "./more.js";
 
 const UA = { "User-Agent": "SnapCount/1.0 (fantasy dashboard)", "Accept": "application/json" };
 const te = new TextEncoder();
@@ -91,7 +91,7 @@ export async function alertsRoute(request, env, p, url) {
           bench: (body.bench || []).slice(0, 120).map(String),
           leagues: (body.leagues || []).slice(0, 30).map(l => ({ p: ["flea", "espn", "mfl"].includes(l.p) ? l.p : "sleeper", id: String(l.id), name: String(l.name || "").slice(0, 80), season: /^\d{4}$/.test(String(l.season || "")) ? String(l.season) : undefined })),
           hooks: (body.hooks || []).map(String).filter(u => hookKind(u)).slice(0, 5),
-          prefs: { mine: body.prefs?.mine !== false, fa: body.prefs?.fa !== false, news: body.prefs?.news !== false, league: body.prefs?.league !== false, faPos: body.prefs?.faPos === "QB" ? "QB" : "ALL" },
+          prefs: { mine: body.prefs?.mine !== false, fa: body.prefs?.fa !== false, news: body.prefs?.news !== false, league: body.prefs?.league !== false, recap: body.prefs?.recap !== false, faPos: body.prefs?.faPos === "QB" ? "QB" : "ALL" },
           origin: url.origin
         };
         const prev = await env.SNAP.get("sub:" + id);
@@ -130,6 +130,7 @@ export async function alertsRoute(request, env, p, url) {
       if (url.searchParams.get("mark") === "1" && unread.length) await env.SNAP.put(key, JSON.stringify(list.map(a => Object.assign(a, { read: true }))));
       return out({ alerts: res });
     }
+    if (p === "/api/push/run" && url.searchParams.get("what") === "recap") return out(await weeklyRecaps(Object.assign({}, env, { HOST: url.host }), true));
     if (p === "/api/push/run" && url.searchParams.get("what") === "league") return out(await leagueWatch(env, true));
     if (p === "/api/push/run" && url.searchParams.get("what") === "notes") return out(await runInjuryNotes(env));
     if (p === "/api/push/run" && url.searchParams.get("what") === "news") return out(await runHeadlines(env));
@@ -496,13 +497,21 @@ export async function runMinute(env) {
   await runChecks(env, OTHERS[m % OTHERS.length]).catch(() => {});
   if (m % 2 === 1) await runInjuryNotes(env).catch(() => {});
   if (m % 5 === 0) await runHeadlines(env).catch(() => {});
+  if (m === 7) await weeklyRecaps(env).catch(() => {});
 }
 
 /* ---------- files the phone needs ---------- */
 export const SW_JS = `
-const SHELL = "snapcount-shell-v4";
+const SHELL = "snapcount-shell-v5", DATA = "snapcount-data-v1";
 self.addEventListener("install", e => { self.skipWaiting(); e.waitUntil(caches.open(SHELL).then(c => c.addAll(["/", "/icon-192.png"])).catch(() => {})); });
 self.addEventListener("fetch", e => {
+  const u = new URL(e.request.url);
+  if (e.request.method === "GET" && u.origin === location.origin && u.pathname.startsWith("/api/") && !u.pathname.startsWith("/api/push/")) {
+    // Network first; if you're offline (stadium wifi, subway), show the last data you saw.
+    e.respondWith(fetch(e.request).then(r => { if (r.ok) { const c = r.clone(); caches.open(DATA).then(x => x.put(e.request, c)); } return r; })
+      .catch(() => caches.open(DATA).then(x => x.match(e.request)).then(r => { if (!r) throw new Error("offline"); const h = new Headers(r.headers); h.set("x-sc-offline", "1"); return r.blob().then(b => new Response(b, { status: 200, headers: h })); })));
+    return;
+  }
   if (e.request.mode !== "navigate") return;
   e.respondWith(fetch(e.request).then(r => { const copy = r.clone(); caches.open(SHELL).then(c => c.put("/", copy)); return r; })
     .catch(() => caches.match("/").then(r => r || new Response("You're offline. Snap Count will load when you're back online.", { headers: { "content-type": "text/plain" } }))));
@@ -516,6 +525,7 @@ self.addEventListener("push", e => e.waitUntil((async () => {
     items = ((await r.json()).alerts || []).filter(a => a.fresh);
   } catch (err) {}
   if (!items.length) items = [{ id: "update", title: "Snap Count", body: "There's news about your players." }];
+  try { if (self.navigator.setAppBadge) await self.navigator.setAppBadge(items.length); } catch (err) {}
   for (const a of items.slice(0, 4)) {
     await self.registration.showNotification(a.title, { body: a.body, tag: a.id, icon: "/icon-192.png", data: { url: a.url || "/#alerts" } });
   }
@@ -533,7 +543,13 @@ self.addEventListener("notificationclick", e => {
 
 export const MANIFEST = JSON.stringify({
   id: "/", name: "Snap Count", short_name: "Snap Count", start_url: "/", scope: "/", display: "standalone", orientation: "portrait",
-  description: "Live fantasy football rosters, scores, free agents and injury alerts for Sleeper and Fleaflicker leagues.",
+  description: "Live fantasy football for Sleeper, Fleaflicker, ESPN and MyFantasyLeague: AI coach, trade grader, live scores and instant alerts.",
+  shortcuts: [
+    { name: "Ask the AI coach", short_name: "Coach", url: "/?go=coach", icons: [{ src: "/icon-192.png", sizes: "192x192" }] },
+    { name: "Live scores", short_name: "Scores", url: "/?go=news", icons: [{ src: "/icon-192.png", sizes: "192x192" }] },
+    { name: "Grade a trade", short_name: "Trade", url: "/?go=trade", icons: [{ src: "/icon-192.png", sizes: "192x192" }] },
+    { name: "Alerts", short_name: "Alerts", url: "/#alerts", icons: [{ src: "/icon-192.png", sizes: "192x192" }] }
+  ],
   background_color: "#0a0d13", theme_color: "#0a0d13",
   icons: [{ src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" }, { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" }]
 });

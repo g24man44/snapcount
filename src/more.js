@@ -265,3 +265,60 @@ export async function hookPostRoute(request) {
   const res = await Promise.all(hooks.map(u => sendHook(u, [{ id: "post", title, body }], origin).catch(() => 0)));
   return res.some(s => s >= 200 && s < 300) ? out({ ok: true, sent: res.filter(s => s >= 200 && s < 300).length }) : out({ error: "Your connected app didn’t accept the message (" + res.join(", ") + ")." }, 502);
 }
+
+/* ---------- automatic weekly recap: Tuesdays, written by AI, posted to each league's connected Discord/Slack ---------- */
+const FF = "https://www.fleaflicker.com/api/";
+const fv = x => x == null ? null : typeof x !== "object" ? Number(x) : x.value != null ? Number(x.value) : x.formatted != null && !isNaN(Number(String(x.formatted).replace(/,/g, ""))) ? Number(String(x.formatted).replace(/,/g, "")) : null;
+const f2 = n => n == null ? "0" : Number(n).toFixed(2);
+export async function fleaRecapCtx(lid) {
+  const j = u => fetch(FF + u, { headers: UA }).then(r => r.ok ? r.json() : {});
+  const [board, stand] = await Promise.all([j("FetchLeagueScoreboard?sport=NFL&league_id=" + lid), j("FetchLeagueStandings?sport=NFL&league_id=" + lid)]);
+  const week = (board.schedulePeriod || {}).ordinal || (board.schedulePeriod || {}).value || "?";
+  const out = ["League: " + ((stand.league || {}).name || lid) + ", week " + week + "."];
+  if ((board.games || []).some(g => g.isInProgress)) out.push("Note: some games are still being played.");
+  out.push("MATCHUPS:");
+  const lines = await Promise.all((board.games || []).map(async g => {
+    const b = await j("FetchLeagueBoxscore?sport=NFL&league_id=" + lid + "&fantasy_game_id=" + g.id + "&scoring_period=" + week).catch(() => ({}));
+    const st = ((b.lineups || []).find(x => x.group === "START") || {}).slots || [];
+    const side = (k, pts, name, tot) => {
+      const ps = st.map(s => s[k] && s[k].proPlayer ? { n: s[k].proPlayer.nameFull, p: fv(s[k].viewingActualPoints) || 0 } : null).filter(Boolean).sort((a, b) => b.p - a.p);
+      const t = (tot || {}).total || {}, lost = fv(t.optimum) != null && fv(t.value) != null ? fv(t.optimum) - fv(t.value) : null;
+      return name + " " + f2(pts) + (ps.length ? " (best: " + ps.slice(0, 2).map(x => x.n + " " + f2(x.p)).join(", ") + "; worst starter: " + ps[ps.length - 1].n + " " + f2(ps[ps.length - 1].p) + (lost > 5 ? "; left " + f2(lost) + " points on the bench" : "") + ")" : "");
+    };
+    return "- " + side("away", fv((g.awayScore || {}).score), (g.away || {}).name, b.pointsAway) + " vs " + side("home", fv((g.homeScore || {}).score), (g.home || {}).name, b.pointsHome);
+  }));
+  out.push(...lines);
+  out.push("STANDINGS:");
+  const ts = []; (stand.divisions || []).forEach(d => (d.teams || []).forEach(t => ts.push({ n: t.name, w: (t.recordOverall || {}).wins || 0, l: (t.recordOverall || {}).losses || 0, pf: fv(t.pointsFor) || 0 })));
+  ts.sort((a, b) => b.w - a.w || b.pf - a.pf).forEach((t, i) => out.push((i + 1) + ". " + t.n + " " + t.w + "-" + t.l + ", PF " + f2(t.pf)));
+  return { week, ctx: out.join("\n"), name: (stand.league || {}).name || "Your league", final: !(board.games || []).some(g => g.isInProgress) };
+}
+export async function weeklyRecaps(env, force) {
+  const now = new Date();
+  // Tuesday 10:07 AM Eastern (15:07 UTC), after Monday night is final.
+  if (!force && !(now.getUTCDay() === 2 && now.getUTCHours() === 15 && now.getUTCMinutes() === 7)) return { skipped: true };
+  if (!env.AI) return { error: "no AI" };
+  const list = await env.SNAP.list({ prefix: "sub:" });
+  const byLeague = {}; let origin = env.HOST ? "https://" + env.HOST : null;
+  for (const k of list.keys) {
+    const rec = await env.SNAP.get(k.name, "json");
+    if (!rec || !(rec.hooks || []).length || (rec.prefs || {}).recap === false) continue;
+    origin = origin || rec.origin;
+    for (const L of rec.leagues || []) if (L.p === "flea") { const b = byLeague[L.id] = byLeague[L.id] || new Set(); rec.hooks.forEach(h => b.add(h)); }
+  }
+  const done = [];
+  for (const lid of Object.keys(byLeague).slice(0, 20)) {
+    try {
+      const r = await fleaRecapCtx(lid);
+      const key = "recap:" + lid + ":" + r.week;
+      if (!force && await env.SNAP.get(key)) continue;
+      const ai = await env.AI.run(COACH_MODELS[0], { messages: [{ role: "system", content: RECAP_SYS + "\n\nLEAGUE DATA:\n" + r.ctx }, { role: "user", content: "Write this week's recap." }], max_tokens: 900, temperature: 0.8 });
+      const text = String((ai && (ai.response || (ai.choices && ai.choices[0] && ai.choices[0].message && ai.choices[0].message.content))) || "").replace(/\*\*/g, "").trim();
+      if (!text) continue;
+      for (const h of byLeague[lid]) await sendHook(h, [{ id: key, title: r.name + " · Week " + r.week + " recap", body: text }], origin || "https://www.fleaflicker.com").catch(() => 0);
+      await env.SNAP.put(key, "1", { expirationTtl: 60 * 60 * 24 * 30 });
+      done.push(lid);
+    } catch (e) {}
+  }
+  return { posted: done };
+}

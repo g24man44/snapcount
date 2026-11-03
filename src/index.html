@@ -81,6 +81,8 @@ button.chip.on{background:var(--accent);color:var(--accent-ink)}
 .gcard .rz{color:var(--bad);font-weight:800}
 .lb{list-style:none;margin:6px 0 0;padding:0;font-size:14px}.lb li{display:flex;justify-content:space-between;padding:3px 0}
 .aibtn{background:linear-gradient(135deg,#ff7a3d,#ff3d77 55%,#8b5cf6)!important;color:#fff!important;border:0}
+.accbar{margin:12px 0 0;padding:12px 14px;border-radius:16px;background:var(--surface2)}.acchead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}.accn{font-size:20px;color:var(--accent)}
+.offline{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);z-index:30;background:var(--surface3);color:var(--ink);padding:8px 14px;border-radius:999px;font-size:13px;font-weight:700;box-shadow:0 6px 20px rgba(0,0,0,.35)}
 .coachfab{display:flex;align-items:center;gap:6px;border:0;border-radius:999px;padding:9px 14px 9px 12px;font:800 14px var(--body);color:#fff;background:linear-gradient(135deg,#ff7a3d,#ff3d77 55%,#8b5cf6);box-shadow:0 6px 20px rgba(255,90,90,.3);cursor:pointer}
 .coachfab .spark,.spark{display:inline-block;animation:twk 2.4s ease-in-out infinite}
 @keyframes twk{0%,100%{transform:scale(1) rotate(0)}50%{transform:scale(1.25) rotate(20deg)}}
@@ -325,8 +327,10 @@ function saveAccts(a){ try { localStorage.setItem(KEY, JSON.stringify(a)); } cat
 let accts = loadAccts();
 
 /* ---------- api ---------- */
+let offlineShown = false;
 async function api(path){
   const r = await fetch(path);
+  if (r.headers.get("x-sc-offline") && !offlineShown) { offlineShown = true; const b = document.createElement("div"); b.className = "offline"; b.textContent = "You’re offline. Showing the last data you saw."; document.body.appendChild(b); window.addEventListener("online", () => location.reload(), {once:true}); }
   if (!r.ok) { let t = ""; try { t = (await r.json()).error; } catch(e){} throw new Error(t || ("Request failed (" + r.status + ")")); }
   return r.json();
 }
@@ -1278,6 +1282,28 @@ async function openRecap(L){
   });
 }
 
+/* ---------- shareable image cards ---------- */
+function wrapText(c, text, max){ const words = String(text).split(" "), lines = []; let line = ""; words.forEach(w => { const t = line ? line + " " + w : w; if (c.measureText(t).width > max && line) { lines.push(line); line = w; } else line = t; }); if (line) lines.push(line); return lines; }
+async function shareCard(o){
+  const W = 1080, H = 1350, cv = document.createElement("canvas"); cv.width = W; cv.height = H; const c = cv.getContext("2d");
+  const g = c.createLinearGradient(0, 0, W, H); g.addColorStop(0, "#0a0d13"); g.addColorStop(1, "#1a1030"); c.fillStyle = g; c.fillRect(0, 0, W, H);
+  const glow = c.createRadialGradient(W * 0.85, 120, 10, W * 0.85, 120, 600); glow.addColorStop(0, "rgba(255,122,61,.35)"); glow.addColorStop(1, "rgba(255,122,61,0)"); c.fillStyle = glow; c.fillRect(0, 0, W, H);
+  const F = "Outfit, system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+  c.fillStyle = "#ff7a3d"; c.beginPath(); c.roundRect(72, 72, 84, 84, 22); c.fill(); c.fillStyle = "#1a0b03"; c.font = "800 38px " + F; c.textAlign = "center"; c.fillText("SC", 114, 128);
+  c.textAlign = "left"; c.fillStyle = "#fff"; c.font = "800 44px " + F; c.fillText("Snap Count", 180, 128);
+  c.fillStyle = "#9aa4b5"; c.font = "600 34px " + F; c.fillText(o.kicker || "", 72, 250);
+  c.fillStyle = o.color || "#ff7a3d"; c.font = "900 260px " + F; c.fillText(o.big, 64, 500);
+  if (o.bigSuffix) { const w = c.measureText(o.big).width; c.fillStyle = "#9aa4b5"; c.font = "800 90px " + F; c.fillText(o.bigSuffix, 80 + w, 500); }
+  c.fillStyle = "#fff"; c.font = "800 64px " + F; let y = 600; wrapText(c, o.title, W - 144).slice(0, 2).forEach(l => { c.fillText(l, 72, y); y += 74; });
+  y += 20; c.font = "500 36px " + F;
+  (o.lines || []).slice(0, 7).forEach(l => { c.fillStyle = l.tone === "good" ? "#3ddc97" : l.tone === "bad" ? "#ff6b6b" : "#c9d1dd"; const ls = wrapText(c, "• " + l.text, W - 144); const shown = ls.slice(0, 3); if (ls.length > 3) shown[2] = shown[2].replace(/\s*\S*$/, "") + "…"; shown.forEach(t => { if (y < H - 140) { c.fillText(t, 72, y); y += 48; } }); y += 10; });
+  c.fillStyle = "#6b7588"; c.font = "600 30px " + F; c.fillText("Graded by Snap Count · " + location.host, 72, H - 72);
+  const blob = await new Promise(r => cv.toBlob(r, "image/png"));
+  const file = new File([blob], "snapcount.png", {type:"image/png"});
+  if (navigator.canShare && navigator.canShare({files:[file]})) { try { await navigator.share({files:[file], title: o.title}); return "shared"; } catch(e){ if (e.name === "AbortError") return "cancel"; } }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "snapcount.png"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); return "saved";
+}
+
 /* ---------- headlines ---------- */
 let headlines = null;
 async function renderNews(v){
@@ -1489,8 +1515,34 @@ function gradeTrade(ctx){
     const cand = them.roster.concat(theirPicks).filter(p => !tr.get.has(p.id) && val(p) > 0).map(p => ({p, d: Math.abs(val(p) - gap)})).sort((a, b) => a.d - b.d)[0];
     if (cand) ask = cand.p;
   }
-  return {score, reasons, ask, ratio};
+  // Will they say yes? Their side of the deal: value, their lineup, and whether they're contending or rebuilding.
+  let accept = null, acceptWhy = "";
+  if (give.length && get.length && them.roster.length) {
+    const tb = bestLineup(them.roster, slots, pts);
+    const ta = bestLineup(them.roster.filter(p => !tr.get.has(p.id)).concat(give.filter(p => p.pos !== "PICK")), slots, pts);
+    const tDelta = ta.total - tb.total;
+    const order = L.detail.teams.slice().sort((a, b) => b.w - a.w || (b.pf || 0) - (a.pf || 0));
+    const rank = order.indexOf(them) + 1, N = order.length;
+    const mode = rank <= Math.ceil(N / 3) ? "contend" : rank > Math.floor(N * 2 / 3) ? "rebuild" : "middle";
+    const ageOf2 = p => p.pos === "PICK" ? 21.5 : (V[sid.get(p)] || [])[6];
+    const avgAge = arr => { const xs = arr.map(ageOf2).filter(Boolean); return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null; };
+    const youthGain = (avgAge(get) || 0) - (avgAge(give) || 0); // >0 means they get younger
+    let z = 3.0 * Math.log((G + 50) / (R + 50)) - 0.45;
+    z += (mode === "contend" ? 0.16 : mode === "middle" ? 0.09 : 0.03) * clamp(tDelta, -15, 15);
+    if (ctx.dyn && mode === "rebuild") z += 0.12 * clamp(youthGain, -6, 6) + 0.25 * give.filter(p => p.pos === "PICK").length;
+    if (mode === "contend") z -= 0.2 * give.filter(p => p.pos === "PICK").length;
+    if (get.some(p => p.pos === "QB") && ctx.qbs === 2 && them.roster.filter(p => p.pos === "QB" && !OUTISH_C.test(String(p.inj || ""))).length <= 2) z -= 0.8;
+    accept = Math.round(100 / (1 + Math.exp(-z)));
+    accept = clamp(accept, 2, 97);
+    const bits = [];
+    bits.push(G > R * 1.05 ? "they win on value" : G < R * 0.95 ? "they lose on value" : "value is close");
+    bits.push(Math.abs(tDelta) < 1 ? "their lineup barely changes" : "their lineup " + (tDelta > 0 ? "gains " : "loses ") + Math.abs(tDelta).toFixed(1) + " pts a week");
+    bits.push(mode === "contend" ? "they’re contending (#" + rank + "), so points now matter most" : mode === "rebuild" ? "they’re #" + rank + ", so youth and picks matter more" : "they’re in the middle of the pack (#" + rank + ")");
+    acceptWhy = bits.join("; ");
+  }
+  return {score, reasons, ask, ratio, accept, acceptWhy};
 }
+function acceptChip(g){ if (g.accept == null) return ""; const c = g.accept >= 60 ? "ok" : g.accept >= 35 ? "warn" : ""; return '<span class="chip ' + c + '" title="' + esc(g.acceptWhy) + '">' + g.accept + "% they accept</span>"; }
 const GRADE_LABEL = s => s >= 9 ? ["Smash accept", "good"] : s >= 7 ? ["Good for you", "good"] : s >= 5 ? ["Fair trade", "mid"] : s >= 3 ? ["Leans bad for you", "bad"] : ["Decline", "bad"];
 
 /* draft picks: { teamId: [{id, name, pos:"PICK", label, value-key}] } */
@@ -1706,7 +1758,7 @@ function drawFind(ctx){
     const g = gradeTrade(Object.assign({}, ctx));
     tr.give = saveG; tr.get = saveR;
     const [lbl, tone] = GRADE_LABEL(g.score);
-    h += '<div class="card offer" style="margin-top:12px"><div class="offhead"><span class="badge">' + esc(r.label) + '</span><span class="ograde ' + tone + '">' + g.score + "/10</span></div>" +
+    h += '<div class="card offer" style="margin-top:12px"><div class="offhead"><span class="badge">' + esc(r.label) + '</span><span class="ograde ' + tone + '">' + g.score + "/10</span></div>" + (g.accept != null ? '<div class="chips" style="margin:8px 0 0">' + acceptChip(g) + "</div>" : "") +
       '<ul class="offlist">' + r.combo.map(a => '<li>' + (a.p.pos === "PICK" ? '<span class="pos" data-pos="PICK">PK</span>' : avatar(a.p)) + "<b>" + esc(a.p.name) + "</b><span class='muted'>" + fmtV(a.v) + "</span></li>").join("") + "</ul>" +
       '<p class="small" style="margin:10px 0 0">Package value <b>' + fmtV(r.eff) + "</b> for " + fmtV(res.T) + " (" + (r.over >= 0 ? "+" : "") + Math.round(r.over * 100) + "%). Your lineup " + (Math.abs(r.delta) < 0.5 ? "stays about the same" : (r.delta > 0 ? "gains " : "loses ") + Math.abs(r.delta).toFixed(1) + " projected points a week") + ".</p>" +
       sendBlock(L, me, them, r.combo.map(a => a.p), [target]) +
@@ -1840,7 +1892,7 @@ function drawScan(ctx, allPicks){
       const chip = r.onBlock ? '<span class="chip ok">On the trade block</span>' : r.avail >= 0.6 ? '<span class="chip ok">Likely available</span>' : r.avail >= 0.3 ? '<span class="chip warn">Possible</span>' : '<span class="chip">Long shot</span>';
       out += '<div class="card offer scard" data-ti="' + esc(r.t.id) + '" style="margin-top:12px">' +
         '<div class="shead" style="margin:0">' + avatar(r.p) + '<div style="min-width:0;flex:1"><b style="font-size:18px;display:block">' + esc(r.p.name) + "</b><small class='muted'>" + posTag(r.p) + esc(r.t.name) + (r.t.owner ? " · " + esc(r.t.owner) : "") + '</small></div><span class="ograde ' + tone + '">' + r.g.score + "/10</span></div>" +
-        '<div class="chips" style="margin-top:12px"><span class="chip ok">+' + r.gain.toFixed(1) + " pts a week for you</span>" + chip + '<span class="chip">Worth ' + fmtV(r.T) + "</span></div>" +
+        '<div class="chips" style="margin-top:12px"><span class="chip ok">+' + r.gain.toFixed(1) + " pts a week for you</span>" + chip + acceptChip(r.g) + '<span class="chip">Worth ' + fmtV(r.T) + "</span></div>" +
         '<ul class="reasons">' + why.map(w => '<li class="' + w.tone + '">' + esc(w.text) + "</li>").join("") + "</ul>" +
         '<h3 style="margin:16px 0 4px">Suggested offer</h3><ul class="offlist">' + r.best.combo.map(a => '<li>' + (a.p.pos === "PICK" ? '<span class="pos" data-pos="PICK">PK</span>' : avatar(a.p)) + "<b>" + esc(a.p.name) + "</b><span class='muted'>" + fmtV(a.v) + "</span></li>").join("") + "</ul>" +
         '<p class="small" style="margin:10px 0 0">Package value <b>' + fmtV(r.best.eff) + "</b> (" + (r.best.over >= 0 ? "+" : "") + Math.round(r.best.over * 100) + "%). After the trade your lineup " + (Math.abs(r.best.delta) < 0.5 ? "stays about the same" : (r.best.delta > 0 ? "gains " : "loses ") + Math.abs(r.best.delta).toFixed(1) + " points a week") + ".</p>" +
@@ -1888,7 +1940,9 @@ function drawTrade(ctx){
     if (!both) g.ask = null;
     h += '<div class="card grade ' + tone + '"><div class="gtop"><div class="gnum"><b>' + (both ? g.score : "–") + "</b><small>/10</small></div><div><b class='glabel'>" + label + '</b><span class="muted small">' + (tr.give.size && tr.get.size ? "Based on trade value, your weekly starting lineup, injuries and trends." : "Pick players on both sides to finish the grade.") + "</span></div></div>" +
       '<ul class="reasons">' + g.reasons.map(r => '<li class="' + r.tone + '">' + esc(r.text) + "</li>").join("") + "</ul>" +
+      (both && g.accept != null ? '<div class="accbar"><div class="acchead"><b>Chance ' + esc(them.name) + ' says yes</b><b class="accn">' + g.accept + '%</b></div><div class="wpbar"><span style="width:' + g.accept + '%"></span></div><p class="small muted" style="margin:6px 0 0">' + esc(g.acceptWhy.charAt(0).toUpperCase() + g.acceptWhy.slice(1)) + ".</p></div>" : "") +
       (g.ask ? '<p class="small" style="margin:10px 0 0">To even it out, ask them to add <b>' + esc(g.ask.name) + "</b>.</p>" : "") +
+      (both ? '<button type="button" class="btn ghost" id="shareGrade" style="width:100%;margin-top:10px">Share this grade as an image</button>' : "") +
       (both ? sendBlock(ctx.L, me, them, me.roster.concat(ctx.myPicks).filter(p => tr.give.has(p.id)), them.roster.concat(ctx.theirPicks).filter(p => tr.get.has(p.id))) : "") +
       '<p class="small muted" style="margin:10px 0 0">Values: ' + esc(ctx.src) + ", " + (ctx.dyn ? "dynasty" : "redraft") + (ctx.qbs === 2 ? " superflex" : "") + ", " + ctx.teams + "-team " + ({"1":"PPR","0.5":"half PPR","0":"standard"}[tr.ppr]) + ".</p></div>";
   } else {
@@ -1898,6 +1952,15 @@ function drawTrade(ctx){
   h += '<h3>You give</h3><ul class="plist">' + me.roster.slice().sort(byVal).map(p => pickRow(p, "give", V, sid, tr.give.has(p.id), ctx.prem)).join("") + "</ul>" + pk(ctx.myPicks, "give");
   h += "<h3>You get from " + esc(them.name) + '</h3><ul class="plist">' + (them.roster.length ? them.roster.slice().sort(byVal).map(p => pickRow(p, "get", V, sid, tr.get.has(p.id), ctx.prem)).join("") : '<li><p class="muted small" style="margin:12px 14px">Their roster isn’t available.</p></li>') + "</ul>" + pk(ctx.theirPicks, "get");
   el.innerHTML = h;
+  const sgb = el.querySelector("#shareGrade");
+  if (sgb) sgb.addEventListener("click", async () => {
+    const g = gradeTrade(ctx), [label, tone] = GRADE_LABEL(g.score);
+    const gv = me.roster.concat(ctx.myPicks).filter(p => tr.give.has(p.id)).map(p => p.name), gt = them.roster.concat(ctx.theirPicks).filter(p => tr.get.has(p.id)).map(p => p.name);
+    sgb.textContent = "Making image…";
+    const r = await shareCard({kicker: ctx.L.meta.name + " · trade grade", big: String(g.score), bigSuffix: "/10", color: tone === "good" ? "#3ddc97" : tone === "bad" ? "#ff6b6b" : "#ffb020", title: label,
+      lines: [{text: "Give: " + gv.join(", ")}, {text: "Get: " + gt.join(", ")}].concat(g.accept != null ? [{text: g.accept + "% chance " + them.name + " accepts"}] : []).concat(g.reasons.slice(0, 3))});
+    sgb.textContent = r === "saved" ? "Image saved" : "Share this grade as an image";
+  });
   const pg = el.querySelector("#trPasteGo");
   if (pg) pg.addEventListener("click", () => { const t = el.querySelector("#trPaste").value; if (!t.trim()) return; tr.paste = t; tr.pasteMsg = ""; drawTrade(ctx); });
   wireSend(el, ctx.L, me, them);
@@ -2583,7 +2646,7 @@ function hookName(u){ return /discord/.test(u) ? "Discord" : /slack/.test(u) ? "
 function hooksCard(){
   const hooks = loadHooks();
   return '<h3>Send alerts to your other apps</h3><div class="card stackc" style="gap:10px">' +
-    '<p class="small muted" style="margin:0">Every alert can also post to a Discord or Slack channel (great for your whole league), Microsoft Teams, Telegram, the ntfy app, or anything else through IFTTT, Zapier or Make. Paste the app’s webhook link.</p>' +
+    '<p class="small muted" style="margin:0">Every alert can also post to a Discord or Slack channel (great for your whole league), Microsoft Teams, Telegram, the ntfy app, or anything else through IFTTT, Zapier or Make. Paste the app’s webhook link.</p><p class="small muted" style="margin:0"><b>Bonus:</b> every Tuesday morning an AI-written recap of your Fleaflicker league (scores, stars, duds, power rankings) posts there automatically.</p>' +
     (hooks.length ? hooks.map((u, i) => '<div class="acct"><span><b>' + hookName(u) + '</b> <span class="small muted">' + esc(u.replace(/^https:\/\//, "").slice(0, 34)) + '…</span></span><button class="icon" data-hrm="' + i + '">Remove</button></div>').join("") : "") +
     '<input id="hookIn" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://discord.com/api/webhooks/…">' +
     '<details class="small"><summary>Where do I find the link?</summary><p class="muted" style="margin:6px 0 0"><b>Discord:</b> channel settings › Integrations › Webhooks › New Webhook › Copy URL.<br><b>Slack:</b> add the Incoming Webhooks app to a channel and copy its URL.<br><b>Teams:</b> channel › Workflows › “Post to a channel when a webhook request is received”.<br><b>Telegram:</b> https://api.telegram.org/bot&lt;token&gt;/sendMessage?chat_id=&lt;id&gt;<br><b>ntfy:</b> install ntfy, subscribe to a topic name only you know, and paste https://ntfy.sh/your-topic.<br><b>IFTTT:</b> Webhooks service › Documentation › copy the trigger URL. Zapier and Make: “Catch hook” URL.</p></details>' +
@@ -2717,7 +2780,11 @@ try {
   }
 } catch(e){}
 accts.flea.forEach(a => { if (a.type === "league") a.team = fleaTeamFor(a.value); });
-if (location.hash === "#alerts") { cur.tab = "alerts"; try { history.replaceState(null, "", location.pathname); } catch(e){} }
+if (location.hash === "#alerts") { cur.tab = "alerts"; try { history.replaceState(null, "", location.pathname); } catch(e){} try { navigator.clearAppBadge && navigator.clearAppBadge(); } catch(e){} }
+let goCoach = false;
+try { const go = new URLSearchParams(location.search).get("go"); if (["news", "trade", "edge", "alerts"].includes(go)) cur.tab = go; if (go === "coach") goCoach = true; if (go) history.replaceState(null, "", location.pathname); } catch(e){}
+document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === cur.tab));
+document.addEventListener("visibilitychange", () => { if (!document.hidden) try { navigator.clearAppBadge && navigator.clearAppBadge(); } catch(e){} });
 render();
 async function refreshLive(){
   if (document.hidden || !$("#sheet").hidden || document.activeElement && document.activeElement.tagName === "SELECT") return;
@@ -2737,6 +2804,7 @@ async function refreshLive(){
 }
 setInterval(refreshLive, 60000);
 $("#coachFab").addEventListener("click", openCoach);
+if (goCoach) { const t = setInterval(() => { if (leagues.some(L => L.detail)) { clearInterval(t); openCoach(); } }, 400); setTimeout(() => clearInterval(t), 30000); }
 if (hasAccts()) loadAll(); else getState().then(st => $("#wk").textContent = "Week " + (st.display_week || st.week)).catch(() => {});
 </script>
 </body>
