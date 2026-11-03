@@ -4,6 +4,7 @@
 // and sends phone notifications to each subscriber whose players or leagues are affected.
 
 import { ICON_192, ICON_512 } from "./icons.js";
+import { matchupPreviews, weeklyPower } from "./weekly.js";
 import { hookKind, sendHook, espnLeagueTaken, mflLeagueTaken, weeklyRecaps, aiComplete } from "./more.js";
 
 const UA = { "User-Agent": "SnapCount/1.0 (fantasy dashboard)", "Accept": "application/json" };
@@ -90,9 +91,9 @@ export async function alertsRoute(request, env, p, url) {
           starters: (body.starters || []).slice(0, 80).map(String),
           bench: (body.bench || []).slice(0, 120).map(String),
           leagues: (body.leagues || []).slice(0, 30).map(l => ({ p: ["flea", "espn", "mfl"].includes(l.p) ? l.p : "sleeper", id: String(l.id), name: String(l.name || "").slice(0, 80), season: /^\d{4}$/.test(String(l.season || "")) ? String(l.season) : undefined })),
-          lineups: (Array.isArray(body.lineups) ? body.lineups : []).slice(0, 30).map(l => ({ p: ["flea", "espn", "mfl", "sleeper"].includes(l.p) ? l.p : null, id: String(l.id || ""), name: String(l.name || "").slice(0, 80), season: /^\d{4}$/.test(String(l.season || "")) ? String(l.season) : undefined, s: (l.s || []).slice(0, 30).map(String), b: (l.b || []).slice(0, 40).map(String) })),
+          lineups: (Array.isArray(body.lineups) ? body.lineups : []).slice(0, 30).map(l => ({ p: ["flea", "espn", "mfl", "sleeper"].includes(l.p) ? l.p : null, id: String(l.id || ""), name: String(l.name || "").slice(0, 80), season: /^\d{4}$/.test(String(l.season || "")) ? String(l.season) : undefined, s: (l.s || []).slice(0, 30).map(String), b: (l.b || []).slice(0, 40).map(String), t: l.t ? String(l.t).slice(0, 40) : undefined })),
           hooks: (body.hooks || []).map(String).filter(u => hookKind(u)).slice(0, 5),
-          prefs: { mine: body.prefs?.mine !== false, fa: body.prefs?.fa !== false, news: body.prefs?.news !== false, league: body.prefs?.league !== false, recap: body.prefs?.recap !== false, brief: body.prefs?.brief !== false, faPos: body.prefs?.faPos === "QB" ? "QB" : "ALL" },
+          prefs: { mine: body.prefs?.mine !== false, fa: body.prefs?.fa !== false, news: body.prefs?.news !== false, league: body.prefs?.league !== false, recap: body.prefs?.recap !== false, brief: body.prefs?.brief !== false, preview: body.prefs?.preview !== false, faPos: body.prefs?.faPos === "QB" ? "QB" : "ALL" },
           origin: url.origin
         };
         const prev = await env.SNAP.get("sub:" + id);
@@ -140,6 +141,8 @@ export async function alertsRoute(request, env, p, url) {
       if (url.searchParams.get("mark") === "1" && unread.length) await env.SNAP.put(key, JSON.stringify(list.map(a => Object.assign(a, { read: true }))));
       return out({ alerts: res });
     }
+    if (p === "/api/push/run" && url.searchParams.get("what") === "preview") return out(await matchupPreviews(env, deliver, true));
+    if (p === "/api/push/run" && url.searchParams.get("what") === "power") return out(await weeklyPower(env, true));
     if (p === "/api/push/run" && url.searchParams.get("what") === "recap") return out(await weeklyRecaps(Object.assign({}, env, { HOST: url.host }), true));
     if (p === "/api/push/run" && url.searchParams.get("what") === "league") return out(await leagueWatch(env, true));
     if (p === "/api/push/run" && url.searchParams.get("what") === "brief") return out(await pregameBriefings(env, false));
@@ -747,6 +750,8 @@ export async function leagueWatch(env, force) {
 export async function runMinute(env) {
   await leagueWatch(env).catch(() => {});
   await pregameBriefings(env).catch(() => {});
+  await matchupPreviews(env, deliver).catch(() => {});
+  await weeklyPower(env).catch(() => {});
   await lineupCheck(env).catch(() => {});
   await runChecks(env, "QB").catch(() => {});
   const m = new Date().getUTCMinutes();

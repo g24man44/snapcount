@@ -3400,7 +3400,7 @@ async function post(path, body){
   if (!r.ok) throw new Error(j.error || ("Request failed (" + r.status + ")"));
   return j;
 }
-function alertPrefs(){ try { return Object.assign({mine:true, fa:true, news:true, league:true, brief:true, faPos:"ALL"}, JSON.parse(localStorage.getItem(KEY + ".alerts") || "{}")); } catch(e){ return {mine:true, fa:true, news:true, league:true, brief:true, faPos:"ALL"}; } }
+function alertPrefs(){ try { return Object.assign({mine:true, fa:true, news:true, league:true, brief:true, preview:true, faPos:"ALL"}, JSON.parse(localStorage.getItem(KEY + ".alerts") || "{}")); } catch(e){ return {mine:true, fa:true, news:true, league:true, brief:true, preview:true, faPos:"ALL"}; } }
 function saveAlertPrefs(p){ try { localStorage.setItem(KEY + ".alerts", JSON.stringify(p)); } catch(e){} }
 function b64uBytes(s){ s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; const b = atob(s), a = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; }
 async function getSub(){
@@ -3416,7 +3416,7 @@ function watchList(){
   });
   const starters = [], bench = [], lineups = [];
   leagues.forEach(L => { const me = L.detail && L.detail.teams.find(t => t.mine); if (!me) return;
-    const lu = {p:L.meta.platform, id:L.meta.id, name:L.meta.name, season:L.meta.season, s:[], b:[]};
+    const lu = {p:L.meta.platform, id:L.meta.id, name:L.meta.name, season:L.meta.season, s:[], b:[], t:me.id};
     me.roster.forEach(p => { if (!p.name) return; const k = norm(p.name) + "|" + (p.pos || ""); if (p.slot === "start") { starters.push(k); lu.s.push(k); } else if (p.slot === "bench") { bench.push(k); lu.b.push(k); } });
     if (lu.s.length) lineups.push(lu); });
   return {ids:[...ids], names:[...names], starters, bench, lineups, leagues: leagues.map(L => ({p:L.meta.platform, id:L.meta.id, name:L.meta.name, season:L.meta.season}))};
@@ -3455,7 +3455,7 @@ function hookName(u){ return /discord/.test(u) ? "Discord" : /slack/.test(u) ? "
 function hooksCard(){
   const hooks = loadHooks();
   return '<h3>Send alerts to your other apps</h3><div class="card stackc" style="gap:10px">' +
-    '<p class="small muted" style="margin:0">Every alert can also post to a Discord or Slack channel (great for your whole league), Microsoft Teams, Telegram, the ntfy app, or anything else through IFTTT, Zapier or Make. Paste the app’s webhook link.</p><p class="small muted" style="margin:0"><b>Bonus:</b> every Sunday at 11 AM Eastern your AI pregame briefing posts there, and every Tuesday morning an AI-written recap of your Fleaflicker league (scores, stars, duds, power rankings) posts there automatically.</p>' +
+    '<p class="small muted" style="margin:0">Every alert can also post to a Discord or Slack channel (great for your whole league), Microsoft Teams, Telegram, the ntfy app, or anything else through IFTTT, Zapier or Make. Paste the app’s webhook link.</p><p class="small muted" style="margin:0"><b>Bonus:</b> every Friday at noon Eastern your matchup preview and every Sunday at 11 AM your AI pregame briefing post there, and every Tuesday morning an AI-written recap of your Fleaflicker league plus power rankings with schedule luck post there automatically.</p>' +
     (hooks.length ? hooks.map((u, i) => '<div class="acct"><span><b>' + hookName(u) + '</b> <span class="small muted">' + esc(u.replace(/^https:\/\//, "").slice(0, 34)) + '…</span></span><button class="icon" data-hrm="' + i + '">Remove</button></div>').join("") : "") +
     '<input id="hookIn" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://discord.com/api/webhooks/…">' +
     '<details class="small"><summary>Where do I find the link?</summary><p class="muted" style="margin:6px 0 0"><b>Discord:</b> channel settings › Integrations › Webhooks › New Webhook › Copy URL.<br><b>Slack:</b> add the Incoming Webhooks app to a channel and copy its URL.<br><b>Teams:</b> channel › Workflows › “Post to a channel when a webhook request is received”.<br><b>Telegram:</b> https://api.telegram.org/bot&lt;token&gt;/sendMessage?chat_id=&lt;id&gt;<br><b>ntfy:</b> install ntfy, subscribe to a topic name only you know, and paste https://ntfy.sh/your-topic.<br><b>IFTTT:</b> Webhooks service › Documentation › copy the trigger URL. Zapier and Make: “Catch hook” URL.</p></details>' +
@@ -3560,6 +3560,7 @@ async function renderAlerts(v){
     '<label class="toggle"><input type="checkbox" id="alFa"' + (prefs.fa ? " checked" : "") + "> Free agents: new starters and projection jumps</label>" +
     '<label class="toggle"><input type="checkbox" id="alNews"' + (prefs.news ? " checked" : "") + "> News: injury report notes and headlines about my players</label>" +
     '<label class="toggle"><input type="checkbox" id="alLeague"' + (prefs.league ? " checked" : "") + "> League activity: trades, trade-block posts and QB pickups (Fleaflicker)</label>" +
+    '<label class="toggle"><input type="checkbox" id="alPreview"' + (prefs.preview ? " checked" : "") + "> Friday matchup preview at noon ET: your win odds, their threats, who to watch</label>" +
     '<label class="toggle"><input type="checkbox" id="alBrief"' + (prefs.brief ? " checked" : "") + "> Sunday pregame briefing at 11 AM ET: start/sit calls, risky starters and the best pickup</label>" +
     '<div class="seg" role="group" aria-label="Free agent positions"><button type="button" data-fp="ALL" aria-pressed="' + (prefs.faPos === "ALL") + '">All positions</button><button type="button" data-fp="QB" aria-pressed="' + (prefs.faPos === "QB") + '">QBs only</button></div></div>';
   h += '<div class="btnrow"><button class="btn ghost" id="alTest">Send a test alert</button><button class="btn ghost" id="alOff">Turn off</button></div>';
@@ -3574,6 +3575,7 @@ async function renderAlerts(v){
   v.querySelector("#alLeague").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {league:e.target.checked})));
   v.querySelector("#alNews").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {news:e.target.checked})));
   v.querySelector("#alBrief").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {brief:e.target.checked})));
+  v.querySelector("#alPreview").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {preview:e.target.checked})));
   v.querySelectorAll("[data-fp]").forEach(b => b.addEventListener("click", () => savePrefs(Object.assign(alertPrefs(), {faPos:b.dataset.fp}))));
   v.querySelector("#alTest").addEventListener("click", async e => {
     e.target.disabled = true; e.target.textContent = "Sending…";
