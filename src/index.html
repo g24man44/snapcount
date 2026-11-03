@@ -44,6 +44,7 @@ header.top{display:flex;align-items:center;justify-content:space-between;gap:12p
 .brand .logo{width:36px;height:36px;border-radius:11px}
 .brand h1{font:800 22px/1 var(--body);letter-spacing:-.03em;margin:0}
 .hright{display:flex;align-items:center;gap:8px}
+@media (max-width:430px){#wk{display:none}}
 .wk{white-space:nowrap;font:700 12.5px/1 var(--body);color:var(--muted);background:var(--surface);border:1px solid var(--line);padding:8px 11px;border-radius:999px}
 .iconbtn{background:var(--surface);border:1px solid var(--line);border-radius:14px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;color:var(--ink)}
 .iconbtn[aria-pressed=true]{background:var(--accent);color:var(--accent-ink);border-color:transparent}
@@ -79,6 +80,28 @@ button.chip.on{background:var(--accent);color:var(--accent-ink)}
 .gcard .sit{font-size:12.5px;margin-top:6px;color:var(--ink)}
 .gcard .rz{color:var(--bad);font-weight:800}
 .lb{list-style:none;margin:6px 0 0;padding:0;font-size:14px}.lb li{display:flex;justify-content:space-between;padding:3px 0}
+.aibtn{background:linear-gradient(135deg,#ff7a3d,#ff3d77 55%,#8b5cf6)!important;color:#fff!important;border:0}
+.coachfab{display:flex;align-items:center;gap:6px;border:0;border-radius:999px;padding:9px 14px 9px 12px;font:800 14px var(--body);color:#fff;background:linear-gradient(135deg,#ff7a3d,#ff3d77 55%,#8b5cf6);box-shadow:0 6px 20px rgba(255,90,90,.3);cursor:pointer}
+.coachfab .spark,.spark{display:inline-block;animation:twk 2.4s ease-in-out infinite}
+@keyframes twk{0%,100%{transform:scale(1) rotate(0)}50%{transform:scale(1.25) rotate(20deg)}}
+.coachhead{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.coachhead .ctitle{font-size:18px}
+.coachhead .icon{border:0;background:var(--surface2);border-radius:12px;padding:8px 10px;font-size:16px}
+.clog{display:flex;flex-direction:column;gap:10px;margin:12px 0;max-height:52vh;overflow:auto;padding:2px}
+.cmsg{padding:11px 14px;border-radius:18px;font-size:15px;line-height:1.45;max-width:92%}
+.cmsg p{margin:0}
+.cmsg.u{align-self:flex-end;background:var(--accent);color:var(--accent-ink);border-bottom-right-radius:6px;font-weight:600}
+.cmsg.a{align-self:flex-start;background:var(--surface);border:1px solid var(--line);border-bottom-left-radius:6px}
+.cb{display:block;position:relative;padding-left:16px;margin:4px 0}.cb::before{content:"";position:absolute;left:3px;top:.6em;width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.cb.n{padding-left:22px}.cb.n::before{display:none}.cb.n i{position:absolute;left:0;font-style:normal;font-weight:800;color:var(--accent)}
+.cq{margin:0 0 10px}.cq .chip{font-size:12.5px;padding:7px 11px}
+.cform{display:flex;gap:8px;align-items:center}.cform input{flex:1;margin:0}
+.cform .mic{border:0;width:44px;height:44px;border-radius:50%;background:var(--surface2);color:var(--ink);display:grid;place-items:center;flex:none}
+.cform .mic.on{background:var(--bad);color:#fff;animation:pulse 1.2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,80,80,.6)}100%{box-shadow:0 0 0 14px rgba(255,80,80,0)}}
+.typing{display:inline-flex;gap:4px;padding:4px 0}.typing i{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:dot 1s infinite}.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes dot{0%,100%{opacity:.25;transform:translateY(0)}50%{opacity:1;transform:translateY(-3px)}}
+.recap{font-size:15px;line-height:1.55;margin-top:10px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;box-shadow:var(--card-shadow)}
 .badge{font:700 11px/1 var(--body);padding:6px 9px;border-radius:999px;background:var(--surface2);color:var(--muted);white-space:nowrap;letter-spacing:.02em}
 .chip{font-size:12.5px;padding:5px 10px;border-radius:999px;background:var(--surface2);color:var(--muted);border:0;font-weight:600}
@@ -274,7 +297,7 @@ footer{margin-top:30px;color:var(--muted);font-size:12px;padding:0 4px;text-alig
 <div class="wrap">
   <header class="top">
     <div class="brand"><img class="logo" src="/icon-192.png" alt=""><h1>Snap Count</h1></div>
-    <div class="hright"><span class="wk" id="wk"></span><button class="iconbtn" id="gearBtn" aria-label="Accounts" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg></button></div>
+    <div class="hright"><span class="wk" id="wk"></span><button type="button" class="coachfab" id="coachFab" aria-label="Ask the AI coach"><span class="spark">✦</span>Coach</button><button class="iconbtn" id="gearBtn" aria-label="Accounts" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg></button></div>
   </header>
   <main id="view"></main>
   <footer>Live data from Sleeper, Fleaflicker, ESPN and MyFantasyLeague. Trade values from FantasyCalc.</footer>
@@ -710,8 +733,16 @@ function matchupHero(d, me, g, compact){
   const rec = t => t.w != null ? t.w + "-" + t.l + (t.t ? "-" + t.t : "") : "";
   const lead = (mine.pts || 0) - (opp.pts || 0);
   const pre = !(mine.pts || opp.pts) && mine.proj != null && opp.proj != null;
+  const meT = d.teams.find(t => t.id === mine.id), opT = d.teams.find(t => t.id === opp.id);
+  const lpA = teamLive(meT, mine), lpB = teamLive(opT, opp);
+  if ((mine.proj == null || mine._lp) && lpA && lpB) { mine.proj = lpA.proj; opp.proj = lpB.proj; mine._lp = opp._lp = true; }
   let wp = null;
-  if (mine.proj != null && opp.proj != null) wp = 1 / (1 + Math.exp(-(mine.proj - opp.proj) / 14));
+  if (mine.proj != null && opp.proj != null) {
+    const remA = lpA ? lpA.rem : Math.max(0, mine.proj - (mine.pts || 0)), remB = lpB ? lpB.rem : Math.max(0, opp.proj - (opp.pts || 0));
+    const sd = Math.max(1.2, 6 * Math.sqrt((remA + remB) / 10));
+    wp = normCdf((mine.proj - opp.proj) / sd);
+    wp = Math.min(0.995, Math.max(0.005, wp));
+  }
   return '<div class="hero' + (compact ? " compact" : "") + '">' +
     '<div class="hteam">' + teamLogo(me, !compact) + '<b>' + esc(me.name) + "</b><small>" + rec(me) + "</small></div>" +
     (pre
@@ -721,6 +752,24 @@ function matchupHero(d, me, g, compact){
     '<div class="hteam">' + teamLogo(ot, !compact) + '<b>' + esc(ot.name) + "</b><small>" + rec(ot) + "</small></div>" +
     (wp != null ? '<div class="wp"><div class="wpbar"><span style="width:' + Math.round(wp * 100) + '%"></span></div><div class="wplab"><span>' + Math.round(wp * 100) + "% to win</span><span>" + Math.round((1 - wp) * 100) + "%</span></div></div>" : "") +
   "</div>";
+}
+
+// Live projection: banks points already scored and projects only the part of each game still to play.
+function normCdf(z){ const t = 1 / (1 + 0.3275911 * Math.abs(z) / Math.SQRT2), y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-z * z / 2); return z >= 0 ? (1 + y) / 2 : (1 - y) / 2; }
+function gameLeft(team){
+  const g = nflGames[tnorm(team)]; if (!gamesAt || !g) return gamesAt ? 0 : 1;
+  if (g.state === "post") return 0; if (g.state !== "in") return 1;
+  const m = String(g.detail || "").match(/(\d+):(\d+)\s*-\s*(\d)/); if (!m) return /half/i.test(g.detail) ? 0.5 : 0.5;
+  const q = Math.min(4, Number(m[3])), left = (4 - q) * 15 + Number(m[1]) + Number(m[2]) / 60;
+  return Math.max(0, Math.min(1, left / 60));
+}
+function teamLive(t, side){
+  if (!t || !t.roster) return null;
+  const st = t.roster.filter(p => p.slot === "start");
+  if (!st.length || !st.some(p => p.proj != null)) return null;
+  let proj = 0, rem = 0;
+  st.forEach(p => { const f = gameLeft(p.team), pr = p.proj || 0, pts = p.pts || 0; const r = pr * f; proj += pts + r; rem += r; });
+  return {proj, rem};
 }
 
 /* ---------- player rows ---------- */
@@ -841,6 +890,7 @@ function renderLeague(v, L){
     h += '<div id="actBox"><p class="spin">Loading league activity…</p></div>';
   } else {
     if (d.games.length) {
+      h += '<button type="button" class="btn aibtn" id="recapBtn" style="width:100%;margin-top:14px"><span class="spark">✦</span> Write this week’s recap</button>';
       h += "<h3>Matchups" + (d.week ? " · Week " + d.week : "") + '</h3><div class="stack">';
       d.games.forEach(g => {
         const A = d.teams.find(t => t.id === g.a.id) || {name:"Team"}, B = d.teams.find(t => t.id === g.b.id) || {name:"Team"};
@@ -866,39 +916,44 @@ function renderLeague(v, L){
   if (sub === "fa") loadFreeAgents(L, cur.faPos || "ALL");
   if (sub === "act") renderActivity(L, $("#actBox"), me).catch(e => { const b = $("#actBox"); if (b) b.innerHTML = '<div class="err">Couldn’t load activity: ' + esc(e.message) + "</div>"; });
   v.querySelectorAll("[data-game]").forEach(b => b.addEventListener("click", () => openMatchup(L, b.dataset.game)));
+  const rb = v.querySelector("#recapBtn"); if (rb) rb.addEventListener("click", () => openRecap(L));
 }
 
 /* ---------- free agents ---------- */
+async function faList(L, pos){
+    let list = [];
+  if (L.meta.platform === "sleeper") {
+    const d = L.detail;
+    await Promise.all([getPlayers(), getSeasonStats(L.meta.season)]);
+    const taken = new Set(); d.teams.forEach(t => t.roster.forEach(p => taken.add(p.id)));
+    for (const id in players) {
+      if (taken.has(id)) continue;
+      const p = players[id]; if (pos !== "ALL" && p[1] !== pos) continue;
+      if (!p[2] && p[1] !== "DEF") continue;
+      const s = seasonPts(id, d.scoring); if (!s || !s.pts) continue;
+      list.push({id, name:p[0], pos:p[1], team:p[2], inj:p[3], injPart:p[4], tot:s.pts, avg:s.gp ? s.pts / s.gp : null, gp:s.gp});
+    }
+    list.sort((a,b) => b.tot - a.tot); list = list.slice(0, 40);
+  } else if (L.meta.platform === "espn") { list = await espnFreeAgents(L, pos);
+  } else if (L.meta.platform === "mfl") { list = await mflFreeAgents(L, pos);
+  } else {
+    const params = {league_id:L.meta.id, "filter.free_agent_only":"true", sort:"SORT_SEASON_TOTAL"};
+    if (pos !== "ALL") params["filter.position.eligibility"] = pos === "DEF" ? "D/ST" : pos;
+    const r = await api(fq("FetchPlayerListing", params));
+    list = (r.players || []).map(x => {
+      const p = x.proPlayer || {}, inj = p.injury || null;
+      return {id:String(p.id), name:p.nameFull, pos:p.position, team:p.proTeamAbbreviation, img: p.headshotUrl || "",
+        inj: inj ? (inj.typeAbbreviaition || inj.typeAbbreviation || inj.typeFull) : null, injPart: inj ? (inj.description || inj.typeFull) : null,
+        tot: val(x.seasonTotal), avg: val(x.seasonAverage), ...fleaExtras(x, p, L.meta.id)};
+    });
+  }
+  return list;
+}
 async function loadFreeAgents(L, pos){
   const el = () => $("#fa");
   const token = (cur.faToken = Math.random());
   try {
-    let list = [];
-    if (L.meta.platform === "sleeper") {
-      const d = L.detail;
-      await Promise.all([getPlayers(), getSeasonStats(L.meta.season)]);
-      const taken = new Set(); d.teams.forEach(t => t.roster.forEach(p => taken.add(p.id)));
-      for (const id in players) {
-        if (taken.has(id)) continue;
-        const p = players[id]; if (pos !== "ALL" && p[1] !== pos) continue;
-        if (!p[2] && p[1] !== "DEF") continue;
-        const s = seasonPts(id, d.scoring); if (!s || !s.pts) continue;
-        list.push({id, name:p[0], pos:p[1], team:p[2], inj:p[3], injPart:p[4], tot:s.pts, avg:s.gp ? s.pts / s.gp : null, gp:s.gp});
-      }
-      list.sort((a,b) => b.tot - a.tot); list = list.slice(0, 40);
-    } else if (L.meta.platform === "espn") { list = await espnFreeAgents(L, pos);
-    } else if (L.meta.platform === "mfl") { list = await mflFreeAgents(L, pos);
-    } else {
-      const params = {league_id:L.meta.id, "filter.free_agent_only":"true", sort:"SORT_SEASON_TOTAL"};
-      if (pos !== "ALL") params["filter.position.eligibility"] = pos === "DEF" ? "D/ST" : pos;
-      const r = await api(fq("FetchPlayerListing", params));
-      list = (r.players || []).map(x => {
-        const p = x.proPlayer || {}, inj = p.injury || null;
-        return {id:String(p.id), name:p.nameFull, pos:p.position, team:p.proTeamAbbreviation, img: p.headshotUrl || "",
-          inj: inj ? (inj.typeAbbreviaition || inj.typeAbbreviation || inj.typeFull) : null, injPart: inj ? (inj.description || inj.typeFull) : null,
-          tot: val(x.seasonTotal), avg: val(x.seasonAverage), ...fleaExtras(x, p, L.meta.id)};
-      });
-    }
+    const list = await faList(L, pos);
     if (token !== cur.faToken || !el()) return;
     if (!list.length) { el().innerHTML = '<p class="muted">No free agents found' + (pos !== "ALL" ? " at " + pos : "") + ".</p>"; return; }
     list.forEach(p => { p.extra = p.avg != null ? '<small class="muted"> · ' + fmt(p.avg) + " per game</small>" : ""; p.act = p.fl ? extBtn(fleaPlayerUrl(p), "Add in Fleaflicker") : extBtn(waiverUrl(L), "Add in " + siteName(L)); if (p.owned != null) p.extra += '<small class="muted"> · ' + Math.round(p.owned) + "% rostered on ESPN</small>"; });
@@ -1034,6 +1089,193 @@ function drawScores(r){
     h += g.link ? '<a class="card gcard" href="' + esc(g.link) + '" target="_blank" rel="noopener">' + body + meta + "</a>" : '<div class="card gcard">' + body + meta + "</div>";
   });
   el.innerHTML = h + '</div><p class="small muted" style="margin:10px 4px 0">Scores from ESPN. Tap a game for the full box score and play-by-play.</p>';
+}
+
+/* ---------- AI coach ---------- */
+const coach = {league:null, msgs:[], busy:false, speak:false, rec:null};
+function coachLeague(){ const i = coach.league != null ? coach.league : cur.league != null ? cur.league : leagues.findIndex(L => L.detail && L.detail.teams.some(t => t.mine)); return leagues[i] ? i : -1; }
+function pline(L, p){
+  const g = nflGames[tnorm(p.team)];
+  const gs = !p.team ? "FA" : !gamesAt ? "" : !g ? "BYE" : g.state === "post" ? "final" : g.state === "in" ? "live " + g.detail : "kickoff " + g.detail;
+  const pj = projFor(L, p);
+  return p.pos + " " + p.name + " (" + (p.team || "FA") + (gs ? ", " + gs : "") + ")" + (pj != null ? " proj " + fmt(pj) : "") + (p.pts != null ? " pts " + fmt(p.pts) : "") + (p.avg != null ? " avg " + fmt(p.avg) : "") + (p.inj ? " [" + p.inj + (p.injPart ? ": " + p.injPart : "") + "]" : "") + (p.keeper ? " [keeper]" : "") + (p.taxi ? " [taxi]" : "");
+}
+async function buildCtx(L){
+  const d = L.detail, me = d.teams.find(t => t.mine);
+  await Promise.all([getProj(), getPlayers(), loadScoreboard().catch(() => {})]); ensureSidIndex();
+  const qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1;
+  const dyn = !!(d.maxKeepers || /dynasty|keeper/i.test(L.meta.name));
+  let V = null;
+  try { const pack = await loadValues(({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1"), d.teams.length, qbs, dyn); V = pack.v; } catch(e){}
+  const vOf = p => { if (!V) return null; const k = L.meta.platform === "sleeper" ? String(p.id) : tr.valuesHasFlea && L.meta.platform === "flea" ? "f" + p.id : sleeperKey(L, p); const r = k && V[k]; return r ? r : null; };
+  const vs = p => { const r = vOf(p); return r ? " value " + Math.round(r[0]) + (r[6] ? " age " + r[6] : "") : ""; };
+  const stand = d.teams.slice().sort((a, b) => b.w - a.w || (b.pf || 0) - (a.pf || 0));
+  const out = [];
+  out.push("League: " + L.meta.name + " on " + PLAT[L.meta.platform] + ". " + d.teams.length + " teams. " + (qbs === 2 ? "SUPERFLEX (2 QBs start; QBs are premium). " : "1 QB. ") + ({ppr:"PPR", half:"Half PPR", std:"Standard"}[d.scoring] || "PPR") + ". " + (dyn ? "Dynasty/keeper league" + (d.maxKeepers ? " (" + d.maxKeepers + " keepers)" : "") + ". " : "") + (d.playoffTeams ? d.playoffTeams + " playoff teams. " : "") + (d.playoffStart ? "Playoffs start week " + d.playoffStart + ". " : "") + "Current week " + (d.week || "?") + ". Today " + new Date().toDateString() + ".");
+  out.push("Starting slots: " + ((d.slots || []).concat(d.kdst || []).join(", ") || "unknown"));
+  if (me) {
+    out.push("\nMY TEAM: " + me.name + ", record " + me.w + "-" + me.l + (me.t ? "-" + me.t : "") + ", " + fmt(me.pf) + " points for, standing #" + (stand.indexOf(me) + 1) + " of " + d.teams.length + (me.faab != null ? ", FAAB left $" + Math.round(me.faab) : "") + (me.waiver ? ", waiver priority #" + me.waiver : "") + ".");
+    const grp = s => me.roster.filter(p => p.slot === s).sort(byPos).map(p => "- " + pline(L, p) + vs(p));
+    const st = grp("start"), bn = grp("bench"), ir = grp("ir");
+    if (st.length && (d.starterSplit || me.live)) { out.push("My starters:\n" + st.join("\n")); out.push("My bench:\n" + bn.join("\n")); }
+    else out.push("My roster:\n" + me.roster.slice().sort(byPos).map(p => "- " + pline(L, p) + vs(p)).join("\n"));
+    if (ir.length) out.push("My IR:\n" + ir.join("\n"));
+    const g = d.games.find(g => g.a.id === me.id || g.b.id === me.id);
+    if (g) {
+      const mine = g.a.id === me.id ? g.a : g.b, opp = g.a.id === me.id ? g.b : g.a, ot = d.teams.find(t => t.id === opp.id);
+      if (ot && L.meta.platform === "flea" && !ot.live) await fleaTeamRoster(L, ot).catch(() => {});
+      out.push("\nTHIS WEEK'S MATCHUP vs " + (ot ? ot.name + " (" + ot.w + "-" + ot.l + ")" : "opponent") + ": score " + fmt(mine.pts) + " to " + fmt(opp.pts) + (mine.proj != null ? ", projected " + fmt(mine.proj) + " to " + fmt(opp.proj) : "") + ".");
+      if (ot && ot.roster.length) { const os = ot.roster.filter(p => p.slot === "start"); out.push((os.length ? "Opponent starters:\n" + os.sort(byPos).map(p => "- " + pline(L, p)).join("\n") : "Opponent roster:\n" + ot.roster.filter(p => p.slot !== "ir").sort(byPos).slice(0, 22).map(p => "- " + pline(L, p)).join("\n"))); }
+    }
+  }
+  out.push("\nSTANDINGS:\n" + stand.map((t, i) => (i + 1) + ". " + t.name + (t.mine ? " (ME)" : "") + " " + t.w + "-" + t.l + (t.t ? "-" + t.t : "") + ", PF " + fmt(t.pf) + (t.div != null ? ", div " + t.div : "")).join("\n"));
+  try {
+    const fa = {};
+    await Promise.all(["QB", "RB", "WR", "TE"].map(async pos => { fa[pos] = (await faList(L, pos)).slice(0, pos === "QB" ? 8 : 6); }));
+    out.push("\nFREE AGENTS (best available, can be picked up):\n" + ["QB", "RB", "WR", "TE"].map(pos => fa[pos].map(p => "- " + pline(L, p) + (p.tot != null ? " season " + fmt(p.tot) : "") + vs(p)).join("\n")).join("\n"));
+  } catch(e){ out.push("\nFREE AGENTS: couldn't load."); }
+  const others = d.teams.filter(t => !t.mine && t.roster.length).map(t => {
+    const list = t.roster.filter(p => p.slot !== "ir" && ["QB", "RB", "WR", "TE"].includes(p.pos)).map(p => ({p, v: (vOf(p) || [0])[0]})).sort((a, b) => b.v - a.v).slice(0, 12);
+    return t.name + " (" + t.w + "-" + t.l + "): " + list.map(x => x.p.pos + " " + x.p.name + (x.v ? " " + Math.round(x.v) : "")).join(", ");
+  });
+  out.push("\nOTHER ROSTERS (top players" + (V ? " with trade value" : "") + "):\n" + others.join("\n"));
+  if (V) out.push("Trade values are FantasyCalc " + (dyn ? "dynasty" : "redraft") + " values for this league size and format; higher is better, roughly 10000 max.");
+  const hl = (headlines && headlines.items || []).slice(0, 8).map(a => "- " + a.title);
+  if (hl.length) out.push("\nTOP NFL HEADLINES:\n" + hl.join("\n"));
+  return out.join("\n").slice(0, 14000);
+}
+async function buildRecapCtx(L){
+  const d = L.detail, out = ["League: " + L.meta.name + ", week " + (d.week || "?") + "."];
+  const anyOpen = d.games.some(g => g.live || (g.final === false && !g.final));
+  if (anyOpen && anyLive()) out.push("Note: some games are still being played, so treat scores as current, not final.");
+  // Fleaflicker: pull every box score so the recap can name each team's stars and duds.
+  const box = {};
+  if (L.meta.platform === "flea") await Promise.all(d.games.filter(g => g.id).map(async g => {
+    try {
+      const b = await api(fq("FetchLeagueBoxscore", {league_id: L.meta.id, fantasy_game_id: g.id, scoring_period: d.week || ""}));
+      const st = ((b.lineups || []).find(x => x.group === "START") || {}).slots || [];
+      const grab = side => st.map(s => s[side] && s[side].proPlayer ? {name: s[side].proPlayer.nameFull, pts: val(s[side].viewingActualPoints) || 0, proj: val(s[side].viewingProjectedPoints)} : null).filter(Boolean);
+      box[g.a.id] = grab("away"); box[g.b.id] = grab("home");
+      const lost = x => { const t = (x || {}).total || {}; const o = val(t.optimum), a = val(t.value); return o != null && a != null ? o - a : null; };
+      box["lost" + g.a.id] = lost(b.pointsAway); box["lost" + g.b.id] = lost(b.pointsHome);
+    } catch(e){}
+  }));
+  const starsOf = t => {
+    if (box[t.id]) return box[t.id].slice().sort((a, b) => b.pts - a.pts);
+    return t.roster.filter(p => p.pts != null && (p.slot === "start" || !d.starterSplit)).map(p => ({name:p.name, pts:p.pts || 0})).sort((a, b) => b.pts - a.pts);
+  };
+  out.push("MATCHUPS:");
+  d.games.forEach(g => {
+    const A = d.teams.find(t => t.id === g.a.id) || {id:g.a.id, name:"?", roster:[]}, B = d.teams.find(t => t.id === g.b.id) || {id:g.b.id, name:"?", roster:[]};
+    const desc = (T, pts) => { const s = starsOf(T); const lost = box["lost" + T.id]; return T.name + " " + fmt(pts) + (s.length ? " (best: " + s.slice(0, 2).map(p => p.name + " " + fmt(p.pts)).join(", ") + "; worst starter: " + s[s.length - 1].name + " " + fmt(s[s.length - 1].pts) + (lost > 5 ? "; left " + fmt(lost) + " points on the bench" : "") + ")" : ""); };
+    out.push("- " + desc(A, g.a.pts) + " vs " + desc(B, g.b.pts));
+  });
+  out.push("STANDINGS (before this week's result is final):");
+  d.teams.slice().sort((a, b) => b.w - a.w || (b.pf || 0) - (a.pf || 0)).forEach((t, i) => out.push((i + 1) + ". " + t.name + " " + t.w + "-" + t.l + ", PF " + fmt(t.pf)));
+  return out.join("\n");
+}
+async function streamAI(body, onText){
+  const r = await fetch("/api/coach", {method:"POST", headers:{"content-type":"application/json"}, body: JSON.stringify(body)});
+  if (!r.ok) { let j = {}; try { j = await r.json(); } catch(e){} throw new Error(j.error || "The coach answered " + r.status); }
+  const rd = r.body.getReader(), dec = new TextDecoder(); let buf = "", text = "";
+  for (;;) {
+    const {value, done} = await rd.read(); if (done) break;
+    buf += dec.decode(value, {stream:true});
+    let i;
+    while ((i = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+      if (!line.startsWith("data:")) continue;
+      const data = line.slice(5).trim(); if (data === "[DONE]") continue;
+      try { const j = JSON.parse(data); const t = j.response ?? (j.choices && j.choices[0] && (j.choices[0].delta || {}).content) ?? ""; if (t) { text += t; onText(text); } } catch(e){}
+    }
+  }
+  return text;
+}
+function mdLite(t){
+  return esc(t).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/^#{1,4}\s*(.+)$/gm, "<b>$1</b>").replace(/^\s*[-*•]\s+(.+)$/gm, '<span class="cb">$1</span>').replace(/^\s*(\d+)\.\s+(.+)$/gm, '<span class="cb n"><i>$1</i>$2</span>').replace(/\n{2,}/g, "<br><br>").replace(/\n/g, "<br>").replace(/(<\/span>)<br>/g, "$1");
+}
+const COACH_Q = ["Who should I start this week?", "Best pickup on waivers right now?", "What trade would help me most?", "How do I make the playoffs?", "Who are my best keepers?", "Is my opponent beatable?"];
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+function openCoach(){
+  const sh = $("#sheet"), p = $("#sheetPanel");
+  const ready = leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine));
+  let li = coachLeague();
+  p.innerHTML = '<div class="coachhead"><button class="back" id="closeSheet">Close</button><b class="ctitle"><span class="spark">✦</span> Coach</b><button type="button" class="icon' + (coach.speak ? " on" : "") + '" id="cSpeak" aria-pressed="' + coach.speak + '" title="Read answers aloud">' + (coach.speak ? "🔊" : "🔈") + "</button></div>" +
+    (ready.length > 1 ? '<select id="cLeague">' + leagues.map((L, i) => L.detail && L.detail.teams.some(t => t.mine) ? '<option value="' + i + '"' + (i === li ? " selected" : "") + ">" + esc(L.meta.name) + "</option>" : "").join("") + "</select>" : "") +
+    '<div id="cLog" class="clog"></div>' +
+    '<div class="chips cq" id="cChips">' + COACH_Q.map(q => '<button type="button" class="chip" data-q="' + esc(q) + '">' + esc(q) + "</button>").join("") + "</div>" +
+    '<form id="cForm" class="cform">' + (SR ? '<button type="button" class="mic" id="cMic" aria-label="Ask by voice"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>' : "") +
+    '<input id="cIn" autocomplete="off" placeholder="Ask anything about your team…"><button class="btn" type="submit" id="cGo">Ask</button></form>' +
+    '<p class="small muted" style="margin:8px 2px 0">Answers use your live roster, projections, free agents and trade values. AI can be wrong, so double-check big moves.</p>';
+  sh.hidden = false;
+  drawCoach();
+  p.querySelector("#closeSheet").addEventListener("click", () => { stopVoice(); closeSheet(); });
+  const sel = p.querySelector("#cLeague"); if (sel) sel.addEventListener("change", () => { coach.league = +sel.value; coach.msgs = []; drawCoach(); });
+  p.querySelector("#cSpeak").addEventListener("click", e => { coach.speak = !coach.speak; if (!coach.speak) speechSynthesis && speechSynthesis.cancel(); e.currentTarget.textContent = coach.speak ? "🔊" : "🔈"; e.currentTarget.setAttribute("aria-pressed", coach.speak); });
+  p.querySelectorAll("[data-q]").forEach(b => b.addEventListener("click", () => askCoach(b.dataset.q)));
+  p.querySelector("#cForm").addEventListener("submit", e => { e.preventDefault(); const v = p.querySelector("#cIn").value.trim(); if (v) { p.querySelector("#cIn").value = ""; askCoach(v); } });
+  const mic = p.querySelector("#cMic"); if (mic) mic.addEventListener("click", () => toggleVoice(mic));
+  if (li < 0) $("#cLog").innerHTML = '<p class="muted">Add a league and pick your team first, then ask me anything about it.</p>';
+}
+function drawCoach(){
+  const el = $("#cLog"); if (!el) return;
+  const L = leagues[coachLeague()];
+  el.innerHTML = (coach.msgs.length ? "" : '<div class="cmsg a"><p>Hey! I’ve got your <b>' + esc(L ? L.meta.name : "league") + "</b> roster, matchup, free agents and trade values loaded. Ask me who to start, who to grab, or what to trade for.</p></div>") +
+    coach.msgs.map(m => '<div class="cmsg ' + (m.role === "user" ? "u" : "a") + '">' + (m.role === "user" ? esc(m.content) : (m.content ? mdLite(m.content) : '<span class="typing"><i></i><i></i><i></i></span>')) + (m.err ? '<p class="err" style="margin:6px 0 0">' + esc(m.err) + "</p>" : "") + "</div>").join("");
+  el.scrollTop = el.scrollHeight;
+  const ch = $("#cChips"); if (ch) ch.hidden = coach.msgs.length > 0;
+}
+async function askCoach(q){
+  if (coach.busy) return;
+  const li = coachLeague(), L = leagues[li]; if (!L || !L.detail) return;
+  coach.busy = true; const go = $("#cGo"); if (go) go.disabled = true;
+  const history = coach.msgs.filter(m => m.content && !m.err).slice(-6);
+  coach.msgs.push({role:"user", content:q}); const ans = {role:"assistant", content:""}; coach.msgs.push(ans); drawCoach();
+  try {
+    if (!L.ctx || L.ctxAt < Date.now() - 120000) { L.ctx = await buildCtx(L); L.ctxAt = Date.now(); }
+    const text = await streamAI({mode:"coach", q, ctx:L.ctx, history}, t => { ans.content = t; drawCoach(); });
+    if (!text) ans.err = "No answer came back. Try again.";
+    else if (coach.speak && "speechSynthesis" in window) { const u = new SpeechSynthesisUtterance(text.replace(/[*#•]/g, "")); u.rate = 1.05; speechSynthesis.cancel(); speechSynthesis.speak(u); }
+  } catch(e){ ans.err = e.message; }
+  coach.busy = false; if ($("#cGo")) $("#cGo").disabled = false; drawCoach();
+}
+function stopVoice(){ try { coach.rec && coach.rec.stop(); } catch(e){} coach.rec = null; }
+function toggleVoice(btn){
+  if (coach.rec) { stopVoice(); btn.classList.remove("on"); return; }
+  const r = new SR(); r.lang = "en-US"; r.interimResults = true; r.maxAlternatives = 1;
+  const inp = $("#cIn"); let final = "";
+  r.onresult = e => { let t = ""; for (const res of e.results) t += res[0].transcript; inp.value = t; if (e.results[e.results.length - 1].isFinal) final = t; };
+  r.onend = () => { btn.classList.remove("on"); coach.rec = null; if (final.trim()) { inp.value = ""; askCoach(final.trim()); } };
+  r.onerror = () => { btn.classList.remove("on"); coach.rec = null; };
+  coach.rec = r; btn.classList.add("on"); r.start();
+}
+
+/* ---------- AI weekly recap ---------- */
+async function openRecap(L){
+  const sh = $("#sheet"), p = $("#sheetPanel");
+  p.innerHTML = '<button class="back" id="closeSheet">Close</button><h2><span class="spark">✦</span> Week ' + (L.detail.week || "") + " recap</h2>" + '<div id="rcText" class="card recap"><span class="typing"><i></i><i></i><i></i></span></div><div class="sendrow" id="rcAct" hidden><button type="button" class="btn" id="rcShare">Share to group chat</button>' + (loadHooks().length ? '<button type="button" class="btn ghost" id="rcPost">Post to ' + esc([...new Set(loadHooks().map(hookName))].join(" & ")) + "</button>" : "") + '<button type="button" class="btn ghost" id="rcAgain">Rewrite</button></div><p class="small" id="rcMsg"></p>';
+  sh.hidden = false;
+  p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+  const el = $("#rcText"); let text = "";
+  const run = async () => {
+    $("#rcAct").hidden = true; el.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
+    try { text = await streamAI({mode:"recap", ctx: await buildRecapCtx(L)}, t => { el.innerHTML = mdLite(t); }); }
+    catch(e){ el.innerHTML = '<div class="err">' + esc(e.message) + "</div>"; return; }
+    $("#rcAct").hidden = false;
+  };
+  await run();
+  p.querySelector("#rcAgain").addEventListener("click", run);
+  p.querySelector("#rcShare").addEventListener("click", async () => {
+    const t = text.replace(/\*\*/g, "");
+    if (navigator.share) { try { await navigator.share({title: L.meta.name + " week " + L.detail.week + " recap", text: t}); return; } catch(e){ if (e.name === "AbortError") return; } }
+    try { await navigator.clipboard.writeText(t); $("#rcMsg").textContent = "Copied. Paste it in your league chat."; } catch(e){ $("#rcMsg").textContent = "Couldn’t copy."; }
+  });
+  const pb = p.querySelector("#rcPost");
+  if (pb) pb.addEventListener("click", async () => {
+    pb.disabled = true;
+    try { await post("/api/hookpost", {hooks: loadHooks(), title: L.meta.name + " · Week " + L.detail.week + " recap", body: text.replace(/\*\*/g, "")}); $("#rcMsg").textContent = "Posted."; }
+    catch(e){ $("#rcMsg").textContent = e.message; pb.disabled = false; }
+  });
 }
 
 /* ---------- headlines ---------- */
@@ -2494,6 +2736,7 @@ async function refreshLive(){
   if (cur.tab === "leagues" && (cur.sub || "team") !== "fa") render();
 }
 setInterval(refreshLive, 60000);
+$("#coachFab").addEventListener("click", openCoach);
 if (hasAccts()) loadAll(); else getState().then(st => $("#wk").textContent = "Week " + (st.display_week || st.week)).catch(() => {});
 </script>
 </body>

@@ -172,7 +172,7 @@ export async function sendHook(u, items, origin) {
   const list = items.slice(0, 8);
   const plain = list.map(a => "• " + a.title + " — " + a.body + (a.url ? " " + a.url : "")).join("\n");
   let init;
-  if (kind === "discord") init = { body: JSON.stringify({ username: "Snap Count", embeds: list.map(a => ({ title: a.title.slice(0, 250), description: String(a.body || "").slice(0, 2000), url: a.url || origin + "/", color: 0xff7a3d })) }) };
+  if (kind === "discord") init = { body: JSON.stringify({ username: "Snap Count", embeds: list.map(a => ({ title: a.title.slice(0, 250), description: String(a.body || "").slice(0, 4000), url: a.url || origin + "/", color: 0xff7a3d })) }) };
   else if (kind === "slack") init = { body: JSON.stringify({ text: list.map(a => "*" + a.title + "*\n" + a.body + (a.url ? "\n<" + a.url + "|Read more>" : "")).join("\n\n") }) };
   else if (kind === "teams") init = { body: JSON.stringify({ text: list.map(a => "**" + a.title + "**  \n" + a.body).join("\n\n") }) };
   else if (kind === "telegram") init = { body: JSON.stringify({ text: plain.slice(0, 4000), disable_web_page_preview: true }) };
@@ -217,4 +217,51 @@ export async function mflLeagueTaken(L) {
     for (const f of arr((j.rosters || {}).franchise)) for (const p of arr(f.player)) { const q = pl[p.id]; if (q) set.add("nm:" + nrm(q[0]) + "|" + q[1]); }
     return set;
   } catch (e) { return null; }
+}
+
+/* ---------- AI coach (Cloudflare Workers AI, free tier) ---------- */
+const COACH_MODELS = ["@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/meta/llama-3.1-8b-instruct-fast", "@cf/meta/llama-3.1-8b-instruct"];
+const COACH_SYS = `You are Snap Count Coach, a sharp, confident fantasy football analyst inside the Snap Count app.
+You get a LEAGUE DATA block with the user's real roster, projections, injuries, opponent, standings, free agents and trade values. Treat it as the truth.
+Rules:
+- Base every recommendation on LEAGUE DATA. Name specific players and numbers from it (projections, values, records).
+- Never invent players, stats, injuries or news that are not in LEAGUE DATA. If something you need is missing, say what's missing in one short line and still give your best call.
+- Respect the league format in LEAGUE DATA (superflex/2QB means QBs are worth far more; dynasty means age and future value matter; keepers matter if listed).
+- Lead with the answer in one sentence, then 2-5 short bullet reasons. Under 170 words unless asked for more. No preamble, no disclaimers.
+- Only a player in a FREE AGENTS list can be picked up. Only players on other rosters can be traded for.
+- You can't make moves in the league yourself; tell the user what to do in their league app.`;
+const RECAP_SYS = `You write a punchy, funny weekly fantasy football league recap for a league group chat, like a sports columnist roasting friends.
+Use ONLY the matchups, scores, standings and player points in LEAGUE DATA. Never invent stats or events.
+Format: a headline line, then one short paragraph per matchup (winner, score, the star or the dud from the data), then a "Power rankings" list of every team (one line each with a quip), then one closing line. Under 380 words. No emojis overload: at most one per section.`;
+export async function coachRoute(request, env) {
+  if (request.method !== "POST") return out({ error: "POST only" }, 405);
+  if (!env.AI) return out({ error: "The AI coach isn't switched on for this app yet." }, 503);
+  const b = await request.json().catch(() => ({}));
+  const mode = b.mode === "recap" ? "recap" : "coach";
+  const ctx = String(b.ctx || "").slice(0, 14000);
+  const q = String(b.q || "").slice(0, 600);
+  if (mode === "coach" && !q.trim()) return out({ error: "Ask a question." }, 400);
+  const hist = (Array.isArray(b.history) ? b.history : []).slice(-6).map(m => ({ role: m.role === "assistant" ? "assistant" : "user", content: String(m.content || "").slice(0, 1500) }));
+  const messages = [{ role: "system", content: (mode === "recap" ? RECAP_SYS : COACH_SYS) + "\n\nLEAGUE DATA:\n" + ctx }]
+    .concat(hist).concat([{ role: "user", content: mode === "recap" ? "Write this week's recap." : q }]);
+  let lastErr = null;
+  for (const model of COACH_MODELS) {
+    try {
+      const stream = await env.AI.run(model, { messages, stream: true, max_tokens: mode === "recap" ? 900 : 600, temperature: mode === "recap" ? 0.8 : 0.4 });
+      return new Response(stream, { headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store", "x-model": model } });
+    } catch (e) { lastErr = e; }
+  }
+  return out({ error: "The AI coach is busy right now. Try again in a minute. (" + String(lastErr && lastErr.message || lastErr).slice(0, 120) + ")" }, 502);
+}
+
+/* ---------- post a message to the user's connected apps (recaps, shares) ---------- */
+export async function hookPostRoute(request) {
+  if (request.method !== "POST") return out({ error: "POST only" }, 405);
+  const b = await request.json().catch(() => ({}));
+  const hooks = (Array.isArray(b.hooks) ? b.hooks : []).map(String).filter(u => hookKind(u)).slice(0, 5);
+  if (!hooks.length) return out({ error: "Connect Discord, Slack or another app under Alerts first." }, 400);
+  const title = String(b.title || "Snap Count").slice(0, 200), body = String(b.body || "").slice(0, 3800);
+  const origin = new URL(request.url).origin;
+  const res = await Promise.all(hooks.map(u => sendHook(u, [{ id: "post", title, body }], origin).catch(() => 0)));
+  return res.some(s => s >= 200 && s < 300) ? out({ ok: true, sent: res.filter(s => s >= 200 && s < 300).length }) : out({ error: "Your connected app didn’t accept the message (" + res.join(", ") + ")." }, 502);
 }
