@@ -11,7 +11,6 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - Never break what works. Test in a headless browser against real Fleaflicker data before pushing. If tests fail, don't push.
 
 ## Next up (top first)
-- [ ] Sunday 11:00 ET AI pregame briefing: push + Discord/Slack post with start/sit calls, risky starters, best pickup.
 - [ ] FAAB bid suggestions for top free agents (based on league budget left and player value).
 - [ ] Negotiate mode: role-play the other manager with AI to practice a trade pitch, then send the final offer.
 - [ ] Rest-of-season strength of schedule for each of your starters and for your fantasy schedule.
@@ -31,3 +30,4 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [x] Edge tab (start/sit, waivers, playoff odds, dynasty, keepers)
 - [x] AI coach (voice, streaming), AI weekly recap (manual + Tuesday auto-post)
 - [x] Live win probability, every-sport scores, offline mode, app shortcuts, app badge
+- [x] Sunday 11:00 ET AI pregame briefing: push + Discord/Slack post with start/sit calls, risky starters, best pickup (Alerts › Sunday pregame briefing, with preview)

@@ -4,7 +4,7 @@
 // and sends phone notifications to each subscriber whose players or leagues are affected.
 
 import { ICON_192, ICON_512 } from "./icons.js";
-import { hookKind, sendHook, espnLeagueTaken, mflLeagueTaken, weeklyRecaps } from "./more.js";
+import { hookKind, sendHook, espnLeagueTaken, mflLeagueTaken, weeklyRecaps, aiComplete } from "./more.js";
 
 const UA = { "User-Agent": "SnapCount/1.0 (fantasy dashboard)", "Accept": "application/json" };
 const te = new TextEncoder();
@@ -90,8 +90,9 @@ export async function alertsRoute(request, env, p, url) {
           starters: (body.starters || []).slice(0, 80).map(String),
           bench: (body.bench || []).slice(0, 120).map(String),
           leagues: (body.leagues || []).slice(0, 30).map(l => ({ p: ["flea", "espn", "mfl"].includes(l.p) ? l.p : "sleeper", id: String(l.id), name: String(l.name || "").slice(0, 80), season: /^\d{4}$/.test(String(l.season || "")) ? String(l.season) : undefined })),
+          lineups: (Array.isArray(body.lineups) ? body.lineups : []).slice(0, 30).map(l => ({ p: ["flea", "espn", "mfl", "sleeper"].includes(l.p) ? l.p : null, id: String(l.id || ""), name: String(l.name || "").slice(0, 80), season: /^\d{4}$/.test(String(l.season || "")) ? String(l.season) : undefined, s: (l.s || []).slice(0, 30).map(String), b: (l.b || []).slice(0, 40).map(String) })),
           hooks: (body.hooks || []).map(String).filter(u => hookKind(u)).slice(0, 5),
-          prefs: { mine: body.prefs?.mine !== false, fa: body.prefs?.fa !== false, news: body.prefs?.news !== false, league: body.prefs?.league !== false, recap: body.prefs?.recap !== false, faPos: body.prefs?.faPos === "QB" ? "QB" : "ALL" },
+          prefs: { mine: body.prefs?.mine !== false, fa: body.prefs?.fa !== false, news: body.prefs?.news !== false, league: body.prefs?.league !== false, recap: body.prefs?.recap !== false, brief: body.prefs?.brief !== false, faPos: body.prefs?.faPos === "QB" ? "QB" : "ALL" },
           origin: url.origin
         };
         const prev = await env.SNAP.get("sub:" + id);
@@ -113,6 +114,15 @@ export async function alertsRoute(request, env, p, url) {
         const st = await sendHook(u, [{ id: "t", title: "Snap Count is connected", body: "Your fantasy alerts will show up here." }], url.origin);
         return st >= 200 && st < 300 ? out({ ok: true }) : out({ error: "That app answered " + st + ". Check the link and try again." }, 400);
       }
+      if (p === "/api/push/briefing") {
+        const rec = await env.SNAP.get("sub:" + id, "json");
+        if (!rec) return out({ error: "Turn on alerts or connect an app first." }, 404);
+        const b = await makeBriefing(Object.assign({}, env), rec);
+        if (!b) return out({ error: "Your lineups or this week’s projections aren’t loaded yet. Open your leagues and try again in a minute." }, 409);
+        if (b.over) return out({ error: "This week’s games have all kicked off, so there are no lineup moves left to make. Next week’s briefing will be ready once new projections post, usually by Wednesday." }, 409);
+        if (body.send) await deliver(env, id, rec, [{ id: "brief:now:" + Date.now(), title: b.title, body: b.short, full: b.full }]);
+        return out({ title: b.title, short: b.short, full: b.full, ai: b.ai, moves: b.moves, risky: b.risky, sent: !!body.send });
+      }
       if (p === "/api/push/test") {
         const rec = await env.SNAP.get("sub:" + id, "json");
         if (!rec) return out({ error: "This phone isn't signed up for alerts yet." }, 404);
@@ -132,6 +142,7 @@ export async function alertsRoute(request, env, p, url) {
     }
     if (p === "/api/push/run" && url.searchParams.get("what") === "recap") return out(await weeklyRecaps(Object.assign({}, env, { HOST: url.host }), true));
     if (p === "/api/push/run" && url.searchParams.get("what") === "league") return out(await leagueWatch(env, true));
+    if (p === "/api/push/run" && url.searchParams.get("what") === "brief") return out(await pregameBriefings(env, false));
     if (p === "/api/push/run" && url.searchParams.get("what") === "notes") return out(await runInjuryNotes(env));
     if (p === "/api/push/run" && url.searchParams.get("what") === "news") return out(await runHeadlines(env));
     if (p === "/api/push/run") {
@@ -446,6 +457,193 @@ export async function lineupCheck(env, force) {
   return { sent };
 }
 
+/* ---------- Sunday pregame briefing (11:00 AM Eastern): start/sit calls, risky starters, best pickup ---------- */
+const BRIEF_SYS = `You are Snap Count Coach writing a Sunday-morning pregame briefing for one fantasy football manager, read on a phone about two hours before kickoff.
+Use ONLY the facts in BRIEFING DATA (projections, injury and practice notes, suggested moves, free agents). Never invent players, stats or news.
+Format, plain text, no markdown headings:
+- First line: the single most important move in one sentence.
+- "Start/sit:" then one short line per suggested move with the projection numbers. If there are none, say the lineup is set.
+- "Risky starters:" one short line each with the reason and the backup plan. Skip this section if there are none.
+- "Best pickup:" one line per league that has one. Skip if none.
+Keep the league name in each line when there is more than one league. Under 140 words. Confident, no disclaimers, at most one emoji.`;
+const PRAC_TXT = { DNP: "missed practice", LP: "limited in practice", FP: "practiced fully" };
+const RISKY = new Set(["questionable", "doubtful", "gametimedecision"]);
+const nm1 = n => String(n || "").split(" ").slice(-1)[0];
+
+// Everyone's projection this week, keyed name|pos, from the alert snapshots (or Sleeper if a snapshot is missing).
+async function briefSlate(env) {
+  const byName = {}, rows = [];
+  let st = null;
+  for (const pos of ["QB", "RB", "WR", "TE"]) {
+    let p = null;
+    const sn = await env.SNAP.get("snap:" + pos, "json");
+    if (sn && sn.p && Date.now() - (sn.at || 0) < 4 * 86400e3) p = sn.p;
+    if (!p) {
+      try {
+        st = st || await (await fetch("https://api.sleeper.app/v1/state/nfl", { headers: UA })).json();
+        p = await readSlate(pos, st.league_season || st.season, st.display_week || st.week, st.season_type === "post" ? "post" : "regular");
+      } catch (e) { p = {}; }
+    }
+    for (const id in p) {
+      const v = p[id], r = { id, pos, name: v[0], team: v[1], status: v[2], part: v[3], proj: Number(v[4]) || 0 };
+      byName[norm(v[0]) + "|" + pos] = r; rows.push(r);
+    }
+  }
+  rows.sort((a, b) => b.proj - a.proj);
+  return { byName, rows };
+}
+// NFL teams whose game this week has already kicked off (Thursday/Friday/London games) — those players are locked.
+async function lockedTeams() {
+  const set = new Set();
+  try {
+    const r = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard", { headers: UA });
+    if (!r.ok) return set;
+    for (const e of (await r.json()).events || []) {
+      const c = (e.competitions || [])[0] || {}, state = ((c.status || e.status || {}).type || {}).state;
+      if (state && state !== "pre") (c.competitors || []).forEach(x => { const a = (x.team || {}).abbreviation; if (a) { set.add(a); if (a === "WSH") set.add("WAS"); if (a === "LAR") set.add("LA"); } });
+    }
+  } catch (e) {}
+  return set;
+}
+function lineupsOf(rec) {
+  if (Array.isArray(rec.lineups) && rec.lineups.length) return rec.lineups;
+  const L = rec.leagues || [];
+  // Older app versions sent one combined list; only trust bench swaps when there's a single league.
+  return (rec.starters || []).length ? [{ p: L.length === 1 ? L[0].p : null, id: L.length === 1 ? L[0].id : null, name: L.length === 1 ? L[0].name : "Your leagues", s: rec.starters || [], b: L.length === 1 ? rec.bench || [] : [] }] : [];
+}
+
+// Pure analysis: given the lineups, projections, injury report, locked teams and who's rostered, pick the moves.
+export function briefingCalls(lineups, slate, inj, locked, rosteredFor) {
+  const res = [];
+  for (const lu of lineups) {
+    const out = { name: lu.name || "Your league", swaps: [], risky: [], pickup: null };
+    const info = k => {
+      const v = slate.byName[k], i = inj[k] || {};
+      if (!v) return null;
+      const status = v.status || (i.status && !/^active$/i.test(i.status) ? i.status : "");
+      return Object.assign({}, v, { key: k, status, prac: i.prac || "", note: i.short || "", locked: locked.has(v.team) });
+    };
+    const starters = (lu.s || []).map(info).filter(Boolean);
+    const bench = (lu.b || []).map(info).filter(x => x && !x.locked && !OUTISH.has(norm(x.status)) && x.proj > 0);
+    const used = new Set();
+    const bestBench = (pos, min) => bench.filter(x => x.pos === pos && !used.has(x.key) && x.proj > min).sort((a, b) => b.proj - a.proj)[0];
+    const st = norm, cands = [];
+    for (const s of starters) {
+      if (s.locked) continue;
+      const out_ = OUTISH.has(st(s.status)), bye = !s.status && !s.proj;
+      if (out_ || bye) cands.push({ s, why: out_ ? "is " + s.status.toUpperCase() : "is projected for 0 (bye or inactive)", must: true });
+      else cands.push({ s, why: "", must: false });
+    }
+    cands.sort((a, b) => b.must - a.must || a.s.proj - b.s.proj);
+    for (const c of cands) {
+      const alt = bestBench(c.s.pos, c.must ? 0 : c.s.proj + 3);
+      if (alt) { used.add(alt.key); out.swaps.push({ start: alt.name, sit: c.s.name, pos: c.s.pos, startProj: alt.proj, sitProj: c.s.proj, why: c.why, gain: alt.proj - c.s.proj }); }
+      else if (c.must) out.risky.push({ name: c.s.name, pos: c.s.pos, proj: c.s.proj, why: c.why, backup: null, must: true });
+    }
+    const swapped = new Set(out.swaps.map(x => x.sit));
+    for (const s of starters) {
+      if (s.locked || swapped.has(s.name) || OUTISH.has(st(s.status)) || (!s.status && !s.proj)) continue;
+      const q = RISKY.has(st(s.status)), pr = s.prac === "DNP" || s.prac === "LP";
+      if (!q && !pr) continue;
+      const alt = bench.filter(x => x.pos === s.pos && !used.has(x.key)).sort((a, b) => b.proj - a.proj)[0];
+      out.risky.push({ name: s.name, pos: s.pos, proj: s.proj, why: [s.status, pr ? PRAC_TXT[s.prac] : ""].filter(Boolean).join(", "), backup: alt ? alt.name + " (" + fmtPts(alt.proj) + ")" : null, late: false });
+    }
+    const taken = rosteredFor ? rosteredFor(lu) : null;
+    if (taken) {
+      // Compare free agents with the lineup after the suggested swaps.
+      const sitting = new Set(out.swaps.map(x => x.sit)), lineup = starters.filter(s => !sitting.has(s.name)).map(s => ({ name: s.name, pos: s.pos, proj: OUTISH.has(st(s.status)) ? 0 : s.proj }))
+        .concat(out.swaps.map(x => ({ name: x.start, pos: x.pos, proj: x.startProj })));
+      const weakest = {}, weakName = {};
+      lineup.forEach(s => { if (!(s.pos in weakest) || s.proj < weakest[s.pos]) { weakest[s.pos] = s.proj; weakName[s.pos] = s.name; } });
+      const free = slate.rows.filter(r => r.proj >= 5 && r.team && !locked.has(r.team) && !OUTISH.has(st(r.status)) && !(lu.p === "sleeper" ? taken.has("id:" + r.id) : taken.has("nm:" + norm(r.name) + "|" + r.pos)));
+      let best = null;
+      for (const r of free.slice(0, 60)) {
+        const gain = r.pos in weakest ? r.proj - weakest[r.pos] : -99;
+        if (!best || gain > best.gain) best = { name: r.name, pos: r.pos, team: r.team, proj: r.proj, status: r.status, gain, over: weakName[r.pos] || null };
+      }
+      if (!best && free.length) { const r = free[0]; best = { name: r.name, pos: r.pos, team: r.team, proj: r.proj, status: r.status, gain: -99, over: null }; }
+      if (best && best.gain <= 0) best.over = null;
+      out.pickup = best;
+    }
+    res.push(out);
+  }
+  return res;
+}
+
+export function briefingText(calls) {
+  const multi = calls.length > 1, tag = c => multi ? c.name + ": " : "";
+  const swaps = calls.flatMap(c => c.swaps.map(x => ({ c, x }))), risky = calls.flatMap(c => c.risky.map(x => ({ c, x }))), picks = calls.filter(c => c.pickup);
+  const lines = [];
+  lines.push("Start/sit:");
+  if (swaps.length) swaps.forEach(({ c, x }) => lines.push("• " + tag(c) + "Start " + x.start + " (" + fmtPts(x.startProj) + ") over " + x.sit + " (" + fmtPts(x.sitProj) + "). " + (x.why ? x.sit + " " + x.why + "." : "That’s +" + x.gain.toFixed(1) + " projected.")));
+  else lines.push("• Your lineup" + (multi ? "s are" : " is") + " set. No bench player projects meaningfully better than a starter.");
+  if (risky.length) { lines.push("", "Risky starters:"); risky.forEach(({ c, x }) => lines.push("• " + tag(c) + x.name + " " + (x.must ? x.why + " and you have no healthy " + x.pos + " on the bench. Pick one up." : "(" + x.why + ")." + (x.backup ? " Backup plan: " + x.backup + "." : " No healthy " + x.pos + " backup on your bench.")))); }
+  if (picks.length) { lines.push("", "Best pickup:"); picks.forEach(c => { const p = c.pickup; lines.push("• " + tag(c) + p.name + " (" + p.pos + ", " + p.team + ") projected " + fmtPts(p.proj) + (p.over ? ", more than " + p.over + " (" + "+" + p.gain.toFixed(1) + ")" : "") + (p.status ? ". Listed " + p.status : "") + "."); }); }
+  const short = [];
+  swaps.slice(0, 2).forEach(({ x }) => short.push("Start " + x.start + " over " + x.sit + "."));
+  const rNames = [...new Map(risky.map(({ x }) => [x.name, nm1(x.name) + " (" + x.why.replace(/^is /, "") + ")"])).values()];
+  if (rNames.length) short.push("Risky: " + rNames.slice(0, 2).join(", ") + ".");
+  const bp = picks.map(c => c.pickup).sort((a, b) => b.gain - a.gain)[0];
+  if (bp) short.push("Grab " + bp.name + " (" + bp.pos + ", " + fmtPts(bp.proj) + ").");
+  if (!swaps.length && !risky.length) short.unshift("Lineup looks set.");
+  const n = swaps.length + risky.filter(r => r.x.must).length;
+  const title = "Sunday briefing: " + (n ? n + " lineup move" + (n > 1 ? "s" : "") : risky.length ? risky.length + " risky starter" + (risky.length > 1 ? "s" : "") : "you're set");
+  return { title, short: short.join(" "), text: lines.join("\n"), moves: n, risky: risky.length };
+}
+function briefingData(calls) {
+  const o = [];
+  for (const c of calls) {
+    o.push("LEAGUE: " + c.name);
+    c.swaps.forEach(x => o.push("- MOVE: start " + x.start + " (" + x.pos + ", proj " + fmtPts(x.startProj) + ") instead of " + x.sit + " (proj " + fmtPts(x.sitProj) + ")" + (x.why ? "; " + x.sit + " " + x.why : "; +" + x.gain.toFixed(1) + " projected")));
+    if (!c.swaps.length) o.push("- No lineup moves needed.");
+    c.risky.forEach(x => o.push("- RISKY STARTER: " + x.name + " (" + x.pos + ", proj " + fmtPts(x.proj) + "): " + x.why + (x.backup ? "; backup on bench: " + x.backup : x.must ? "; no healthy backup on the bench" : "; no backup on the bench")));
+    if (c.pickup) o.push("- BEST FREE AGENT: " + c.pickup.name + " (" + c.pickup.pos + ", " + c.pickup.team + ", proj " + fmtPts(c.pickup.proj) + ")" + (c.pickup.over ? ", outprojects starter " + c.pickup.over + " by " + c.pickup.gain.toFixed(1) : ""));
+  }
+  return o.join("\n");
+}
+
+// Build one person's briefing. `shared` caches the slate, injury report and rosters across subscribers in a cron run.
+export async function makeBriefing(env, rec, shared) {
+  shared = shared || {};
+  const lineups = lineupsOf(rec);
+  if (!lineups.length) return null;
+  if (!shared.slate) shared.slate = await briefSlate(env);
+  if (!shared.inj) shared.inj = await readInjuries().catch(() => ({}));
+  if (!shared.locked) shared.locked = await lockedTeams();
+  if (!shared.rost) shared.rost = new Map();
+  if (!shared.slate.rows.length) return null;
+  const sets = new Map();
+  for (const lu of lineups) if (lu.id && lu.p) sets.set(lu, await leagueRostered({ p: lu.p, id: lu.id, season: lu.season }, shared.rost));
+  const known = lineups.flatMap(lu => (lu.s || []).map(k => shared.slate.byName[k]).filter(Boolean));
+  if (known.length && known.every(v => shared.locked.has(v.team))) return { over: true };
+  const calls = briefingCalls(lineups, shared.slate, shared.inj, shared.locked, lu => sets.get(lu) || null);
+  const b = briefingText(calls);
+  const ai = await aiComplete(env, BRIEF_SYS + "\n\nBRIEFING DATA:\n" + briefingData(calls), "Write my pregame briefing.", 420, 0.4);
+  return Object.assign(b, { full: ai || b.text, ai: !!ai, calls });
+}
+
+export async function pregameBriefings(env, force) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()).map(x => [x.type, x.value]));
+  if (!force && (parts.weekday !== "Sun" || Number(parts.hour) !== 11 || Number(parts.minute) >= 30)) return { skipped: true };
+  const day = parts.year + parts.month + parts.day, shared = {};
+  const list = await env.SNAP.list({ prefix: "sub:" });
+  let sent = 0, done = 0;
+  for (const k of list.keys) {
+    if (done >= 8) break; // spread big lists over the 11:00-11:29 window
+    const id = k.name.slice(4), key = "bf:" + day + ":" + id;
+    if (await env.SNAP.get(key)) continue;
+    await env.SNAP.put(key, "1", { expirationTtl: 172800 });
+    const rec = await env.SNAP.get(k.name, "json");
+    if (!rec || (rec.prefs || {}).brief === false) continue;
+    done++;
+    try {
+      const b = await makeBriefing(env, rec, shared);
+      if (b && !b.over) sent += await deliver(env, id, rec, [{ id: "brief:" + day, title: b.title, body: b.short, full: b.full }]);
+    } catch (e) {}
+  }
+  return { sent, handled: done };
+}
+
 // Every 5 minutes: new trades, trades up for review, trade-block posts and QB pickups in each Fleaflicker league people follow.
 const ORDN = r => r + (r === 1 ? "st" : r === 2 ? "nd" : r === 3 ? "rd" : "th");
 export function activityMessages(lname, fresh, newReview) {
@@ -491,6 +689,7 @@ export async function leagueWatch(env, force) {
 
 export async function runMinute(env) {
   await leagueWatch(env).catch(() => {});
+  await pregameBriefings(env).catch(() => {});
   await lineupCheck(env).catch(() => {});
   await runChecks(env, "QB").catch(() => {});
   const m = new Date().getUTCMinutes();

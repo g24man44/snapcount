@@ -170,14 +170,15 @@ export function hookKind(u) {
 export async function sendHook(u, items, origin) {
   const kind = hookKind(u); if (!kind || !items.length) return 0;
   const list = items.slice(0, 8);
-  const plain = list.map(a => "• " + a.title + " — " + a.body + (a.url ? " " + a.url : "")).join("\n");
+  const txt = a => String(a.full || a.body || "");
+  const plain = list.map(a => "• " + a.title + " — " + txt(a) + (a.url ? " " + a.url : "")).join("\n");
   let init;
-  if (kind === "discord") init = { body: JSON.stringify({ username: "Snap Count", embeds: list.map(a => ({ title: a.title.slice(0, 250), description: String(a.body || "").slice(0, 4000), url: a.url || origin + "/", color: 0xff7a3d })) }) };
-  else if (kind === "slack") init = { body: JSON.stringify({ text: list.map(a => "*" + a.title + "*\n" + a.body + (a.url ? "\n<" + a.url + "|Read more>" : "")).join("\n\n") }) };
-  else if (kind === "teams") init = { body: JSON.stringify({ text: list.map(a => "**" + a.title + "**  \n" + a.body).join("\n\n") }) };
+  if (kind === "discord") init = { body: JSON.stringify({ username: "Snap Count", embeds: list.map(a => ({ title: a.title.slice(0, 250), description: txt(a).slice(0, 4000), url: a.url || origin + "/", color: 0xff7a3d })) }) };
+  else if (kind === "slack") init = { body: JSON.stringify({ text: list.map(a => "*" + a.title + "*\n" + txt(a) + (a.url ? "\n<" + a.url + "|Read more>" : "")).join("\n\n") }) };
+  else if (kind === "teams") init = { body: JSON.stringify({ text: list.map(a => "**" + a.title + "**  \n" + txt(a).replace(/\n/g, "  \n")).join("\n\n") }) };
   else if (kind === "telegram") init = { body: JSON.stringify({ text: plain.slice(0, 4000), disable_web_page_preview: true }) };
-  else if (kind === "ntfy") return (await fetch(u, { method: "POST", headers: { Title: list.length === 1 ? list[0].title.replace(/[^\x20-\x7e]/g, "") : "Snap Count: " + list.length + " alerts", Tags: "football", Click: list[0].url || origin + "/" }, body: list.length === 1 ? list[0].body : plain })).status;
-  else init = { body: JSON.stringify({ value1: list[0].title, value2: list[0].body, value3: list[0].url || origin + "/", alerts: list }) };
+  else if (kind === "ntfy") return (await fetch(u, { method: "POST", headers: { Title: list.length === 1 ? list[0].title.replace(/[^\x20-\x7e]/g, "") : "Snap Count: " + list.length + " alerts", Tags: "football", Click: list[0].url || origin + "/" }, body: list.length === 1 ? txt(list[0]) : plain })).status;
+  else init = { body: JSON.stringify({ value1: list[0].title, value2: txt(list[0]), value3: list[0].url || origin + "/", alerts: list }) };
   const r = await fetch(u, Object.assign({ method: "POST", headers: { "content-type": "application/json" } }, init));
   return r.status;
 }
@@ -252,6 +253,19 @@ export async function coachRoute(request, env) {
     } catch (e) { lastErr = e; }
   }
   return out({ error: "The AI coach is busy right now. Try again in a minute. (" + String(lastErr && lastErr.message || lastErr).slice(0, 120) + ")" }, 502);
+}
+
+// One-shot AI text (no streaming) with model fallback; returns "" if the AI is unavailable.
+export async function aiComplete(env, system, user, maxTokens, temperature) {
+  if (!env.AI) return "";
+  for (const model of COACH_MODELS) {
+    try {
+      const ai = await env.AI.run(model, { messages: [{ role: "system", content: system }, { role: "user", content: user }], max_tokens: maxTokens || 600, temperature: temperature ?? 0.4 });
+      const text = String((ai && (ai.response || (ai.choices && ai.choices[0] && ai.choices[0].message && ai.choices[0].message.content))) || "").replace(/\*\*/g, "").trim();
+      if (text) return text;
+    } catch (e) {}
+  }
+  return "";
 }
 
 /* ---------- post a message to the user's connected apps (recaps, shares) ---------- */

@@ -197,6 +197,8 @@ form.add{display:flex;flex-direction:column;gap:10px}
 .news a+a,.nitem+.nitem,.alitem+.alitem,.news a+.nitem,.nitem+a{border-top:1px solid var(--line)}
 .news a b,.nitem b{display:block;line-height:1.35;font-weight:700}
 .news a small,.nitem small,.alitem small{color:var(--muted);font-size:12.5px}
+.alitem .alfull{white-space:pre-line}
+.bftitle{display:block;font-size:17px;margin-bottom:8px}
 .nbody{display:block;font-size:14px;line-height:1.5;margin:4px 0;color:var(--ink);opacity:.9}
 .alitem{display:flex;flex-direction:column;gap:3px}
 .alitem span{font-size:14px}
@@ -2593,7 +2595,7 @@ async function post(path, body){
   if (!r.ok) throw new Error(j.error || ("Request failed (" + r.status + ")"));
   return j;
 }
-function alertPrefs(){ try { return Object.assign({mine:true, fa:true, news:true, league:true, faPos:"ALL"}, JSON.parse(localStorage.getItem(KEY + ".alerts") || "{}")); } catch(e){ return {mine:true, fa:true, news:true, league:true, faPos:"ALL"}; } }
+function alertPrefs(){ try { return Object.assign({mine:true, fa:true, news:true, league:true, brief:true, faPos:"ALL"}, JSON.parse(localStorage.getItem(KEY + ".alerts") || "{}")); } catch(e){ return {mine:true, fa:true, news:true, league:true, brief:true, faPos:"ALL"}; } }
 function saveAlertPrefs(p){ try { localStorage.setItem(KEY + ".alerts", JSON.stringify(p)); } catch(e){} }
 function b64uBytes(s){ s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; const b = atob(s), a = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; }
 async function getSub(){
@@ -2607,10 +2609,12 @@ function watchList(){
     const me = d.teams.find(t => t.mine); if (!me) return;
     me.roster.forEach(p => { if (L.meta.platform === "sleeper") ids.add(String(p.id)); if (p.name) names.add(norm(p.name) + "|" + (p.pos || "")); });
   });
-  const starters = [], bench = [];
+  const starters = [], bench = [], lineups = [];
   leagues.forEach(L => { const me = L.detail && L.detail.teams.find(t => t.mine); if (!me) return;
-    me.roster.forEach(p => { if (!p.name) return; const k = norm(p.name) + "|" + (p.pos || ""); if (p.slot === "start") starters.push(k); else if (p.slot === "bench") bench.push(k); }); });
-  return {ids:[...ids], names:[...names], starters, bench, leagues: leagues.map(L => ({p:L.meta.platform, id:L.meta.id, name:L.meta.name, season:L.meta.season}))};
+    const lu = {p:L.meta.platform, id:L.meta.id, name:L.meta.name, season:L.meta.season, s:[], b:[]};
+    me.roster.forEach(p => { if (!p.name) return; const k = norm(p.name) + "|" + (p.pos || ""); if (p.slot === "start") { starters.push(k); lu.s.push(k); } else if (p.slot === "bench") { bench.push(k); lu.b.push(k); } });
+    if (lu.s.length) lineups.push(lu); });
+  return {ids:[...ids], names:[...names], starters, bench, lineups, leagues: leagues.map(L => ({p:L.meta.platform, id:L.meta.id, name:L.meta.name, season:L.meta.season}))};
 }
 let alertState = {sub:null, watching:null, msg:"", busy:false, list:null};
 function loadHooks(){ try { return JSON.parse(localStorage.getItem(KEY + ".hooks") || "[]"); } catch(e){ return []; } }
@@ -2646,7 +2650,7 @@ function hookName(u){ return /discord/.test(u) ? "Discord" : /slack/.test(u) ? "
 function hooksCard(){
   const hooks = loadHooks();
   return '<h3>Send alerts to your other apps</h3><div class="card stackc" style="gap:10px">' +
-    '<p class="small muted" style="margin:0">Every alert can also post to a Discord or Slack channel (great for your whole league), Microsoft Teams, Telegram, the ntfy app, or anything else through IFTTT, Zapier or Make. Paste the app’s webhook link.</p><p class="small muted" style="margin:0"><b>Bonus:</b> every Tuesday morning an AI-written recap of your Fleaflicker league (scores, stars, duds, power rankings) posts there automatically.</p>' +
+    '<p class="small muted" style="margin:0">Every alert can also post to a Discord or Slack channel (great for your whole league), Microsoft Teams, Telegram, the ntfy app, or anything else through IFTTT, Zapier or Make. Paste the app’s webhook link.</p><p class="small muted" style="margin:0"><b>Bonus:</b> every Sunday at 11 AM Eastern your AI pregame briefing posts there, and every Tuesday morning an AI-written recap of your Fleaflicker league (scores, stars, duds, power rankings) posts there automatically.</p>' +
     (hooks.length ? hooks.map((u, i) => '<div class="acct"><span><b>' + hookName(u) + '</b> <span class="small muted">' + esc(u.replace(/^https:\/\//, "").slice(0, 34)) + '…</span></span><button class="icon" data-hrm="' + i + '">Remove</button></div>').join("") : "") +
     '<input id="hookIn" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://discord.com/api/webhooks/…">' +
     '<details class="small"><summary>Where do I find the link?</summary><p class="muted" style="margin:6px 0 0"><b>Discord:</b> channel settings › Integrations › Webhooks › New Webhook › Copy URL.<br><b>Slack:</b> add the Incoming Webhooks app to a channel and copy its URL.<br><b>Teams:</b> channel › Workflows › “Post to a channel when a webhook request is received”.<br><b>Telegram:</b> https://api.telegram.org/bot&lt;token&gt;/sendMessage?chat_id=&lt;id&gt;<br><b>ntfy:</b> install ntfy, subscribe to a topic name only you know, and paste https://ntfy.sh/your-topic.<br><b>IFTTT:</b> Webhooks service › Documentation › copy the trigger URL. Zapier and Make: “Catch hook” URL.</p></details>' +
@@ -2683,13 +2687,45 @@ function calCard(){
     '<button type="button" class="btn ghost" data-copy="' + esc(u) + '">Copy link for Outlook or other apps</button></div>';
 }
 
+/* ---------- Sunday pregame briefing ---------- */
+function briefCard(on){
+  if (!on && !loadHooks().length) return "";
+  return '<h3>Sunday pregame briefing</h3><div class="card stackc" style="gap:10px"><p class="small muted" style="margin:0">Every Sunday at 11 AM Eastern, before the early games lock, the AI coach checks your lineups against the latest projections and injury report and sends you the moves to make: who to start or sit, which starters are risky and the best free agent to grab.' + (on ? "" : " It posts to your connected apps.") + '</p><button type="button" class="btn aibtn" id="briefBtn"><span class="spark">✦</span> Preview this week’s briefing</button></div>';
+}
+function wireBrief(v){ const b = v.querySelector("#briefBtn"); if (b) b.addEventListener("click", openBriefing); }
+async function openBriefing(){
+  const sh = $("#sheet"), p = $("#sheetPanel");
+  const endpoint = alertState.sub ? alertState.sub.endpoint : hookEndpoint();
+  p.innerHTML = '<button class="back" id="closeSheet">Close</button><h2><span class="spark">✦</span> Pregame briefing</h2><div id="bfText" class="card recap"><span class="typing"><i></i><i></i><i></i></span></div><div class="sendrow" id="bfAct" hidden><button type="button" class="btn" id="bfSend">Send it to ' + (alertState.sub ? "this phone" : "my apps") + (alertState.sub && loadHooks().length ? " &amp; apps" : "") + '</button><button type="button" class="btn ghost" id="bfShare">Share</button></div><p class="small muted" id="bfMsg" style="margin:8px 2px 0">Built from your live lineups, this week’s projections and the injury report. AI can be wrong, so double-check big moves.</p>';
+  sh.hidden = false;
+  p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+  const el = $("#bfText"); let res = null;
+  try {
+    await syncAlerts(alertState.sub || undefined);
+    res = await post("/api/push/briefing", {endpoint});
+  } catch(e){ el.innerHTML = '<div class="err">' + esc(e.message) + "</div>"; return; }
+  if (!$("#bfText")) return;
+  el.innerHTML = '<b class="bftitle">' + esc(res.title) + "</b>" + mdLite(res.full);
+  $("#bfAct").hidden = false;
+  $("#bfSend").addEventListener("click", async e => {
+    const b = e.currentTarget; b.disabled = true; b.textContent = "Sending…";
+    try { await post("/api/push/briefing", {endpoint, send:true}); $("#bfMsg").textContent = "Sent. It’s in your recent alerts too."; b.textContent = "Sent"; }
+    catch(err){ $("#bfMsg").textContent = err.message; b.disabled = false; b.textContent = "Try again"; }
+  });
+  $("#bfShare").addEventListener("click", async () => {
+    const t = res.title + "\n\n" + res.full;
+    if (navigator.share) { try { await navigator.share({title: res.title, text: t}); return; } catch(e){ if (e.name === "AbortError") return; } }
+    try { await navigator.clipboard.writeText(t); $("#bfMsg").textContent = "Copied."; } catch(e){ $("#bfMsg").textContent = "Couldn’t copy."; }
+  });
+}
+
 function wireCopy(v){ v.querySelectorAll("[data-copy]").forEach(b => { if (b.dataset.wired) return; b.dataset.wired = 1; const t0 = b.textContent; b.addEventListener("click", async () => { try { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = "Copied"; } catch(e){ b.textContent = "Copy failed"; } setTimeout(() => { b.textContent = t0; }, 1800); }); }); }
 async function renderAlerts(v){
   const prefs = alertPrefs();
   let h = "<h2>Alerts</h2>";
   if (!pushOK) {
-    v.innerHTML = h + '<div class="card"><p style="margin:0">This browser can’t show phone notifications.</p><p class="small muted" style="margin:8px 0 0">On iPhone, tap Share, then Add to Home Screen, and open Snap Count from your home screen. On Android, use Chrome. You can still get every alert in Discord, Slack, Telegram or another app below.</p></div>' + (alertState.msg ? '<p class="small" style="margin:8px 0 0">' + esc(alertState.msg) + "</p>" : "") + hooksCard() + calCard();
-    wireHooks(v); wireCopy(v);
+    v.innerHTML = h + '<div class="card"><p style="margin:0">This browser can’t show phone notifications.</p><p class="small muted" style="margin:8px 0 0">On iPhone, tap Share, then Add to Home Screen, and open Snap Count from your home screen. On Android, use Chrome. You can still get every alert in Discord, Slack, Telegram or another app below.</p></div>' + (alertState.msg ? '<p class="small" style="margin:8px 0 0">' + esc(alertState.msg) + "</p>" : "") + briefCard(!!alertState.sub) + hooksCard() + calCard();
+    wireHooks(v); wireCopy(v); wireBrief(v);
     return;
   }
   const sub = alertState.sub = await getSub();
@@ -2699,9 +2735,9 @@ async function renderAlerts(v){
       '<button class="btn" id="alOn" style="width:100%;margin-top:6px">Turn on alerts</button>' +
       (hasAccts() ? "" : '<p class="small muted" style="margin:10px 0 0">Add your leagues under Accounts first so we know who your players are.</p>') + "</div>";
     if (alertState.msg) h += '<div class="' + (/connected/.test(alertState.msg) ? "small" : "err") + '" style="margin-top:10px">' + esc(alertState.msg) + "</div>";
-    h += hooksCard() + calCard();
+    h += briefCard(!!alertState.sub) + hooksCard() + calCard();
     v.innerHTML = h;
-    wireHooks(v); wireCopy(v);
+    wireHooks(v); wireCopy(v); wireBrief(v);
     v.querySelector("#alOn").addEventListener("click", async e => {
       e.target.disabled = true; e.target.textContent = "Turning on…"; alertState.msg = "";
       try { await enableAlerts(); } catch(err){ alertState.msg = err.message; }
@@ -2719,18 +2755,20 @@ async function renderAlerts(v){
     '<label class="toggle"><input type="checkbox" id="alFa"' + (prefs.fa ? " checked" : "") + "> Free agents: new starters and projection jumps</label>" +
     '<label class="toggle"><input type="checkbox" id="alNews"' + (prefs.news ? " checked" : "") + "> News: injury report notes and headlines about my players</label>" +
     '<label class="toggle"><input type="checkbox" id="alLeague"' + (prefs.league ? " checked" : "") + "> League activity: trades, trade-block posts and QB pickups (Fleaflicker)</label>" +
+    '<label class="toggle"><input type="checkbox" id="alBrief"' + (prefs.brief ? " checked" : "") + "> Sunday pregame briefing at 11 AM ET: start/sit calls, risky starters and the best pickup</label>" +
     '<div class="seg" role="group" aria-label="Free agent positions"><button type="button" data-fp="ALL" aria-pressed="' + (prefs.faPos === "ALL") + '">All positions</button><button type="button" data-fp="QB" aria-pressed="' + (prefs.faPos === "QB") + '">QBs only</button></div></div>';
   h += '<div class="btnrow"><button class="btn ghost" id="alTest">Send a test alert</button><button class="btn ghost" id="alOff">Turn off</button></div>';
   if (alertState.msg) h += '<p class="small" style="margin:8px 0 0">' + esc(alertState.msg) + "</p>";
-  h += hooksCard() + calCard();
+  h += briefCard(!!alertState.sub) + hooksCard() + calCard();
   h += '<h3>Recent alerts</h3><div id="alList"><p class="spin">Loading…</p></div>';
   v.innerHTML = h;
-  wireHooks(v); wireCopy(v);
+  wireHooks(v); wireCopy(v); wireBrief(v);
   const savePrefs = async p => { saveAlertPrefs(p); alertState.msg = ""; try { await syncAlerts(sub); } catch(e){ alertState.msg = e.message; } render(); };
   v.querySelector("#alMine").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {mine:e.target.checked})));
   v.querySelector("#alFa").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {fa:e.target.checked})));
   v.querySelector("#alLeague").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {league:e.target.checked})));
   v.querySelector("#alNews").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {news:e.target.checked})));
+  v.querySelector("#alBrief").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {brief:e.target.checked})));
   v.querySelectorAll("[data-fp]").forEach(b => b.addEventListener("click", () => savePrefs(Object.assign(alertPrefs(), {faPos:b.dataset.fp}))));
   v.querySelector("#alTest").addEventListener("click", async e => {
     e.target.disabled = true; e.target.textContent = "Sending…";
@@ -2746,7 +2784,7 @@ async function renderAlerts(v){
   try {
     const r = await api("/api/push/alerts?e=" + encodeURIComponent(sub.endpoint));
     const list = r.alerts || [], el = $("#alList"); if (!el) return;
-    el.innerHTML = list.length ? '<div class="news card" style="padding:0">' + list.map(a => (a.url ? '<a class="alitem" href="' + esc(a.url) + '" target="_blank" rel="noopener">' : '<div class="alitem">') + "<b>" + esc(a.title) + "</b><span>" + esc(a.body) + "</span><small>" + fmtWhen(a.t) + (a.url ? " · Read the story" : "") + "</small>" + (a.url ? "</a>" : "</div>")).join("") + "</div>" : '<p class="muted small">Nothing yet. You’ll see every alert here too.</p>';
+    el.innerHTML = list.length ? '<div class="news card" style="padding:0">' + list.map(a => (a.url ? '<a class="alitem" href="' + esc(a.url) + '" target="_blank" rel="noopener">' : '<div class="alitem">') + "<b>" + esc(a.title) + "</b><span" + (a.full ? ' class="alfull"' : "") + ">" + esc(a.full || a.body) + "</span><small>" + fmtWhen(a.t) + (a.url ? " · Read the story" : "") + "</small>" + (a.url ? "</a>" : "</div>")).join("") + "</div>" : '<p class="muted small">Nothing yet. You’ll see every alert here too.</p>';
   } catch(e){ const el = $("#alList"); if (el) el.innerHTML = '<div class="err">Couldn’t load your alerts: ' + esc(e.message) + "</div>"; }
 }
 if (pushOK) navigator.serviceWorker.addEventListener("message", e => { if (e.data && e.data.open === "alerts") setTab("alerts"); });
