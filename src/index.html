@@ -199,6 +199,7 @@ form.add{display:flex;flex-direction:column;gap:10px}
 .sosc{padding:10px 12px}.sosr+.sosr{border-top:1px solid var(--line);margin-top:8px;padding-top:8px}.sosn{display:block;width:100%;text-align:left;background:none;border:0;color:var(--ink);padding:0}.sosn b{display:block;font-size:15px}.sosn small{display:flex;flex-wrap:wrap;gap:4px;align-items:center;font-size:12px;margin-top:2px}
 .sosw{display:flex;gap:4px;overflow-x:auto;margin-top:6px;scrollbar-width:none}.sosx{flex:none;min-width:44px;padding:4px 2px;border-radius:8px;font-size:11.5px;font-weight:700;text-align:center;background:var(--surface2);color:var(--muted);display:flex;flex-direction:column;gap:1px;border:1.5px solid transparent}
 .sosx small{font-size:9.5px;font-weight:600}.sosx.easy{background:var(--ok-soft);color:var(--ok)}.sosx.hard{background:var(--bad-soft);color:var(--bad)}.sosx.bye{background:transparent;border:1.5px dashed var(--line);color:var(--muted)}.sosx.po{border-color:var(--accent)}
+.swbar{display:block;height:4px;border-radius:4px;background:var(--surface3);margin-top:6px;overflow:hidden}.swbar span{display:block;height:100%;border-radius:4px}
 .ltc{margin-bottom:10px}.lth{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-bottom:8px}
 .lts{display:grid;grid-template-columns:44px 1fr;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
 .ltg{display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:40px;border-radius:12px;font-weight:900;font-size:17px;background:var(--surface2);color:var(--ink)}
@@ -676,6 +677,7 @@ function renderLeagues(v){
   leaguesErr.forEach(e => h += '<div class="err">' + esc(e) + "</div>");
   if (!leaguesLoaded) { v.innerHTML = h + '<p class="spin">Loading your leagues…</p>'; return; }
   if (!leagues.length) { v.innerHTML = h + '<p class="muted">No leagues found for this season.</p>'; return; }
+  if (leagues.some(L => L.detail && L.detail.teams.some(t => t.mine))) h += '<button type="button" class="btn ghost" id="sweatBtn" style="width:100%;margin-top:12px">🔥 Sweat board: all your starters, live</button>';
   h += '<div class="stack" style="margin-top:12px">';
   leagues.forEach((L, i) => {
     const m = L.meta, d = L.detail;
@@ -698,6 +700,7 @@ function renderLeagues(v){
   });
   v.innerHTML = h + "</div>";
   v.querySelectorAll("[data-l]").forEach(b => b.addEventListener("click", () => { cur.league = +b.dataset.l; cur.team = null; render(); window.scrollTo(0,0); }));
+  const sw = v.querySelector("#sweatBtn"); if (sw) sw.addEventListener("click", openSweat);
 }
 
 /* ---------- NFL games (live status for every player) ---------- */
@@ -2375,6 +2378,51 @@ async function openPower(L){
   });
   const pb = p.querySelector("#pwPost");
   if (pb) pb.addEventListener("click", async () => { pb.disabled = true; try { await post("/api/hookpost", {hooks: loadHooks(), title: L.meta.name + " · power rankings after week " + last, body: text.split("\n").slice(1).join("\n")}); $("#pwMsg").textContent = "Posted."; } catch(e){ $("#pwMsg").textContent = e.message; pb.disabled = false; } });
+}
+
+/* ---------- game-day sweat board: every starter in every league, live ---------- */
+let sweatTimer = null;
+async function openSweat(){
+  const sh = $("#sheet"), p = $("#sheetPanel");
+  p.innerHTML = '<button class="back" id="closeSheet">Close</button><h2>🔥 Sweat board</h2><p class="spin">Loading every lineup…</p>';
+  sh.hidden = false; p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+  const load = async () => {
+    await Promise.all([getPlayers(), getProj(), loadScoreboard()]);
+    const ready = leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine));
+    await Promise.all(ready.map(L => { const me = L.detail.teams.find(t => t.mine); return rosterFor(L, me).catch(() => null); }));
+    return ready;
+  };
+  const draw = ready => {
+    if (sh.hidden || !p.querySelector("#closeSheet")) return;
+    reg = [];
+    const rows = {};
+    ready.forEach(L => {
+      const me = L.detail.teams.find(t => t.mine);
+      me.roster.filter(x => x.slot === "start").forEach(x => {
+        const k = norm(x.name) + "|" + x.pos, r = rows[k] = rows[k] || {p: x, in: [], pts: x.pts, proj: projFor(L, x)};
+        r.in.push(L.meta.name); if (r.pts == null && x.pts != null) r.pts = x.pts;
+      });
+    });
+    const order = {in: 0, pre: 1, post: 2, bye: 3};
+    const list = Object.values(rows).map(r => Object.assign(r, {st: gameState(r.p.team) || "pre"})).sort((a, b) => (order[a.st] ?? 1) - (order[b.st] ?? 1) || (a.st === "pre" ? String((nflGames[tnorm(a.p.team)] || {}).date || "").localeCompare(String((nflGames[tnorm(b.p.team)] || {}).date || "")) : (b.pts || 0) - (a.pts || 0)));
+    const live = list.filter(r => r.st === "in"), tot = list.reduce((s, r) => s + (r.pts || 0) * r.in.length, 0);
+    let h = '<button class="back" id="closeSheet">Close</button><h2>🔥 Sweat board</h2><p class="small muted" style="margin:-4px 0 12px">' + list.length + " starters across " + ready.length + " league" + (ready.length === 1 ? "" : "s") + (live.length ? " · <b>" + live.length + " playing now</b>" : "") + " · updates every minute</p>";
+    ready.forEach(L => { const d = L.detail, me = d.teams.find(t => t.mine), g = d.games.find(x => x.a.id === me.id || x.b.id === me.id); if (g) h += '<p class="small muted" style="margin:10px 2px 4px">' + esc(L.meta.name) + "</p>" + matchupHero(d, me, g, true); });
+    const sec = (title, arr) => arr.length ? "<h3>" + title + '</h3><ul class="plist">' + arr.map(r => { const pct = r.proj ? Math.min(160, Math.round((r.pts || 0) / r.proj * 100)) : null, i = reg.push(r.p) - 1;
+      return '<li><button class="prow" data-i="' + i + '">' + avatar(r.p) + '<span class="pname"><b>' + esc(r.p.name) + injChip(r.p.inj) + "</b><small>" + posTag(r.p) + gameLine(r.p.team) + (ready.length > 1 ? " · " + esc(r.in.length > 1 ? "in " + r.in.length + " leagues" : r.in[0]) : "") + "</small>" +
+        (r.st !== "pre" && pct != null ? '<span class="swbar"><span style="width:' + Math.min(100, pct) + "%;background:" + (pct >= 100 ? "var(--ok)" : r.st === "post" && pct < 60 ? "var(--bad)" : "var(--accent)") + '"></span></span>' : "") +
+        '</span><span class="pts"><span class="avg">' + (r.st === "pre" ? fmt(r.proj || 0) + "<small>proj</small>" : fmt(r.pts || 0) + "<small>of " + fmt(r.proj || 0) + "</small>") + "</span></span></button></li>"; }).join("") + "</ul>" : "";
+    h += sec("Playing now", live) + sec("Still to play", list.filter(r => r.st === "pre")) + sec("Done", list.filter(r => r.st === "post")) + sec("On bye", list.filter(r => r.st === "bye"));
+    if (!list.length) h += '<div class="card"><p class="small" style="margin:0">Open each league once and pick your team so the board knows your starters.</p></div>';
+    p.innerHTML = h; p.querySelector("#closeSheet").addEventListener("click", closeSheet); wireRows(p);
+  };
+  try { draw(await load()); } catch(e){ p.innerHTML = '<button class="back" id="closeSheet">Close</button><div class="err">Couldn’t load lineups: ' + esc(e.message) + "</div>"; p.querySelector("#closeSheet").addEventListener("click", closeSheet); return; }
+  clearInterval(sweatTimer);
+  sweatTimer = setInterval(async () => {
+    if (sh.hidden || !p.querySelector(".swbar, .prow") || !$("#sheetPanel h2") || !/Sweat board/.test($("#sheetPanel h2").textContent)) { clearInterval(sweatTimer); return; }
+    if (document.hidden) return;
+    try { const ready = leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine)); await loadScoreboard(); await Promise.all(ready.map(async L => { const keep = L.detail.teams.find(t => t.mine); const fresh = await detailFor(L.meta); const nt = fresh.teams.find(t => t.id === keep.id); if (nt && L.meta.platform === "flea") await fleaTeamRoster(L, nt); L.detail = fresh; })); const y = p.scrollTop; draw(ready); p.scrollTop = y; } catch(e){}
+  }, 60000);
 }
 
 /* ---------- league history and rivalries ---------- */
