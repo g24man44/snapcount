@@ -11,6 +11,11 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - Never break what works. Test in a headless browser against real Fleaflicker data before pushing. If tests fail, don't push.
 
 ## Next up (top first)
+- [ ] Grade new league trades in the trade alerts (push + Discord): letter grade per side at today's values, same method as the trade report card.
+- [ ] Tuesday auto-post of power rankings (with luck) to connected Discord/Slack, alongside the AI recap.
+- [ ] Game-day sweat board: every starter across all leagues, live points vs projection, sorted by who's playing now.
+- [ ] Friday AI matchup preview push: your opponent's lineup, the key matchup, win odds.
+- [ ] Draft center: live best-available board during a draft (rookies by value, your next pick).
 
 ## Blocked (needs the owner)
 - [ ] Yahoo leagues: needs a Yahoo developer app (client ID and secret) for sign-in.
@@ -32,3 +37,4 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [x] Draft center: every league draft graded with hindsight (team grades, steals, busts, top-12 re-draft) (Edge › Dynasty); traded picks in trade grades now resolve to the player drafted, including this season's draft
 - [x] Negotiate mode: practice a trade pitch against an AI playing the other manager (their roster, record, needs, values), then send the deal (Trade › Grade › Practice the pitch)
 - [x] Accessibility and light-theme pass: zero automated WCAG A/AA violations across every screen in light and dark mode (stronger light-mode colors, labels, keyboard focus into and out of sheets)
+- [x] Power rankings with schedule luck: scoring, recent form and all-play record, week-over-week movement, luckiest/unluckiest/hottest, share or post to Discord (Leagues › League)

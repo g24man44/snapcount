@@ -916,7 +916,7 @@ function renderLeague(v, L){
     if (d.games.length) {
       h += '<button type="button" class="btn aibtn" id="recapBtn" style="width:100%;margin-top:14px"><span class="spark">✦</span> Write this week’s recap</button>';
     }
-    if (["flea", "sleeper"].includes(m.platform)) h += '<button type="button" class="btn ghost" id="histBtn" style="width:100%;margin-top:10px">🏆 League history & rivalries</button>';
+    if (["flea", "sleeper"].includes(m.platform)) h += '<div class="sendrow" style="margin-top:10px"><button type="button" class="btn ghost" id="pwBtn">📊 Power rankings</button><button type="button" class="btn ghost" id="histBtn">🏆 History & rivalries</button></div>';
     if (d.games.length) {
       h += "<h3>Matchups" + (d.week ? " · Week " + d.week : "") + '</h3><div class="stack">';
       d.games.forEach(g => {
@@ -947,6 +947,7 @@ function renderLeague(v, L){
   v.querySelectorAll("[data-game]").forEach(b => b.addEventListener("click", () => openMatchup(L, b.dataset.game)));
   const rb = v.querySelector("#recapBtn"); if (rb) rb.addEventListener("click", () => openRecap(L));
   const hb = v.querySelector("#histBtn"); if (hb) hb.addEventListener("click", () => openHistory(L));
+  const pw = v.querySelector("#pwBtn"); if (pw) pw.addEventListener("click", () => openPower(L));
 }
 
 /* ---------- free agents ---------- */
@@ -2323,6 +2324,57 @@ async function openDraftCenter(L){
     wireRows(p);
   };
   draw();
+}
+
+/* ---------- power rankings with schedule luck (all-play record) ---------- */
+function powerTable(games, upto){
+  const T = {}, wk = {};
+  games.filter(g => !g.po && !g.cons && g.as != null && g.hs != null && g.wk <= upto).forEach(g => {
+    [[g.a, g.as, g.hs], [g.h, g.hs, g.as]].forEach(([t, pf, pa]) => { const x = T[t.id] = T[t.id] || {id: t.id, name: t.name, logo: t.logo, w: 0, l: 0, t: 0, pf: 0, g: 0, scores: [], aw: 0, al: 0}; x.g++; x.pf += pf; x.scores.push({wk: g.wk, pf}); if (pf > pa) x.w++; else if (pf < pa) x.l++; else x.t++; (wk[g.wk] = wk[g.wk] || []).push({id: t.id, pf}); });
+  });
+  // All-play: how you'd do against every team every week.
+  Object.values(wk).forEach(arr => arr.forEach(a => arr.forEach(b => { if (a === b) return; if (a.pf > b.pf) T[a.id].aw++; else if (a.pf < b.pf) T[a.id].al++; })));
+  const xs = Object.values(T); if (!xs.length) return [];
+  xs.forEach(x => { x.ppg = x.pf / x.g; x.last3 = x.scores.slice().sort((a, b) => b.wk - a.wk).slice(0, 3).reduce((s, y, _, a) => s + y.pf / a.length, 0); x.ap = x.aw + x.al ? x.aw / (x.aw + x.al) : 0; x.luck = (x.w + x.t / 2) - x.ap * x.g; });
+  const z = k => { const m = xs.reduce((s, x) => s + x[k], 0) / xs.length, sd = Math.sqrt(xs.reduce((s, x) => s + (x[k] - m) ** 2, 0) / xs.length) || 1; xs.forEach(x => x["z" + k] = (x[k] - m) / sd); };
+  ["ppg", "last3", "ap"].forEach(z);
+  xs.forEach(x => x.power = 0.45 * x.zppg + 0.3 * x.zlast3 + 0.25 * x.zap);
+  return xs.sort((a, b) => b.power - a.power);
+}
+async function openPower(L){
+  const sh = $("#sheet"), p = $("#sheetPanel"), d = L.detail;
+  p.innerHTML = '<button class="back" id="closeSheet">Close</button><h2>Power rankings</h2><p class="spin">Crunching every score this season…</p>';
+  sh.hidden = false; p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+  let games = [];
+  try {
+    if (L.meta.platform === "flea") { const now = new Date(), cur = now.getMonth() < 2 ? now.getFullYear() - 1 : now.getFullYear(); const r = await api("/api/flea-history?league_id=" + L.meta.id + "&season=" + cur); games = r.games || []; }
+    else { const all = await histSeasons(L); games = (all[0] || {}).games || []; }
+  } catch(e){ p.innerHTML = '<button class="back" id="closeSheet">Close</button><div class="err">Couldn’t load this season’s scores: ' + esc(e.message) + "</div>"; p.querySelector("#closeSheet").addEventListener("click", closeSheet); return; }
+  if (sh.hidden) return;
+  const last = Math.max(0, ...games.filter(g => !g.po).map(g => g.wk));
+  const now = powerTable(games, last), prev = powerTable(games, last - 1);
+  const me = d.teams.find(t => t.mine), nm = id => { const t = d.teams.find(x => x.id === id); return t ? t.name : null; };
+  if (!now.length) { p.innerHTML = '<button class="back" id="closeSheet">Close</button><h2>Power rankings</h2><div class="card"><p class="small" style="margin:0">No finished games yet this season.</p></div>'; p.querySelector("#closeSheet").addEventListener("click", closeSheet); return; }
+  const lucky = now.slice().sort((a, b) => b.luck - a.luck)[0], unlucky = now.slice().sort((a, b) => a.luck - b.luck)[0], hot = now.slice().sort((a, b) => b.zlast3 - b.zppg - (a.zlast3 - a.zppg))[0];
+  const rows = now.map((x, i) => { const pi = prev.findIndex(y => y.id === x.id), mv = pi < 0 ? 0 : pi - i; return Object.assign(x, {rank: i + 1, mv, name: nm(x.id) || x.name}); });
+  let h = '<button class="back" id="closeSheet">Close</button><h2>Power rankings</h2><p class="small muted" style="margin:-4px 0 12px">After week ' + last + " · scoring, recent form and all-play record, not just wins</p>";
+  h += '<div class="card"><ul class="reasons" style="margin:0">' +
+    '<li class="good"><b>Luckiest:</b> ' + esc(nm(lucky.id) || lucky.name) + " is " + lucky.w + "-" + lucky.l + " but would be " + lucky.aw + "-" + lucky.al + " playing everyone every week (" + (lucky.luck >= 0 ? "+" : "") + lucky.luck.toFixed(1) + " wins of luck).</li>" +
+    '<li class="bad"><b>Unluckiest:</b> ' + esc(nm(unlucky.id) || unlucky.name) + " is " + unlucky.w + "-" + unlucky.l + " with an all-play record of " + unlucky.aw + "-" + unlucky.al + " (" + unlucky.luck.toFixed(1) + " wins).</li>" +
+    "<li><b>Hottest:</b> " + esc(nm(hot.id) || hot.name) + " is averaging " + fmt(hot.last3) + " over the last 3 weeks (" + fmt(hot.ppg) + " for the season).</li></ul></div>";
+  h += '<div class="card" style="padding:6px 0;margin-top:12px"><table class="otable"><tbody>' + rows.map(x => '<tr class="' + (me && x.id === me.id ? "me" : "") + '"><td style="width:30px;text-align:center"><b>' + x.rank + "</b><small style='display:block;color:" + (x.mv > 0 ? "var(--ok)" : x.mv < 0 ? "var(--bad)" : "var(--muted)") + "'>" + (x.mv > 0 ? "▲" + x.mv : x.mv < 0 ? "▼" + (-x.mv) : "–") + "</small></td><td>" + teamLogo(x) + "</td><td><b>" + esc(x.name) + "</b><small>" + x.w + "-" + x.l + (x.t ? "-" + x.t : "") + " · all-play " + x.aw + "-" + x.al + " · " + fmt(x.ppg) + " ppg · last 3: " + fmt(x.last3) + '</small></td><td style="text-align:right"><span class="chip ' + (x.luck >= 1 ? "warn" : x.luck <= -1 ? "ok" : "") + '" style="padding:3px 8px" title="Wins above or below what the all-play record expects">' + (x.luck >= 0 ? "+" : "") + x.luck.toFixed(1) + "</span></td></tr>").join("") + "</tbody></table></div>";
+  h += '<p class="small muted" style="margin:8px 4px 0">The chip is luck: wins above (+) or below (−) what your all-play record says you should have.</p>';
+  const hooks = loadHooks();
+  h += '<div class="sendrow"><button type="button" class="btn" id="pwShare">Share</button>' + (hooks.length ? '<button type="button" class="btn ghost" id="pwPost">Post to ' + esc([...new Set(hooks.map(hookName))].join(" & ")) + "</button>" : "") + '</div><p class="small" id="pwMsg"></p>';
+  p.innerHTML = h;
+  p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+  const text = L.meta.name + " power rankings, after week " + last + "\n" + rows.map(x => x.rank + ". " + x.name + " (" + x.w + "-" + x.l + ", all-play " + x.aw + "-" + x.al + (x.mv ? ", " + (x.mv > 0 ? "up " + x.mv : "down " + (-x.mv)) : "") + ")").join("\n") + "\nLuckiest: " + (nm(lucky.id) || lucky.name) + ". Unluckiest: " + (nm(unlucky.id) || unlucky.name) + ".";
+  p.querySelector("#pwShare").addEventListener("click", async () => {
+    if (navigator.share) { try { await navigator.share({title: L.meta.name + " power rankings", text}); return; } catch(e){ if (e.name === "AbortError") return; } }
+    try { await navigator.clipboard.writeText(text); $("#pwMsg").textContent = "Copied. Paste it in your league chat."; } catch(e){ $("#pwMsg").textContent = "Couldn’t copy."; }
+  });
+  const pb = p.querySelector("#pwPost");
+  if (pb) pb.addEventListener("click", async () => { pb.disabled = true; try { await post("/api/hookpost", {hooks: loadHooks(), title: L.meta.name + " · power rankings after week " + last, body: text.split("\n").slice(1).join("\n")}); $("#pwMsg").textContent = "Posted."; } catch(e){ $("#pwMsg").textContent = e.message; pb.disabled = false; } });
 }
 
 /* ---------- league history and rivalries ---------- */
