@@ -2,6 +2,7 @@
 // Paste this whole file into a new Cloudflare Worker and deploy. Free plan is fine.
 
 import { alertsRoute, runMinute, staticRoute, injuriesRoute } from "./src/alerts.js";
+import { espnRoute, mflRoute, scoresRoute, calendarRoute } from "./src/more.js";
 
 const HTML = __HTML__;
 
@@ -252,6 +253,10 @@ export default {
       const st = staticRoute(p);
       if (st) return st;
       if (p.startsWith("/api/push/")) return alertsRoute(request, env, p, url);
+      if (p === "/api/espn") return espnRoute(request, url, ctx);
+      if (p === "/api/mfl") return mflRoute(url, ctx);
+      if (p === "/api/scores") return cached(ctx, "scores/" + url.search, 30, () => scoresRoute(url));
+      if (p === "/cal.ics" || p === "/api/cal.ics") return cached(ctx, "cal/" + url.search, 21600, () => calendarRoute(url));
       if (p === "/api/injuries") return cached(ctx, "injuries", 300, injuriesRoute);
       if (p.startsWith("/api/sleeper/")) {
         const rest = p.slice("/api/sleeper/".length);

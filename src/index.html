@@ -61,6 +61,24 @@ h3{font:700 12.5px/1.2 var(--body);color:var(--muted);margin:22px 4px 10px;lette
 .spin{color:var(--muted);padding:20px 2px}
 .stack{display:flex;flex-direction:column;gap:14px}
 /* surfaces */
+.sportbar{display:flex;gap:6px;overflow-x:auto;margin:12px -16px 0;padding:0 16px 4px;scrollbar-width:none}.sportbar::-webkit-scrollbar{display:none}
+.sportbar .chip{flex:none;white-space:nowrap}
+button.chip.on{background:var(--accent);color:var(--accent-ink)}
+.daynav{display:flex;align-items:center;justify-content:space-between;margin:12px 0 4px}
+.daynav button{border:0;background:var(--surface2);color:var(--ink);border-radius:12px;padding:8px 14px;font-weight:700}
+.gcard{display:block;color:inherit;text-decoration:none;padding:12px 14px}
+.gcard .gl{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;padding:3px 0}
+.gcard .gl img{width:28px;height:28px;object-fit:contain}
+.gcard .gl .nm{font-weight:650;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gcard .gl .nm small{color:var(--muted);font-weight:500;margin-left:6px;font-size:12px}
+.gcard .gl .sc{font:800 19px var(--display,inherit);font-variant-numeric:tabular-nums}
+.gcard .gl.lose .sc,.gcard .gl.lose .nm{color:var(--muted)}
+.gcard .gmeta{display:flex;justify-content:space-between;gap:8px;margin-top:6px;font-size:12.5px;color:var(--muted)}
+.gcard .gmeta .glive{color:var(--bad);font-weight:800}
+.gcard .gmine{display:inline-block;margin-top:6px;font-size:12px;color:var(--accent);font-weight:700}
+.gcard .sit{font-size:12.5px;margin-top:6px;color:var(--ink)}
+.gcard .rz{color:var(--bad);font-weight:800}
+.lb{list-style:none;margin:6px 0 0;padding:0;font-size:14px}.lb li{display:flex;justify-content:space-between;padding:3px 0}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;box-shadow:var(--card-shadow)}
 .badge{font:700 11px/1 var(--body);padding:6px 9px;border-radius:999px;background:var(--surface2);color:var(--muted);white-space:nowrap;letter-spacing:.02em}
 .chip{font-size:12.5px;padding:5px 10px;border-radius:999px;background:var(--surface2);color:var(--muted);border:0;font-weight:600}
@@ -259,12 +277,12 @@ footer{margin-top:30px;color:var(--muted);font-size:12px;padding:0 4px;text-alig
     <div class="hright"><span class="wk" id="wk"></span><button class="iconbtn" id="gearBtn" aria-label="Accounts" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg></button></div>
   </header>
   <main id="view"></main>
-  <footer>Live data from Sleeper, Fleaflicker and ESPN. Trade values from FantasyCalc.</footer>
+  <footer>Live data from Sleeper, Fleaflicker, ESPN and MyFantasyLeague. Trade values from FantasyCalc.</footer>
 </div>
 <nav class="tabbar" role="tablist" id="tabs">
   <button role="tab" data-tab="leagues" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 4l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1Z"/></svg>Leagues</button>
   <button role="tab" data-tab="trade" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4 3 8l4 4"/><path d="M3 8h13"/><path d="m17 20 4-4-4-4"/><path d="M21 16H8"/></svg>Trade</button>
-  <button role="tab" data-tab="news" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></svg>News</button>
+  <button role="tab" data-tab="news" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h4M7 13h4M15 9v6"/></svg>Scores</button>
   <button role="tab" data-tab="edge" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/></svg>Edge</button>
   <button role="tab" data-tab="alerts" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15Z"/><path d="M10 21h4"/></svg>Alerts</button>
 </nav>
@@ -279,7 +297,7 @@ const norm = s => String(s || "").toLowerCase().replace(/\b(jr|sr|ii|iii|iv|v)\b
 
 /* ---------- storage ---------- */
 const KEY = "snapcount.v1";
-function loadAccts(){ try { return JSON.parse(localStorage.getItem(KEY)) || {sleeper:[], flea:[]}; } catch(e){ return {sleeper:[], flea:[]}; } }
+function loadAccts(){ let a; try { a = JSON.parse(localStorage.getItem(KEY)); } catch(e){} a = a || {}; a.sleeper = a.sleeper || []; a.flea = a.flea || []; a.espn = a.espn || []; a.mfl = a.mfl || []; return a; }
 function saveAccts(a){ try { localStorage.setItem(KEY, JSON.stringify(a)); } catch(e){} }
 let accts = loadAccts();
 
@@ -407,6 +425,155 @@ async function fleaDetail(L){
   return {week, teams, games, starterSplit:false, slots: slots.length ? slots : null, kdst};
 }
 
+/* ---------- ESPN Fantasy ---------- */
+const ESPN_TEAM = {0:"FA",1:"ATL",2:"BUF",3:"CHI",4:"CIN",5:"CLE",6:"DAL",7:"DEN",8:"DET",9:"GB",10:"TEN",11:"IND",12:"KC",13:"LV",14:"LAR",15:"MIA",16:"MIN",17:"NE",18:"NO",19:"NYG",20:"NYJ",21:"PHI",22:"ARI",23:"PIT",24:"LAC",25:"SF",26:"SEA",27:"TB",28:"WSH",29:"CAR",30:"JAX",33:"BAL",34:"HOU"};
+const ESPN_POSN = {1:"QB",2:"RB",3:"WR",4:"TE",5:"K",16:"DEF"};
+const ESPN_SLOTMAP = {0:"QB",2:"RB",4:"WR",6:"TE",23:"FLEX",7:"SUPER_FLEX",5:"REC_FLEX",3:"WRRB_FLEX"};
+const ESPN_INJ = {QUESTIONABLE:"QUESTIONABLE", DOUBTFUL:"DOUBTFUL", OUT:"OUT", INJURY_RESERVE:"IR", SUSPENSION:"SUS", DAY_TO_DAY:"QUESTIONABLE"};
+function espnHeaders(m){ return m.s2 && m.swid ? {"x-espn-s2": m.s2, "x-espn-swid": m.swid} : null; }
+async function espnApi(m, params){
+  const q = new URLSearchParams(Object.assign({lid:m.id, season:m.season}, params));
+  const r = await fetch("/api/espn?" + q.toString(), {headers: espnHeaders(m) || {}});
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || "ESPN answered " + r.status);
+  return j;
+}
+async function espnSeason(){ const st = await getState(); return String(st.league_season || st.season); }
+async function espnLeagues(acct){
+  const season = await espnSeason();
+  const m = {platform:"espn", id:String(acct.id), season, s2:acct.s2 || "", swid:acct.swid || ""};
+  const j = await espnApi(m, {view:"mSettings"});
+  m.name = (j.settings && j.settings.name) || ("ESPN league " + acct.id);
+  m.myTeam = teamFor(m);
+  return [m];
+}
+function espnStat(p, src, split, wk){ const s = (p.stats || []).find(x => x.statSourceId === src && x.statSplitTypeId === split && (wk == null || x.scoringPeriodId === wk)); return s ? s.appliedTotal : null; }
+function espnPlayer(pl, wk){
+  const p = pl || {}, inj = p.injuryStatus && p.injuryStatus !== "ACTIVE" && p.injuryStatus !== "NORMAL" ? (ESPN_INJ[p.injuryStatus] || p.injuryStatus) : null;
+  const seasonTot = espnStat(p, 0, 0, 0) ?? (p.stats || []).filter(x => x.statSourceId === 0 && x.statSplitTypeId === 0).map(x => x.appliedTotal)[0];
+  const avgS = (p.stats || []).find(x => x.statSourceId === 0 && x.statSplitTypeId === 0);
+  return {id:String(p.id), eid:String(p.id), name:p.fullName, pos:ESPN_POSN[p.defaultPositionId] || "", team:ESPN_TEAM[p.proTeamId] || "", inj, injPart: inj ? String(p.injuryStatus).replace(/_/g, " ").toLowerCase() : null,
+    img: p.id ? "https://a.espncdn.com/i/headshots/nfl/players/full/" + p.id + ".png" : "", tot: seasonTot ?? null, avg: avgS && avgS.appliedAverage != null ? avgS.appliedAverage : null,
+    owned: p.ownership ? p.ownership.percentOwned : null, url:"https://www.espn.com/nfl/player/_/id/" + p.id};
+}
+async function espnDetail(m){
+  const st = await getState();
+  const wk = Math.max(1, st.display_week || st.week || 1);
+  const j = await espnApi(m, {view:"mTeam,mRoster,mMatchupScore,mSettings,mStatus", wk});
+  const week = (j.status && j.status.currentMatchupPeriod) || j.scoringPeriodId || wk;
+  const sp = j.scoringPeriodId || wk;
+  const set = j.settings || {};
+  const memb = {}; (j.members || []).forEach(x => memb[x.id] = x);
+  const swid = (m.swid || "").toUpperCase();
+  const budget = ((set.acquisitionSettings || {}).acquisitionBudget) || null;
+  const teams = (j.teams || []).map(t => {
+    const rec = ((t.record || {}).overall) || {};
+    const owner = memb[t.primaryOwner] || {};
+    const roster = (((t.roster || {}).entries) || []).map(e => {
+      const pp = (e.playerPoolEntry || {}).player || {};
+      const base = espnPlayer(pp, sp);
+      const slot = e.lineupSlotId === 21 ? "ir" : e.lineupSlotId === 20 ? "bench" : "start";
+      return Object.assign(base, {slot, pts: espnStat(pp, 0, 1, sp), proj: espnStat(pp, 1, 1, sp), keeper: !!e.keeperValue && e.keeperValue > 0 && !!(e.playerPoolEntry || {}).keeperValueFuture});
+    });
+    const mine = m.myTeam ? String(t.id) === String(m.myTeam) : !!(swid && ((t.owners || []).map(x => String(x).toUpperCase()).includes(swid) || String(t.primaryOwner || "").toUpperCase() === swid));
+    return {id:String(t.id), name:t.name || ((t.location || "") + " " + (t.nickname || "")).trim() || ("Team " + t.id), logo:t.logo || "", owner: owner.displayName || [owner.firstName, owner.lastName].filter(Boolean).join(" "),
+      w:rec.wins || 0, l:rec.losses || 0, t:rec.ties || 0, pf: rec.pointsFor || 0, div: t.divisionId != null ? t.divisionId : null, waiver: t.waiverRank || null,
+      faab: budget != null ? budget - (((t.transactionCounter || {}).acquisitionBudgetSpent) || 0) : null, roster, mine};
+  });
+  if (!m.myTeam) { const mt = teams.find(t => t.mine); if (mt) m.myTeam = mt.id; }
+  const games = (j.schedule || []).filter(g => g.matchupPeriodId === week && g.home && g.away).map(g => ({id:String(g.id),
+    a:{id:String(g.away.teamId), pts: g.away.totalPointsLive ?? g.away.totalPoints ?? 0}, b:{id:String(g.home.teamId), pts: g.home.totalPointsLive ?? g.home.totalPoints ?? 0}}));
+  const counts = ((set.rosterSettings || {}).lineupSlotCounts) || {}, slots = [], kdst = [];
+  Object.keys(counts).forEach(k => { const n = counts[k]; const nm = ESPN_SLOTMAP[k]; if (nm) for (let i = 0; i < n; i++) slots.push(nm); if (k === "17") for (let i = 0; i < n; i++) kdst.push("K"); if (k === "16") for (let i = 0; i < n; i++) kdst.push("D/ST"); });
+  const recItem = (((set.scoringSettings || {}).scoringItems) || []).find(x => x.statId === 53);
+  const recPts = recItem ? recItem.points : 0;
+  const sch = set.scheduleSettings || {};
+  return {week, teams, games, starterSplit:true, scoring: recPts >= 1 ? "ppr" : recPts >= 0.5 ? "half" : "std", slots: slots.length ? slots : null, kdst, season:Number(m.season),
+    maxKeepers: ((set.draftSettings || {}).keeperCount) || null, playoffTeams: sch.playoffTeamCount || null, playoffStart: sch.matchupPeriodCount ? sch.matchupPeriodCount + 1 : null};
+}
+async function espnFreeAgents(L, pos){
+  const slot = {QB:0, RB:2, WR:4, TE:6, K:17, DEF:16}[pos];
+  const st = await getState();
+  const j = await espnApi(L.meta, Object.assign({view:"kona_player_info", fa:"1", wk: L.detail.week || st.week || 1}, slot != null ? {slot} : {}));
+  return (j.players || []).map(x => Object.assign(espnPlayer(x.player || {}), {})).filter(p => p.name).sort((a, b) => (b.tot || 0) - (a.tot || 0)).slice(0, 40);
+}
+
+/* ---------- MyFantasyLeague ---------- */
+const MFL_POSN = {QB:"QB", RB:"RB", WR:"WR", TE:"TE", PK:"K", Def:"DEF", DEF:"DEF"};
+const asArr = x => x == null ? [] : Array.isArray(x) ? x : [x];
+const mflName = n => { const m = String(n || "").split(", "); return m.length === 2 ? m[1] + " " + m[0] : String(n || ""); };
+let mflPl = {}, mflPlP = {};
+function mflApi(m, type, extra){ return api("/api/mfl?" + new URLSearchParams(Object.assign({type, L:m.id, year:m.season}, extra || {})).toString()); }
+function mflPlayers(year){
+  if (!mflPlP[year]) mflPlP[year] = api("/api/mfl?type=players&year=" + year).then(j => { const o = {}; asArr((j.players || {}).player).forEach(p => o[p.id] = [mflName(p.name), MFL_POSN[p.position] || p.position, p.team === "FA" || p.team === "FA*" ? "" : teamAbbr(p.team)]); return (mflPl[year] = o); });
+  return mflPlP[year];
+}
+async function mflLeagues(acct){
+  const season = await espnSeason();
+  const m = {platform:"mfl", id:String(acct.id), season};
+  const j = await mflApi(m, "league");
+  m.name = ((j.league || {}).name) || ("MFL league " + acct.id);
+  m.host = (((j.league || {}).baseURL) || "https://www.myfantasyleague.com").replace(/^http:/, "https:");
+  m.myTeam = teamFor(m);
+  return [m];
+}
+async function mflDetail(m){
+  const st = await getState();
+  const wk = Math.max(1, st.display_week || st.week || 1);
+  const [lg, ros, stand, live, pl] = await Promise.all([mflApi(m, "league"), mflApi(m, "rosters"), mflApi(m, "leagueStandings").catch(() => ({})), mflApi(m, "liveScoring", {W:wk}).catch(() => ({})), mflPlayers(m.season)]);
+  await Promise.all([getPlayers(), getSeasonStats(m.season)]); ensureSidIndex();
+  const L0 = lg.league || {};
+  if (L0.baseURL) m.host = L0.baseURL.replace(/^http:/, "https:");
+  const fr = {}; asArr((L0.franchises || {}).franchise).forEach(f => fr[f.id] = f);
+  const sd = {}; asArr(((stand.leagueStandings || {}).franchise)).forEach(f => sd[f.id] = f);
+  const starters = new Set(), wkPts = {}, plPts = {};
+  const games = asArr(((live.liveScoring || {}).matchup)).map((mu, i) => {
+    const fs = asArr(mu.franchise);
+    fs.forEach(f => { wkPts[f.id] = Number(f.score) || 0; asArr((f.players || {}).player).forEach(p => { plPts[p.id] = Number(p.score); if (p.status === "starter") starters.add(p.id); }); });
+    return fs.length === 2 ? {id:"m" + i, a:{id:fs[0].id, pts:Number(fs[0].score) || 0}, b:{id:fs[1].id, pts:Number(fs[1].score) || 0}} : null;
+  }).filter(Boolean);
+  const hasLineups = starters.size > 0;
+  const n = x => Number((x && x.$t != null) ? x.$t : x) || 0;
+  const teams = asArr((ros.rosters || {}).franchise).map(f => {
+    const meta = fr[f.id] || {}, s = sd[f.id] || {};
+    const roster = asArr(f.player).map(p => {
+      const q = pl[p.id] || ["Player " + p.id, "", ""];
+      const sid = sidIndex ? sidIndex[norm(q[0]) + "|" + q[1]] : null, sp = sid ? players[sid] : null, ss = sid ? seasonPts(sid, "ppr") : null;
+      return {id:String(p.id), name:q[0], pos:q[1], team:q[2], inj: sp ? sp[3] : null, injPart: sp ? sp[4] : null,
+        slot: p.status === "INJURED_RESERVE" ? "ir" : p.status === "TAXI_SQUAD" ? "bench" : hasLineups ? (starters.has(p.id) ? "start" : "bench") : "bench",
+        pts: plPts[p.id] != null && !isNaN(plPts[p.id]) && hasLineups ? plPts[p.id] : null, avg: ss && ss.gp ? ss.pts / ss.gp : null, taxi: p.status === "TAXI_SQUAD"};
+    });
+    return {id:String(f.id), name: meta.name || ("Team " + f.id), logo: meta.icon || meta.logo || "", owner: meta.owner_name || "",
+      w:n(s.h2hw), l:n(s.h2hl), t:n(s.h2ht), pf:n(s.pf), div: meta.division || null, faab: meta.bbidAvailableBalance != null ? Number(meta.bbidAvailableBalance) : null, roster,
+      mine: m.myTeam ? String(f.id) === String(m.myTeam) : false};
+  });
+  Object.keys(fr).forEach(id => { if (!teams.find(t => t.id === id)) teams.push({id, name:fr[id].name, roster:[], w:0, l:0, t:0, pf:0, mine: m.myTeam === id}); });
+  const slots = [], kdst = [];
+  const sp = asArr(((L0.starters || {}).position));
+  let used = 0;
+  sp.forEach(x => { const [lo, hi] = String(x.limit).split("-").map(Number); const pos = MFL_POSN[x.name] || x.name; if (["QB","RB","WR","TE"].includes(pos)) { for (let i = 0; i < lo; i++) slots.push(pos); used += lo; if (pos === "QB" && hi > lo) { slots.push("SUPER_FLEX"); used++; } } else if (pos === "K" || pos === "DEF") { for (let i = 0; i < lo; i++) kdst.push(pos === "DEF" ? "D/ST" : "K"); used += lo; } });
+  const total = Number((L0.starters || {}).count) || 0;
+  for (let i = used; i < total; i++) slots.push("FLEX");
+  const ppr = /PPR|ppr/.test(JSON.stringify(L0.name || "")) ? "ppr" : "ppr";
+  return {week: Number((live.liveScoring || {}).week) || wk, teams, games, starterSplit: hasLineups, scoring: ppr, slots: slots.length ? slots : null, kdst, season:Number(m.season),
+    playoffStart: L0.lastRegularSeasonWeek ? Number(L0.lastRegularSeasonWeek) + 1 : null, maxKeepers: null};
+}
+async function mflFreeAgents(L, pos){
+  const P = {QB:"QB", RB:"RB", WR:"WR", TE:"TE", K:"PK", DEF:"Def"}[pos];
+  const [j, pl] = await Promise.all([mflApi(L.meta, "freeAgents", P ? {POSITION:P} : {}), mflPlayers(L.meta.season), getPlayers(), getSeasonStats(L.meta.season)]);
+  ensureSidIndex();
+  return asArr(((j.freeAgents || {}).leagueUnit || {}).player).map(x => {
+    const q = pl[x.id]; if (!q || !q[2]) return null;
+    const sid = sidIndex ? sidIndex[norm(q[0]) + "|" + q[1]] : null, ss = sid ? seasonPts(sid, "ppr") : null, sp = sid ? players[sid] : null;
+    return {id:String(x.id), name:q[0], pos:q[1], team:q[2], inj: sp ? sp[3] : null, injPart: sp ? sp[4] : null, tot: ss ? ss.pts : null, avg: ss && ss.gp ? ss.pts / ss.gp : null};
+  }).filter(p => p && p.tot).sort((a, b) => b.tot - a.tot).slice(0, 40);
+}
+
+/* ---------- one switch for every platform ---------- */
+const PLAT = {sleeper:"Sleeper", flea:"Fleaflicker", espn:"ESPN", mfl:"MyFantasyLeague"};
+function detailFor(m){ return m.platform === "sleeper" ? sleeperDetail(m) : m.platform === "espn" ? espnDetail(m) : m.platform === "mfl" ? mflDetail(m) : fleaDetail(m); }
+function teamFor(m){ try { const s = JSON.parse(localStorage.getItem(KEY + ".fleaTeams") || "{}"); return s[m.platform === "flea" ? m.id : m.platform + ":" + m.id] || null; } catch(e){ return null; } }
+
 /* ---------- league cache ---------- */
 let leagues = [];      // [{meta, detail, error}]
 let leaguesLoaded = false, leaguesErr = [];
@@ -415,13 +582,15 @@ async function loadAll(){
   const jobs = [];
   accts.sleeper.forEach(u => jobs.push(sleeperLeagues(u).catch(e => { leaguesErr.push("Sleeper " + u + ": " + e.message); return []; })));
   accts.flea.forEach(a => jobs.push(fleaLeagues(a).catch(e => { leaguesErr.push("Fleaflicker " + a.value + ": " + e.message); return []; })));
+  (accts.espn || []).forEach(a => jobs.push(espnLeagues(a).catch(e => { leaguesErr.push("ESPN league " + a.id + ": " + e.message); return []; })));
+  (accts.mfl || []).forEach(a => jobs.push(mflLeagues(a).catch(e => { leaguesErr.push("MyFantasyLeague " + a.id + ": " + e.message); return []; })));
   const metas = (await Promise.all(jobs.concat([loadScoreboard().then(() => []), loadInjuries().then(() => [])]))).flat();
   leagues = metas.map(m => ({meta:m, detail:null, error:null}));
   leaguesLoaded = true;
-  if (pendingJoin) { const i = leagues.findIndex(L => L.meta.platform === "flea" && L.meta.id === pendingJoin); if (i >= 0) { cur.tab = "leagues"; cur.league = i; cur.sub = "team"; cur.joined = true; } pendingJoin = null; }
+  if (pendingJoin) { const i = leagues.findIndex(L => L.meta.platform + ":" + L.meta.id === pendingJoin); if (i >= 0) { cur.tab = "leagues"; cur.league = i; cur.sub = "team"; cur.joined = true; } pendingJoin = null; }
   render();
   await Promise.all(leagues.map(async L => {
-    try { L.detail = L.meta.platform === "sleeper" ? await sleeperDetail(L.meta) : await fleaDetail(L.meta); }
+    try { L.detail = await detailFor(L.meta); }
     catch(e){ L.error = e.message; }
     if (cur.tab === "leagues") render();
   }));
@@ -450,10 +619,10 @@ function render(){
   if (cur.league != null) return renderLeague(v, leagues[cur.league]);
   renderLeagues(v); wireInstall(v);
 }
-function hasAccts(){ return accts.sleeper.length + accts.flea.length > 0; }
+function hasAccts(){ return accts.sleeper.length + accts.flea.length + (accts.espn || []).length + (accts.mfl || []).length > 0; }
 
 function emptyState(v){
-  v.innerHTML = installCard() + '<h2>Your leagues, one screen</h2><p class="muted">Add a Sleeper username or a Fleaflicker email or league ID. Your rosters, scores and injury flags load straight from the league sites.</p>' + addForm();
+  v.innerHTML = installCard() + '<h2>Your leagues, one screen</h2><p class="muted">Works with Sleeper, Fleaflicker, ESPN and MyFantasyLeague. Add your account or league ID below. Rosters, scores and injury flags load straight from the league sites.</p>' + addForm();
   wireAdd(v);
 }
 function renderLeagues(v){
@@ -465,7 +634,7 @@ function renderLeagues(v){
   h += '<div class="stack" style="margin-top:12px">';
   leagues.forEach((L, i) => {
     const m = L.meta, d = L.detail;
-    h += '<button class="card league" data-l="' + i + '"><div class="row1"><span class="name">' + esc(m.name) + '</span><span class="badge">' + (m.platform === "sleeper" ? "Sleeper" : "Fleaflicker") + "</span></div>";
+    h += '<button class="card league" data-l="' + i + '"><div class="row1"><span class="name">' + esc(m.name) + '</span><span class="badge">' + PLAT[m.platform] + "</span></div>";
     const meT = d && d.teams.find(t => t.mine), gT = meT && d.games.find(g => g.a.id === meT.id || g.b.id === meT.id);
     if (L.error) h += '<span class="small" style="color:var(--bad)">' + esc(L.error) + "</span>";
     else if (!d) h += '<span class="small muted">Loading scores…</span>';
@@ -599,14 +768,28 @@ async function fleaTeamRoster(L, team){
 
 /* ---------- shortcuts into the league apps (their APIs are read-only) ---------- */
 const EXT = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6"/><path d="M10 14 20 4"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg>';
-function siteName(L){ return L.meta.platform === "sleeper" ? "Sleeper" : "Fleaflicker"; }
+function siteName(L){ return L.meta.platform === "mfl" ? "MFL" : PLAT[L.meta.platform]; }
+function mflHost(L){ return (L.meta.host || "https://www.myfantasyleague.com") + "/" + L.meta.season; }
 function lineupUrl(L, team){
-  return L.meta.platform === "sleeper" ? "https://sleeper.com/leagues/" + L.meta.id + "/team"
-    : "https://www.fleaflicker.com/nfl/leagues/" + L.meta.id + (team ? "/teams/" + team.id : "");
+  const m = L.meta;
+  if (m.platform === "sleeper") return "https://sleeper.com/leagues/" + m.id + "/team";
+  if (m.platform === "espn") return "https://fantasy.espn.com/football/team?leagueId=" + m.id + "&seasonId=" + m.season + (team ? "&teamId=" + team.id : "");
+  if (m.platform === "mfl") return mflHost(L) + "/options?L=" + m.id + "&O=02";
+  return "https://www.fleaflicker.com/nfl/leagues/" + m.id + (team ? "/teams/" + team.id : "");
 }
 function waiverUrl(L){
-  return L.meta.platform === "sleeper" ? "https://sleeper.com/leagues/" + L.meta.id + "/players"
-    : "https://www.fleaflicker.com/nfl/leagues/" + L.meta.id + "/players";
+  const m = L.meta;
+  if (m.platform === "sleeper") return "https://sleeper.com/leagues/" + m.id + "/players";
+  if (m.platform === "espn") return "https://fantasy.espn.com/football/players/add?leagueId=" + m.id;
+  if (m.platform === "mfl") return mflHost(L) + "/options?L=" + m.id + "&O=05";
+  return "https://www.fleaflicker.com/nfl/leagues/" + m.id + "/players";
+}
+function tradeUrl(L){
+  const m = L.meta;
+  if (m.platform === "sleeper") return "https://sleeper.com/leagues/" + m.id;
+  if (m.platform === "espn") return "https://fantasy.espn.com/football/trade?leagueId=" + m.id;
+  if (m.platform === "mfl") return mflHost(L) + "/options?L=" + m.id + "&O=114";
+  return "https://www.fleaflicker.com/nfl/leagues/" + m.id + "/trades";
 }
 function extBtn(href, label, ghost){ return '<a class="btn' + (ghost ? " ghost" : "") + '" href="' + esc(href) + '" target="_blank" rel="noopener">' + esc(label) + EXT + "</a>"; }
 
@@ -639,7 +822,7 @@ function renderLeague(v, L){
         if (m.platform === "sleeper") { const s = seasonPts(p.id, d.scoring); return s && s.gp ? '<span class="avg">' + fmt(s.pts / s.gp) + "<small>avg</small></span>" : ""; }
         return p.avg != null ? '<span class="avg">' + fmt(p.avg) + "<small>avg</small></span>" : "";
       };
-      const split = m.platform === "sleeper" || me.live;
+      const split = m.platform === "sleeper" || me.live || d.starterSplit;
       if (split) {
         const st = me.roster.filter(p => p.slot === "start").sort(byPos), bn = me.roster.filter(p => p.slot === "bench").sort(byPos), ir = me.roster.filter(p => p.slot === "ir");
         h += "<h3>Starters" + (d.week ? " · Week " + d.week : "") + '</h3><ul class="plist">' + st.map(p => playerRow(p, right(p))).join("") + "</ul>";
@@ -675,7 +858,7 @@ function renderLeague(v, L){
   const sel = v.querySelector("#teamPick");
   if (sel) sel.addEventListener("change", () => {
     cur.team = sel.value || null;
-    if (m.platform === "flea" && cur.team) { m.myTeam = cur.team; d.teams.forEach(t => t.mine = t.id === cur.team); rememberFleaTeam(m, cur.team); }
+    if (m.platform !== "sleeper" && cur.team) { m.myTeam = cur.team; d.teams.forEach(t => t.mine = t.id === cur.team); rememberFleaTeam(m, cur.team); syncAlerts().catch(() => {}); }
     render();
   });
   v.querySelectorAll("[data-pos]").forEach(b => b.addEventListener("click", () => { cur.faPos = b.dataset.pos; render(); }));
@@ -703,6 +886,8 @@ async function loadFreeAgents(L, pos){
         list.push({id, name:p[0], pos:p[1], team:p[2], inj:p[3], injPart:p[4], tot:s.pts, avg:s.gp ? s.pts / s.gp : null, gp:s.gp});
       }
       list.sort((a,b) => b.tot - a.tot); list = list.slice(0, 40);
+    } else if (L.meta.platform === "espn") { list = await espnFreeAgents(L, pos);
+    } else if (L.meta.platform === "mfl") { list = await mflFreeAgents(L, pos);
     } else {
       const params = {league_id:L.meta.id, "filter.free_agent_only":"true", sort:"SORT_SEASON_TOTAL"};
       if (pos !== "ALL") params["filter.position.eligibility"] = pos === "DEF" ? "D/ST" : pos;
@@ -716,14 +901,14 @@ async function loadFreeAgents(L, pos){
     }
     if (token !== cur.faToken || !el()) return;
     if (!list.length) { el().innerHTML = '<p class="muted">No free agents found' + (pos !== "ALL" ? " at " + pos : "") + ".</p>"; return; }
-    list.forEach(p => { p.extra = p.avg != null ? '<small class="muted"> · ' + fmt(p.avg) + " per game</small>" : ""; p.act = p.fl ? extBtn(fleaPlayerUrl(p), "Add in Fleaflicker") : extBtn(waiverUrl(L), "Add in " + siteName(L)); });
-    el().innerHTML = '<p class="small muted" style="margin:10px 0 6px">Ranked by season points' + (L.meta.platform === "sleeper" ? " (" + ({ppr:"PPR", half:"half PPR", std:"standard"}[L.detail.scoring] || "PPR") + ")" : "") + '</p><ul class="plist">' + list.map(p => playerRow(p, fmt(p.tot))).join("") + "</ul>";
+    list.forEach(p => { p.extra = p.avg != null ? '<small class="muted"> · ' + fmt(p.avg) + " per game</small>" : ""; p.act = p.fl ? extBtn(fleaPlayerUrl(p), "Add in Fleaflicker") : extBtn(waiverUrl(L), "Add in " + siteName(L)); if (p.owned != null) p.extra += '<small class="muted"> · ' + Math.round(p.owned) + "% rostered on ESPN</small>"; });
+    el().innerHTML = '<p class="small muted" style="margin:10px 0 6px">Ranked by season points' + (L.meta.platform === "sleeper" || L.meta.platform === "espn" ? " (" + ({ppr:"PPR", half:"half PPR", std:"standard"}[L.detail.scoring] || "PPR") + ")" : L.meta.platform === "mfl" ? " (PPR, from Sleeper stats)" : "") + '</p><ul class="plist">' + list.map(p => playerRow(p, fmt(p.tot))).join("") + "</ul>";
     wireRows(el());
   } catch(e){ if (el()) el().innerHTML = '<div class="err">Couldn’t load free agents: ' + esc(e.message) + "</div>"; }
 }
 function wireBack(v){ v.querySelector("#back").addEventListener("click", () => { cur.league = null; cur.sub = "team"; render(); }); }
 function rememberFleaTeam(m, team){
-  try { const s = JSON.parse(localStorage.getItem(KEY + ".fleaTeams") || "{}"); s[m.id] = team; localStorage.setItem(KEY + ".fleaTeams", JSON.stringify(s)); } catch(e){}
+  try { const s = JSON.parse(localStorage.getItem(KEY + ".fleaTeams") || "{}"); s[m.platform === "flea" || !m.platform ? m.id : m.platform + ":" + m.id] = team; localStorage.setItem(KEY + ".fleaTeams", JSON.stringify(s)); } catch(e){}
 }
 function fleaTeamFor(id){ try { return (JSON.parse(localStorage.getItem(KEY + ".fleaTeams") || "{}"))[id] || null; } catch(e){ return null; } }
 
@@ -735,11 +920,12 @@ function ago(d){
 }
 let pIndex = null;
 async function espnIdFor(pl){
-  if (players && players[pl.id] && players[pl.id][5]) return players[pl.id][5];
+  if (pl.eid) return pl.eid;
+  if (players && players[pl.id] && players[pl.id][5] && norm(players[pl.id][0]) === norm(pl.name)) return players[pl.id][5];
   const n = injFor(pl); if (n && n.eid) return n.eid;
   try {
     await getPlayers();
-    if (players[pl.id] && players[pl.id][5]) return players[pl.id][5];
+    if (players[pl.id] && players[pl.id][5] && norm(players[pl.id][0]) === norm(pl.name)) return players[pl.id][5];
     if (!pIndex) { pIndex = {}; for (const id in players) { const p = players[id]; pIndex[norm(p[0]) + "|" + p[1]] = p[5]; } }
     return pIndex[norm(pl.name) + "|" + (pl.pos || "")] || "";
   } catch(e){ return ""; }
@@ -787,10 +973,75 @@ function myPlayers(){
   return [...new Set(out)];
 }
 
+/* ---------- scores, every sport ---------- */
+const SPORT_LIST = [["nfl","NFL"],["cfb","College FB"],["nba","NBA"],["nhl","NHL"],["mlb","MLB"],["ncaam","College BB"],["wnba","WNBA"],["ncaaw","Women’s CBB"],["epl","Premier League"],["ucl","Champions League"],["laliga","La Liga"],["mls","MLS"],["pga","Golf"],["f1","F1"],["ufc","UFC"]];
+const scoresSt = {sport:null, off:0, data:null, timer:null};
+function prefSport(){ try { return localStorage.getItem(KEY + ".sport") || "nfl"; } catch(e){ return "nfl"; } }
+function dayStr(off){ const d = new Date(Date.now() + off * 864e5); return d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0"); }
+function dayLabel(off){ return off === 0 ? "Today" : off === -1 ? "Yesterday" : off === 1 ? "Tomorrow" : new Date(Date.now() + off * 864e5).toLocaleDateString([], {weekday:"short", month:"short", day:"numeric"}); }
+function myTeamsMap(){ const m = {}; leagues.forEach(L => { const me = L.detail && L.detail.teams.find(t => t.mine); if (me) me.roster.forEach(p => { if (p.team && p.name) (m[teamAbbr(p.team)] = m[teamAbbr(p.team)] || new Set()).add(p.name); }); }); return m; }
+function newsSeg(){ return '<div class="seg" role="group" aria-label="View" style="margin-top:4px"><button type="button" data-nv="scores" aria-pressed="' + (cur.newsView !== "news") + '">Scores</button><button type="button" data-nv="news" aria-pressed="' + (cur.newsView === "news") + '">NFL news</button></div>'; }
+function wireNewsSeg(v){ v.querySelectorAll("[data-nv]").forEach(b => b.addEventListener("click", () => { cur.newsView = b.dataset.nv; render(); })); }
+function renderScores(v){
+  const sp = scoresSt.sport = scoresSt.sport || prefSport();
+  const weekly = sp === "nfl" || sp === "cfb";
+  v.innerHTML = newsSeg() + '<div class="sportbar" role="group" aria-label="Sport">' + SPORT_LIST.map(x => '<button type="button" class="chip' + (sp === x[0] ? " on" : "") + '" data-sp="' + x[0] + '">' + x[1] + "</button>").join("") + "</div>" +
+    (weekly ? "" : '<div class="daynav"><button type="button" data-d="-1" aria-label="Previous day">‹</button><b>' + dayLabel(scoresSt.off) + '</b><button type="button" data-d="1" aria-label="Next day">›</button></div>') +
+    '<div id="scoresBox"><p class="spin">Loading scores…</p></div>';
+  wireNewsSeg(v);
+  v.querySelectorAll("[data-sp]").forEach(b => b.addEventListener("click", () => { scoresSt.sport = b.dataset.sp; scoresSt.off = 0; try { localStorage.setItem(KEY + ".sport", b.dataset.sp); } catch(e){} render(); }));
+  v.querySelectorAll("[data-d]").forEach(b => b.addEventListener("click", () => { scoresSt.off += Number(b.dataset.d); render(); }));
+  const on = v.querySelector(".chip.on"); if (on) on.scrollIntoView({block:"nearest", inline:"center"});
+  loadScores();
+}
+async function loadScores(){
+  const sp = scoresSt.sport, weekly = sp === "nfl" || sp === "cfb";
+  const q = "/api/scores?sport=" + sp + (weekly ? "" : "&date=" + dayStr(scoresSt.off));
+  try {
+    const r = await api(q);
+    if (scoresSt.sport !== sp || cur.tab !== "news" || cur.newsView === "news") return;
+    drawScores(r);
+  } catch(e){ const el = $("#scoresBox"); if (el) el.innerHTML = '<div class="err">Couldn’t load scores: ' + esc(e.message) + "</div>"; }
+  clearTimeout(scoresSt.timer);
+  scoresSt.timer = setTimeout(() => { if (cur.tab === "news" && cur.newsView !== "news" && !document.hidden && $("#sheet").hidden) loadScores(); }, 30000);
+}
+function drawScores(r){
+  const el = $("#scoresBox"); if (!el) return;
+  const mine = r.sport === "nfl" ? myTeamsMap() : {};
+  let games = (r.games || []).slice();
+  const rank = g => g.state === "in" ? 0 : g.state === "pre" ? 1 : 2;
+  const mineN = g => g.away ? ((mine[g.away.abbr] || new Set()).size + (mine[g.home.abbr] || new Set()).size) : 0;
+  games.sort((a, b) => rank(a) - rank(b) || (mineN(b) > 0) - (mineN(a) > 0) || new Date(a.date) - new Date(b.date));
+  if (!games.length) { el.innerHTML = '<p class="muted" style="margin-top:14px">No ' + esc(r.label) + " games " + (r.sport === "nfl" || r.sport === "cfb" ? "this week." : dayLabel(scoresSt.off).toLowerCase() === "today" ? "today." : "on " + dayLabel(scoresSt.off) + ".") + "</p>"; return; }
+  const live = games.filter(g => g.state === "in").length;
+  let h = '<p class="small muted" style="margin:10px 2px 8px">' + (live ? '<b style="color:var(--bad)">' + live + " live</b> · " : "") + games.length + " " + (games.length === 1 ? "event" : "events") + (live ? " · updates every 30 seconds" : "") + "</p><div class=\"stack\">";
+  games.forEach(g => {
+    const when = g.state === "pre" ? new Date(g.date).toLocaleString([], {weekday:"short", hour:"numeric", minute:"2-digit"}) : g.detail;
+    const meta = '<div class="gmeta"><span class="' + (g.state === "in" ? "glive" : "") + '">' + esc(g.state === "in" ? g.detail : when) + "</span><span>" + esc([g.tv, g.line ? g.line + (g.ou ? " · O/U " + g.ou : "") : ""].filter(Boolean).join(" · ")) + "</span></div>";
+    let body;
+    if (g.top) {
+      body = "<b>" + esc(g.title || g.name) + '</b><ol class="lb">' + g.top.map((x, i) => "<li><span>" + (i + 1) + ". " + esc(x.name) + "</span><b>" + esc(x.score || "") + "</b></li>").join("") + "</ol>";
+    } else {
+      const side = (t, other) => {
+        const lose = g.state === "post" && !t.winner && other.winner;
+        return '<div class="gl' + (lose ? " lose" : "") + '">' + (t.logo ? '<img src="' + esc(t.logo) + '" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'">' : "<span></span>") + '<span class="nm">' + (t.rank ? '<small style="margin:0 4px 0 0">' + t.rank + "</small>" : "") + esc(t.name) + (t.rec ? "<small>" + esc(t.rec) + "</small>" : "") + (g.sit && g.sit.poss && t.abbr && g.sit.poss === (t.id || "") ? " 🏈" : "") + '</span><span class="sc">' + (g.state === "pre" ? "" : esc(t.score)) + "</span></div>";
+      };
+      body = side(g.away, g.home) + side(g.home, g.away);
+      if (g.sit && g.state === "in" && (g.sit.down || g.sit.last)) body += '<div class="sit">' + [g.sit.rz ? '<span class="rz">Red zone</span>' : "", esc(g.sit.down), g.sit.last ? '<span class="muted">' + esc(g.sit.last.length > 90 ? g.sit.last.slice(0, 88) + "…" : g.sit.last) + "</span>" : ""].filter(Boolean).join(" · ") + "</div>";
+      const who = g.away ? [...(mine[g.away.abbr] || []), ...(mine[g.home.abbr] || [])] : [];
+      if (who.length) body += '<span class="gmine">Your players: ' + esc(who.slice(0, 5).join(", ") + (who.length > 5 ? " +" + (who.length - 5) : "")) + "</span>";
+    }
+    h += g.link ? '<a class="card gcard" href="' + esc(g.link) + '" target="_blank" rel="noopener">' + body + meta + "</a>" : '<div class="card gcard">' + body + meta + "</div>";
+  });
+  el.innerHTML = h + '</div><p class="small muted" style="margin:10px 4px 0">Scores from ESPN. Tap a game for the full box score and play-by-play.</p>';
+}
+
 /* ---------- headlines ---------- */
 let headlines = null;
 async function renderNews(v){
-  v.innerHTML = '<h2>NFL headlines</h2><label class="toggle"><input type="checkbox" id="mineOnly"' + (cur.newsMine ? " checked" : "") + '> Only stories about my players</label><div id="hl"><p class="spin">Loading headlines…</p></div>';
+  if (cur.newsView !== "news") return renderScores(v);
+  v.innerHTML = newsSeg() + '<h2 style="margin-top:14px">NFL headlines</h2><label class="toggle"><input type="checkbox" id="mineOnly"' + (cur.newsMine ? " checked" : "") + '> Only stories about my players</label><div id="hl"><p class="spin">Loading headlines…</p></div>';
+  wireNewsSeg(v);
   v.querySelector("#mineOnly").addEventListener("change", e => { cur.newsMine = e.target.checked; drawNews(); });
   try { if (!headlines) headlines = await api("/api/headlines"); drawNews(); }
   catch(e){ $("#hl").innerHTML = '<div class="err">Couldn’t load headlines: ' + esc(e.message) + "</div>"; }
@@ -835,36 +1086,46 @@ async function renderTrending(v){
 /* ---------- accounts ---------- */
 let addMode = "sleeper";
 function addForm(){
-  return '<form class="add card" id="addForm"><div class="seg" role="group" aria-label="Platform">' +
-    '<button type="button" data-m="sleeper" aria-pressed="' + (addMode === "sleeper") + '">Sleeper</button>' +
-    '<button type="button" data-m="flea" aria-pressed="' + (addMode === "flea") + '">Fleaflicker</button></div>' +
-    (addMode === "sleeper"
-      ? '<label for="acctIn">Sleeper username</label><input id="acctIn" autocomplete="off" autocapitalize="off" placeholder="e.g. gridironGreg" required>'
-      : '<label for="acctIn">Fleaflicker email or league ID</label><input id="acctIn" autocomplete="off" autocapitalize="off" placeholder="you@email.com or 312876" required><span class="small muted">The league ID is the number in your league’s Fleaflicker web address.</span>') +
-    '<button class="btn" type="submit">Add</button></form>';
+  const M = [["sleeper","Sleeper"],["flea","Fleaflicker"],["espn","ESPN"],["mfl","MFL"]];
+  let f = '<form class="add card" id="addForm"><div class="seg" role="group" aria-label="Platform">' + M.map(x => '<button type="button" data-m="' + x[0] + '" aria-pressed="' + (addMode === x[0]) + '">' + x[1] + "</button>").join("") + "</div>";
+  if (addMode === "sleeper") f += '<label for="acctIn">Sleeper username</label><input id="acctIn" autocomplete="off" autocapitalize="off" placeholder="e.g. gridironGreg" required>';
+  else if (addMode === "flea") f += '<label for="acctIn">Fleaflicker email or league ID</label><input id="acctIn" autocomplete="off" autocapitalize="off" placeholder="you@email.com or 312876" required><span class="small muted">The league ID is the number in your league’s Fleaflicker web address.</span>';
+  else if (addMode === "espn") f += '<label for="acctIn">ESPN league ID</label><input id="acctIn" inputmode="numeric" autocomplete="off" placeholder="e.g. 1234567" required><span class="small muted">It’s the leagueId= number in your ESPN league’s web address.</span>' +
+    '<details class="small"><summary>My league is private</summary><p class="muted" style="margin:6px 0">ESPN only shares private leagues with a signed-in browser. On a computer, sign in at espn.com, open the browser’s site settings or developer tools, find the cookies named <b>espn_s2</b> and <b>SWID</b>, and paste them here. They stay in this browser and are only passed to ESPN.</p>' +
+    '<label for="s2In">espn_s2</label><input id="s2In" autocomplete="off" autocapitalize="off" spellcheck="false"><label for="swidIn">SWID</label><input id="swidIn" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="{XXXXXXXX-XXXX-…}"></details>';
+  else f += '<label for="acctIn">MyFantasyLeague league ID</label><input id="acctIn" inputmode="numeric" autocomplete="off" placeholder="e.g. 54321" required><span class="small muted">It’s the L= number in your league’s MFL web address. The league needs to be viewable without logging in.</span>';
+  return f + '<button class="btn" type="submit">Add</button></form>';
 }
 function wireAdd(v){
   const f = v.querySelector("#addForm");
   f.querySelectorAll("[data-m]").forEach(b => b.addEventListener("click", () => { addMode = b.dataset.m; render(); }));
   f.addEventListener("submit", e => {
     e.preventDefault();
-    const x = f.querySelector("#acctIn").value.trim(); if (!x) return;
+    let x = f.querySelector("#acctIn").value.trim(); if (!x) return;
     if (addMode === "sleeper") { if (!accts.sleeper.includes(x)) accts.sleeper.push(x); }
-    else { const type = /^\d+$/.test(x) ? "league" : "email"; if (!accts.flea.some(a => a.value === x)) accts.flea.push({type, value:x}); }
+    else if (addMode === "flea") { const type = /^\d+$/.test(x) ? "league" : "email"; if (!accts.flea.some(a => a.value === x)) accts.flea.push({type, value:x}); }
+    else {
+      const m = x.match(/(?:leagueId=|L=)(\d+)/i); if (m) x = m[1];
+      if (!/^\d{3,12}$/.test(x)) { alert("That doesn’t look like a league ID. It’s a number, like 1234567."); return; }
+      const rec = {id:x};
+      if (addMode === "espn") { const s2 = (f.querySelector("#s2In").value || "").trim(), sw = (f.querySelector("#swidIn").value || "").trim(); if (s2 && sw) { rec.s2 = decodeURIComponent(s2); rec.swid = sw.startsWith("{") ? sw : "{" + sw + "}"; } }
+      const list = accts[addMode]; const i = list.findIndex(a => a.id === x); if (i >= 0) list[i] = rec; else list.push(rec);
+    }
     saveAccts(accts); setTab("leagues"); loadAll();
   });
 }
 function renderAccounts(v){
   let h = "<h2>Accounts</h2>";
-  const list = accts.sleeper.map((u,i) => ({label:u, plat:"Sleeper", k:"s", i})).concat(accts.flea.map((a,i) => ({label:(a.type === "league" ? "League " : "") + a.value, plat:"Fleaflicker", k:"f", i})));
+  const list = accts.sleeper.map((u,i) => ({label:u, plat:"Sleeper", k:"s", i})).concat(accts.flea.map((a,i) => ({label:(a.type === "league" ? "League " : "") + a.value, plat:"Fleaflicker", k:"f", i})))
+    .concat(accts.espn.map((a,i) => ({label:"League " + a.id + (a.s2 ? " (private)" : ""), plat:"ESPN", k:"e", i}))).concat(accts.mfl.map((a,i) => ({label:"League " + a.id, plat:"MFL", k:"m", i})));
   if (list.length) h += '<div class="card">' + list.map(a => '<div class="acct"><span><b>' + esc(a.label) + '</b> <span class="badge">' + a.plat + '</span></span><button class="icon" data-rm="' + a.k + a.i + '">Remove</button></div>').join("") + "</div>";
-  const fl = accts.flea.map(a => a.type === "league" ? {id:a.value, name:"League " + a.value} : null).filter(Boolean)
-    .concat(leagues.filter(L => L.meta.platform === "flea").map(L => ({id:L.meta.id, name:L.meta.name})))
-    .filter((x, i, arr) => arr.findIndex(y => y.id === x.id) === i);
+  const fl = accts.flea.map(a => a.type === "league" ? {id:a.value, p:"flea", name:"League " + a.value} : null).filter(Boolean)
+    .concat(leagues.filter(L => L.meta.platform !== "sleeper" && !(L.meta.platform === "espn" && L.meta.s2)).map(L => ({id:L.meta.id, p:L.meta.platform, name:L.meta.name})))
+    .filter((x, i, arr) => arr.findIndex(y => y.id === x.id && y.p === x.p) === i);
   if (fl.length) {
     h += "<h3>Invite your league</h3>" + '<div class="card stackc" style="gap:12px">' + fl.map(x => {
-      const link = location.origin + "/?join=flea:" + x.id;
-      return '<div><b>' + esc(leagues.find(L => L.meta.id === x.id) ? leagues.find(L => L.meta.id === x.id).meta.name : x.name) + '</b><p class="small muted" style="margin:2px 0 8px;word-break:break-all">' + esc(link) + '</p><div class="sendrow" style="margin:0"><button type="button" class="btn" data-share="' + esc(link) + '">Share invite</button><button type="button" class="btn ghost" data-copy="' + esc(link) + '">Copy link</button></div></div>';
+      const link = location.origin + "/?join=" + x.p + ":" + x.id;
+      return '<div><b>' + esc(leagues.find(L => L.meta.id === x.id && L.meta.platform === x.p) ? leagues.find(L => L.meta.id === x.id && L.meta.platform === x.p).meta.name : x.name) + '</b><p class="small muted" style="margin:2px 0 8px;word-break:break-all">' + esc(link) + '</p><div class="sendrow" style="margin:0"><button type="button" class="btn" data-share="' + esc(link) + '">Share invite</button><button type="button" class="btn ghost" data-copy="' + esc(link) + '">Copy link</button></div></div>';
     }).join("") + '<p class="small muted" style="margin:0">Leaguemates open the link, pick their team, and get the same tools on their own phone. Nobody can see your settings or change anyone’s team.</p></div>';
   }
   h += "<h3>Add another</h3>" + addForm();
@@ -882,7 +1143,7 @@ function renderAccounts(v){
   }));
   v.querySelectorAll("[data-rm]").forEach(b => b.addEventListener("click", () => {
     const k = b.dataset.rm[0], i = +b.dataset.rm.slice(1);
-    if (k === "s") accts.sleeper.splice(i,1); else accts.flea.splice(i,1);
+    ({s:accts.sleeper, f:accts.flea, e:accts.espn, m:accts.mfl})[k].splice(i,1);
     saveAccts(accts); loadAll(); render();
   }));
   wireAdd(v);
@@ -898,7 +1159,7 @@ const valuesKey = (ppr, teams, qbs, dyn) => ppr + "|" + teams + "|" + qbs + "|" 
 let sidIndex = null;
 async function sleeperIdFor(L, p){
   if (L.meta.platform === "sleeper") return String(p.id);
-  if (p.id && tr.valuesHasFlea) return "f" + p.id;
+  if (p.id && tr.valuesHasFlea && L.meta.platform === "flea") return "f" + p.id;
   await getPlayers();
   if (!sidIndex) { sidIndex = {}; for (const id in players) { const q = players[id]; const k = norm(q[0]) + "|" + q[1]; if (!sidIndex[k]) sidIndex[k] = id; } }
   return sidIndex[norm(p.name) + "|" + (p.pos || "")] || "";
@@ -1069,7 +1330,7 @@ async function renderTrade(v){
   const others = d.teams.filter(t => t !== me);
   if (!tr.other || !others.find(t => t.id === tr.other)) { tr.other = others[0] && others[0].id; tr.get.clear(); }
   const them = others.find(t => t.id === tr.other);
-  if (tr.ppr == null) tr.ppr = L.meta.platform === "sleeper" ? ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1") : "1";
+  if (tr.ppr == null) tr.ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1");
   const qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1;
   if (tr.dyn == null) { const sv = savedDyn(L); tr.dyn = sv != null ? sv : /dynasty|keeper/i.test(L.meta.name); }
   if (tr.mode !== "scan") h += '<div class="psearch"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="trS" type="search" placeholder="Search any player in this league" autocomplete="off" aria-label="Search any player in this league"></div><ul id="trSR" class="sres" hidden></ul>';
@@ -1244,9 +1505,9 @@ function offerText(give, get, themName){
 function sendBlock(L, me, them, give, get){
   const picks = give.concat(get).filter(p => p.pos === "PICK");
   const text = offerText(give, get, them.name);
-  return '<div class="sendrow"><a class="btn send" href="' + esc(L.meta.platform === "flea" ? "https://www.fleaflicker.com/nfl/leagues/" + L.meta.id + "/trades" : "https://sleeper.com/leagues/" + L.meta.id) + '" target="_blank" rel="noopener" data-send=\'' + esc(JSON.stringify({give: give.filter(p => p.pos !== "PICK").map(p => p.id), get: get.filter(p => p.pos !== "PICK").map(p => p.id)})) + "'>" + (L.meta.platform === "flea" ? "Send in Fleaflicker" : "Open Sleeper") + EXT + '</a><button type="button" class="btn ghost" data-copy="' + esc(text) + '">Copy offer</button></div>' +
+  return '<div class="sendrow"><a class="btn send" href="' + esc(tradeUrl(L)) + '" target="_blank" rel="noopener" data-send=\'' + esc(JSON.stringify({give: give.filter(p => p.pos !== "PICK").map(p => p.id), get: get.filter(p => p.pos !== "PICK").map(p => p.id)})) + "'>" + (L.meta.platform === "flea" ? "Send in Fleaflicker" : "Open " + siteName(L)) + EXT + '</a><button type="button" class="btn ghost" data-copy="' + esc(text) + '">Copy offer</button></div>' +
     (picks.length && L.meta.platform === "flea" ? '<p class="small muted" style="margin:8px 0 0">Add ' + esc(picks.map(p => p.name).join(" and ")) + " with “Add a Draft Pick” before you tap Propose.</p>" : "") +
-    (L.meta.platform === "sleeper" ? '<p class="small muted" style="margin:8px 0 0">Sleeper doesn’t allow pre-filled trades. Open the trade there and pick the same players.</p>' : "");
+    (L.meta.platform !== "flea" ? '<p class="small muted" style="margin:8px 0 0">' + siteName(L) + ' doesn’t allow pre-filled trades. Open the trade there and pick the same players.</p>' : "");
 }
 async function wireSend(root, L, me, them){
   root.querySelectorAll("a[data-send]").forEach(async a => {
@@ -1834,10 +2095,10 @@ async function edgeLeague(L, el){
     '<p class="small muted" style="margin:8px 4px 0">3,000 simulated seasons using each team’s scoring average and this week’s projections, your remaining schedule, and ' + (Object.keys(d.teams.reduce((o, t) => (t.div != null && (o[t.div] = 1), o), {})).length > 1 ? "division winners getting in" : "best records getting in") + ".</p>";
   // intel
   el.innerHTML = h + '<p class="spin">Reading the league’s trade history…</p>';
-  const qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1, ppr = L.meta.platform === "sleeper" ? ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1") : "1";
+  const qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1, ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1");
   const dyn = savedDyn(L) != null ? savedDyn(L) : /dynasty|keeper/i.test(L.meta.name);
   const pack = await loadValues(ppr, d.teams.length, qbs, dyn), V = pack.v, prem = qbPremium(d.teams.length, qbs);
-  const vkey = p => L.meta.platform === "sleeper" ? String(p.id) : pack.flea ? "f" + p.id : sleeperKey(L, p);
+  const vkey = p => L.meta.platform === "sleeper" ? String(p.id) : pack.flea && L.meta.platform === "flea" ? "f" + p.id : sleeperKey(L, p);
   const pv = p => ((V[vkey(p)] || [0])[0] || 0) * (p.pos === "QB" ? prem : 1), age = p => (V[vkey(p)] || [])[6];
   await Promise.all([getProj(), getPlayers()]);
   const pj = p => { const v = projFor(L, p); return v == null ? 0 : v; };
@@ -1870,10 +2131,10 @@ async function edgeLeague(L, el){
 /* ---------- Edge: Dynasty ---------- */
 async function edgeDynasty(L, el){
   const d = L.detail, me = d.teams.find(t => t.mine);
-  const qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1, ppr = L.meta.platform === "sleeper" ? ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1") : "1";
+  const qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1, ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1");
   await getPlayers(); ensureSidIndex();
   const pack = await loadValues(ppr, d.teams.length, qbs, true), V = pack.v, prem = qbPremium(d.teams.length, qbs);
-  const vkey = p => L.meta.platform === "sleeper" ? String(p.id) : pack.flea ? "f" + p.id : sleeperKey(L, p);
+  const vkey = p => L.meta.platform === "sleeper" ? String(p.id) : pack.flea && L.meta.platform === "flea" ? "f" + p.id : sleeperKey(L, p);
   const row = p => V[vkey(p)] || [];
   const pv = p => (row(p)[0] || 0) * (p.pos === "QB" ? prem : 1);
   const picks = await loadPicks(L);
@@ -1917,6 +2178,7 @@ function ageFactor(pos, age){
 }
 async function keepersFor(L, me){
   if (L.meta.platform === "sleeper") return {max: L.detail.maxKeepers || null, kept: new Set((me.keepers || []).map(String))};
+  if (L.meta.platform !== "flea") return {max: L.detail.maxKeepers || null, kept: new Set(me.roster.filter(p => p.keeper).map(p => String(p.id)))};
   try { const r = await api("/api/flea-keepers?league_id=" + L.meta.id + "&team_id=" + me.id); return {max: r.max, kept: new Set((r.kept || []).map(String))}; }
   catch(e){ return {max: null, kept: new Set()}; }
 }
@@ -1951,10 +2213,10 @@ function keeperWhy(x, rank, N){
 }
 async function edgeKeepers(L, el){
   const d = L.detail, me = d.teams.find(t => t.mine);
-  const qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1, ppr = L.meta.platform === "sleeper" ? ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1") : "1";
+  const qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1, ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1");
   await Promise.all([getPlayers(), rosterFor(L, me)]); ensureSidIndex();
   const pack = await loadValues(ppr, d.teams.length, qbs, true), V = pack.v, prem = qbPremium(d.teams.length, qbs);
-  const vkey = p => L.meta.platform === "sleeper" ? String(p.id) : pack.flea ? "f" + p.id : sleeperKey(L, p);
+  const vkey = p => L.meta.platform === "sleeper" ? String(p.id) : pack.flea && L.meta.platform === "flea" ? "f" + p.id : sleeperKey(L, p);
   const kp = await keepersFor(L, me);
   const N = kp.max || L.detail.maxKeepers || 0;
   const list = keeperScores(L, me.roster, V, vkey, prem);
@@ -1972,7 +2234,7 @@ async function edgeKeepers(L, el){
   void openSpots;
   let h = '<div class="card grade ' + (changes ? "mid" : "good") + '"><div class="gtop"><div class="gnum"><b>' + kp.kept.size + "</b><small>/" + (N || "–") + '</small></div><div><b class="glabel">' + (changes ? changes + " keeper change" + (changes > 1 ? "s" : "") + " suggested" : "Your keepers look right") + '</b><span class="muted small">' + (kp.kept.size < N ? (N - kp.kept.size) + " keeper spot" + (N - kp.kept.size > 1 ? "s" : "") + " unused. " : "") + (bestVal > curVal + 1 ? "The suggested set is worth about " + Math.round((bestVal / Math.max(curVal, 1) - 1) * 100) + "% more over the next two seasons." : "Your current set already holds the most value.") + "</span></div></div>" +
     '<p class="small muted" style="margin:10px 0 0">Your best possible keeper group ranks #' + leagueRank + " of " + d.teams.length + " in the league.</p>" +
-    '<div class="actions">' + extBtn(L.meta.platform === "flea" ? "https://www.fleaflicker.com/nfl/leagues/" + L.meta.id + "/teams/" + me.id : "https://sleeper.com/leagues/" + L.meta.id + "/team", "Change keepers in " + siteName(L)) + "</div></div>";
+    '<div class="actions">' + extBtn(lineupUrl(L, me), "Change keepers in " + siteName(L)) + "</div></div>";
   const row = (x, i, tag) => {
     const rk = list.indexOf(x) + 1;
     return miniRow(x.p, '<span class="avg">' + fmtV(x.score) + "<small>keeper score</small></span>", posTag(x.p) + (x.age ? "Age " + x.age + " · " : "") + tag + '<span class="kwhy">' + esc(keeperWhy(x, rk, NN)) + "</span>");
@@ -2043,12 +2305,17 @@ function watchList(){
   const starters = [], bench = [];
   leagues.forEach(L => { const me = L.detail && L.detail.teams.find(t => t.mine); if (!me) return;
     me.roster.forEach(p => { if (!p.name) return; const k = norm(p.name) + "|" + (p.pos || ""); if (p.slot === "start") starters.push(k); else if (p.slot === "bench") bench.push(k); }); });
-  return {ids:[...ids], names:[...names], starters, bench, leagues: leagues.map(L => ({p:L.meta.platform, id:L.meta.id, name:L.meta.name}))};
+  return {ids:[...ids], names:[...names], starters, bench, leagues: leagues.map(L => ({p:L.meta.platform, id:L.meta.id, name:L.meta.name, season:L.meta.season}))};
 }
 let alertState = {sub:null, watching:null, msg:"", busy:false, list:null};
+function loadHooks(){ try { return JSON.parse(localStorage.getItem(KEY + ".hooks") || "[]"); } catch(e){ return []; } }
+function saveHooks(h){ try { localStorage.setItem(KEY + ".hooks", JSON.stringify(h)); } catch(e){} }
+function hookEndpoint(){ let id = null; try { id = localStorage.getItem(KEY + ".hookId"); if (!id) { id = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, "0")).join(""); localStorage.setItem(KEY + ".hookId", id); } } catch(e){ id = "anon"; } return "https://snapcount.hooks/" + id; }
 async function syncAlerts(sub){
-  sub = sub || await getSub(); if (!sub) return null;
-  const r = await post("/api/push/subscribe", Object.assign({sub: sub.toJSON(), prefs: alertPrefs()}, watchList()));
+  sub = sub || (pushOK ? await getSub().catch(() => null) : null);
+  const hooks = loadHooks();
+  if (!sub && !hooks.length) return null;
+  const r = await post("/api/push/subscribe", Object.assign({sub: sub ? sub.toJSON() : {endpoint: hookEndpoint(), keys:{}}, prefs: alertPrefs(), hooks}, watchList()));
   alertState.watching = r;
   return r;
 }
@@ -2068,11 +2335,56 @@ async function enableAlerts(){
 }
 function fmtWhen(t){ const d = new Date(t); return d.toLocaleDateString([], {weekday:"short"}) + " " + d.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}); }
 
+/* ---------- send alerts to other apps + calendar ---------- */
+const HOOK_NAMES = [["discord","Discord"],["slack","Slack"],["teams","Microsoft Teams"],["telegram","Telegram"],["ntfy","ntfy"],["generic","IFTTT / Zapier / Make"]];
+function hookName(u){ return /discord/.test(u) ? "Discord" : /slack/.test(u) ? "Slack" : /office\.com|azure/.test(u) ? "Teams" : /telegram/.test(u) ? "Telegram" : /ntfy/.test(u) ? "ntfy" : /ifttt/.test(u) ? "IFTTT" : /zapier/.test(u) ? "Zapier" : /make\.com/.test(u) ? "Make" : "Webhook"; }
+function hooksCard(){
+  const hooks = loadHooks();
+  return '<h3>Send alerts to your other apps</h3><div class="card stackc" style="gap:10px">' +
+    '<p class="small muted" style="margin:0">Every alert can also post to a Discord or Slack channel (great for your whole league), Microsoft Teams, Telegram, the ntfy app, or anything else through IFTTT, Zapier or Make. Paste the app’s webhook link.</p>' +
+    (hooks.length ? hooks.map((u, i) => '<div class="acct"><span><b>' + hookName(u) + '</b> <span class="small muted">' + esc(u.replace(/^https:\/\//, "").slice(0, 34)) + '…</span></span><button class="icon" data-hrm="' + i + '">Remove</button></div>').join("") : "") +
+    '<input id="hookIn" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://discord.com/api/webhooks/…">' +
+    '<details class="small"><summary>Where do I find the link?</summary><p class="muted" style="margin:6px 0 0"><b>Discord:</b> channel settings › Integrations › Webhooks › New Webhook › Copy URL.<br><b>Slack:</b> add the Incoming Webhooks app to a channel and copy its URL.<br><b>Teams:</b> channel › Workflows › “Post to a channel when a webhook request is received”.<br><b>Telegram:</b> https://api.telegram.org/bot&lt;token&gt;/sendMessage?chat_id=&lt;id&gt;<br><b>ntfy:</b> install ntfy, subscribe to a topic name only you know, and paste https://ntfy.sh/your-topic.<br><b>IFTTT:</b> Webhooks service › Documentation › copy the trigger URL. Zapier and Make: “Catch hook” URL.</p></details>' +
+    '<button class="btn" id="hookAdd" type="button">Connect</button><p class="small" id="hookMsg" style="margin:0"></p></div>';
+}
+function wireHooks(v){
+  const add = v.querySelector("#hookAdd"); if (!add) return;
+  add.addEventListener("click", async () => {
+    const u = v.querySelector("#hookIn").value.trim(), msg = v.querySelector("#hookMsg");
+    if (!u) return;
+    add.disabled = true; add.textContent = "Sending a test…";
+    try {
+      await post("/api/push/hooktest", {endpoint: hookEndpoint(), hook: u});
+      const h = loadHooks(); if (!h.includes(u)) h.push(u); saveHooks(h.slice(-5));
+      await syncAlerts();
+      alertState.msg = hookName(u) + " connected. A test message is on its way.";
+      render();
+    } catch(e){ msg.textContent = e.message; msg.style.color = "var(--bad)"; add.disabled = false; add.textContent = "Connect"; }
+  });
+  v.querySelectorAll("[data-hrm]").forEach(b => b.addEventListener("click", async () => { const h = loadHooks(); h.splice(+b.dataset.hrm, 1); saveHooks(h); await syncAlerts().catch(() => {}); render(); }));
+}
+const teamAbbr = a => ({WAS:"WSH", LA:"LAR", JAC:"JAX", KCC:"KC", GBP:"GB", NEP:"NE", NOS:"NO", SFO:"SF", TBB:"TB", LVR:"LV"})[a] || a;
+function calUrl(){
+  const m = {}; leagues.forEach(L => { const me = L.detail && L.detail.teams.find(t => t.mine); if (me) me.roster.forEach(p => { if (p.team && p.name && p.slot !== "ir" && /^[A-Z]{2,4}$/.test(p.team)) (m[teamAbbr(p.team)] = m[teamAbbr(p.team)] || new Set()).add(p.name.split(" ").slice(-1)[0]); }); });
+  const t = Object.keys(m).sort().map(k => k + "~" + [...m[k]].join("|")).join(";");
+  return t ? location.origin + "/cal.ics?t=" + encodeURIComponent(t) : null;
+}
+function calCard(){
+  const u = calUrl();
+  if (!u) return "";
+  const web = u.replace(/^https?:/, "webcal:");
+  return '<h3>Game-day calendar</h3><div class="card stackc" style="gap:10px"><p class="small muted" style="margin:0">Every NFL game your players are in, with their names, TV channel and betting line, in your phone’s calendar. It updates itself as your roster changes when you reopen this page.</p>' +
+    '<div class="sendrow" style="margin:0"><a class="btn" href="' + esc(web) + '">Apple / iPhone calendar</a><a class="btn ghost" href="' + esc("https://calendar.google.com/calendar/r?cid=" + encodeURIComponent(web)) + '" target="_blank" rel="noopener">Google Calendar' + EXT + '</a></div>' +
+    '<button type="button" class="btn ghost" data-copy="' + esc(u) + '">Copy link for Outlook or other apps</button></div>';
+}
+
+function wireCopy(v){ v.querySelectorAll("[data-copy]").forEach(b => { if (b.dataset.wired) return; b.dataset.wired = 1; const t0 = b.textContent; b.addEventListener("click", async () => { try { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = "Copied"; } catch(e){ b.textContent = "Copy failed"; } setTimeout(() => { b.textContent = t0; }, 1800); }); }); }
 async function renderAlerts(v){
   const prefs = alertPrefs();
   let h = "<h2>Alerts</h2>";
   if (!pushOK) {
-    v.innerHTML = h + '<div class="card"><p style="margin:0">This browser can’t receive alerts.</p><p class="small muted" style="margin:8px 0 0">On iPhone, tap Share, then Add to Home Screen, and open Snap Count from your home screen. On Android, use Chrome.</p></div>';
+    v.innerHTML = h + '<div class="card"><p style="margin:0">This browser can’t show phone notifications.</p><p class="small muted" style="margin:8px 0 0">On iPhone, tap Share, then Add to Home Screen, and open Snap Count from your home screen. On Android, use Chrome. You can still get every alert in Discord, Slack, Telegram or another app below.</p></div>' + (alertState.msg ? '<p class="small" style="margin:8px 0 0">' + esc(alertState.msg) + "</p>" : "") + hooksCard() + calCard();
+    wireHooks(v); wireCopy(v);
     return;
   }
   const sub = alertState.sub = await getSub();
@@ -2081,8 +2393,10 @@ async function renderAlerts(v){
     h += '<div class="card alertpitch"><p style="margin:0 0 10px"><b>Get a notification on this phone when:</b></p><ul class="ticks"><li>A player on your roster is downgraded, ruled out, placed on IR, comes off the injury report, or gets traded</li><li>A starter is ruled out and his backup is a free agent in one of your leagues</li><li>A free agent’s projected points jump, especially at QB</li><li>The injury report posts a new note about one of your players, like a missed practice</li><li>A headline mentions one of your players</li></ul>' +
       '<button class="btn" id="alOn" style="width:100%;margin-top:6px">Turn on alerts</button>' +
       (hasAccts() ? "" : '<p class="small muted" style="margin:10px 0 0">Add your leagues under Accounts first so we know who your players are.</p>') + "</div>";
-    if (alertState.msg) h += '<div class="err" style="margin-top:10px">' + esc(alertState.msg) + "</div>";
+    if (alertState.msg) h += '<div class="' + (/connected/.test(alertState.msg) ? "small" : "err") + '" style="margin-top:10px">' + esc(alertState.msg) + "</div>";
+    h += hooksCard() + calCard();
     v.innerHTML = h;
+    wireHooks(v); wireCopy(v);
     v.querySelector("#alOn").addEventListener("click", async e => {
       e.target.disabled = true; e.target.textContent = "Turning on…"; alertState.msg = "";
       try { await enableAlerts(); } catch(err){ alertState.msg = err.message; }
@@ -2103,8 +2417,10 @@ async function renderAlerts(v){
     '<div class="seg" role="group" aria-label="Free agent positions"><button type="button" data-fp="ALL" aria-pressed="' + (prefs.faPos === "ALL") + '">All positions</button><button type="button" data-fp="QB" aria-pressed="' + (prefs.faPos === "QB") + '">QBs only</button></div></div>';
   h += '<div class="btnrow"><button class="btn ghost" id="alTest">Send a test alert</button><button class="btn ghost" id="alOff">Turn off</button></div>';
   if (alertState.msg) h += '<p class="small" style="margin:8px 0 0">' + esc(alertState.msg) + "</p>";
+  h += hooksCard() + calCard();
   h += '<h3>Recent alerts</h3><div id="alList"><p class="spin">Loading…</p></div>';
   v.innerHTML = h;
+  wireHooks(v); wireCopy(v);
   const savePrefs = async p => { saveAlertPrefs(p); alertState.msg = ""; try { await syncAlerts(sub); } catch(e){ alertState.msg = e.message; } render(); };
   v.querySelector("#alMine").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {mine:e.target.checked})));
   v.querySelector("#alFa").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {fa:e.target.checked})));
@@ -2149,10 +2465,12 @@ if ("serviceWorker" in navigator) window.addEventListener("load", () => navigato
 let pendingJoin = null;
 try {
   const j = new URLSearchParams(location.search).get("join");
-  const m = j && j.match(/^flea:(\d{3,12})$/);
+  const m = j && j.match(/^(flea|espn|mfl):(\d{3,12})$/);
   if (m) {
-    pendingJoin = m[1];
-    if (!accts.flea.some(a => a.type === "league" && a.value === m[1])) { accts.flea.push({type:"league", value:m[1]}); saveAccts(accts); }
+    pendingJoin = m[1] + ":" + m[2];
+    if (m[1] === "flea" && !accts.flea.some(a => a.type === "league" && a.value === m[2])) accts.flea.push({type:"league", value:m[2]});
+    if (m[1] !== "flea" && !accts[m[1]].some(a => a.id === m[2])) accts[m[1]].push({id:m[2]});
+    saveAccts(accts);
     history.replaceState(null, "", location.pathname);
   }
 } catch(e){}
@@ -2168,7 +2486,7 @@ async function refreshLive(){
   await Promise.all(targets.filter(Boolean).map(async L => {
     try {
       const keep = L.detail && L.detail.teams.find(t => t.mine || t.id === cur.team);
-      const fresh = L.meta.platform === "sleeper" ? await sleeperDetail(L.meta) : await fleaDetail(L.meta);
+      const fresh = await detailFor(L.meta);
       if (keep) { const nt = fresh.teams.find(t => t.id === keep.id); if (nt && L.meta.platform === "flea") await fleaTeamRoster(L, nt); }
       L.detail = fresh;
     } catch(e){}

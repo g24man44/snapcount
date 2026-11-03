@@ -4,6 +4,7 @@
 // and sends phone notifications to each subscriber whose players or leagues are affected.
 
 import { ICON_192, ICON_512 } from "./icons.js";
+import { hookKind, sendHook, espnLeagueTaken, mflLeagueTaken } from "./more.js";
 
 const UA = { "User-Agent": "SnapCount/1.0 (fantasy dashboard)", "Accept": "application/json" };
 const te = new TextEncoder();
@@ -55,14 +56,17 @@ async function addAlerts(env, id, items) {
   const list = (await env.SNAP.get(key, "json")) || [];
   const seen = new Set(list.map(a => a.id));
   const fresh = items.filter(a => !seen.has(a.id));
-  if (!fresh.length) return 0;
+  if (!fresh.length) return [];
   const next = fresh.map(a => Object.assign({ t: Date.now(), read: false }, a)).concat(list).slice(0, 40);
   await env.SNAP.put(key, JSON.stringify(next));
-  return fresh.length;
+  return fresh;
 }
 async function deliver(env, id, rec, items) {
-  const n = await addAlerts(env, id, items);
+  const fresh = await addAlerts(env, id, items);
+  const n = fresh.length;
   if (!n) return 0;
+  for (const h of (rec.hooks || [])) { try { await sendHook(h, fresh, rec.origin); } catch (e) {} }
+  if (String(rec.sub.endpoint).startsWith("https://snapcount.hooks/")) return n;
   const st = await sendPush(env, rec.sub, rec.origin);
   if (st === 404 || st === 410) { await env.SNAP.delete("sub:" + id); await env.SNAP.delete("al:" + id); }
   return n;
@@ -85,7 +89,8 @@ export async function alertsRoute(request, env, p, url) {
           names: (body.names || []).slice(0, 400).map(String),
           starters: (body.starters || []).slice(0, 80).map(String),
           bench: (body.bench || []).slice(0, 120).map(String),
-          leagues: (body.leagues || []).slice(0, 30).map(l => ({ p: l.p === "flea" ? "flea" : "sleeper", id: String(l.id), name: String(l.name || "").slice(0, 80) })),
+          leagues: (body.leagues || []).slice(0, 30).map(l => ({ p: ["flea", "espn", "mfl"].includes(l.p) ? l.p : "sleeper", id: String(l.id), name: String(l.name || "").slice(0, 80), season: /^\d{4}$/.test(String(l.season || "")) ? String(l.season) : undefined })),
+          hooks: (body.hooks || []).map(String).filter(u => hookKind(u)).slice(0, 5),
           prefs: { mine: body.prefs?.mine !== false, fa: body.prefs?.fa !== false, news: body.prefs?.news !== false, league: body.prefs?.league !== false, faPos: body.prefs?.faPos === "QB" ? "QB" : "ALL" },
           origin: url.origin
         };
@@ -102,6 +107,12 @@ export async function alertsRoute(request, env, p, url) {
         return out({ ok: true, watching: rec.ids.length + rec.names.length, leagues: rec.leagues.length });
       }
       if (p === "/api/push/unsubscribe") { await env.SNAP.delete("sub:" + id); await env.SNAP.delete("al:" + id); return out({ ok: true }); }
+      if (p === "/api/push/hooktest") {
+        const u = String(body.hook || "");
+        if (!hookKind(u)) return out({ error: "That link isn’t a Discord, Slack, Teams, Telegram, ntfy, IFTTT, Zapier, Make or Pipedream webhook." }, 400);
+        const st = await sendHook(u, [{ id: "t", title: "Snap Count is connected", body: "Your fantasy alerts will show up here." }], url.origin);
+        return st >= 200 && st < 300 ? out({ ok: true }) : out({ error: "That app answered " + st + ". Check the link and try again." }, 400);
+      }
       if (p === "/api/push/test") {
         const rec = await env.SNAP.get("sub:" + id, "json");
         if (!rec) return out({ error: "This phone isn't signed up for alerts yet." }, 404);
@@ -205,6 +216,8 @@ async function leagueRostered(L, cache) {
     if (L.p === "sleeper") {
       const r = await fetch("https://api.sleeper.app/v1/league/" + L.id + "/rosters", { headers: UA });
       if (r.ok) { set = new Set(); for (const ro of await r.json()) for (const pid of (ro.players || [])) set.add("id:" + pid); }
+    } else if (L.p === "espn") { set = await espnLeagueTaken(L);
+    } else if (L.p === "mfl") { set = await mflLeagueTaken(L);
     } else {
       const r = await fetch("https://www.fleaflicker.com/api/FetchLeagueRosters?sport=NFL&league_id=" + L.id, { headers: UA });
       if (r.ok) { set = new Set(); for (const ro of ((await r.json()).rosters || [])) for (const lp of (ro.players || [])) { const pp = lp.proPlayer || {}; set.add("nm:" + norm(pp.nameFull) + "|" + pp.position); } }
