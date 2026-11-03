@@ -11,7 +11,6 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - Never break what works. Test in a headless browser against real Fleaflicker data before pushing. If tests fail, don't push.
 
 ## Next up (top first)
-- [ ] FAAB bid suggestions for top free agents (based on league budget left and player value).
 - [ ] Negotiate mode: role-play the other manager with AI to practice a trade pitch, then send the final offer.
 - [ ] Rest-of-season strength of schedule for each of your starters and for your fantasy schedule.
 - [ ] Player comparison: pick 2–4 players, see projections, matchups, trends, values side by side, with an AI verdict.
@@ -32,3 +31,4 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [x] Live win probability, every-sport scores, offline mode, app shortcuts, app badge
 - [x] Sunday 11:00 ET AI pregame briefing: push + Discord/Slack post with start/sit calls, risky starters, best pickup (Alerts › Sunday pregame briefing, with preview)
 - [x] League trade report card: every trade in the league graded A+ to F for each side, best/worst traders, most lopsided deals, all-time history (Leagues › your league › Trades)
+- [x] Waiver bids: FAAB bid and range for the top free agents (your budget, rivals' budgets, value, week), or claim-vs-wait advice in waiver-priority leagues (Edge › Waivers)
