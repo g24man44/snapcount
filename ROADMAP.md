@@ -13,7 +13,6 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 ## Next up (top first)
 - [ ] Tuesday auto-post of power rankings (with luck) to connected Discord/Slack, alongside the AI recap.
 - [ ] Friday AI matchup preview push: your opponent's lineup, the key matchup, win odds.
-- [ ] Draft center: live best-available board during a draft (rookies by value, your next pick).
 
 ## Blocked (needs the owner)
 - [ ] Yahoo leagues: needs a Yahoo developer app (client ID and secret) for sign-in.
@@ -38,3 +37,4 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [x] Power rankings with schedule luck: scoring, recent form and all-play record, week-over-week movement, luckiest/unluckiest/hottest, share or post to Discord (Leagues › League)
 - [x] Trade alerts now carry grades: every new league trade pushed/posted with a letter per side and a verdict
 - [x] Sweat board: every starter in every league, live points vs projection, grouped by playing now / still to play / done, each league's score and win odds, refreshes every minute (Leagues › Sweat board)
+- [x] Live draft board: when a draft is scheduled or under way, Draft center shows your next pick, who picks before you, best available by value with position filters, and the next 12 picks

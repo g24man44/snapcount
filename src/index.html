@@ -2291,12 +2291,35 @@ async function openDraftCenter(L){
     }
   }
   if (sh.hidden) return;
-  if (!S.years.length) { p.innerHTML = '<button class="back" id="closeSheet">Close</button><h2>Draft center</h2><div class="card"><p class="small" style="margin:0">No drafts found for this league yet.</p></div>'; p.querySelector("#closeSheet").addEventListener("click", closeSheet); return; }
+  // A draft that's scheduled or under way: this season's board with empty slots.
+  try { const live = S.boards[cur] || await draftBoard(L, cur); S.live = live.length && live.some(x => !x.player) ? live : null; if (S.live && S.year == null) S.year = "live"; } catch(e){ S.live = null; }
+  if (!S.years.length && !S.live) { p.innerHTML = '<button class="back" id="closeSheet">Close</button><h2>Draft center</h2><div class="card"><p class="small" style="margin:0">No drafts found for this league yet.</p></div>'; p.querySelector("#closeSheet").addEventListener("click", closeSheet); return; }
   const qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1, ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1");
   const pack = await loadValues(ppr, d.teams.length, qbs, true), V = pack.v, prem = qbPremium(d.teams.length, qbs);
   const pv = pl => ((V[pack.flea ? "f" + pl.id : sleeperKey(L, pl)] || [0])[0] || 0) * (pl.pos === "QB" ? prem : 1);
   const curName = id => { const t = d.teams.find(x => x.id === id); return t ? t.name : null; };
+  const chips = y => '<div class="chips" style="margin:2px 0 10px">' + (S.live ? '<button type="button" class="chip' + (y === "live" ? " on" : "") + '" data-dy="live">🔴 Live draft</button>' : "") + S.years.filter(yy => !(S.live && yy === cur)).map(yy => '<button type="button" class="chip' + (yy === y ? " on" : "") + '" data-dy="' + yy + '">' + yy + "</button>").join("") + "</div>";
+  const wire = () => { p.querySelector("#closeSheet").addEventListener("click", closeSheet); p.querySelectorAll("[data-dy]").forEach(b => b.addEventListener("click", () => { S.year = b.dataset.dy === "live" ? "live" : Number(b.dataset.dy); draw(); p.scrollTop = 0; })); wireRows(p); };
+  const drawLive = () => {
+    const B = S.live, taken = new Set(B.filter(x => x.player).map(x => x.player.id)), ros = rosteredSet(L), open = B.filter(x => !x.player);
+    const mine = me ? open.filter(x => x.team.id === me.id) : [], next = open[0], myNext = mine[0];
+    const pool = [];
+    for (const k2 in V) { if (k2[0] !== "f") continue; const r = V[k2], id = k2.slice(1), pos = r[5]; if (!["QB", "RB", "WR", "TE"].includes(pos) || taken.has(id) || ros.has(norm(r[4]) + "|" + pos)) continue; pool.push({id, name: r[4], pos, age: r[6], v: Math.round(r[0] * (pos === "QB" ? prem : 1)), rank: r[2]}); }
+    pool.sort((a, b) => b.v - a.v);
+    const f = S.pos || "ALL", list = pool.filter(x => f === "ALL" || x.pos === f).slice(0, 30);
+    let h = '<button class="back" id="closeSheet">Close</button><h2>Draft center</h2>' + chips("live");
+    h += '<div class="card heroCard"><div class="gtop"><div class="gnum" style="background:var(--accent-soft);color:var(--accent)"><b style="font-size:22px">' + (myNext ? myNext.round + "." + String(myNext.slot).padStart(2, "0") : "–") + '</b></div><div><b class="glabel">' + (myNext ? (next === myNext ? "You’re on the clock" : "Your next pick: #" + myNext.overall) : "You have no picks left") + '</b><span class="muted small">' + (B.length - open.length) + " of " + B.length + " picks made" + (myNext && next !== myNext ? " · " + (myNext.overall - next.overall) + " picks away" : "") + (next ? " · on the clock: " + esc(curName(next.team.id) || next.team.name) : "") + "</span></div></div>" +
+      (myNext && list.length ? '<ul class="reasons"><li class="good">Best value left: <b>' + esc(list[0].name) + "</b> (" + list[0].pos + (list[0].age ? ", " + list[0].age : "") + ", " + fmtV(list[0].v) + ")." + "</li>" + (open.length > 1 ? "<li>Picks before yours: " + open.slice(0, Math.max(0, open.indexOf(myNext))).slice(0, 6).map(x => esc(curName(x.team.id) || x.team.name)).join(", ") + (open.indexOf(myNext) > 6 ? "…" : "") + "</li>" : "") + "</ul>" : "") + "</div>";
+    h += '<div class="chips posf" style="margin:12px 0 6px">' + ["ALL", "QB", "RB", "WR", "TE"].map(x => '<button type="button" class="chip' + (f === x ? " on" : "") + '" data-dpos="' + x + '">' + x + "</button>").join("") + "</div>";
+    h += "<h3>Best available</h3>" + (list.length ? '<ul class="plist">' + list.map((x, i) => { const pl = {id: x.id, name: x.name, pos: x.pos, team: "", fl: true}, ri = reg.push(pl) - 1; return '<li><button class="prow" data-i="' + ri + '">' + avatar(pl) + '<span class="pname"><b>' + (i + 1) + ". " + esc(x.name) + "</b><small>" + posTag(pl) + (x.rank ? x.pos + x.rank : "") + (x.age ? " · age " + x.age : "") + '</small></span><span class="pts"><span class="avg">' + fmtV(x.v) + "<small>value</small></span></span></button></li>"; }).join("") + "</ul>" : '<div class="card"><p class="small" style="margin:0">No valued players left at this position.</p></div>');
+    h += "<h3>Up next</h3>" + '<div class="card" style="padding:6px 0"><table class="otable"><tbody>' + open.slice(0, 12).map(x => '<tr class="' + (me && x.team.id === me.id ? "me" : "") + '"><td class="muted" style="width:52px">' + x.round + "." + String(x.slot).padStart(2, "0") + "</td><td>" + teamLogo(x.team) + "</td><td><b>" + esc(curName(x.team.id) || x.team.name) + "</b>" + (x.traded ? "<small>traded pick</small>" : "") + "</td></tr>").join("") + "</tbody></table></div>";
+    h += '<p class="small muted" style="margin:10px 4px 0">Players not drafted and not on any roster, ranked by dynasty ' + esc(pack.src) + " value for this league’s format. Reopen to refresh after each pick.</p>";
+    p.innerHTML = h; wire();
+    p.querySelectorAll("[data-dpos]").forEach(b => b.addEventListener("click", () => { S.pos = b.dataset.dpos; drawLive(); }));
+  };
   const draw = () => {
+    reg = [];
+    if (S.year === "live" && S.live) return drawLive();
     const y = S.year && S.years.includes(S.year) ? S.year : S.years[0]; S.year = y;
     const picks = S.boards[y].filter(x => x.player).map(x => Object.assign({}, x, {v: pv(x.player)}));
     // Hindsight: the k-th best value in this draft is what the k-th pick "should" have returned.
@@ -2309,8 +2332,7 @@ async function openDraftCenter(L){
     const steals = picks.filter(x => x.v >= 1500 && x.gap >= 10).sort((a, b) => b.gap - a.gap).slice(0, 5);
     const busts = picks.filter(x => x.overall <= Math.max(16, d.teams.length * 2) && x.hr - x.overall >= 25).sort((a, b) => (b.hr - b.overall) - (a.hr - a.overall)).slice(0, 5);
     const rookies = picks.filter(x => x.player.rookie).length;
-    let h = '<button class="back" id="closeSheet">Close</button><h2>Draft center</h2>' +
-      '<div class="chips" style="margin:2px 0 10px">' + S.years.map(yy => '<button type="button" class="chip' + (yy === y ? " on" : "") + '" data-dy="' + yy + '">' + yy + "</button>").join("") + "</div>";
+    let h = '<button class="back" id="closeSheet">Close</button><h2>Draft center</h2>' + chips(y);
     const mine = me && board.find(t => t.id === me.id);
     h += '<div class="card heroCard"><div class="gtop"><div class="gnum" style="background:var(--ok-soft);color:var(--ok)"><b>' + esc(board[0].letter) + '</b></div><div><b class="glabel">Best ' + y + " draft: " + esc(board[0].name) + '</b><span class="muted small">' + picks.length + " picks" + (rookies ? " · " + rookies + " rookies" : "") + " · graded by what each pick is worth today</span></div></div>" +
       '<ul class="reasons">' + (mine ? '<li class="' + trTone(mine.letter) + '">You: <b>' + mine.letter + "</b>, " + mine.n + " picks worth " + fmtV(mine.v) + " today (an average draft from your slots: " + fmtV(mine.exp) + ")" + (mine.best ? ". Best pick: " + esc(mine.best.player.name) + " at " + mine.best.round + "." + String(mine.best.slot).padStart(2, "0") : "") + ".</li>" : "") +
@@ -2321,10 +2343,7 @@ async function openDraftCenter(L){
     if (busts.length) h += '<h3>Busts</h3><ul class="plist">' + busts.map(x => prow(x, '<span class="avg" style="color:var(--bad)">#' + x.hr + "<small>value rank</small></span>")).join("") + "</ul>";
     h += '<h3>Hindsight re-draft · top 12</h3><ul class="plist">' + byV.slice(0, 12).map((x, i) => prow(x, '<span class="avg">' + (i + 1) + "<small>was " + ORDN(x.overall) + "</small></span>")).join("") + "</ul>";
     h += '<p class="small muted" style="margin:10px 4px 0">Each pick is valued at today’s dynasty ' + esc(pack.src) + " value. A team’s grade compares what its picks are worth now with what the same draft slots returned on average, so it rewards finding value late.</p>";
-    p.innerHTML = h;
-    p.querySelector("#closeSheet").addEventListener("click", closeSheet);
-    p.querySelectorAll("[data-dy]").forEach(b => b.addEventListener("click", () => { S.year = Number(b.dataset.dy); draw(); p.scrollTop = 0; }));
-    wireRows(p);
+    p.innerHTML = h; wire();
   };
   draw();
 }
