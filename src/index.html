@@ -25,9 +25,9 @@
 }
 @media (prefers-color-scheme:light){:root{
   --bg:#f2f4f8; --surface:#ffffff; --surface2:#eef1f6; --surface3:#e3e8f0; --ink:#0d121b; --muted:#5b6576; --line:#e1e6ee;
-  --accent:#e8590c; --accent-ink:#ffffff; --accent-soft:#fff0e6;
-  --ok:#0b8a52; --ok-soft:#e2f6ec; --warn:#a96300; --warn-soft:#fff3d9; --bad:#d0362d; --bad-soft:#fde8e6;
-  --qb:#d9480f; --rb:#0b8a52; --wr:#2e5fd6; --te:#8b3fd1; --k:#5b6576; --def:#475569;
+  --accent:#a8380a; --accent-ink:#ffffff; --accent-soft:#fff0e6;
+  --ok:#05703f; --ok-soft:#e2f6ec; --warn:#7f4a00; --warn-soft:#fff3d9; --bad:#b4231a; --bad-soft:#fde8e6;
+  --qb:#9c3306; --rb:#05703f; --wr:#2347ad; --te:#7130ad; --k:#5b6576; --def:#475569;
   --shadow:0 10px 30px rgba(15,23,40,.12); --card-shadow:0 1px 2px rgba(15,23,40,.05),0 6px 18px rgba(15,23,40,.05);
   color-scheme:light}}
 *{box-sizing:border-box}
@@ -186,7 +186,7 @@ form.add{display:flex;flex-direction:column;gap:10px}
 .avg small{font:700 10px/1.4 var(--body);color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
 .inj{display:inline-block;font:800 10.5px/1 var(--body);padding:4px 6px;border-radius:6px;margin-left:6px;vertical-align:2px;color:var(--warn);background:var(--warn-soft)}
 .inj.bad{color:var(--bad);background:var(--bad-soft)} .inj.ok{color:var(--ok);background:var(--ok-soft)}
-.live{color:#fff;background:var(--bad);font:800 10px/1 var(--body);padding:3px 6px;border-radius:6px;letter-spacing:.04em}
+.live{color:#fff;background:#d4302a;font:800 10px/1 var(--body);padding:3px 6px;border-radius:6px;letter-spacing:.04em}
 .note{display:block;margin-top:5px;font-size:13px;line-height:1.4;color:var(--ink);opacity:.9;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .note .inj{margin:0 5px 0 0}
 .mine{background:var(--accent-soft);color:var(--accent);border-radius:6px;padding:1px 5px;font-weight:700}
@@ -198,7 +198,7 @@ form.add{display:flex;flex-direction:column;gap:10px}
 .cmpt td.win{color:var(--ok);font-weight:800}.cmpx{position:absolute;top:0;right:0;border:0;background:var(--surface2);color:var(--muted);width:24px;height:24px;border-radius:50%;font-size:16px;line-height:1}
 .sosc{padding:10px 12px}.sosr+.sosr{border-top:1px solid var(--line);margin-top:8px;padding-top:8px}.sosn{display:block;width:100%;text-align:left;background:none;border:0;color:var(--ink);padding:0}.sosn b{display:block;font-size:15px}.sosn small{display:flex;flex-wrap:wrap;gap:4px;align-items:center;font-size:12px;margin-top:2px}
 .sosw{display:flex;gap:4px;overflow-x:auto;margin-top:6px;scrollbar-width:none}.sosx{flex:none;min-width:44px;padding:4px 2px;border-radius:8px;font-size:11.5px;font-weight:700;text-align:center;background:var(--surface2);color:var(--muted);display:flex;flex-direction:column;gap:1px;border:1.5px solid transparent}
-.sosx small{font-size:9.5px;font-weight:600;opacity:.75}.sosx.easy{background:var(--ok-soft);color:var(--ok)}.sosx.hard{background:var(--bad-soft);color:var(--bad)}.sosx.bye{opacity:.6}.sosx.po{border-color:var(--accent)}
+.sosx small{font-size:9.5px;font-weight:600}.sosx.easy{background:var(--ok-soft);color:var(--ok)}.sosx.hard{background:var(--bad-soft);color:var(--bad)}.sosx.bye{background:transparent;border:1.5px dashed var(--line);color:var(--muted)}.sosx.po{border-color:var(--accent)}
 .ltc{margin-bottom:10px}.lth{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-bottom:8px}
 .lts{display:grid;grid-template-columns:44px 1fr;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
 .ltg{display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:40px;border-radius:12px;font-weight:900;font-size:17px;background:var(--surface2);color:var(--ink)}
@@ -872,7 +872,7 @@ function renderLeague(v, L){
   if (L.error) { v.innerHTML = h + '<div class="err">' + esc(L.error) + "</div>"; return wireBack(v); }
   if (!d) { v.innerHTML = h + '<p class="spin">Loading…</p>'; return wireBack(v); }
   const sub = cur.sub || "team";
-  h += '<div class="seg sub" role="tablist">' + [["team","My team"],["fa","Free agents"],["league","League"]].concat(m.platform === "flea" ? [["act","Activity"]] : []).concat(["flea", "sleeper"].includes(m.platform) ? [["trades","Trades"]] : []).map(x => '<button type="button" data-sub="' + x[0] + '" aria-pressed="' + (sub === x[0]) + '">' + x[1] + "</button>").join("") + "</div>";
+  h += '<div class="seg sub" role="group" aria-label="League sections">' + [["team","My team"],["fa","Free agents"],["league","League"]].concat(m.platform === "flea" ? [["act","Activity"]] : []).concat(["flea", "sleeper"].includes(m.platform) ? [["trades","Trades"]] : []).map(x => '<button type="button" data-sub="' + x[0] + '" aria-pressed="' + (sub === x[0]) + '">' + x[1] + "</button>").join("") + "</div>";
   let me = cur.team ? d.teams.find(t => t.id === cur.team) : d.teams.find(t => t.mine);
   if (sub === "team") {
     if (!me) h += '<div class="card install" style="margin-top:12px"><img src="/icon-192.png" alt=""><div><b>' + (cur.joined ? "Welcome to Snap Count" : "Which team is yours?") + '</b><span>Pick your team below. Your scores, alerts and trade tools all follow it.</span></div></div>';
@@ -1049,6 +1049,13 @@ async function openPlayer(pl){
   } catch(e){ $("#pnews").innerHTML = '<div class="err">Couldn’t load headlines: ' + esc(e.message) + "</div>"; }
 }
 function closeSheet(){ $("#sheet").hidden = true; }
+// Screen readers and keyboards: move focus into a sheet when it opens and back to where you were when it closes.
+(() => { let back = null; const sh = $("#sheet"), pn = $("#sheetPanel"); pn.tabIndex = -1;
+  new MutationObserver(() => {
+    if (!sh.hidden) { if (!back) back = document.activeElement; const h = pn.querySelector("h2,.ctitle"); pn.setAttribute("aria-label", h ? h.textContent.trim() : "Details"); if (!pn.contains(document.activeElement)) pn.focus({preventScroll: true}); }
+    else if (back) { try { back.focus({preventScroll: true}); } catch(e){} back = null; }
+  }).observe(sh, {attributes: true, attributeFilter: ["hidden"]});
+})();
 $("#sheet").addEventListener("click", e => { if (e.target.id === "sheet") closeSheet(); });
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeSheet(); });
 
@@ -2405,7 +2412,7 @@ async function openHistory(L){
     // rivalries
     const me2 = tm(sel), rows = Object.entries(X.H[sel] || {}).map(([oid, r]) => Object.assign({o: tm(oid), oid}, r, {pct: r.g ? (r.w + r.t / 2) / r.g : 0, mg: r.g ? (r.pf - r.pa) / r.g : 0})).sort((a, b) => b.g - a.g || b.pct - a.pct);
     const q = rows.filter(r => r.g >= 3), nem = q.slice().sort((a, b) => a.pct - b.pct || a.mg - b.mg)[0], vic = q.slice().sort((a, b) => b.pct - a.pct || b.mg - a.mg)[0], riv = q.slice().sort((a, b) => (Math.abs(a.w - a.l) - Math.abs(b.w - b.l)) || b.g - a.g)[0];
-    h += '<select id="lhTeam" style="margin-bottom:10px">' + X.teams.slice().sort((a, b) => a.name.localeCompare(b.name)).map(t => '<option value="' + esc(t.id) + '"' + (t.id === sel ? " selected" : "") + ">" + esc(t.name) + (t.id === myId ? " (you)" : "") + "</option>").join("") + "</select>";
+    h += '<select id="lhTeam" aria-label="Team" style="margin-bottom:10px">' + X.teams.slice().sort((a, b) => a.name.localeCompare(b.name)).map(t => '<option value="' + esc(t.id) + '"' + (t.id === sel ? " selected" : "") + ">" + esc(t.name) + (t.id === myId ? " (you)" : "") + "</option>").join("") + "</select>";
     h += '<div class="card heroCard"><div class="gtop"><div class="gnum" style="background:var(--surface2)"><b style="font-size:26px">' + (me2.titles && me2.titles.length ? "🏆" + (me2.titles.length > 1 ? "×" + me2.titles.length : "") : Math.round((me2.pct || 0) * 100) + "%") + '</b></div><div><b class="glabel">' + esc(me2.name) + '</b><span class="muted small">' + rec(me2) + " all time" + (me2.g ? " · " + fmt(me2.pf / me2.g) + " pts a game" : "") + " · playoffs " + me2.pw + "-" + me2.pl + (me2.titles && me2.titles.length ? " · champion " + me2.titles.sort().join(", ") : "") + "</span></div></div>" +
       '<ul class="reasons">' + (nem ? '<li class="bad"><b>Nemesis:</b> ' + esc(nem.o.name) + ", " + nem.w + "-" + nem.l + (nem.t ? "-" + nem.t : "") + " against them (" + (nem.mg >= 0 ? "+" : "") + nem.mg.toFixed(1) + " a game).</li>" : "") +
       (vic && vic !== nem ? '<li class="good"><b>Favorite victim:</b> ' + esc(vic.o.name) + ", " + vic.w + "-" + vic.l + (vic.t ? "-" + vic.t : "") + " (" + (vic.mg >= 0 ? "+" : "") + vic.mg.toFixed(1) + " a game).</li>" : "") +
@@ -2585,7 +2592,7 @@ async function renderLeagueTrades(L, el){
       (me && card[me.id] ? '<li class="' + trTone(card[me.id].letter) + '">You: ' + card[me.id].letter + " as a trader, " + card[me.id].w + " won, " + card[me.id].l + " lost, " + (card[me.id].net >= 0 ? "up " : "down ") + fmtV(Math.abs(card[me.id].net)) + ".</li>" : "") + "</ul></div>";
     h += '<h3>Trader report card</h3><div class="card" style="padding:6px 0"><table class="otable"><tbody>' + board.map((c, i) => '<tr class="' + (me && c.id === me.id ? "me" : "") + '"><td class="muted" style="width:26px;text-align:center">' + (i + 1) + "</td><td>" + teamLogo(c) + "</td><td><b>" + esc(c.name) + "</b><small>" + c.n + " trade" + (c.n > 1 ? "s" : "") + " · " + c.w + "W " + c.l + "L · " + (c.net >= 0 ? "+" : "−") + fmtV(Math.abs(c.net)) + '</small></td><td style="text-align:right"><span class="ltg ' + trTone(c.letter) + '">' + esc(c.letter) + "</span></td></tr>").join("") + "</tbody></table></div>";
     const teams = board.map(c => c).sort((a, b) => a.name.localeCompare(b.name));
-    h += '<div style="display:flex;gap:8px;align-items:center;margin:18px 0 8px"><h3 style="margin:0;flex:1">Every trade</h3><select id="ltTeam" style="max-width:52%"><option value="">All teams</option>' + teams.map(c => '<option value="' + esc(c.id) + '"' + (S.team === c.id ? " selected" : "") + ">" + esc(c.name) + "</option>").join("") + '</select></div>' +
+    h += '<div style="display:flex;gap:8px;align-items:center;margin:18px 0 8px"><h3 style="margin:0;flex:1">Every trade</h3><select id="ltTeam" aria-label="Show trades for" style="max-width:52%"><option value="">All teams</option>' + teams.map(c => '<option value="' + esc(c.id) + '"' + (S.team === c.id ? " selected" : "") + ">" + esc(c.name) + "</option>").join("") + '</select></div>' +
       '<div class="seg" role="group" aria-label="Sort trades" style="margin-bottom:10px"><button type="button" data-ls="new" aria-pressed="' + (S.sort === "new") + '">Newest</button><button type="button" data-ls="gap" aria-pressed="' + (S.sort === "gap") + '">Most lopsided</button></div>';
     let list = inYear.filter(g => !S.team || g.sides.some(sd => sd.s.id === S.team));
     if (S.sort === "gap") list = list.slice().sort((a, b) => (b.swing || 0) - (a.swing || 0));
@@ -3100,7 +3107,7 @@ async function sosHtml(L, me, sched, base){
   const word = s => s == null ? "—" : s <= 13.5 ? "Easy" : s >= 19.5 ? "Tough" : "Average";
   const tone = s => s == null ? "" : s <= 13.5 ? "ok" : s >= 19.5 ? "warn" : "";
   let h = '<h3>Your starters’ schedule · weeks ' + first + "–" + last + '</h3><div class="card sosc">' +
-    rows.map(r => { const i = reg.push(r.p) - 1; return '<div class="sosr"><button type="button" class="sosn" data-i="' + i + '"><b>' + esc(r.p.name) + '</b><small class="muted">' + esc(r.p.pos) + " · rest of season " + '<span class="chip ' + tone(r.score) + '" style="padding:1px 7px">' + word(r.score) + "</span>" + (r.poScore != null ? " · playoffs " + '<span class="chip ' + tone(r.poScore) + '" style="padding:1px 7px">' + word(r.poScore) + "</span>" : "") + '</small></button><div class="sosw">' +
+    rows.map(r => { const i = reg.push(r.p) - 1; return '<div class="sosr"><button type="button" class="sosn" data-i="' + i + '"><b>' + esc(r.p.name) + '</b><small class="muted">' + esc(r.p.pos) + " · rest of season " + '<span class="chip ' + tone(r.score) + '" style="padding:1px 7px">' + word(r.score) + "</span>" + (r.poScore != null ? " · playoffs " + '<span class="chip ' + tone(r.poScore) + '" style="padding:1px 7px">' + word(r.poScore) + "</span>" : "") + '</small></button><div class="sosw" tabindex="0" aria-label="' + esc(r.p.name) + ' weekly matchups">' +
       r.cells.map(c => '<span class="sosx ' + (c.bye ? "bye" : tier(c.r)) + (c.w >= poS ? " po" : "") + '" title="Week ' + c.w + (c.bye ? ": bye" : ": " + c.o + (c.r ? ", " + ORDN(c.r.r) + " easiest vs " + r.p.pos : "")) + '"><small>' + c.w + "</small>" + (c.bye ? "BYE" : esc(c.o.replace("@", "@"))) + "</span>").join("") + "</div></div>"; }).join("") +
     '<p class="small muted" style="margin:10px 0 0"><span class="sosx easy" style="display:inline-flex;min-width:0;padding:0 6px">easy</span> gives up the most fantasy points to that position, <span class="sosx hard" style="display:inline-flex;min-width:0;padding:0 6px">tough</span> the fewest, over the last ' + Math.min(8, cw - 1) + " weeks. Outlined weeks are your fantasy playoffs.</p></div>";
   // fantasy schedule
@@ -3248,7 +3255,7 @@ async function renderEdge(v){
   if (ed.league == null || !ready.find(x => x.i === ed.league)) ed.league = ready[0].i;
   const L = leagues[ed.league];
   if (ready.length > 1) h += '<select id="edL" style="margin-bottom:10px">' + ready.map(x => '<option value="' + x.i + '"' + (x.i === ed.league ? " selected" : "") + ">" + esc(x.L.meta.name) + "</option>").join("") + "</select>";
-  h += '<div class="seg" role="tablist" style="margin-bottom:6px">' + [["week", "Week"], ["waivers", "Waivers"], ["league", "League"], ["dynasty", "Dynasty"], ["keepers", "Keepers"]].map(x => '<button type="button" data-esub="' + x[0] + '" aria-pressed="' + (ed.sub === x[0]) + '">' + x[1] + "</button>").join("") + "</div>";
+  h += '<div class="seg" role="group" aria-label="Edge sections" style="margin-bottom:6px">' + [["week", "Week"], ["waivers", "Waivers"], ["league", "League"], ["dynasty", "Dynasty"], ["keepers", "Keepers"]].map(x => '<button type="button" data-esub="' + x[0] + '" aria-pressed="' + (ed.sub === x[0]) + '">' + x[1] + "</button>").join("") + "</div>";
   h += '<div id="edOut"><p class="spin">Crunching the numbers…</p></div>';
   v.innerHTML = h;
   v.querySelectorAll("[data-esub]").forEach(b => b.addEventListener("click", () => { ed.sub = b.dataset.esub; render(); }));

@@ -11,7 +11,6 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - Never break what works. Test in a headless browser against real Fleaflicker data before pushing. If tests fail, don't push.
 
 ## Next up (top first)
-- [ ] Accessibility and light-theme polish pass.
 
 ## Blocked (needs the owner)
 - [ ] Yahoo leagues: needs a Yahoo developer app (client ID and secret) for sign-in.
@@ -32,3 +31,4 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [x] Rest-of-season strength of schedule: week-by-week matchup difficulty for each starter (points allowed to his position), playoff weeks flagged, plus your remaining fantasy opponents (Edge › League)
 - [x] Draft center: every league draft graded with hindsight (team grades, steals, busts, top-12 re-draft) (Edge › Dynasty); traded picks in trade grades now resolve to the player drafted, including this season's draft
 - [x] Negotiate mode: practice a trade pitch against an AI playing the other manager (their roster, record, needs, values), then send the deal (Trade › Grade › Practice the pitch)
+- [x] Accessibility and light-theme pass: zero automated WCAG A/AA violations across every screen in light and dark mode (stronger light-mode colors, labels, keyboard focus into and out of sheets)
