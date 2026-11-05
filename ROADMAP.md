@@ -20,6 +20,7 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- [x] Sell a player (Trade › Sell): your best sell candidates (age, depth, value trend, your contend/rebuild status), every team ranked by how much he helps them, a fair return to ask for from each with value range, grade and acceptance odds, one tap to send
 - [x] Sleeper, Fleaflicker, ESPN, MyFantasyLeague leagues
 - [x] Push alerts, Discord/Slack/Teams/Telegram/ntfy/IFTTT/Zapier/Make webhooks, calendar feed
 - [x] Trade grader, acceptance odds, trade finder, price finder, share-image cards
