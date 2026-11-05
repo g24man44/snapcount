@@ -290,6 +290,22 @@ form.add{display:flex;flex-direction:column;gap:10px}
 .otable .obar{width:28%}
 .otable .obar span{display:block;height:7px;border-radius:999px;background:var(--accent);min-width:3px}
 .otable .onum{text-align:right;font-weight:800;white-space:nowrap;padding-right:14px}
+.lsc{width:100%;height:auto;display:block;max-width:460px;margin:0 auto}
+.lsq{stroke:var(--muted);stroke-opacity:.45;stroke-width:1.2;stroke-dasharray:4 4}
+.lsl{fill:var(--muted);font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
+.lsa{fill:var(--muted);font-size:10px}
+.lsd circle{fill:var(--surface3);stroke:var(--surface);stroke-width:1.5}.lsd text{fill:var(--ink);font-size:8.5px;font-weight:800}
+.lsd.me circle{fill:var(--accent);stroke:var(--surface)}.lsd.me text{fill:var(--accent-ink);font-size:9.5px}
+.lsheat th,.lsheat td{padding:7px 3px;text-align:center;font-size:12.5px;vertical-align:middle}
+.lsheat thead th{color:var(--muted);font-weight:700;font-size:12px}
+.lsheat tbody th{font-weight:400;max-width:150px}
+.lsheat tbody th b{display:block;font-size:13.5px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lsheat tbody th small{color:var(--muted);font-size:11.5px}
+.lsheat tbody tr+tr th{border-top:1px solid var(--line)}
+.lsheat tr.me th{background:var(--accent-soft)}
+.lsland .chip{white-space:nowrap;flex:none}
+.lsr{display:inline-block;min-width:28px;padding:3px 0;border-radius:8px;font-weight:800}
+.lsr.ok{background:var(--ok-soft);color:var(--ok)}.lsr.bad{background:var(--bad-soft);color:var(--bad)}.lsr.mid{background:var(--surface2);color:var(--ink)}
 .otable.rank td:first-child{width:56px}
 .otable.rank{margin-top:10px}
 .kwhy{display:block;margin-top:4px;color:var(--ink);opacity:.9;font-size:13px;line-height:1.4}
@@ -922,6 +938,7 @@ function renderLeague(v, L){
       h += '<button type="button" class="btn aibtn" id="recapBtn" style="width:100%;margin-top:14px"><span class="spark">✦</span> Write this week’s recap</button>';
     }
     if (["flea", "sleeper"].includes(m.platform)) h += '<div class="sendrow" style="margin-top:10px"><button type="button" class="btn ghost" id="pwBtn">📊 Power rankings</button><button type="button" class="btn ghost" id="histBtn">🏆 History & rivalries</button></div>';
+    if (d.teams.some(t => t.mine)) h += '<button type="button" class="btn ghost" id="lsBtn" style="width:100%;margin-top:8px">🧭 League landscape &amp; trade partners</button>';
     if (d.games.length) {
       h += "<h3>Matchups" + (d.week ? " · Week " + d.week : "") + '</h3><div class="stack">';
       d.games.forEach(g => {
@@ -954,6 +971,7 @@ function renderLeague(v, L){
   const hb = v.querySelector("#histBtn"); if (hb) hb.addEventListener("click", () => openHistory(L));
   v.querySelectorAll("[data-luopen]").forEach(b => b.addEventListener("click", () => openLineup(L)));
   const pw = v.querySelector("#pwBtn"); if (pw) pw.addEventListener("click", () => openPower(L));
+  const lsb = v.querySelector("#lsBtn"); if (lsb) lsb.addEventListener("click", () => openLandscape(L));
 }
 
 /* ---------- free agents ---------- */
@@ -2404,6 +2422,131 @@ async function openPower(L){
 
 /* ---------- game-day sweat board: every starter in every league, live ---------- */
 let sweatTimer = null;
+/* ---------- League landscape: contender/rebuilder map, position ranks, trade partners ---------- */
+async function openLandscape(L){
+  const sh = $("#sheet"), p = $("#sheetPanel"), d = L.detail, me = d.teams.find(t => t.mine);
+  const head = '<button class="back" id="closeSheet">Close</button><h2>League landscape</h2>';
+  const fail = msg => { p.innerHTML = head + '<div class="err">' + esc(msg) + "</div>"; p.querySelector("#closeSheet").addEventListener("click", closeSheet); };
+  p.innerHTML = head + '<p class="spin">Sizing up every roster…</p>';
+  sh.hidden = false; p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+  if (!me) return fail("Pick your team in this league first.");
+  const n = d.teams.length;
+  if (n < 4) return fail("This needs a league with at least 4 teams.");
+  const qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1, ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1");
+  const dyn = savedDyn(L) != null ? savedDyn(L) : /dynasty|keeper/i.test(L.meta.name);
+  let nowPk, dynPk, picks = {};
+  try {
+    await getPlayers(); ensureSidIndex();
+    [nowPk, dynPk] = await Promise.all([loadValues(ppr, n, qbs, false), dyn ? loadValues(ppr, n, qbs, true) : null]);
+    if (dyn && ["flea", "sleeper"].includes(L.meta.platform)) picks = await loadPicks(L);
+  } catch(e){ if (!sh.hidden) fail("Couldn’t load player values: " + e.message); return; }
+  if (sh.hidden) return;
+  const prem = qbPremium(n, qbs);
+  const valOf = pk => p => { if (!pk) return 0; const k = L.meta.platform === "sleeper" ? String(p.id) : pk.flea && L.meta.platform === "flea" ? "f" + p.id : sleeperKey(L, p); return ((pk.v[k] || [])[0] || 0) * (p.pos === "QB" ? prem : 1); };
+  const nowV = valOf(nowPk), futV = dyn ? valOf(dynPk) : nowV;
+  const ageOf = p => { const pk = dynPk || nowPk, k = L.meta.platform === "sleeper" ? String(p.id) : pk.flea && L.meta.platform === "flea" ? "f" + p.id : sleeperKey(L, p); return (pk.v[k] || [])[6] || null; };
+  const pickV = pk => dynPk ? ((dynPk.v[pk.vkey] || dynPk.v[pk.fallback] || [0])[0] || 0) : 0;
+  const slots = leagueSlots(L), POS = ["QB", "RB", "WR", "TE"];
+  const need = {}; POS.forEach(ps => need[ps] = slots.filter(s => s === ps).length + slots.filter(s => FLEX[s] && FLEX[s].includes(ps)).length / 2);
+  const rows = d.teams.map(t => {
+    const lu = bestLineup(t.roster, slots, nowV), starters = new Set(lu.list.filter(x => x.p).map(x => x.p));
+    const o = {t, now: lu.total, starters, pos: {}};
+    POS.forEach(ps => {
+      const grp = t.roster.filter(x => x.pos === ps).sort((a, b) => futV(b) - futV(a));
+      o.pos[ps] = dyn ? grp.reduce((s, x) => s + futV(x), 0) : grp.slice(0, Math.ceil(need[ps]) + 1).reduce((s, x) => s + nowV(x), 0);
+    });
+    o.pk = (picks[t.id] || []).reduce((s, x) => s + pickV(x), 0);
+    const games = (t.w || 0) + (t.l || 0) + (t.t || 0);
+    o.ppg = games ? (t.pf || 0) / games : null;
+    o.fut = dyn ? POS.reduce((s, ps) => s + o.pos[ps], 0) + o.pk : o.ppg;
+    const core = t.roster.filter(x => ageOf(x)).sort((a, b) => futV(b) - futV(a)).slice(0, 10);
+    o.age = core.length ? core.reduce((s, x) => s + ageOf(x), 0) / core.length : null;
+    return o;
+  });
+  if (!rows.some(r => r.now > 0)) return fail("Player values aren’t available for this league right now.");
+  if (!dyn && !rows.some(r => r.ppg)) rows.forEach(r => r.fut = r.now);
+  const rankBy = (key, get) => { rows.slice().sort((a, b) => (get(b) || 0) - (get(a) || 0)).forEach((r, i) => r[key] = i + 1); };
+  rankBy("rNow", r => r.now); rankBy("rFut", r => r.fut); rankBy("rPk", r => r.pk);
+  POS.forEach(ps => rankBy("r" + ps, r => r.pos[ps]));
+  const half = (n + 1) / 2;
+  const quad = r => r.rNow <= half ? (r.rFut <= half ? 0 : 1) : (r.rFut <= half ? 2 : 3);
+  const Q = dyn ? [["Powerhouse", "ok", "Strong now and later"], ["All-in", "warn", "Strong now, thin future"], ["On the rise", "ok", "Built for next year"], ["Rebuild", "bad", "Weak now and later"]]
+    : [["Real deal", "ok", "Strong roster, scoring like it"], ["Due to break out", "ok", "Strong roster, scoring less"], ["Overachiever", "warn", "Scoring above its roster"], ["Long shot", "bad", "Weak roster, weak scoring"]];
+  const mr = rows.find(r => r.t === me), mq = quad(mr);
+  const advice = dyn ? [
+    "You’re a contender with a future. Buy the one starter who swings a playoff matchup, but don’t give up young studs to do it.",
+    "Your window is now. Trade picks and prospects for proven scorers, and sell anyone over 28 before his value drops if you fall out of the race.",
+    "You’re built for next year. Sell veterans to contenders for picks and players under 25, and keep your young core.",
+    "Time to rebuild. Turn every veteran into picks and young players, and target teams in “All-in” mode: they pay the most."
+  ][mq] : [
+    "Your roster and scoring both rank near the top. Patch weak spots, don’t overpay.",
+    "Your roster is better than your scoring so far. Hold steady: the points should come.",
+    "You’re scoring above your roster’s talent. Buy depth now before it evens out.",
+    "Both your roster and scoring trail the league. Chase upside on waivers and trade depth for one difference-maker."
+  ][mq];
+  // trade partners: they're strong where you're weak and the reverse
+  const strongCut = Math.ceil(n / 3), weakCut = half;
+  const surplus = (r, ps) => r.t.roster.filter(x => x.pos === ps && !r.starters.has(x) && !OUTISH_C.test(String(x.inj || "")) && futV(x) >= 1000).sort((a, b) => futV(b) - futV(a))[0] || null;
+  const partners = rows.filter(r => r !== mr).map(r => {
+    const get = POS.filter(ps => mr["r" + ps] > weakCut && r["r" + ps] <= strongCut);
+    const give = POS.filter(ps => mr["r" + ps] <= strongCut && r["r" + ps] > weakCut);
+    let score = get.reduce((s, ps) => s + mr["r" + ps] - r["r" + ps], 0) + give.reduce((s, ps) => s + r["r" + ps] - mr["r" + ps], 0);
+    const tq = quad(r), win = dyn && ((mq <= 1 && tq >= 2) || (mq >= 2 && tq <= 1));
+    if (win) score += n / 2;
+    return {r, get, give, score, win, two: get.length && give.length};
+  }).filter(x => x.get.length && (x.give.length || x.win)).sort((a, b) => (b.two - a.two) || (b.score - a.score)).slice(0, 3);
+  // scatter
+  const W = 320, H = 260, pad = 26, xs = rows.map(r => r.now), ys = rows.map(r => r.fut || 0);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const sx = v => pad + (x1 > x0 ? (v - x0) / (x1 - x0) : 0.5) * (W - pad * 2), sy = v => H - pad - (y1 > y0 ? (v - y0) / (y1 - y0) : 0.5) * (H - pad * 2);
+  const med = a => { const s = a.slice().sort((p, q) => p - q), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+  const mx = sx(med(xs)), my = sy(med(ys));
+  const yLab = dyn ? "Future value →" : "Points per game →";
+  const desc = rows.map(r => r.t.name + ": " + Q[quad(r)][0]).join("; ");
+  let svg = '<svg class="lsc" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc("Map of every team. Across: roster strength now. Up: " + (dyn ? "future value" : "points per game") + ". " + desc) + '">' +
+    '<line x1="' + mx + '" y1="' + (pad - 8) + '" x2="' + mx + '" y2="' + (H - pad) + '" class="lsq"/><line x1="' + pad + '" y1="' + my + '" x2="' + (W - pad + 8) + '" y2="' + my + '" class="lsq"/>' +
+    '<text x="' + (W - pad + 6) + '" y="' + (pad - 10) + '" text-anchor="end" class="lsl">' + Q[0][0] + '</text><text x="' + (pad - 6) + '" y="' + (pad - 10) + '" class="lsl">' + Q[2][0] + '</text>' +
+    '<text x="' + (W - pad + 6) + '" y="' + (H - pad + 18) + '" text-anchor="end" class="lsl">' + Q[1][0] + '</text><text x="' + (pad - 6) + '" y="' + (H - pad + 18) + '" class="lsl">' + Q[3][0] + "</text>" +
+    '<text x="' + (W / 2) + '" y="' + (H - 2) + '" text-anchor="middle" class="lsa">Roster strength now →</text><text transform="translate(9 ' + (H / 2) + ') rotate(-90)" text-anchor="middle" class="lsa">' + yLab + "</text>";
+  rows.slice().sort((a, b) => (a.t === me) - (b.t === me)).forEach(r => {
+    const cx = sx(r.now), cy = sy(r.fut || 0), mine = r.t === me;
+    svg += '<g class="lsd' + (mine ? " me" : "") + '"><circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="' + (mine ? 13 : 10.5) + '"/><text x="' + cx.toFixed(1) + '" y="' + (cy + 3.6).toFixed(1) + '" text-anchor="middle">' + esc(initials(r.t.name)) + "</text></g>";
+  });
+  svg += "</svg>";
+  let h = head + '<p class="small muted" style="margin:-4px 0 12px">' + esc(L.meta.name) + " · " + (dyn ? "who’s built to win now, who’s built for later" : "which rosters are as good as their record") + "</p>";
+  h += '<div class="card grade ' + (Q[mq][1] === "ok" ? "good" : Q[mq][1] === "bad" ? "bad" : "mid") + '"><div class="offhead"><b style="font-size:18px">You’re ' + (dyn ? "" : "a ") + "“" + Q[mq][0] + "”</b>" +
+    '<span class="chip">Now #' + mr.rNow + " · " + (dyn ? "Future" : "Scoring") + " #" + mr.rFut + "</span></div>" +
+    '<p class="small" style="margin:8px 0 0">' + esc(advice) + "</p>" + (dyn && mr.age ? '<p class="small muted" style="margin:6px 0 0">Your top 10 players average ' + mr.age.toFixed(1) + " years old.</p>" : "") + "</div>";
+  h += '<div class="card lsbox" style="margin-top:12px">' + svg + '<p class="small muted" style="margin:6px 0 0">Each dot is a team; yours is orange. Lines split the league in half. Roster strength now is the trade value of each team’s best starting lineup' + (dyn ? "; future value is the whole roster at dynasty values, plus draft picks." : "; scoring is points per game so far.") + "</p></div>";
+  // partners
+  const psName = {QB: "QB", RB: "RB", WR: "WR", TE: "TE"};
+  h += "<h3>Best trade partners</h3>" + (partners.length ? partners.map((x, i) => {
+    const r = x.r, ask = x.get.map(ps => surplus(r, ps)).filter(Boolean)[0], offer = x.give.map(ps => surplus(mr, ps)).filter(Boolean)[0];
+    const lines = [];
+    if (x.get.length) lines.push("They’re deep at " + x.get.map(ps => psName[ps] + " (#" + r["r" + ps] + ")").join(" and ") + ", where you rank " + x.get.map(ps => "#" + mr["r" + ps]).join(" and ") + ".");
+    if (x.give.length) lines.push("You’re deep at " + x.give.map(ps => psName[ps] + " (#" + mr["r" + ps] + ")").join(" and ") + ", where they rank " + x.give.map(ps => "#" + r["r" + ps]).join(" and ") + ".");
+    if (x.win) lines.push("They’re “" + Q[quad(r)][0] + "” and you’re “" + Q[mq][0] + "”, so " + (mq <= 1 ? "your picks and young players for their veterans works for both of you." : "your veterans for their picks and young players works for both of you."));
+    if (ask) lines.push("<b>Ask about:</b> " + esc(ask.name) + " (" + ask.pos + ", on their bench)" + (offer ? ". <b>Offer from:</b> " + esc(offer.name) + " (" + offer.pos + ")" : "") + ".");
+    return '<div class="card" style="margin-bottom:10px"><div class="offhead"><div style="display:flex;align-items:center;gap:10px;min-width:0">' + teamLogo(r.t) + "<b>" + esc(r.t.name) + '</b></div><span class="chip ' + Q[quad(r)][1] + '">' + Q[quad(r)][0] + "</span></div>" +
+      '<ul class="reasons" style="margin:8px 0 0">' + lines.map(l => "<li>" + l + "</li>").join("") + "</ul>" +
+      '<button type="button" class="btn ghost" data-lst="' + esc(r.t.id) + '" style="width:100%;margin-top:10px">Build a trade with them</button></div>';
+  }).join("") : '<div class="card"><p class="small" style="margin:0">No team lines up neatly with your needs right now: nobody is deep exactly where you’re thin. Try the Trade finder for one position at a time.</p></div>');
+  // heat table
+  const cols = POS.concat(dyn && rows.some(r => r.pk) ? ["PK"] : []);
+  const tone = rk => rk <= n / 3 ? "ok" : rk > n * 2 / 3 ? "bad" : "mid";
+  h += "<h3>Every team by position</h3>" + '<div class="card" style="padding:6px 0;overflow-x:auto"><table class="otable lsheat"><thead><tr><th scope="col" style="text-align:left;padding-left:12px">Team</th>' + cols.map(c => '<th scope="col">' + (c === "PK" ? "Picks" : c) + "</th>").join("") + "</tr></thead><tbody>" +
+    rows.slice().sort((a, b) => a.rNow + a.rFut - (b.rNow + b.rFut)).map(r => '<tr class="' + (r.t === me ? "me" : "") + '"><th scope="row" style="text-align:left;padding-left:12px"><b>' + esc(r.t.name) + "</b><small>" + Q[quad(r)][0] + " · " + r.t.w + "-" + r.t.l + "</small></th>" +
+      cols.map(c => { const rk = c === "PK" ? r.rPk : r["r" + c]; return '<td><span class="lsr ' + tone(rk) + '">' + rk + "</span></td>"; }).join("") + "</tr>").join("") + "</tbody></table></div>" +
+    '<p class="small muted" style="margin:8px 4px 0">Rank in the league at each position (1 is best), by ' + (dyn ? "dynasty trade value of everyone on the roster" : "this season’s trade value of the starters plus one backup") + ". Values from " + esc((dynPk || nowPk).src) + ".</p>";
+  p.innerHTML = '<div class="lsland">' + h + "</div>";
+  p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+  p.querySelectorAll("[data-lst]").forEach(b => b.addEventListener("click", () => {
+    const li = leagues.indexOf(L);
+    tr.league = li; tr.other = b.dataset.lst; tr.mode = "grade"; tr.give.clear(); tr.get.clear(); tr.ppr = null; tr.dyn = null; tr.keep = null; tr.hide = null; tr.target = null;
+    closeSheet(); setTab("trade");
+  }));
+}
+
 async function openSweat(){
   const sh = $("#sheet"), p = $("#sheetPanel");
   p.innerHTML = '<button class="back" id="closeSheet">Close</button><h2>🔥 Sweat board</h2><p class="spin">Loading every lineup…</p>';
@@ -3293,10 +3436,12 @@ async function edgeLeague(L, el){
     if (s && s.n) { const net = s.inP + s.inK - s.out; notes.push(s.n + " of the league’s last " + trades.length + " trades, mostly for " + (s.inK > s.inP ? "picks" : "players") + ". By today’s values they’ve " + (Math.abs(net) < 300 ? "broken even" : net > 0 ? "come out ahead by " + fmtV(net) : "overpaid by " + fmtV(-net)) + "."); if (net < -800) tags.push(["Overpays", "ok"]); if (s.n >= 4) tags.push(["Active trader", ""]); }
     return {t, x, tags, notes};
   }).filter(r => r.tags.length).sort((a, b) => b.tags.length - a.tags.length);
+  h += '<button type="button" class="btn ghost" id="edLs" style="width:100%;margin-top:16px">🧭 League landscape: contenders, rebuilders, trade partners</button>';
   h += "<h3>Trade intel</h3>" + (intel.length ? intel.map(r => '<div class="card" style="margin-bottom:10px"><div class="offhead"><div style="display:flex;align-items:center;gap:10px;min-width:0">' + teamLogo(r.t) + "<b>" + esc(r.t.name) + "</b></div><span class='muted small'>" + r.t.w + "-" + r.t.l + '</span></div><div class="chips" style="margin-top:8px">' + r.tags.map(g => '<span class="chip ' + g[1] + '">' + g[0] + "</span>").join("") + '</div><ul class="reasons">' + r.notes.map(n => "<li>" + esc(n) + "</li>").join("") + "</ul></div>").join("") : '<div class="card"><p class="small" style="margin:0">No obvious sellers or needy contenders right now.</p></div>') +
     (L.meta.platform === "sleeper" ? '<p class="small muted" style="margin:8px 4px 0">Trade history is available for Fleaflicker leagues.</p>' : '<p class="small muted" style="margin:8px 4px 0">Based on the last ' + trades.length + " completed trades in your league, valued at today’s trade values.</p>");
   el.innerHTML = h;
   el.querySelectorAll(".sosn[data-i]").forEach(b => b.addEventListener("click", () => openPlayer(reg[+b.dataset.i])));
+  const lsb = el.querySelector("#edLs"); if (lsb) lsb.addEventListener("click", () => openLandscape(L));
 }
 
 /* ---------- rest-of-season strength of schedule ---------- */

@@ -11,6 +11,8 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - Never break what works. Test in a headless browser against real Fleaflicker data before pushing. If tests fail, don't push.
 
 ## Next up (top first)
+- [ ] Bye-week and injury planner: your lineup holes for the next 4 weeks (byes, players ruled out) across every league, with the best free agent or bench fill for each.
+- [ ] League landscape: tap a team on the map to see its roster, needs and the players it could spare.
 
 ## Blocked (needs the owner)
 - [ ] Save lineups straight to Fleaflicker and Sleeper: neither has a public way for other apps to change lineups. Fleaflicker would need a sample of the request its site sends when you move a player (from the browser's network tab while signed in).
@@ -40,3 +42,4 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [x] Friday noon ET matchup preview (push + connected apps): projected score and win odds, their threats, your best, injured starters on both sides, lineup holes
 - [x] Tuesday power rankings auto-post to each Fleaflicker league's connected Discord/Slack after the AI recap
 - [x] Lineup editor: set your lineup in the app (tap a slot, pick a player, or Best lineup). Saves straight to ESPN (with espn_s2/SWID) and MyFantasyLeague (sign in once); Fleaflicker and Sleeper get a move-by-move checklist and a link
+- [x] League landscape: map of every team as Powerhouse / All-in / On the rise / Rebuild (dynasty) or by roster vs scoring (redraft), every team's rank at each position and in picks, and your 3 best trade partners with who to ask about and what to offer, one tap to build the trade (Leagues › League, Edge › League)
