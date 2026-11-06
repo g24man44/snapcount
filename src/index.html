@@ -200,6 +200,7 @@ form.add{display:flex;flex-direction:column;gap:10px}
 .sosc{padding:10px 12px}.sosr+.sosr{border-top:1px solid var(--line);margin-top:8px;padding-top:8px}.sosn{display:block;width:100%;text-align:left;background:none;border:0;color:var(--ink);padding:0}.sosn b{display:block;font-size:15px}.sosn small{display:flex;flex-wrap:wrap;gap:4px;align-items:center;font-size:12px;margin-top:2px}
 .sosw{display:flex;gap:4px;overflow-x:auto;margin-top:6px;scrollbar-width:none}.sosx{flex:none;min-width:44px;padding:4px 2px;border-radius:8px;font-size:11.5px;font-weight:700;text-align:center;background:var(--surface2);color:var(--muted);display:flex;flex-direction:column;gap:1px;border:1.5px solid transparent}
 .sosx small{font-size:9.5px;font-weight:600}.sosx.easy{background:var(--ok-soft);color:var(--ok)}.sosx.hard{background:var(--bad-soft);color:var(--bad)}.sosx.bye{background:transparent;border:1.5px dashed var(--line);color:var(--muted)}.sosx.po{border-color:var(--accent)}
+.bwk{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:2px 0 4px}.bwx{border-radius:10px;padding:6px 4px;text-align:center;font-size:12.5px;font-weight:800;background:var(--ok-soft);color:var(--ok);border:0;font-family:inherit;text-decoration:none}.bwx small{display:block;font-size:10px;font-weight:600;opacity:.9}.bwx.warn{background:var(--warn-soft);color:var(--warn)}.bwx.bad{background:var(--bad-soft);color:var(--bad)}.bwh{display:flex;justify-content:space-between;align-items:baseline;margin:14px 2px 6px;font-size:14px}.bwh+ul.reasons{margin-top:0}
 .swbar{display:block;height:4px;border-radius:4px;background:var(--surface3);margin-top:6px;overflow:hidden}.swbar span{display:block;height:100%;border-radius:4px}
 .luslot{grid-template-columns:52px 40px 1fr auto}.luslot.on{background:var(--accent-soft)}.lusl{font:800 12px/1 var(--body);color:var(--muted);text-align:center}.lubtn{padding:7px 10px;font-size:13px}.lupick{margin:0 0 6px 18px;border-left:2px solid var(--accent)}
 .lucheck{list-style:none;margin:0;padding:0;display:grid;gap:8px}.lucheck label{color:var(--ink);display:grid;grid-template-columns:22px 1fr;gap:10px;align-items:center;justify-items:start;text-align:left;font-size:15px;margin:0}.lucheck input{width:20px;height:20px;margin:0;padding:0}.lucheck li.done{opacity:.55;text-decoration:line-through}
@@ -696,7 +697,7 @@ function renderLeagues(v){
   leaguesErr.forEach(e => h += '<div class="err">' + esc(e) + "</div>");
   if (!leaguesLoaded) { v.innerHTML = h + '<p class="spin">Loading your leagues…</p>'; return; }
   if (!leagues.length) { v.innerHTML = h + '<p class="muted">No leagues found for this season.</p>'; return; }
-  if (leagues.some(L => L.detail && L.detail.teams.some(t => t.mine))) h += '<button type="button" class="btn ghost" id="sweatBtn" style="width:100%;margin-top:12px">🔥 Sweat board: all your starters, live</button>';
+  if (leagues.some(L => L.detail && L.detail.teams.some(t => t.mine))) h += '<button type="button" class="btn ghost" id="sweatBtn" style="width:100%;margin-top:12px">🔥 Sweat board: all your starters, live</button>' + '<button type="button" class="btn ghost" id="planBtn" style="width:100%;margin-top:8px">🩹 Bye &amp; injury planner: next 4 weeks</button>';
   h += '<div class="stack" style="margin-top:12px">';
   leagues.forEach((L, i) => {
     const m = L.meta, d = L.detail;
@@ -720,6 +721,7 @@ function renderLeagues(v){
   v.innerHTML = h + "</div>";
   v.querySelectorAll("[data-l]").forEach(b => b.addEventListener("click", () => { cur.league = +b.dataset.l; cur.team = null; render(); window.scrollTo(0,0); }));
   const sw = v.querySelector("#sweatBtn"); if (sw) sw.addEventListener("click", openSweat);
+  const pb = v.querySelector("#planBtn"); if (pb) pb.addEventListener("click", openPlanner);
 }
 
 /* ---------- NFL games (live status for every player) ---------- */
@@ -2740,6 +2742,106 @@ async function openSweat(){
   }, 60000);
 }
 
+/* ---------- Bye-week & injury planner: lineup holes for the next 4 weeks in every league ---------- */
+const LONG_OUT = /^(ir|injured reserve|pup|nfi|sus|suspended|na|ir-r|ir-nfi|out for season)$/i;
+function planOut(p, k){ // k = index of the planned week (0 = first)
+  const s = String(p.inj || "").trim();
+  if (LONG_OUT.test(s)) return /sus/i.test(s) ? "suspended" : /pup|nfi/i.test(s) ? "on PUP list" : "on injured reserve";
+  if (k === 0 && /^(out|o)$/i.test(s)) return "ruled out";
+  if (k === 0 && /^(doubtful|d)$/i.test(s)) return "doubtful";
+  return null;
+}
+function planVal(L, p){
+  if (p.avg != null && p.avg > 0) return p.avg;
+  const id = sleeperKey(L, p), s = id && seasonPts(id, L.detail.scoring || "ppr");
+  if (s && s.gp && s.pts > 0) return s.pts / s.gp;
+  const pr = projFor(L, p); return pr > 0 ? pr : 0;
+}
+function planFill(pool, slots, v){
+  const used = new Set(), order = slots.filter(s => !FLEX[s]).concat(slots.filter(s => FLEX[s])), list = [];
+  const sorted = pool.slice().sort((a, b) => v(b) - v(a));
+  for (const slot of order) { const pick = sorted.find(p => !used.has(p) && slotOk(slot, p.pos)); if (pick) used.add(pick); list.push({slot, p: pick || null, v: pick ? v(pick) : 0}); }
+  return {list, total: list.reduce((s, x) => s + x.v, 0)};
+}
+async function planLeague(L, weeks, sch){
+  const d = L.detail, me = d.teams.find(t => t.mine);
+  await rosterFor(L, me);
+  const v = p => planVal(L, p), slots = edgeSlots(L);
+  const plays = (p, w) => { const wk = (sch.weeks || {})[w]; if (!wk || !Object.keys(wk).length) return true; return !!(p.team && wk[teamAbbr(tnorm(p.team))]); };
+  const why = (p, w, k) => !p.team ? "has no NFL team" : !plays(p, w) ? "on bye" : planOut(p, k);
+  const pool = me.roster.filter(p => p.slot !== "ir");
+  const core = planFill(pool, slots, v), coreSet = new Set(core.list.filter(x => x.p).map(x => x.p));
+  const out = weeks.map((w, k) => {
+    const avail = pool.filter(p => !why(p, w, k)), fill = planFill(avail, slots, v);
+    const missing = [...coreSet].filter(p => why(p, w, k)).map(p => ({p, why: why(p, w, k), v: v(p)})).sort((a, b) => b.v - a.v);
+    const changes = fill.list.filter(x => !x.p || !coreSet.has(x.p));
+    const q = k === 0 ? fill.list.filter(x => x.p && /^(questionable|q)$/i.test(String(x.p.inj || ""))).map(x => x.p) : [];
+    return {w, k, missing, changes, q, drop: Math.max(0, core.total - fill.total), total: fill.total};
+  });
+  // free agents for the spots your bench can't cover well
+  const need = new Set(); out.forEach(o => o.changes.forEach(x => (FLEX[x.slot] || [x.slot]).forEach(pos => need.add(pos))));
+  const pools = {};
+  await Promise.all([...need].map(async pos => { try { pools[pos] = (await faList(L, pos)).filter(p => !OUTISH_C.test(String(p.inj || "")) && !LONG_OUT.test(String(p.inj || ""))); } catch(e){ pools[pos] = []; } }));
+  const faV = p => { const a = p.avg != null ? p.avg : (p.tot && p.gp ? p.tot / p.gp : 0); const gp = p.gp || (p.avg > 0 && p.tot ? p.tot / p.avg : 3); return gp >= 2 ? a : a * 0.6; };
+  const picks = {};
+  out.forEach(o => {
+    const used = new Set();
+    o.changes.forEach(x => {
+      const cand = (FLEX[x.slot] || [x.slot]).flatMap(pos => pools[pos === "D/ST" ? "DEF" : pos] || pools[pos] || []).filter(p => slotOk(x.slot, p.pos) && !used.has(p.id) && p.team && plays(p, o.w)).sort((a, b) => faV(b) - faV(a))[0];
+      if (cand && faV(cand) > x.v + 1.5) { x.fa = cand; x.faV = faV(cand); used.add(cand.id); const r = picks[cand.id] = picks[cand.id] || {p: cand, v: faV(cand), weeks: [], gain: 0}; r.weeks.push(o.w); r.gain += x.faV - x.v; }
+    });
+    o.state = !o.missing.length && !o.changes.some(x => !x.p) ? "ok" : o.changes.some(x => !x.p && !x.fa) || o.drop > Math.max(8, core.total * 0.12) ? "bad" : "warn";
+  });
+  return {L, me, core, sch, weeks: out, picks: Object.values(picks).sort((a, b) => b.gain - a.gain).slice(0, 4)};
+}
+async function openPlanner(){
+  const sh = $("#sheet"), p = $("#sheetPanel"), head = '<button class="back" id="closeSheet">Close</button><h2>🩹 Bye &amp; injury planner</h2>';
+  p.innerHTML = head + '<p class="spin">Checking byes and injuries in every league…</p>';
+  sh.hidden = false; p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+  let res, weeks;
+  try {
+    const st = await getState(), season = st.league_season || st.season, cw = Number(st.display_week || st.week) || 1;
+    const [sch] = await Promise.all([api("/api/nflsched?season=" + season), getPlayers(), getProj(), getSeasonStats(season), gamesAt ? null : loadScoreboard()]);
+    ensureSidIndex();
+    const gs = Object.values(nflGames || {}), first = gs.length && gs.every(g => g.state === "post") ? cw + 1 : cw;
+    weeks = []; for (let w = first; w <= 18 && weeks.length < 4; w++) weeks.push(w);
+    const ready = leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine));
+    if (!weeks.length) { p.innerHTML = head + '<div class="card"><p class="small" style="margin:0">The regular season is over, so there are no byes left to plan for.</p></div>'; p.querySelector("#closeSheet").addEventListener("click", closeSheet); return; }
+    res = (await Promise.all(ready.map(L => planLeague(L, weeks, sch).catch(e => ({L, err: e.message}))))).filter(Boolean);
+  } catch(e){ p.innerHTML = head + '<div class="err">Couldn’t build the planner: ' + esc(e.message) + "</div>"; p.querySelector("#closeSheet").addEventListener("click", closeSheet); return; }
+  if (sh.hidden || !p.querySelector("#closeSheet")) return;
+  const ok = res.filter(r => !r.err), holes = ok.reduce((s, r) => s + r.weeks.reduce((a, o) => a + o.missing.length, 0), 0);
+  const empty = ok.reduce((s, r) => s + r.weeks.reduce((a, o) => a + o.changes.filter(x => !x.p && !x.fa).length, 0), 0);
+  const perWeek = weeks.map((w, k) => ({w, n: ok.reduce((s, r) => s + r.weeks[k].missing.length, 0)})), worst = perWeek.slice().sort((a, b) => b.n - a.n)[0];
+  let h = head + '<p class="small muted" style="margin:-4px 0 12px">Weeks ' + weeks[0] + "–" + weeks[weeks.length - 1] + " · " + ok.length + " league" + (ok.length === 1 ? "" : "s") + " · byes, injured reserve and players ruled out</p>";
+  h += '<div class="card heroCard"><div class="gtop"><div class="gnum" style="background:' + (empty ? "var(--bad-soft);color:var(--bad)" : holes ? "var(--warn-soft);color:var(--warn)" : "var(--ok-soft);color:var(--ok)") + '"><b>' + (holes || "✓") + "</b></div><div><b class='glabel'>" + (holes ? holes + " starter" + (holes === 1 ? "" : "s") + " missing over the next " + weeks.length + " weeks" : "No lineup holes in the next " + weeks.length + " weeks") + '</b><span class="muted small">' + (holes ? (worst.n ? "Toughest week: " + worst.w + " (" + worst.n + " out)" : "") + (empty ? " · " + empty + " spot" + (empty === 1 ? "" : "s") + " nobody can fill" : " · every spot has a fill below") : "Every regular starter is playing. Check back after injury news.") + "</span></div></div></div>";
+  res.forEach(r => {
+    h += "<h3>" + esc(r.L.meta.name) + "</h3>";
+    if (r.err) { h += '<div class="err">Couldn’t check this league: ' + esc(r.err) + "</div>"; return; }
+    h += '<div class="card"><div class="bwk" role="list">' + r.weeks.map(o => '<a role="listitem" class="bwx ' + o.state + '" href="#bw-' + r.L.meta.id + "-" + o.w + '" aria-label="Week ' + o.w + ": " + (o.missing.length ? o.missing.length + " starters out" : "all starters playing") + '"><small>Week ' + o.w + "</small>" + (o.missing.length ? o.missing.length + " out" : "✓") + "</a>").join("") + "</div>";
+    const bad = r.weeks.filter(o => o.missing.length || o.changes.length || o.q.length);
+    if (!bad.length) h += '<p class="small muted" style="margin:8px 0 0">All your regular starters play every week. Nothing to plan.</p>';
+    bad.forEach(o => {
+      h += '<div class="bwh" id="bw-' + r.L.meta.id + "-" + o.w + '"><b>Week ' + o.w + "</b>" + (o.drop > 0.5 ? '<span class="small muted">−' + o.drop.toFixed(1) + " pts vs full strength</span>" : "") + "</div>";
+      if (o.missing.length || o.q.length) h += '<ul class="reasons">' + o.missing.map(m => '<li class="' + (m.why === "on bye" ? "" : "bad") + '">' + esc(m.p.name) + " <span class='muted'>(" + esc(m.p.pos) + ")</span> is " + esc(m.why) + "</li>").join("") + o.q.map(x => '<li class="">' + esc(x.name) + " is questionable: have a backup ready</li>").join("") + "</ul>";
+      if (o.changes.length) h += '<ul class="plist">' + o.changes.map(x => {
+        const lab = esc(SLOT_LABEL[x.slot] || x.slot), wk = (r.sch.weeks || {})[o.w] || {}, opp = q => { const g = q.team && wk[teamAbbr(tnorm(q.team))]; return g ? " · " + (g[0] === "@" ? esc(g) : "vs " + esc(g)) : ""; };
+        let row = x.p ? miniRow(x.p, '<span class="avg">' + fmt(x.v) + "<small>per game</small></span>", '<em class="pt" data-pos="' + esc(x.p.pos) + '">' + lab + "</em> bench fill" + opp(x.p)) : '<li><div class="prow"><span class="pos">' + lab + '</span><span class="muted">' + (x.fa ? "No one on your bench can play here" : "Nobody on your bench or on waivers can fill this spot") + "</span></div></li>";
+        if (x.fa) row += miniRow(x.fa, '<span class="avg">+' + (x.faV - x.v).toFixed(1) + "<small>pick up</small></span>", '<span class="chip ok" style="padding:1px 7px">Free agent</span> ' + posTag(x.fa) + " " + opp(x.fa) + " · " + fmt(x.faV) + " per game");
+        return row;
+      }).join("") + "</ul>";
+    });
+    if (r.picks.length) h += '<p class="small" style="margin:12px 2px 4px"><b>Best pickups to cover these weeks:</b> ' + r.picks.map(x => esc(x.p.name) + " (" + esc(x.p.pos) + ", week" + (x.weeks.length > 1 ? "s " : " ") + x.weeks.join(", ") + ")").join(" · ") + "</p>";
+    if (bad.length) h += '<div class="actions">' + (r.picks.length ? extBtn(waiverUrl(r.L), "Add players in " + siteName(r.L)) : "") + '<button type="button" class="btn' + (r.picks.length ? " ghost" : "") + '" data-plu="' + leagues.indexOf(r.L) + '">Set this week’s lineup</button></div>';
+    h += "</div>";
+  });
+  if (!res.length) h += '<div class="card"><p class="small" style="margin:0">Open each league once and pick your team so the planner knows your roster.</p></div>';
+  h += '<p class="small muted" style="margin:12px 4px 0">Fills use points per game this season (your league’s scoring where available). Players ruled out or doubtful count as missing for the next game only; injured reserve, PUP and suspensions count for every week shown.</p>';
+  p.innerHTML = h; p.querySelector("#closeSheet").addEventListener("click", closeSheet); wireRows(p);
+  p.querySelectorAll(".bwx").forEach(a => a.addEventListener("click", e => { const t = p.querySelector("#" + CSS.escape(a.getAttribute("href").slice(1))); if (t) { e.preventDefault(); t.scrollIntoView({behavior: "smooth", block: "start"}); } }));
+  p.querySelectorAll("[data-plu]").forEach(b => b.addEventListener("click", () => openLineup(leagues[+b.dataset.plu])));
+}
+
 /* ---------- lineup editor: set your lineup from the app ---------- */
 const ESPN_SLOT_ID = {QB: 0, RB: 2, WR: 4, TE: 6, FLEX: 23, SUPER_FLEX: 7, REC_FLEX: 5, WRRB_FLEX: 3, K: 17, "D/ST": 16, DEF: 16};
 function mflCookie(){ try { return localStorage.getItem(KEY + ".mflc") || ""; } catch(e){ return ""; } }
@@ -3301,9 +3403,11 @@ async function edgeWeek(L, el){
   }
   // game environment for my starters
   if (!/data-luopen/.test(h)) h += '<button type="button" class="btn ghost" data-luopen="1" style="width:100%;margin-top:10px">✎ Set your lineup</button>';
+  h += '<button type="button" class="btn ghost" data-planopen="1" style="width:100%;margin-top:10px">🩹 Bye &amp; injury planner: next 4 weeks</button>';
   el.innerHTML = h;
   wireRows(el);
   el.querySelectorAll("[data-luopen]").forEach(b => b.addEventListener("click", () => openLineup(L)));
+  el.querySelectorAll("[data-planopen]").forEach(b => b.addEventListener("click", openPlanner));
 }
 
 /* ---------- Edge: Waivers ---------- */
