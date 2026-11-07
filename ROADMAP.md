@@ -11,7 +11,6 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - Never break what works. Test in a headless browser against real Fleaflicker data before pushing. If tests fail, don't push.
 
 ## Next up (top first)
-- [ ] League landscape: tap a team on the map to see its roster, needs and the players it could spare.
 
 ## Blocked (needs the owner)
 - [ ] Save lineups straight to Fleaflicker and Sleeper: neither has a public way for other apps to change lineups. Fleaflicker would need a sample of the request its site sends when you move a player (from the browser's network tab while signed in).
@@ -19,6 +18,7 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- [x] Team close-up in League landscape: tap any dot on the map, any team in the position table, or “See their roster” on a trade partner to see that team’s position ranks, what it needs (thin positions, hurt starters, contend/rebuild wants) and what you could offer, the players it could spare and why, its full roster with values and ages, and one tap to ask for a player or build a trade
 - [x] Sell a player (Trade › Sell): your best sell candidates (age, depth, value trend, your contend/rebuild status), every team ranked by how much he helps them, a fair return to ask for from each with value range, grade and acceptance odds, one tap to send
 - [x] Sleeper, Fleaflicker, ESPN, MyFantasyLeague leagues
 - [x] Push alerts, Discord/Slack/Teams/Telegram/ntfy/IFTTT/Zapier/Make webhooks, calendar feed

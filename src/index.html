@@ -306,6 +306,12 @@ form.add{display:flex;flex-direction:column;gap:10px}
 .lsheat tbody tr+tr th{border-top:1px solid var(--line)}
 .lsheat tr.me th{background:var(--accent-soft)}
 .lsland .chip{white-space:nowrap;flex:none}
+.lsd[data-lt]{cursor:pointer}.lsd[data-lt]:focus{outline:none}.lsd[data-lt]:focus-visible circle{stroke:var(--accent);stroke-width:3}.lsd.me[data-lt]:focus-visible circle{stroke:var(--ink)}
+.lslink{all:unset;display:block;cursor:pointer;max-width:150px;border-radius:6px}.lslink:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.lslink b{display:block;font-size:13.5px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}.lslink small{color:var(--muted);font-size:11.5px}
+.lsbtns{display:flex;gap:8px;margin-top:10px}.lsbtns .btn{flex:1;min-width:0}
+.lstop{display:flex;justify-content:space-between;align-items:center}.lsthead{display:flex;align-items:center;gap:12px;margin:10px 0 4px}.lsthead .chip{margin-right:4px}.lsx{display:block}
+.lsranks{display:grid;gap:6px;text-align:center}.lsranks small{display:block;color:var(--muted);font-size:11.5px;margin-bottom:3px}
 .lsr{display:inline-block;min-width:28px;padding:3px 0;border-radius:8px;font-weight:800}
 .lsr.ok{background:var(--ok-soft);color:var(--ok)}.lsr.bad{background:var(--bad-soft);color:var(--bad)}.lsr.mid{background:var(--surface2);color:var(--ink)}
 .otable.rank td:first-child{width:56px}
@@ -2662,14 +2668,14 @@ async function openLandscape(L){
     '<text x="' + (W / 2) + '" y="' + (H - 2) + '" text-anchor="middle" class="lsa">Roster strength now →</text><text transform="translate(9 ' + (H / 2) + ') rotate(-90)" text-anchor="middle" class="lsa">' + yLab + "</text>";
   rows.slice().sort((a, b) => (a.t === me) - (b.t === me)).forEach(r => {
     const cx = sx(r.now), cy = sy(r.fut || 0), mine = r.t === me;
-    svg += '<g class="lsd' + (mine ? " me" : "") + '"><circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="' + (mine ? 13 : 10.5) + '"/><text x="' + cx.toFixed(1) + '" y="' + (cy + 3.6).toFixed(1) + '" text-anchor="middle">' + esc(initials(r.t.name)) + "</text></g>";
+    svg += '<g class="lsd' + (mine ? " me" : "") + '" data-lt="' + esc(r.t.id) + '" role="button" tabindex="0" aria-label="' + esc(r.t.name + ", " + Q[quad(r)][0] + ". Show roster") + '"><circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="' + (mine ? 13 : 10.5) + '"/><text x="' + cx.toFixed(1) + '" y="' + (cy + 3.6).toFixed(1) + '" text-anchor="middle">' + esc(initials(r.t.name)) + "</text></g>";
   });
   svg += "</svg>";
   let h = head + '<p class="small muted" style="margin:-4px 0 12px">' + esc(L.meta.name) + " · " + (dyn ? "who’s built to win now, who’s built for later" : "which rosters are as good as their record") + "</p>";
   h += '<div class="card grade ' + (Q[mq][1] === "ok" ? "good" : Q[mq][1] === "bad" ? "bad" : "mid") + '"><div class="offhead"><b style="font-size:18px">You’re ' + (dyn ? "" : "a ") + "“" + Q[mq][0] + "”</b>" +
     '<span class="chip">Now #' + mr.rNow + " · " + (dyn ? "Future" : "Scoring") + " #" + mr.rFut + "</span></div>" +
     '<p class="small" style="margin:8px 0 0">' + esc(advice) + "</p>" + (dyn && mr.age ? '<p class="small muted" style="margin:6px 0 0">Your top 10 players average ' + mr.age.toFixed(1) + " years old.</p>" : "") + "</div>";
-  h += '<div class="card lsbox" style="margin-top:12px">' + svg + '<p class="small muted" style="margin:6px 0 0">Each dot is a team; yours is orange. Lines split the league in half. Roster strength now is the trade value of each team’s best starting lineup' + (dyn ? "; future value is the whole roster at dynasty values, plus draft picks." : "; scoring is points per game so far.") + "</p></div>";
+  h += '<div class="card lsbox" style="margin-top:12px">' + svg + '<p class="small muted" style="margin:6px 0 0">Each dot is a team; yours is orange. Tap a dot to see that team’s roster, needs and who it could spare. Lines split the league in half. Roster strength now is the trade value of each team’s best starting lineup' + (dyn ? "; future value is the whole roster at dynasty values, plus draft picks." : "; scoring is points per game so far.") + "</p></div>";
   // partners
   const psName = {QB: "QB", RB: "RB", WR: "WR", TE: "TE"};
   h += "<h3>Best trade partners</h3>" + (partners.length ? partners.map((x, i) => {
@@ -2681,22 +2687,89 @@ async function openLandscape(L){
     if (ask) lines.push("<b>Ask about:</b> " + esc(ask.name) + " (" + ask.pos + ", on their bench)" + (offer ? ". <b>Offer from:</b> " + esc(offer.name) + " (" + offer.pos + ")" : "") + ".");
     return '<div class="card" style="margin-bottom:10px"><div class="offhead"><div style="display:flex;align-items:center;gap:10px;min-width:0">' + teamLogo(r.t) + "<b>" + esc(r.t.name) + '</b></div><span class="chip ' + Q[quad(r)][1] + '">' + Q[quad(r)][0] + "</span></div>" +
       '<ul class="reasons" style="margin:8px 0 0">' + lines.map(l => "<li>" + l + "</li>").join("") + "</ul>" +
-      '<button type="button" class="btn ghost" data-lst="' + esc(r.t.id) + '" style="width:100%;margin-top:10px">Build a trade with them</button></div>';
+      '<div class="lsbtns"><button type="button" class="btn ghost" data-lt="' + esc(r.t.id) + '">See their roster</button><button type="button" class="btn ghost" data-lst="' + esc(r.t.id) + '">Build a trade</button></div></div>';
   }).join("") : '<div class="card"><p class="small" style="margin:0">No team lines up neatly with your needs right now: nobody is deep exactly where you’re thin. Try the Trade finder for one position at a time.</p></div>');
   // heat table
   const cols = POS.concat(dyn && rows.some(r => r.pk) ? ["PK"] : []);
   const tone = rk => rk <= n / 3 ? "ok" : rk > n * 2 / 3 ? "bad" : "mid";
   h += "<h3>Every team by position</h3>" + '<div class="card" style="padding:6px 0;overflow-x:auto"><table class="otable lsheat"><thead><tr><th scope="col" style="text-align:left;padding-left:12px">Team</th>' + cols.map(c => '<th scope="col">' + (c === "PK" ? "Picks" : c) + "</th>").join("") + "</tr></thead><tbody>" +
-    rows.slice().sort((a, b) => a.rNow + a.rFut - (b.rNow + b.rFut)).map(r => '<tr class="' + (r.t === me ? "me" : "") + '"><th scope="row" style="text-align:left;padding-left:12px"><b>' + esc(r.t.name) + "</b><small>" + Q[quad(r)][0] + " · " + r.t.w + "-" + r.t.l + "</small></th>" +
+    rows.slice().sort((a, b) => a.rNow + a.rFut - (b.rNow + b.rFut)).map(r => '<tr class="' + (r.t === me ? "me" : "") + '"><th scope="row" style="text-align:left;padding-left:12px"><button type="button" class="lslink" data-lt="' + esc(r.t.id) + '"><b>' + esc(r.t.name) + "</b><small>" + Q[quad(r)][0] + " · " + r.t.w + "-" + r.t.l + "</small></button></th>" +
       cols.map(c => { const rk = c === "PK" ? r.rPk : r["r" + c]; return '<td><span class="lsr ' + tone(rk) + '">' + rk + "</span></td>"; }).join("") + "</tr>").join("") + "</tbody></table></div>" +
-    '<p class="small muted" style="margin:8px 4px 0">Rank in the league at each position (1 is best), by ' + (dyn ? "dynasty trade value of everyone on the roster" : "this season’s trade value of the starters plus one backup") + ". Values from " + esc((dynPk || nowPk).src) + ".</p>";
-  p.innerHTML = '<div class="lsland">' + h + "</div>";
-  p.querySelector("#closeSheet").addEventListener("click", closeSheet);
-  p.querySelectorAll("[data-lst]").forEach(b => b.addEventListener("click", () => {
-    const li = leagues.indexOf(L);
-    tr.league = li; tr.other = b.dataset.lst; tr.mode = "grade"; tr.give.clear(); tr.get.clear(); tr.ppr = null; tr.dyn = null; tr.keep = null; tr.hide = null; tr.target = null;
+    '<p class="small muted" style="margin:8px 4px 0">Tap a team for its roster. Rank in the league at each position (1 is best), by ' + (dyn ? "dynasty trade value of everyone on the roster" : "this season’s trade value of the starters plus one backup") + ". Values from " + esc((dynPk || nowPk).src) + ".</p>";
+  const mapHtml = '<div class="lsland">' + h + "</div>";
+  const toTrade = (tid, getIds) => {
+    tr.league = leagues.indexOf(L); tr.other = tid; tr.mode = "grade"; tr.give.clear(); tr.get = new Set(getIds || []); tr.ppr = null; tr.dyn = null; tr.keep = null; tr.hide = null; tr.target = null;
     closeSheet(); setTab("trade");
-  }));
+  };
+  let mapY = 0;
+  const showMap = () => {
+    p.innerHTML = mapHtml;
+    p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+    p.querySelectorAll("[data-lst]").forEach(b => b.addEventListener("click", () => toTrade(b.dataset.lst)));
+    p.querySelectorAll("[data-lt]").forEach(b => {
+      const go = () => { mapY = p.scrollTop; showTeam(b.dataset.lt); };
+      b.addEventListener("click", go);
+      if (b.tagName.toLowerCase() === "g") b.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+    });
+  };
+  // One team up close: roster, needs, and the players it could spare
+  const showTeam = tid => {
+    const r = rows.find(x => String(x.t.id) === String(tid)); if (!r) return showMap();
+    const t = r.t, mine = r === mr, tq = quad(r), vet = 28, young = 24;
+    const rk = c => c === "PK" ? r.rPk : r["r" + c];
+    // needs: weakest positions that start in this league, plus starting slots held by hurt players
+    const weak = POS.filter(ps => need[ps] > 0).map(ps => ({ps, rk: r["r" + ps]})).sort((a, b) => b.rk - a.rk).filter(x => x.rk > n / 2).slice(0, 2);
+    const hurt = t.roster.filter(x => r.starters.has(x) && OUTISH_C.test(String(x.inj || "")));
+    const needs = [];
+    weak.forEach(x => needs.push("<b>" + x.ps + "</b>: " + (x.rk > n * 2 / 3 ? "one of the thinnest groups in the league" : "below average") + " (#" + x.rk + " of " + n + ")."));
+    if (hurt.length) needs.push("<b>Hurt starters</b>: " + hurt.map(x => esc(x.name) + " (" + x.pos + ", " + esc(x.inj) + ")").join(", ") + ".");
+    const they = mine ? "you" : "they", art = w => /^[AEIOU]/.test(w) ? "an" : "a";
+    if (dyn) needs.push(tq <= 1 ? "As " + art(Q[tq][0]) + " “" + Q[tq][0] + "” team " + they + " want proven scorers now" + (tq === 1 ? " and can pay with picks and prospects." : ", not projects.") : "As " + art(Q[tq][0]) + " “" + Q[tq][0] + "” team " + they + " want picks and players under 25, and should sell veterans.");
+    if (!weak.length && !hurt.length) needs.unshift("No obvious hole: " + (mine ? "you’re" : "they’re") + " at least average at every position.");
+    // could spare: bench depth at strong spots; on rebuilding teams, veterans; on contenders, young bench pieces
+    const spare = [];
+    t.roster.forEach(x => {
+      if (!POS.includes(x.pos) || OUTISH_C.test(String(x.inj || ""))) return;
+      const v = futV(x), a = ageOf(x), st = r.starters.has(x), pr = r["r" + x.pos];
+      if (v < 1000) return;
+      let why = null, w = 0;
+      if (!st && pr <= n / 3) { why = "Bench depth: they’re #" + pr + " at " + x.pos; w = 3; }
+      else if (dyn && tq >= 2 && a && a >= vet) { why = "Age " + Math.round(a) + " on a team built for later"; w = 2.5; }
+      else if (dyn && tq <= 1 && !st && a && a <= young) { why = "Young bench piece a contender can cash in"; w = 2; }
+      else if (!st && pr <= n / 2) { why = "Not starting, and they’re #" + pr + " at " + x.pos; w = 1; }
+      if (why) spare.push({x, v, why, w});
+    });
+    spare.sort((a, b) => (b.w - a.w) || (b.v - a.v));
+    const sp = spare.slice(0, 5);
+    // your fits for their needs
+    const fits = mine ? [] : weak.map(x => mr.t.roster.filter(y => y.pos === x.ps && !mr.starters.has(y) && !OUTISH_C.test(String(y.inj || "")) && futV(y) >= 1000).sort((a, b) => futV(b) - futV(a))[0]).filter(Boolean);
+    const valTxt = x => { const v = futV(x); return v ? fmtV(v) : "–"; };
+    reg = [];
+    const prow = (x, tag) => playerRow(Object.assign({}, x, {extra: '<small class="muted lsx">' + [r.starters.has(x) ? "Starter" : "Bench", ageOf(x) ? "age " + Math.round(ageOf(x)) : "", tag || ""].filter(Boolean).map(esc).join(" · ") + "</small>"}), valTxt(x));
+    let q = '<div class="lstop"><button class="back" id="lsBack">‹ League map</button><button class="back" id="closeSheet">Close</button></div>';
+    q += '<div class="lsthead">' + teamLogo(t, true) + '<div style="min-width:0"><h2 style="margin:0">' + esc(t.name) + (mine ? " (you)" : "") + '</h2><p class="small muted" style="margin:4px 0 0"><span class="chip ' + Q[tq][1] + '">' + Q[tq][0] + "</span> " + (t.w || 0) + "-" + (t.l || 0) + (t.t ? "-" + t.t : "") + (r.ppg ? " · " + r.ppg.toFixed(1) + " points a game" : "") + (dyn && r.age ? " · top 10 avg age " + r.age.toFixed(1) : "") + "</p></div></div>";
+    q += '<div class="card" style="margin-top:12px"><div class="lsranks" style="grid-template-columns:repeat(' + (2 + cols.length) + ',1fr)">' +
+      [["Now", r.rNow], [dyn ? "Future" : "Scoring", r.rFut]].concat(cols.map(c => [c === "PK" ? "Picks" : c, rk(c)])).map(c => '<div><small>' + c[0] + '</small><span class="lsr ' + tone(c[1]) + '">' + c[1] + "</span></div>").join("") +
+      '</div><p class="small muted" style="margin:8px 0 0">League rank (1 is best) of ' + n + " teams.</p></div>";
+    q += "<h3>" + (mine ? "Your needs" : "What they need") + '</h3><div class="card"><ul class="reasons" style="margin:0">' + needs.map(l => "<li>" + l + "</li>").join("") + "</ul>" +
+      (fits.length ? '<p class="small" style="margin:8px 0 0"><b>You could offer:</b> ' + fits.map(y => esc(y.name) + " (" + y.pos + ", " + valTxt(y) + ")").join(", ") + ", from your bench.</p>" : "") + "</div>";
+    q += "<h3>" + (mine ? "Players you could spare" : "Players they could spare") + "</h3>" + (sp.length
+      ? '<ul class="plist">' + sp.map(s => prow(s.x, s.why)).join("") + "</ul>" +
+        (mine ? "" : '<div class="lsbtns" style="flex-wrap:wrap">' + sp.slice(0, 3).map(s => '<button type="button" class="btn ghost" data-lget="' + esc(s.x.id) + '">Ask for ' + esc(String(s.x.name).split(" ").slice(-1)[0]) + "</button>").join("") + "</div>")
+      : '<div class="card"><p class="small" style="margin:0">' + (mine ? "You" : "They") + " don’t have much spare: nearly every valuable player is a starter or the depth is thin.</p></div>");
+    q += '<h3>Full roster</h3><ul class="plist">' + t.roster.slice().sort((a, b) => ((POS_ORDER[a.pos] || 9) - (POS_ORDER[b.pos] || 9)) || (futV(b) - futV(a))).map(x => prow(x)).join("") + "</ul>" +
+      '<p class="small muted" style="margin:8px 4px 0">Numbers on the right are ' + (dyn ? "dynasty" : "this season’s") + " trade values from " + esc((dynPk || nowPk).src) + ".</p>";
+    if (!mine) q += '<button type="button" class="btn" id="lsTrade" style="width:100%;margin-top:14px">Build a trade with ' + esc(t.name) + "</button>";
+    p.innerHTML = '<div class="lsland">' + q + "</div>";
+    p.scrollTop = 0;
+    p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+    p.querySelector("#lsBack").addEventListener("click", () => { showMap(); p.scrollTop = mapY; const g = p.querySelector('[data-lt="' + CSS.escape(String(tid)) + '"]'); if (g) try { g.focus({preventScroll: true}); } catch(e){} });
+    const tb = p.querySelector("#lsTrade"); if (tb) tb.addEventListener("click", () => toTrade(t.id));
+    p.querySelectorAll("[data-lget]").forEach(b => b.addEventListener("click", () => toTrade(t.id, [b.dataset.lget])));
+    wireRows(p);
+    try { p.querySelector("#lsBack").focus({preventScroll: true}); } catch(e){}
+  };
+  showMap();
 }
 
 async function openSweat(){
