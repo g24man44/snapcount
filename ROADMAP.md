@@ -18,6 +18,7 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- [x] Playoff path (Leagues › League › Playoff path, Edge › League): your playoff odds with the record you need to get in, every remaining game's swing (win → X%, loss → Y%) with the biggest game flagged, and who to root for in this week's other games (same simulated seasons replayed with just that game flipped). Playoff odds now count live and final scores from the week in progress
 - [x] Team close-up in League landscape: tap any dot on the map, any team in the position table, or “See their roster” on a trade partner to see that team’s position ranks, what it needs (thin positions, hurt starters, contend/rebuild wants) and what you could offer, the players it could spare and why, its full roster with values and ages, and one tap to ask for a player or build a trade
 - [x] Sell a player (Trade › Sell): your best sell candidates (age, depth, value trend, your contend/rebuild status), every team ranked by how much he helps them, a fair return to ask for from each with value range, grade and acceptance odds, one tap to send
 - [x] Sleeper, Fleaflicker, ESPN, MyFantasyLeague leagues

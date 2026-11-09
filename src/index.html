@@ -948,6 +948,7 @@ function renderLeague(v, L){
     }
     if (["flea", "sleeper"].includes(m.platform)) h += '<div class="sendrow" style="margin-top:10px"><button type="button" class="btn ghost" id="pwBtn">📊 Power rankings</button><button type="button" class="btn ghost" id="histBtn">🏆 History & rivalries</button></div>';
     if (d.teams.some(t => t.mine)) h += '<button type="button" class="btn ghost" id="lsBtn" style="width:100%;margin-top:8px">🧭 League landscape &amp; trade partners</button>';
+    if (d.teams.some(t => t.mine) && ["flea", "sleeper"].includes(m.platform)) h += '<button type="button" class="btn ghost" id="ppBtn" style="width:100%;margin-top:8px">🎯 Playoff path &amp; who to root for</button>';
     if (d.games.length) {
       h += "<h3>Matchups" + (d.week ? " · Week " + d.week : "") + '</h3><div class="stack">';
       d.games.forEach(g => {
@@ -981,6 +982,7 @@ function renderLeague(v, L){
   v.querySelectorAll("[data-luopen]").forEach(b => b.addEventListener("click", () => openLineup(L)));
   const pw = v.querySelector("#pwBtn"); if (pw) pw.addEventListener("click", () => openPower(L));
   const lsb = v.querySelector("#lsBtn"); if (lsb) lsb.addEventListener("click", () => openLandscape(L));
+  const ppb = v.querySelector("#ppBtn"); if (ppb) ppb.addEventListener("click", () => openPlayoffPath(L));
 }
 
 /* ---------- free agents ---------- */
@@ -3662,7 +3664,9 @@ async function getSchedule(L){
     try {
       if (L.meta.platform === "flea") {
         const b = await api(fq("FetchLeagueScoreboard", {league_id: L.meta.id, scoring_period: w}));
-        return {w, games: (b.games || []).map(g => [String((g.away || {}).id), String((g.home || {}).id), val((g.awayScore || {}).projected), val((g.homeScore || {}).projected)])};
+        // Games under way or finished also carry the live score and the share of starters still to play.
+        const live = sc => { sc = sc || {}; const y = Number(sc.yetToPlay) || 0, a = Number(sc.alreadyPlayed) || 0; return a > 0 && sc.score && sc.score.value != null ? [Number(sc.score.value) || 0, y / Math.max(1, y + a)] : null; };
+        return {w, games: (b.games || []).map(g => { const la = live(g.awayScore), lh = live(g.homeScore), r = [String((g.away || {}).id), String((g.home || {}).id), val((g.awayScore || {}).projected), val((g.homeScore || {}).projected)]; return la && lh ? r.concat([la[0], lh[0], la[1], lh[1]]) : r; })};
       }
       const m = await api("/api/sleeper/league/" + L.meta.id + "/matchups/" + w), grp = {};
       (m || []).forEach(x => { if (x.matchup_id) (grp[x.matchup_id] = grp[x.matchup_id] || []).push(String(x.roster_id)); });
@@ -3672,7 +3676,7 @@ async function getSchedule(L){
   d.sched = {weeks, po, cw};
   return d.sched;
 }
-function simulate(d, sched, boostId, boost, n){
+function simulate(d, sched, boostId, boost, n, hook){
   n = n || 3000;
   const T = d.teams, N = T.length, idx = {}; T.forEach((t, i) => idx[t.id] = i);
   const gp = t => Math.max(1, (t.w || 0) + (t.l || 0) + (t.t || 0));
@@ -3683,16 +3687,21 @@ function simulate(d, sched, boostId, boost, n){
   const make = new Array(N).fill(0), wins = new Array(N).fill(0), slot = new Array(N).fill(0), seed = new Array(N).fill(0);
   const rn = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
   for (let s = 0; s < n; s++) {
-    const W = T.map(t => (t.w || 0) + (t.t || 0) / 2), PF = T.map(t => t.pf || 0);
-    for (const wk of sched.weeks) for (const g of wk.games) {
+    const W = T.map(t => (t.w || 0) + (t.t || 0) / 2), PF = T.map(t => t.pf || 0), res = hook ? [] : null;
+    for (const wk of sched.weeks) { const r = res ? [] : null; for (const g of wk.games) {
       const a = idx[g[0]], b = idx[g[1]]; if (a == null || b == null) continue;
-      const sa = mean[a] + 24 * rn(), sb = mean[b] + 24 * rn();
+      const live = g[4] != null, sa = live ? g[4] + g[6] * mean[a] + 24 * Math.sqrt(g[6]) * rn() : mean[a] + 24 * rn(), sb = live ? g[5] + g[7] * mean[b] + 24 * Math.sqrt(g[7]) * rn() : mean[b] + 24 * rn();
       PF[a] += sa; PF[b] += sb; if (sa > sb) W[a]++; else W[b]++;
-    }
-    const order = T.map((_, i) => i).sort((x, y) => (W[y] - W[x]) || (PF[y] - PF[x]));
-    let seeds;
-    if (useDivs) { const winners = Object.values(divs).map(m => m.slice().sort((x, y) => order.indexOf(x) - order.indexOf(y))[0]).sort((x, y) => order.indexOf(x) - order.indexOf(y)); seeds = winners.concat(order.filter(i => !winners.includes(i)).slice(0, P - winners.length)); }
-    else seeds = order.slice(0, P);
+      if (r) r.push([a, b, sa > sb ? a : b]);
+    } if (res) res.push(r); }
+    const seedsOf = (W) => {
+      const order = T.map((_, i) => i).sort((x, y) => (W[y] - W[x]) || (PF[y] - PF[x]));
+      if (!useDivs) return {order, seeds: order.slice(0, P)};
+      const winners = Object.values(divs).map(m => m.slice().sort((x, y) => order.indexOf(x) - order.indexOf(y))[0]).sort((x, y) => order.indexOf(x) - order.indexOf(y));
+      return {order, seeds: winners.concat(order.filter(i => !winners.includes(i)).slice(0, P - winners.length))};
+    };
+    const {order, seeds} = seedsOf(W);
+    if (hook) hook(W, seeds, res, seedsOf);
     seeds.forEach((i, k) => { make[i]++; seed[i] += k + 1; });
     order.slice().reverse().forEach((i, k) => slot[i] += k + 1);
     order.forEach(i => wins[i] += W[i]);
@@ -3730,6 +3739,8 @@ async function edgeLeague(L, el){
     "<li>With a +15 point-a-week upgrade (a starting QB for you): " + pct(mineB.odds) + ".</li>" +
     "<li>Remaining schedule: " + left + " games, " + (sosRank <= 5 ? "one of the hardest" : sosRank >= d.teams.length - 4 ? "one of the easiest" : "about average") + " in the league (opponents average " + fmt(sos) + ").</li>" +
     "<li>Projected draft slot for your own pick: about #" + Math.round(mine.slot) + ".</li></ul></div>";
+  let pp = null; try { pp = playoffPath(d, sched, me, 3000); } catch(e){}
+  if (pp && pp.mine.length) { const ln = pathLines(pp, me); h += '<div class="card" style="margin-top:10px"><b>Playoff path</b><ul class="reasons" style="margin-top:8px">' + ln.slice(0, 2).map(r => '<li class="' + r.tone + '">' + esc(r.text) + "</li>").join("") + '</ul><button type="button" class="btn ghost" id="edPath" style="width:100%;margin-top:12px">🎯 What you need &amp; who to root for</button></div>'; }
   h += '<h3>Playoff odds · ' + sched.po.teams + " of " + d.teams.length + ' make it</h3><div class="card" style="padding:6px 0"><table class="otable"><tbody>' + ord.map(x => '<tr class="' + (x.t === me ? "me" : "") + '"><td>' + teamLogo(x.t) + '</td><td><b>' + esc(x.t.name) + "</b><small>" + x.t.w + "-" + x.t.l + " · " + x.wins.toFixed(1) + ' proj wins</small></td><td class="obar"><span style="width:' + Math.round(x.odds * 100) + '%"></span></td><td class="onum">' + pct(x.odds) + "</td></tr>").join("") + "</tbody></table></div>" +
     '<p class="small muted" style="margin:8px 4px 0">3,000 simulated seasons using each team’s scoring average and this week’s projections, your remaining schedule, and ' + (Object.keys(d.teams.reduce((o, t) => (t.div != null && (o[t.div] = 1), o), {})).length > 1 ? "division winners getting in" : "best records getting in") + ".</p>";
   try { h += await sosHtml(L, me, sched, base); } catch(e){}
@@ -3769,6 +3780,7 @@ async function edgeLeague(L, el){
   el.innerHTML = h;
   el.querySelectorAll(".sosn[data-i]").forEach(b => b.addEventListener("click", () => openPlayer(reg[+b.dataset.i])));
   const lsb = el.querySelector("#edLs"); if (lsb) lsb.addEventListener("click", () => openLandscape(L));
+  const pth = el.querySelector("#edPath"); if (pth) pth.addEventListener("click", () => openPlayoffPath(L));
 }
 
 /* ---------- rest-of-season strength of schedule ---------- */
@@ -3783,6 +3795,107 @@ async function allowedTable(season, upto){
     return avg;
   })();
   return allowedP;
+}
+/* ---------- Playoff path: the record you need, your swing games, who to root for ---------- */
+function playoffPath(d, sched, me, n){
+  n = n || 6000;
+  const T = d.teams, meI = T.indexOf(me), weeks = sched.weeks;
+  const myGames = weeks.map(wk => { const g = wk.games.find(x => x[0] === me.id || x[1] === me.id); if (!g) return null; const away = g[0] === me.id; return {w: wk.w, opp: T.find(t => t.id === (away ? g[1] : g[0])) || null, live: g[4] != null ? {me: away ? g[4] : g[5], them: away ? g[5] : g[4], done: !g[6] && !g[7]} : null}; });
+  // Finished games this week are already decided: count them in the record, not in "games left".
+  const done = myGames.filter(x => x && x.live && x.live.done), dw = done.filter(x => x.live.me > x.live.them).length, dl = done.length - dw;
+  const left = myGames.filter(Boolean).length - done.length, start = (me.w || 0) + (me.t || 0) / 2 + dw;
+  const acc = {n: 0, made: 0, byK: Array.from({length: left + 1}, () => [0, 0]), my: weeks.map(() => ({w: 0, ifW: 0, ifL: 0})), g0: {}};
+  if (meI < 0) return null;
+  simulate(d, sched, null, 0, n, (W, seeds, res, seedsOf) => {
+    acc.n++;
+    const made = seeds.includes(meI); if (made) acc.made++;
+    const k = Math.round(W[meI] - start); if (acc.byK[k]) { acc.byK[k][0]++; if (made) acc.byK[k][1]++; }
+    // Same simulated season with one result flipped: how much did that game matter to me?
+    const madeIf = (g, want) => {
+      if (g[2] === want) return made;
+      const lose = g[2], win = want, W2 = W.slice(); W2[lose]--; W2[win]++;
+      return seedsOf(W2).seeds.includes(meI);
+    };
+    res.forEach((wk, wi) => wk.forEach(g => {
+      if (g[0] === meI || g[1] === meI) {
+        const o = acc.my[wi], opp = g[0] === meI ? g[1] : g[0];
+        if (g[2] === meI) o.w++;
+        if (madeIf(g, meI)) o.ifW++; if (madeIf(g, opp)) o.ifL++;
+      } else if (wi === 0) {
+        const key = g[0] + "-" + g[1], o = acc.g0[key] = acc.g0[key] || {a: g[0], b: g[1], aw: 0, ifA: 0, ifB: 0};
+        if (g[2] === g[0]) o.aw++;
+        if (madeIf(g, g[0])) o.ifA++; if (madeIf(g, g[1])) o.ifB++;
+      }
+    }));
+  });
+  const N = Math.max(1, acc.n);
+  const mine = myGames.map((x, wi) => x && {wk: x.w, opp: x.opp, live: x.live, win: acc.my[wi].w / N, ifW: acc.my[wi].ifW / N, ifL: acc.my[wi].ifL / N, swing: (acc.my[wi].ifW - acc.my[wi].ifL) / N}).filter(Boolean);
+  const root = Object.values(acc.g0).map(o => {
+    const imp = (o.ifA - o.ifB) / N, A = T[o.a], B = T[o.b];
+    return imp >= 0 ? {fav: A, vs: B, p: o.aw / N, imp} : {fav: B, vs: A, p: 1 - o.aw / N, imp: -imp};
+  }).sort((a, b) => b.imp - a.imp);
+  const byK = acc.byK.map((x, k) => ({k, p: x[0] / N, odds: x[0] >= 30 ? x[1] / x[0] : null, n: x[0]}));
+  return {odds: acc.made / N, n: acc.n, left, mine, root, byK, week: weeks[0] ? weeks[0].w : null, w: (me.w || 0) + dw, l: (me.l || 0) + dl};
+}
+function pathLines(pp, me){
+  const pct = x => x >= 0.995 && x < 1 ? ">99%" : x > 0 && x < 0.005 ? "<1%" : Math.round(x * 100) + "%";
+  const out = [];
+  if (!pp || !pp.mine.length) return out;
+  if (!pp.left) out.push({tone: pp.odds >= 0.5 ? "good" : "bad", text: "Your regular season is done at " + pp.w + "-" + pp.l + ". " + (pp.odds >= 0.999 ? "You’re in." : pp.odds <= 0.001 ? "It won’t be enough." : "You get in " + pct(pp.odds) + " of the time, depending on the games still being played.")});
+  else if (pp.odds >= 0.999) out.push({tone: "good", text: "You’re in. You make the playoffs in every one of " + pp.n.toLocaleString() + " simulated finishes."});
+  else if (pp.odds <= 0.001) out.push({tone: "bad", text: "Out of the race. None of " + pp.n.toLocaleString() + " simulated finishes gets you in."});
+  else {
+    const need = pp.byK.find(x => x.odds != null && x.odds >= 0.9);
+    const all = pp.byK[pp.left];
+    if (need && need.k === 0) out.push({tone: "good", text: "Even if you lose out, you get in " + pct(need.odds) + " of the time."});
+    else if (need) out.push({tone: need.k <= pp.left / 2 ? "good" : "", text: "Win " + need.k + " of your last " + pp.left + " (finish " + (pp.w + need.k) + "-" + (pp.l + pp.left - need.k) + ") and you’re in " + pct(need.odds) + " of the time."});
+    else out.push({tone: "bad", text: all && all.odds != null ? "Even winning out only gets you in " + pct(all.odds) + " of the time. You’ll need help." : "You’d need to win out and get help: only " + pct(pp.odds) + " of simulated finishes get you in."});
+  }
+  const open = x => !(x.live && (x.live.done || x.win < 0.02 || x.win > 0.98));
+  const now = pp.mine.find(open);
+  if (now && pp.odds > 0.001 && pp.odds < 0.999) out.push({tone: "", text: (now.wk === pp.week ? "This week" : "Week " + now.wk) + " vs " + (now.opp ? now.opp.name : "your opponent") + ": a win takes you to " + pct(now.ifW) + ", a loss drops you to " + pct(now.ifL) + "."});
+  const big = pp.mine.filter(open).sort((a, b) => b.swing - a.swing)[0];
+  if (big && big !== now && big.swing >= 0.03) out.push({tone: "", text: "Biggest game left: week " + big.wk + " vs " + (big.opp ? big.opp.name : "TBD") + " (" + Math.round(big.swing * 100) + "% swing)."});
+  const r = pp.root.find(x => x.p >= 0.02 && x.p <= 0.98);
+  if (r && r.imp >= 0.01) out.push({tone: "", text: "Best help this week: " + r.fav.name + " beating " + r.vs.name + " (+" + Math.round(r.imp * 100) + "% for you)."});
+  return out;
+}
+async function openPlayoffPath(L){
+  const sh = $("#sheet"), p = $("#sheetPanel"), d = L.detail, me = d.teams.find(t => t.mine);
+  const head = '<button class="back" id="closeSheet">Close</button><h2>Playoff path</h2>';
+  const fail = msg => { p.innerHTML = head + '<div class="err">' + esc(msg) + "</div>"; p.querySelector("#closeSheet").addEventListener("click", closeSheet); };
+  p.innerHTML = head + '<p class="spin">Playing out the rest of the season…</p>';
+  sh.hidden = false; p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+  if (!me) return fail("Pick your team in this league first.");
+  let sched;
+  try { sched = await getSchedule(L); } catch(e){ return fail("Couldn’t load the schedule: " + e.message); }
+  if (sh.hidden) return;
+  const pp = playoffPath(d, sched, me);
+  if (!pp || !pp.mine.length) { p.innerHTML = head + '<div class="card"><p style="margin:0">' + (sched.cw >= sched.po.start ? "The regular season is over. Check the playoff bracket in " + esc(siteName(L)) + "." : "Couldn’t find your remaining games in this league’s schedule.") + "</p></div>"; p.querySelector("#closeSheet").addEventListener("click", closeSheet); return; }
+  const pct = x => x >= 0.995 && x < 1 ? ">99%" : x > 0 && x < 0.005 ? "<1%" : Math.round(x * 100) + "%";
+  const pts = x => x < 0.005 ? "<1%" : "+" + Math.round(x * 100) + "%";
+  const rec = t => t ? t.w + "-" + t.l + (t.t ? "-" + t.t : "") : "";
+  const tone = pp.odds >= 0.65 ? "good" : pp.odds >= 0.25 ? "mid" : "bad";
+  const rank = d.teams.slice().sort((a, b) => (b.w + (b.t || 0) / 2) - (a.w + (a.t || 0) / 2) || (b.pf || 0) - (a.pf || 0)).indexOf(me) + 1;
+  let h = head + '<div class="card grade heroCard ' + tone + '"><div class="gtop"><div class="gnum"><b>' + esc(pct(pp.odds).replace("%", "")) + '</b><small>%</small></div><div><b class="glabel">' + esc(me.name) + '</b><span class="muted small">' + pp.w + "-" + pp.l + (me.t ? "-" + me.t : "") + " · #" + rank + " of " + d.teams.length + " · top " + sched.po.teams + " make it · " + (pp.left ? pp.left + " game" + (pp.left === 1 ? "" : "s") + " left" : "season done") + "</span></div></div>" +
+    '<ul class="reasons">' + pathLines(pp, me).map((r, i) => '<li class="' + r.tone + '">' + (i ? "" : "<b>") + esc(r.text) + (i ? "" : "</b>") + "</li>").join("") + "</ul></div>";
+  const big = pp.mine.reduce((m, x) => x.swing > m.swing ? x : m, pp.mine[0]);
+  h += '<h3>Your games left</h3><div class="card" style="padding:6px 0"><table class="otable"><tbody>' + pp.mine.map(x => '<tr' + (x === big && x.swing >= 0.03 ? ' class="me"' : "") + '><td>' + (x.opp ? teamLogo(x.opp) : "") + "</td><td><b>Week " + x.wk + " vs " + esc(x.opp ? x.opp.name : "TBD") + "</b><small>" + (x.live && x.live.done ? (x.live.me > x.live.them ? "Won " : "Lost ") + fmt(x.live.me) + "–" + fmt(x.live.them) + " · final" : (x.live ? "live " + fmt(x.live.me) + "–" + fmt(x.live.them) + " · " : x.opp ? rec(x.opp) + " · " : "") + "you win " + pct(x.win) + " · win → " + pct(x.ifW) + ", loss → " + pct(x.ifL)) + "</small></td>" +
+    '<td class="onum">' + (x.swing < 0.005 || (x.live && (x.live.done || x.win < 0.02 || x.win > 0.98)) ? '<span class="muted">–</span>' : Math.round(x.swing * 100) + "%") + '<small style="display:block;font-weight:600">swing</small></td></tr>').join("") + "</tbody></table></div>";
+  if (pp.week != null) {
+    const set = r => r.p < 0.02 || r.p > 0.98, matter = pp.root.filter(r => r.imp >= 0.005 && !set(r)), meh = pp.root.filter(r => r.imp < 0.005 && !set(r));
+    const yes = pp.root.filter(r => r.imp >= 0.005 && r.p > 0.98), no = pp.root.filter(r => r.imp >= 0.005 && r.p < 0.02);
+    h += "<h3>Who to root for · Week " + pp.week + '</h3><div class="card" style="padding:6px 0">' + (matter.length ? '<table class="otable"><tbody>' + matter.map(r => "<tr><td>" + teamLogo(r.fav) + "</td><td><b>Root for " + esc(r.fav.name) + "</b><small>over " + esc(r.vs.name) + " (" + rec(r.vs) + ") · " + Math.round(r.p * 100) + "% likely</small></td>" +
+      '<td class="onum" style="color:var(--ok)">' + pts(r.imp) + "</td></tr>").join("") + "</tbody></table>" : '<p class="small" style="margin:8px 14px">' + (yes.length + no.length ? "No game still in doubt this week moves your odds." : "No other game this week moves your odds.") + "</p>") +
+      (yes.length ? '<p class="small" style="margin:6px 14px 8px"><b style="color:var(--ok)">Going your way:</b> ' + yes.map(r => esc(r.fav.name) + " over " + esc(r.vs.name) + " (" + pts(r.imp) + ")").join(" · ") + ".</p>" : "") +
+      (no.length ? '<p class="small" style="margin:6px 14px 8px"><b style="color:var(--bad)">Going against you:</b> ' + no.map(r => esc(r.vs.name) + " over " + esc(r.fav.name) + " (−" + Math.round(r.imp * 100) + "%)").join(" · ") + ".</p>" : "") +
+      (meh.length ? '<p class="small muted" style="margin:6px 14px 8px">Don’t matter to you: ' + meh.map(r => esc(r.fav.name) + " vs " + esc(r.vs.name)).join(" · ") + ".</p>" : "") + "</div>";
+  }
+  if (pp.left) h += '<h3>The record you need</h3><div class="card" style="padding:6px 0"><table class="otable"><tbody>' + pp.byK.slice().reverse().map(x => '<tr><td class="muted" style="text-align:center;font-weight:800;white-space:nowrap;width:52px">' + x.k + "-" + (pp.left - x.k) + "</td><td><b>Finish " + ((me.w || 0) + x.k) + "-" + ((me.l || 0) + pp.left - x.k) + (me.t ? "-" + me.t : "") + "</b><small>" + (x.p >= 0.005 ? Math.round(x.p * 100) + "% chance" : "unlikely") + "</small></td>" +
+    '<td class="obar">' + (x.odds == null ? "" : '<span style="width:' + Math.round(x.odds * 100) + '%"></span>') + '</td><td class="onum">' + (x.odds == null ? '<span class="muted">–</span>' : pct(x.odds)) + "</td></tr>").join("") + "</tbody></table></div>";
+  h += '<p class="small muted" style="margin:10px 4px 0">' + pp.n.toLocaleString() + " simulated finishes using each team’s scoring average and this week’s projections. A game’s swing is how much your playoff odds change between winning and losing it; the root-for list replays the same seasons with just that game flipped. Ties broken by points scored" + (d.teams.some(t => t.div != null) ? ", division winners in" : "") + ".</p>";
+  p.innerHTML = h;
+  p.querySelector("#closeSheet").addEventListener("click", closeSheet);
 }
 async function sosHtml(L, me, sched, base){
   const st = await getState(), season = st.league_season || st.season, cw = sched.cw || st.display_week || st.week;
