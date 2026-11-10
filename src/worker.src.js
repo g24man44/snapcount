@@ -111,21 +111,94 @@ async function playerNews(name, espnId) {
 }
 
 // Redraft trade values from FantasyCalc (built from real trades), keyed by Sleeper player id.
-async function tradeValues(ppr, teams, qbs, dyn) {
+// Snap Count value: a blend of three independent views, so no single source's quirks drive a trade.
+//  - Market: FantasyCalc, built from real trades in thousands of leagues like this one.
+//  - Experts: DynastyProcess's feed of FantasyPros expert consensus rankings (dynasty only).
+//  - Production: this season's points per game above a replacement starter at his position for
+//    this league size, aged forward for dynasty.
+// The other two are put on the market's scale by rank (the Nth best by experts gets the market's
+// Nth best value), then blended. Row: [value, overallRank, posRank, trend30, name, pos, age, redraft,
+// market, experts, production, ppg, games].
+const nkey = s => String(s || "").toLowerCase().replace(/\b(jr|sr|ii|iii|iv|v)\b\.?/g, "").replace(/[^a-z]/g, "");
+function csvRows(text) {
+  const lines = text.split(/\r?\n/).filter(Boolean), head = lines.shift().split(",").map(h => h.replace(/"/g, ""));
+  return lines.map(l => { const c = l.match(/("([^"]|"")*"|[^,]*)(,|$)/g).map(x => x.replace(/,$/, "").replace(/^"|"$/g, "")); const o = {}; head.forEach((h, i) => o[h] = c[i]); return o; });
+}
+function ageCurve(pos, age) {
+  if (!age) return 1;
+  const peak = { QB: 30, RB: 25, WR: 27, TE: 28 }[pos] || 27, drop = { QB: 0.04, RB: 0.12, WR: 0.07, TE: 0.07 }[pos] || 0.07;
+  return age <= peak ? 1 + Math.min(0.15, (peak - age) * 0.03) : Math.max(0.3, 1 - (age - peak) * drop);
+}
+async function tradeValues(ppr, teams, qbs, dyn, realTeams) {
   const url = "https://api.fantasycalc.com/values/current?isDynasty=" + (dyn ? "true" : "false") + "&numQbs=" + qbs + "&numTeams=" + teams + "&ppr=" + ppr;
-  const r = await fetch(url, { headers: UA });
+  const now = new Date(), season = now.getUTCMonth() < 2 ? now.getUTCFullYear() - 1 : now.getUTCFullYear();
+  const [r, dpText, stats] = await Promise.all([
+    fetch(url, { headers: UA }),
+    dyn ? fetch("https://raw.githubusercontent.com/dynastyprocess/data/master/files/values-players.csv", { headers: { "User-Agent": UA["User-Agent"] } }).then(x => x.ok ? x.text() : "").catch(() => "") : Promise.resolve(""),
+    fetch("https://api.sleeper.app/v1/stats/nfl/regular/" + season, { headers: UA }).then(x => x.ok ? x.json() : {}).catch(() => ({}))
+  ]);
   if (!r.ok) return json({ error: "FantasyCalc answered " + r.status }, 502, 0);
+  // Recent role matters most: pull the last 4 weeks so a new starter (or a benched one) shows up now.
+  const st = await fetch("https://api.sleeper.app/v1/state/nfl", { headers: UA }).then(x => x.ok ? x.json() : {}).catch(() => ({}));
+  const lastWk = Math.max(0, (Number(st.week) || 0) - (st.season_type === "regular" ? 1 : 0));
+  const recentWeeks = [];
+  for (let w = lastWk; w >= 1 && recentWeeks.length < 4; w--) recentWeeks.push(w);
+  const weekly = await Promise.all(recentWeeks.map(w => fetch("https://api.sleeper.app/v1/stats/nfl/regular/" + season + "/" + w, { headers: UA }).then(x => x.ok ? x.json() : {}).catch(() => ({}))));
   const arr = await r.json();
-  const out = {};
+  const rows = [], picks = [];
   for (const x of Array.isArray(arr) ? arr : []) {
     const p = x.player || {};
     const row = [Math.round(x.value || 0), x.overallRank || null, x.positionRank || null, Math.round(x.trend30Day || 0), p.name || "", p.position || "", p.maybeAge ? Math.round(p.maybeAge * 10) / 10 : null, Math.round(x.redraftValue || 0)];
-    if (p.position === "PICK" && p.name) out["pick:" + p.name] = row;
-    if (p.sleeperId) out[p.sleeperId] = row;
-    if (p.fleaflickerId) out["f" + p.fleaflickerId] = row;
+    if (p.position === "PICK") { if (p.name) picks.push(["pick:" + p.name, row]); continue; }
+    rows.push({ row, sid: p.sleeperId, fid: p.fleaflickerId, pos: p.position, age: p.maybeAge, key: nkey(p.name) + "|" + p.position, market: row[0] });
   }
-  if (!Object.keys(out).length) return json({ error: "FantasyCalc returned no players" }, 502, 0);
-  return json({ source: "FantasyCalc", ppr, teams, qbs, dynasty: !!dyn, values: out }, 200, 21600);
+  if (!rows.length) return json({ error: "FantasyCalc returned no players" }, 502, 0);
+  const scale = rows.map(x => x.market).sort((a, b) => b - a);
+  const mapByRank = (list, getScore, setter) => {
+    const xs = list.filter(x => getScore(x) != null).sort((a, b) => getScore(b) - getScore(a));
+    xs.forEach((x, i) => setter(x, scale[Math.min(i, scale.length - 1)]));
+  };
+  // Experts
+  let haveExperts = false;
+  if (dpText) {
+    const dp = {}; for (const o of csvRows(dpText)) { const v = Number(qbs === 2 ? o.value_2qb : o.value_1qb); if (o.player && v > 0) dp[nkey(o.player) + "|" + o.pos] = v; }
+    rows.forEach(x => { x.dp = dp[x.key] != null ? dp[x.key] : null; });
+    haveExperts = rows.some(x => x.dp != null);
+    mapByRank(rows, x => x.dp, (x, v) => x.experts = v);
+  }
+  // Production: points per game over a replacement-level starter, for this league size and scoring.
+  const col = ppr === "1" ? "pts_ppr" : ppr === "0.5" ? "pts_half_ppr" : "pts_std";
+  const T = realTeams || teams, repRank = { QB: Math.round(T * (qbs === 2 ? 2 : 1.1)), RB: Math.round(T * 2.4), WR: Math.round(T * 3), TE: Math.round(T * 1.2) };
+  const byPos = {};
+  rows.forEach(x => {
+    const s = (x.sid && stats[x.sid]) || null, gp = s ? (s.gp || s.gms_active || 0) : 0;
+    x.gp = gp; x.ppg = gp ? (s[col] || 0) / gp : null;
+    // Last 4 weeks he actually played (counts only games with real snaps).
+    const rec = weekly.map(wk => (x.sid && wk[x.sid]) || null).filter(w => w && (w.off_snp || 0) >= 5);
+    if (rec.length >= 2 && x.ppg != null) { x.recent = rec.reduce((a, w) => a + (w[col] || 0), 0) / rec.length; x.ppg = 0.6 * x.recent + 0.4 * x.ppg; }
+    if (x.ppg != null && gp >= 3 && repRank[x.pos]) (byPos[x.pos] = byPos[x.pos] || []).push(x.ppg);
+  });
+  const rep = {}; for (const pos in byPos) { const a = byPos[pos].sort((p, q) => q - p); rep[pos] = a[Math.min(repRank[pos], a.length - 1)] || 0; }
+  rows.forEach(x => { if (x.ppg != null && x.gp >= 3 && rep[x.pos] != null) x.vorp = (x.ppg - rep[x.pos]) * (dyn ? (0.55 + 0.45 * ageCurve(x.pos, x.age ? x.age + 1 : null)) : 1); });
+  mapByRank(rows, x => x.vorp != null ? x.vorp : null, (x, v) => x.production = v);
+  // Blend: in-season production matters more for redraft.
+  const W = dyn ? { market: 0.5, experts: 0.25, production: 0.25 } : { market: 0.6, experts: 0, production: 0.4 };
+  const out = {};
+  for (const x of rows) {
+    let sum = W.market * x.market, w = W.market;
+    if (x.experts != null && W.experts) { sum += W.experts * x.experts; w += W.experts; }
+    if (x.production != null) { sum += W.production * x.production; w += W.production; }
+    const row = x.row.slice();
+    row[0] = Math.round(sum / w);
+    row.push(x.market, x.experts != null ? Math.round(x.experts) : null, x.production != null ? Math.round(x.production) : null, x.ppg != null ? Math.round(x.ppg * 10) / 10 : null, x.gp || 0, x.recent != null ? Math.round(x.recent * 10) / 10 : null);
+    if (x.sid) out[x.sid] = row;
+    if (x.fid) out["f" + x.fid] = row;
+  }
+  // Re-rank on the blended value.
+  const uniq = rows.map(x => out[x.sid] || out["f" + x.fid]).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).sort((a, b) => b[0] - a[0]);
+  const pr = {}; uniq.forEach((row, i) => { row[1] = i + 1; pr[row[5]] = (pr[row[5]] || 0) + 1; row[2] = pr[row[5]]; });
+  for (const [k, row] of picks) out[k] = row;
+  return json({ source: "Snap Count value", blend: { market: "FantasyCalc", experts: haveExperts ? "FantasyPros consensus via DynastyProcess" : null, production: "Sleeper season stats" }, weights: W, ppr, teams, qbs, dynasty: !!dyn, values: out }, 200, 21600);
 }
 
 async function headlines() {
@@ -404,7 +477,8 @@ export default {
         const t = Number(url.searchParams.get("teams")) || 12, teams = t <= 11 ? 10 : t <= 13 ? 12 : 14;
         const qbs = url.searchParams.get("qbs") === "2" ? 2 : 1;
         const dyn = url.searchParams.get("dyn") === "1";
-        return cached(ctx, "values5/" + ppr + "/" + teams + "/" + qbs + "/" + (dyn ? 1 : 0), 21600, () => tradeValues(ppr, teams, qbs, dyn));
+        const real = Math.min(32, Math.max(4, t));
+        return cached(ctx, "values6/" + ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0), 21600, () => tradeValues(ppr, teams, qbs, dyn, real));
       }
       if (p === "/api/wstats") {
         const season = url.searchParams.get("season") || "", week = Number(url.searchParams.get("week") || 0), fresh = url.searchParams.get("fresh") === "1";

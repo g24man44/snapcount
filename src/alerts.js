@@ -692,7 +692,7 @@ async function leagueValues(env, lid, lname) {
     arr = await r.json();
     await cache.put(key, new Response(JSON.stringify(arr), { headers: { "cache-control": "public, max-age=21600" } }));
   }
-  const prem = fmt.qbs === 2 ? 1 + 0.06 * Math.max(0, fmt.teams - 12) : 1 + 0.03 * Math.max(0, fmt.teams - 12);
+  const prem = 1 + (fmt.qbs === 2 ? 0.06 : 0.03) * Math.max(0, fmt.teams - T);
   const V = {};
   for (const x of Array.isArray(arr) ? arr : []) { const p = x.player || {}, v = Math.round(x.value || 0) * (p.position === "QB" ? prem : 1); if (p.position === "PICK" && p.name) V["pick:" + p.name] = v; if (p.fleaflickerId) V["f" + p.fleaflickerId] = v; }
   return V;
