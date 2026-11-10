@@ -178,6 +178,26 @@ async function seasonStats(season) {
   return json(out, 200, 1800);
 }
 
+// One week of box scores for every offensive player, kicker and defense: { season, week, players: { sleeperId: [
+//   ppr, half, std, played, snap%, targets, rec, recYd, recTd, rushAtt, rushYd, rushTd, cmp, att, passYd, passTd, int, rank ppr, rank half, rank std ] } }.
+async function weekStats(season, week) {
+  const r = await fetch("https://api.sleeper.app/v1/stats/nfl/regular/" + season + "/" + week, { headers: UA });
+  if (!r.ok) return json({ error: "Stats unavailable for week " + week + " (" + r.status + ")" }, 502, 0);
+  const all = await r.json(), out = {};
+  const n = v => Math.round((Number(v) || 0) * 100) / 100, rk = v => v && v < 999 ? v : null;
+  for (const id in all) {
+    const s = all[id] || {};
+    if (s.pts_ppr == null && !s.off_snp) continue;
+    const played = s.gp || s.off_snp ? 1 : 0;
+    out[id] = [n(s.pts_ppr), n(s.pts_half_ppr ?? s.pts_ppr), n(s.pts_std ?? s.pts_ppr), played,
+      s.tm_off_snp && s.off_snp ? Math.round(s.off_snp / s.tm_off_snp * 100) : null,
+      s.rec_tgt || 0, s.rec || 0, s.rec_yd || 0, s.rec_td || 0, s.rush_att || 0, s.rush_yd || 0, s.rush_td || 0,
+      s.pass_cmp || 0, s.pass_att || 0, s.pass_yd || 0, s.pass_td || 0, s.pass_int || 0,
+      rk(s.pos_rank_ppr), rk(s.pos_rank_half_ppr), rk(s.pos_rank_std)];
+  }
+  return json({ season: Number(season), week: Number(week), players: out }, 200, 1800);
+}
+
 // This week's projected points for every skill player: { sleeperId: [ppr, half, std] }.
 async function weekProjections(season, week) {
   const out = {};
@@ -385,6 +405,11 @@ export default {
         const qbs = url.searchParams.get("qbs") === "2" ? 2 : 1;
         const dyn = url.searchParams.get("dyn") === "1";
         return cached(ctx, "values5/" + ppr + "/" + teams + "/" + qbs + "/" + (dyn ? 1 : 0), 21600, () => tradeValues(ppr, teams, qbs, dyn));
+      }
+      if (p === "/api/wstats") {
+        const season = url.searchParams.get("season") || "", week = Number(url.searchParams.get("week") || 0), fresh = url.searchParams.get("fresh") === "1";
+        if (!/^\d{4}$/.test(season) || !(week >= 1 && week <= 18)) return json({ error: "Bad season or week" }, 400, 0);
+        return cached(ctx, "wstats/" + season + "/" + week + "/" + (fresh ? 1 : 0), fresh ? 600 : 43200, () => weekStats(season, week));
       }
       if (p === "/api/proj") {
         const season = url.searchParams.get("season") || "", week = url.searchParams.get("week") || "";

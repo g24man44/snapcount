@@ -293,6 +293,25 @@ form.add{display:flex;flex-direction:column;gap:10px}
 .otable .obar span{display:block;height:7px;border-radius:999px;background:var(--accent);min-width:3px}
 .otable .onum{text-align:right;font-weight:800;white-space:nowrap;padding-right:14px}
 .lsc{width:100%;height:auto;display:block;max-width:460px;margin:0 auto}
+.glseg{margin-bottom:10px}
+.glcard .glstats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:10px 0 6px}
+.glstats small{display:block;color:var(--muted);font-size:12px;font-weight:600}
+.glstats b{font:800 19px/1.2 var(--body);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.glstats .up,.glstats .dn{font-size:12px;margin-left:3px;vertical-align:2px}.glstats .up{color:var(--ok)}.glstats .dn{color:var(--bad)}
+.glc{width:100%;height:auto;display:block;max-width:520px;margin:4px auto 0}
+.glc .glb{stroke:var(--line);stroke-width:1}
+.glc .gla{stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3}
+.glc .glt,.glc .glw,.glc .glx{fill:var(--muted);font:600 10px var(--body)}
+.glc .glx{font-size:9px}
+.glc .glv{fill:var(--ink);font:700 10px var(--body);font-variant-numeric:tabular-nums;paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}
+.glc .glbar path{fill:var(--muted);fill-opacity:.38}.glc .glbar.good path{fill-opacity:1}.glc .glbar.good path{fill:var(--accent)}
+.glc .glbar:hover path{opacity:.8}
+.glkey{display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--accent);margin-right:6px;vertical-align:-1px}
+.gltab th{font-size:12px;color:var(--muted);font-weight:600;text-align:left;padding:8px 6px}
+.gltab th:first-child,.gltab td:first-child{padding-left:14px;width:auto}
+.gltab td{font-size:13px;white-space:nowrap}
+.gltab td.gll{white-space:normal;min-width:120px;color:var(--muted);font-size:12px}
+.gltab tr.glno td{color:var(--muted)}
 .lsq{stroke:var(--muted);stroke-opacity:.45;stroke-width:1.2;stroke-dasharray:4 4}
 .lsl{fill:var(--muted);font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
 .lsa{fill:var(--muted);font-size:10px}
@@ -1069,10 +1088,11 @@ async function openPlayer(pl){
   if (pl.frank) cells.push(["Rank", esc(pl.frank)]);
   if (pl.avg != null) cells.push(["Per game", fmt(pl.avg)]);
   if (cells.length) stats = '<div class="statrow">' + cells.map(c => '<div><small>' + c[0] + "</small><b>" + c[1] + "</b></div>").join("") + "</div>";
-  p.innerHTML = '<button class="back" id="closeSheet">Close</button><div class="shead">' + avatar(pl).replace('class="av"', 'class="av xl"') + '<div><h2>' + esc(pl.name) + injChip(pl.inj) + '</h2><p class="muted small" style="margin:0">' + posTag(pl) + gameLine(pl.team) + (pl.injPart ? " · " + esc(pl.injPart) : "") + '</p><div class="chips" style="margin-top:6px">' + envChips(pl.team) + "</div></div></div>" + stats + (pl.act || pl.fl ? '<div class="actions">' + (pl.act || "") + (pl.fl && !pl.act ? extBtn(fleaPlayerUrl(pl), "Open in Fleaflicker") : "") + "</div>" : "") + (pl.keeper ? '<p class="small muted" style="margin:8px 2px 0">Marked as a keeper on his Fleaflicker roster.</p>' : "") + fleaNoteCard(pl) + injSection(pl) + '<button type="button" class="btn ghost" id="pCmp" style="width:100%;margin-top:12px">⚖ Compare with other players</button><h3>Latest news</h3><div id="pnews"><p class="spin">Loading news…</p></div>';
+  p.innerHTML = '<button class="back" id="closeSheet">Close</button><div class="shead">' + avatar(pl).replace('class="av"', 'class="av xl"') + '<div><h2>' + esc(pl.name) + injChip(pl.inj) + '</h2><p class="muted small" style="margin:0">' + posTag(pl) + gameLine(pl.team) + (pl.injPart ? " · " + esc(pl.injPart) : "") + '</p><div class="chips" style="margin-top:6px">' + envChips(pl.team) + "</div></div></div>" + stats + (pl.act || pl.fl ? '<div class="actions">' + (pl.act || "") + (pl.fl && !pl.act ? extBtn(fleaPlayerUrl(pl), "Open in Fleaflicker") : "") + "</div>" : "") + (pl.keeper ? '<p class="small muted" style="margin:8px 2px 0">Marked as a keeper on his Fleaflicker roster.</p>' : "") + fleaNoteCard(pl) + injSection(pl) + '<button type="button" class="btn ghost" id="pCmp" style="width:100%;margin-top:12px">⚖ Compare with other players</button><h3>Game log</h3><div id="plog"><p class="spin">Loading game log…</p></div><h3>Latest news</h3><div id="pnews"><p class="spin">Loading news…</p></div>';
   sh.hidden = false;
   p.querySelector("#closeSheet").addEventListener("click", closeSheet);
   const cb = p.querySelector("#pCmp"); if (cb) cb.addEventListener("click", async () => { cb.disabled = true; const ok = await addToCompare(pl).catch(() => false); if (ok) openCompare(); else { cb.textContent = "Couldn’t find him in the player list"; } });
+  const lg = p.querySelector("#plog"); if (lg) drawGameLog(lg, pl).catch(() => { lg.innerHTML = '<p class="muted small">Couldn’t load the game log.</p>'; });
   try {
     const eid = await espnIdFor(pl);
     const r = await api("/api/news?q=" + encodeURIComponent(pl.name) + (eid ? "&espn=" + eid : ""));
@@ -1094,6 +1114,121 @@ function closeSheet(){ $("#sheet").hidden = true; }
 })();
 $("#sheet").addEventListener("click", e => { if (e.target.id === "sheet") closeSheet(); });
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeSheet(); });
+
+/* ---------- game log: week-by-week fantasy points ---------- */
+const wstatsP = {}, glogMemo = {}, glDone = {};
+const GL_CUT = {QB: 12, RB: 24, WR: 36, TE: 12, K: 12, DEF: 12};
+const GL_ESPN = {WAS: "WSH", LA: "LAR", JAC: "JAX"};
+let glScore = null; // 0 PPR, 1 half, 2 standard; null = the format of your first league
+function weekStats(season, w, fresh){
+  const k = season + "/" + w;
+  if (!wstatsP[k]) wstatsP[k] = api("/api/wstats?season=" + season + "&week=" + w + (fresh ? "&fresh=1" : "")).catch(() => { delete wstatsP[k]; return null; });
+  return wstatsP[k];
+}
+// Every week so far for one player (Sleeper id): played, points in all three formats, weekly position rank, snaps and box score.
+function gameLogFor(sid){
+  if (!sid) return Promise.resolve(null);
+  if (!glogMemo[sid]) glogMemo[sid] = (async () => {
+    const st = await getState(), season = st.league_season || st.season;
+    if (st.season_type === "pre") return null;
+    const top = Math.min(18, Math.max(1, st.week || 1));
+    const ws = []; for (let w = 1; w <= top; w++) ws.push(w);
+    const [weeks, sch] = await Promise.all([Promise.all(ws.map(w => weekStats(season, w, w >= top - 1))), api("/api/nflsched?season=" + season).catch(() => null), getPlayers()]);
+    const q = players[sid] || [], team = GL_ESPN[q[2]] || q[2] || "";
+    const out = [];
+    weeks.forEach((d, i) => {
+      if (!d || !d.players || !Object.keys(d.players).length) return; // week not started yet
+      const w = ws[i], r = d.players[sid], wk = sch && sch.weeks && sch.weeks[w];
+      const opp = wk && team ? wk[team] || null : null;
+      out.push({w, opp, bye: !!(wk && Object.keys(wk).length && team && !opp), played: !!(r && r[3]), s: r || null});
+    });
+    return (glDone[sid] = {sid, pos: q[1] || "", season, weeks: out});
+  })().catch(() => { delete glogMemo[sid]; glDone[sid] = null; return null; });
+  return glogMemo[sid];
+}
+function glDefaultCol(){ const L = typeof cmpLeague === "function" ? cmpLeague() : null; return L && L.detail ? scoringCol(L) : 0; }
+// Summary numbers for one scoring column.
+function glSummary(log, col){
+  if (!log) return null;
+  const g = log.weeks.filter(x => x.played && x.s), cut = GL_CUT[log.pos] || 24, el = Math.max(3, Math.round(cut / 2));
+  if (!g.length) return {gp: 0, cut, el};
+  const pts = g.map(x => x.s[col]), n = pts.length, avg = pts.reduce((a, b) => a + b, 0) / n;
+  const srt = pts.slice().sort((a, b) => a - b), med = n % 2 ? srt[n >> 1] : (srt[n / 2 - 1] + srt[n / 2]) / 2;
+  const sd = Math.sqrt(pts.reduce((a, b) => a + (b - avg) * (b - avg), 0) / n);
+  const rk = x => x.s[17 + col];
+  const start = g.filter(x => rk(x) && rk(x) <= cut).length, elite = g.filter(x => rk(x) && rk(x) <= el).length, dud = g.filter(x => !rk(x) || rk(x) > cut * 2).length;
+  const l3 = g.slice(-3).map(x => x.s[col]), last3 = l3.reduce((a, b) => a + b, 0) / l3.length;
+  return {gp: n, avg, med, sd, cv: avg > 0 ? sd / avg : 0, best: srt[n - 1], worst: srt[0], floor: srt[Math.floor((n - 1) * 0.2)], start, elite, dud, cut, el, last3};
+}
+function glLabel(log, s){
+  if (!s || !s.gp) return "";
+  if (s.gp < 3) return "Only " + s.gp + " game" + (s.gp > 1 ? "s" : "") + " so far";
+  const share = s.start / s.gp;
+  if (share >= 0.75 && s.cv < 0.45) return "Steady starter";
+  if (share >= 0.6) return s.cv >= 0.55 ? "Startable, swingy" : "Reliable starter";
+  if (s.elite >= 2 && s.cv >= 0.55) return "Boom or bust";
+  if (share >= 0.5) return "Solid, not every week";
+  if (share >= 0.35) return "Matchup play";
+  return "Rarely startable";
+}
+function glLine(pos, r){
+  if (!r) return "";
+  const td = n => n ? " · " + n + " TD" : "";
+  if (pos === "QB") return r[12] + "/" + r[13] + " · " + r[14] + " yd" + td(r[15]) + (r[16] ? " · " + r[16] + " INT" : "") + (r[9] ? " · " + r[9] + "-" + r[10] + " rush" + (r[11] ? " (" + r[11] + " TD)" : "") : "");
+  if (pos === "RB") return r[9] + "-" + r[10] + " rush" + (r[5] ? " · " + r[6] + "/" + r[5] + " for " + r[7] : "") + td(r[8] + r[11]);
+  if (pos === "WR" || pos === "TE") return r[6] + "/" + r[5] + " · " + r[7] + " yd" + td(r[8] + r[11]) + (r[9] ? " · " + r[9] + "-" + r[10] + " rush" : "");
+  return "";
+}
+function glChart(log, col, s){
+  const ws = log.weeks; if (!ws.length) return "";
+  const W = 320, H = 150, padL = 6, padR = 6, top = 18, bot = 22, n = ws.length;
+  const mx = Math.max(10, ...ws.map(x => x.played && x.s ? x.s[col] : 0)), sy = v => top + (1 - Math.max(0, v) / mx) * (H - top - bot);
+  const slot = (W - padL - padR) / n, bw = Math.max(6, Math.min(22, slot - 4));
+  const bestW = s && s.gp ? ws.filter(x => x.played && x.s).reduce((a, b) => b.s[col] > a.s[col] ? b : a) : null;
+  const lastW = ws.filter(x => x.played && x.s).pop();
+  let svg = '<svg class="glc" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc("Fantasy points by week. " + ws.map(x => "Week " + x.w + ": " + (x.played && x.s ? x.s[col].toFixed(1) : x.bye ? "bye" : "did not play")).join("; ")) + '">';
+  svg += '<line x1="' + padL + '" x2="' + (W - padR) + '" y1="' + (H - bot) + '" y2="' + (H - bot) + '" class="glb"/>';
+  if (s && s.gp) svg += '<line x1="' + padL + '" x2="' + (W - padR) + '" y1="' + sy(s.avg).toFixed(1) + '" y2="' + sy(s.avg).toFixed(1) + '" class="gla"/>';
+  ws.forEach((x, i) => {
+    const cx = padL + slot * i + slot / 2, base = H - bot;
+    svg += '<text x="' + cx.toFixed(1) + '" y="' + (H - 7) + '" text-anchor="middle" class="glw">' + x.w + "</text>";
+    if (!(x.played && x.s)) { svg += '<text x="' + cx.toFixed(1) + '" y="' + (base - 5) + '" text-anchor="middle" class="glx">' + (x.bye ? "BYE" : "–") + "</text>"; return; }
+    const v = x.s[col], y = sy(v), rk = x.s[17 + col], good = rk && rk <= (s ? s.cut : 24), hgt = Math.max(2, base - y);
+    const r = Math.min(4, bw / 2, hgt);
+    // Bar with rounded top corners, square on the baseline.
+    svg += '<g class="glbar' + (good ? " good" : "") + '"><title>' + esc("Week " + x.w + (x.opp ? " " + x.opp : "") + ": " + v.toFixed(1) + " pts" + (rk ? ", " + log.pos + rk : "")) + '</title><rect x="' + (cx - slot / 2).toFixed(1) + '" y="' + top + '" width="' + slot.toFixed(1) + '" height="' + (H - top - bot) + '" fill="transparent"/>' +
+      '<path d="M' + (cx - bw / 2).toFixed(1) + " " + base + "V" + (base - hgt + r).toFixed(1) + "q0 -" + r.toFixed(1) + " " + r.toFixed(1) + " -" + r.toFixed(1) + "h" + (bw - 2 * r).toFixed(1) + "q" + r.toFixed(1) + " 0 " + r.toFixed(1) + " " + r.toFixed(1) + "V" + base + 'Z"/></g>';
+    if (x === bestW || x === lastW) svg += '<text x="' + cx.toFixed(1) + '" y="' + (y - 4).toFixed(1) + '" text-anchor="middle" class="glv">' + v.toFixed(1) + "</text>";
+  });
+  return svg + "</svg>";
+}
+// Game log card inside a player sheet.
+async function drawGameLog(el, pl){
+  await getPlayers();
+  const sid = sidOf(pl);
+  const log = sid ? await gameLogFor(sid) : null;
+  if (!el.isConnected) return;
+  if (!log || !log.weeks.length) { el.innerHTML = '<p class="muted small">No game log yet this season.</p>'; return; }
+  const col = glScore != null ? glScore : glDefaultCol(), s = glSummary(log, col), pos = log.pos;
+  const posName = pos === "DEF" ? "defense" : pos;
+  let h = '<div class="seg glseg" role="group" aria-label="Scoring">' + [[0, "PPR"], [1, "Half PPR"], [2, "Standard"]].map(x => '<button type="button" data-glc="' + x[0] + '" aria-pressed="' + (col === x[0]) + '">' + x[1] + "</button>").join("") + "</div>";
+  if (!s.gp) { el.innerHTML = h + '<div class="card" style="margin-top:10px"><p class="small" style="margin:0">Hasn’t played a snap this season' + (log.weeks.length ? " (" + log.weeks.length + " weeks)" : "") + ".</p></div>"; wire(); return; }
+  const trend = s.gp >= 4 && s.avg > 0 ? (s.last3 - s.avg) / s.avg : 0;
+  h += '<div class="card glcard"><div class="offhead"><b>' + esc(glLabel(log, s)) + '</b><span class="chip">' + s.start + " of " + s.gp + " top-" + s.cut + " " + esc(posName) + "</span></div>" +
+    '<div class="glstats"><div><small>Per game</small><b>' + s.avg.toFixed(1) + "</b></div><div><small>Last 3</small><b>" + s.last3.toFixed(1) + (Math.abs(trend) >= 0.15 ? '<span class="' + (trend > 0 ? "up" : "dn") + '">' + (trend > 0 ? "▲" : "▼") + "</span>" : "") + "</b></div><div><small>Floor</small><b>" + s.floor.toFixed(1) + "</b></div><div><small>Best</small><b>" + s.best.toFixed(1) + "</b></div></div>" +
+    glChart(log, col, s) +
+    '<p class="small muted" style="margin:4px 0 0"><span class="glkey"></span>Orange bars are top-' + s.cut + " " + esc(posName) + " weeks (a starter in most leagues). " + s.elite + " top-" + s.el + " week" + (s.elite === 1 ? "" : "s") + ", " + s.dud + " outside the top " + (s.cut * 2) + ". The dashed line is his average; floor is his 20th-percentile week." + (glScore == null && !leagues.some(L => L.meta.platform === "sleeper") ? " Standard formats: your league’s own scoring may differ a little." : "") + "</p></div>";
+  const rows = log.weeks.slice().reverse(), hasLine = ["QB", "RB", "WR", "TE"].includes(pos);
+  h += '<div class="card" style="padding:4px 0;margin-top:10px;overflow-x:auto"><table class="otable gltab"><thead><tr><th scope="col">Wk</th><th scope="col">Opp</th><th scope="col">Pts</th><th scope="col">Rank</th><th scope="col">Snaps</th>' + (hasLine ? '<th scope="col" class="gll">Line</th>' : "") + "</tr></thead><tbody>" +
+    rows.map(x => {
+      const r = x.played ? x.s : null, rk = r && r[17 + col], good = rk && rk <= s.cut;
+      if (!r) return '<tr class="glno"><td>' + x.w + "</td><td>" + (x.bye ? "" : esc(x.opp || "")) + '</td><td colspan="' + (hasLine ? 4 : 3) + '" class="muted">' + (x.bye ? "Bye" : "Didn’t play") + "</td></tr>";
+      return "<tr><td>" + x.w + "</td><td>" + esc(x.opp || "") + '</td><td><b>' + r[col].toFixed(1) + '</b></td><td>' + (rk ? '<span class="lsr ' + (good ? "ok" : rk <= s.cut * 2 ? "mid" : "bad") + '">' + pos + rk + "</span>" : '<span class="muted">–</span>') + "</td><td>" + (r[4] != null ? r[4] + "%" : "–") + "</td>" + (hasLine ? '<td class="gll">' + esc(glLine(pos, r)) + "</td>" : "") + "</tr>";
+    }).join("") + "</tbody></table></div>";
+  el.innerHTML = h; wire();
+  function wire(){ el.querySelectorAll("[data-glc]").forEach(b => b.addEventListener("click", () => { glScore = Number(b.dataset.glc); try { localStorage.setItem(KEY + ".glscore", glScore); } catch(e){} drawGameLog(el, pl); })); }
+}
+try { const v = localStorage.getItem(KEY + ".glscore"); if (v != null && v !== "") glScore = Number(v); } catch(e){}
 
 /* ---------- my players index (for headlines + trending) ---------- */
 function myPlayers(){
@@ -2379,11 +2514,11 @@ async function openCompare(){
     return {sid, p: {id: sid, name: q[0], pos: q[1], team: q[2], inj: q[3], injPart: q[4]}, proj: pr, ppg: s && s[3] ? s[col] / s[3] : null, gp: s ? s[3] : null,
       snap: r ? r[0] : null, use: r ? (q[1] === "RB" ? r[4] + (r[2] ? r[2] : 0) : r[2]) : null, useLbl: q[1] === "RB" ? "touches" : "targets",
       val: v[0] ? Math.round(v[0] * (q[1] === "QB" ? prem : 1)) : null, ros: v[7] ? Math.round(v[7] * (q[1] === "QB" ? prem : 1)) : null, rank: v[2] ? q[1] + v[2] : null, trend: v[3] != null ? v[3] : null, age: v[6] || null,
-      imp: impliedTotal(q[2]), owned: owner(sid)};
+      imp: impliedTotal(q[2]), owned: owner(sid), gs: glDone[sid] ? glSummary(glDone[sid], col) : null};
   };
   let aiText = "";
   const draw = () => {
-    const rows = cmpList.map(row);
+    const rows = cmpList.map(row).map(r => Object.assign(r, {startPct: r.gs && r.gs.gp ? r.gs.start / r.gs.gp : null, floor: r.gs && r.gs.gp ? r.gs.floor : null}));
     let h = '<button class="back" id="closeSheet">Close</button><h2>⚖ Compare players</h2>';
     h += '<div class="psearch"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="cmpS" type="search" placeholder="' + (rows.length >= 4 ? "Four max: remove one to add another" : "Add a player to compare") + '" autocomplete="off" aria-label="Add a player"></div><ul class="sres" id="cmpR" hidden></ul>';
     if (!rows.length) {
@@ -2399,6 +2534,8 @@ async function openCompare(){
         ["Matchup", null, (x, r) => gameLine(r.p.team)],
         ["Team total", "imp", x => x == null ? "—" : x.toFixed(1)],
         ["Points a game", "ppg", (x, r) => x == null ? "—" : fmt(x) + '<small class="muted"> · ' + r.gp + "g</small>"],
+        ["Startable weeks", "startPct", (x, r) => x == null ? (r.sid in glDone ? "—" : '<span class="muted">…</span>') : r.gs.start + " of " + r.gs.gp + '<small class="muted"> · top ' + r.gs.cut + "</small>"],
+        ["Floor · best week", "floor", (x, r) => x == null ? (r.sid in glDone ? "—" : '<span class="muted">…</span>') : fmt(x) + '<small class="muted"> · ' + fmt(r.gs.best) + "</small>"],
         ["Snap share", "snap", x => x == null ? "—" : x + "%"],
         ["Usage (last wk)", "use", (x, r) => x == null ? "—" : x + " " + r.useLbl],
         [dyn ? "Dynasty value" : "Trade value", dyn ? "val" : "ros", x => x == null ? "—" : fmtV(x)],
@@ -2433,11 +2570,14 @@ async function openCompare(){
       ab.disabled = true; const out = p.querySelector("#cmpOut"); out.hidden = false; out.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
       const rows2 = cmpList.map(row);
       const ctx = (L ? "League: " + L.meta.name + ", " + (d.teams.length) + " teams, " + (qbs === 2 ? "superflex, " : "") + (dyn ? "dynasty, " : "redraft, ") + ({"1": "PPR", "0.5": "half PPR", "0": "standard"}[ppr]) + " scoring. Week " + week + ".\n" : "") + "PLAYERS:\n" +
-        rows2.map(r => "- " + r.p.name + " (" + r.p.pos + ", " + (r.p.team || "FA") + (r.p.inj ? ", " + r.p.inj : "") + "): this week projected " + (r.proj != null ? fmt(r.proj) : "n/a") + (r.imp != null ? ", team implied total " + r.imp.toFixed(1) : "") + "; season " + (r.ppg != null ? fmt(r.ppg) + " pts/game over " + r.gp + " games" : "n/a") + (r.snap != null ? "; snap share " + r.snap + "%" : "") + (r.use != null ? ", " + r.use + " " + r.useLbl + " last week" : "") + (r.val != null ? "; dynasty value " + r.val : "") + (r.ros != null ? ", this-season value " + r.ros : "") + (r.rank ? ", " + r.rank : "") + (r.trend ? ", 30-day value change " + r.trend : "") + (r.age ? ", age " + r.age : "") + "; rostered by " + (r.owned.join(", ") || "nobody (free agent)") + ".").join("\n");
+        rows2.map(r => "- " + r.p.name + " (" + r.p.pos + ", " + (r.p.team || "FA") + (r.p.inj ? ", " + r.p.inj : "") + "): this week projected " + (r.proj != null ? fmt(r.proj) : "n/a") + (r.imp != null ? ", team implied total " + r.imp.toFixed(1) : "") + "; season " + (r.ppg != null ? fmt(r.ppg) + " pts/game over " + r.gp + " games" : "n/a") + (r.gs && r.gs.gp ? "; top-" + r.gs.cut + " " + r.p.pos + " in " + r.gs.start + " of " + r.gs.gp + " games, weekly floor " + fmt(r.gs.floor) + ", best " + fmt(r.gs.best) + ", last 3 avg " + fmt(r.gs.last3) : "") + (r.snap != null ? "; snap share " + r.snap + "%" : "") + (r.use != null ? ", " + r.use + " " + r.useLbl + " last week" : "") + (r.val != null ? "; dynasty value " + r.val : "") + (r.ros != null ? ", this-season value " + r.ros : "") + (r.rank ? ", " + r.rank : "") + (r.trend ? ", 30-day value change " + r.trend : "") + (r.age ? ", age " + r.age : "") + "; rostered by " + (r.owned.join(", ") || "nobody (free agent)") + ".").join("\n");
       try { aiText = await streamAI({mode: "coach", ctx, q: "Compare these players. Who should I start this week, who is the better rest-of-season asset" + (dyn ? ", and who is the better dynasty asset" : "") + "? Give a clear ranking for each and the key reason."}, t => { out.innerHTML = mdLite(t); }); }
       catch(e){ out.innerHTML = '<div class="err">' + esc(e.message) + "</div>"; }
       ab.disabled = false;
     });
+    // Weekly consistency needs each player's game log: fetch what's missing, then redraw once.
+    const miss = cmpList.filter(sid => !(sid in glDone));
+    if (miss.length) Promise.all(miss.map(sid => gameLogFor(sid).then(x => { if (!(sid in glDone)) glDone[sid] = x; }))).then(() => { if (!sh.hidden && p.querySelector("#cmpS") && !p.querySelector("#cmpS").value && miss.every(sid => sid in glDone)) draw(); });
   };
   draw();
 }
