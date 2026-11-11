@@ -12,7 +12,7 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - Never break what works. Test in a headless browser against real Fleaflicker data before pushing. If tests fail, don't push.
 
 ## Next up (top first)
-- [ ] Every ~10 days refresh src/prospects.js: NFL draft analysts' latest 2027 big boards (Kiper, Jordan Reid, Tankathon, Draft Countdown, B/R, plus Brugler/Jeremiah/PFF when public) and dynasty rookie boards (Dynasty Nerds, DraftSharks SF/1QB). After the NFL draft, switch the rookie mock to drafted rookies with real draft slots and landing spots.
+- [ ] Every ~10 days refresh src/prospects.js: NFL draft analysts' latest 2027 big boards (Kiper, Jordan Reid, Tankathon, Draft Countdown, B/R, plus Brugler/Jeremiah/PFF when public) and dynasty rookie boards (Dynasty Nerds, DraftSharks SF/1QB). After the NFL draft, switch the rookie mock to drafted rookies with real draft slots and landing spots. Last refreshed 2026-11-10; next due around 2026-11-20 (until then, build a new feature instead).
 
 ## Blocked (needs the owner)
 - [ ] Save lineups straight to Fleaflicker and Sleeper: neither has a public way for other apps to change lineups. Fleaflicker would need a sample of the request its site sends when you move a player (from the browser's network tab while signed in).
@@ -20,6 +20,7 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- [x] Who to cut (Leagues › League, and Edge › Waivers): your safest drops ranked by value, age, depth at each position and the waiver wire, with Cut / Cut if you need the spot / Keep calls; free agents worth more than your weakest players paired one-for-one; extra kickers and defenses flagged; bench players with real value sent to Sell instead; injured reserve and taxi players shown as not using a spot
 - [x] Draft write-up (Leagues › League › Draft grades and write-up, also in Draft center): for any real league draft, an AI columnist recap with a grade and 2–3 honest, lightly funny lines per team, steal and reach of the draft; share or post to Discord/Slack
 - [x] Matchup recaps (Leagues › League): every game of any finished week with the score, best player, dud, bench points left and why it went that way (nail-biter, blowout, "lineup cost it" when the loser's best lineup would have won), plus an AI beat-writer recap of every matchup to share or post
 - [x] Morning briefing (home): a 2-minute spoken rundown of your team for today, read aloud with an AI voice (falls back to the phone's voice), cached for the day

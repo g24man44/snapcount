@@ -1301,6 +1301,7 @@ function renderLeague(v, L){
     if (d.teams.some(t => t.mine) && ["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="wrapBtn"><i class=ic-spark aria-hidden=true></i>Season Wrapped</button>');
     if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="mrBtn"><i class=ic-ball aria-hidden=true></i>Matchup recaps</button>');
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="mktBtn"><i class=ic-swap aria-hidden=true></i>Trade market</button>');
+    if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="cutBtn"><i class=ic-list aria-hidden=true></i>Who to cut</button>');
     if (d.teams.some(t => t.mine) && m.platform === "flea") tiles.push('<button type="button" class="btn ghost" id="rcBtn"><i class=ic-scale aria-hidden=true></i>Your report card</button>');
     if (d.teams.some(t => t.mine) && d.games.length) tiles.push('<button type="button" class="btn ghost" id="pkBtn"><i class=ic-flame aria-hidden=true></i>Pick’em and roast</button>');
     if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="dcBtn"><i class=ic-pencil aria-hidden=true></i>Draft grades and write-up</button>');
@@ -1349,6 +1350,7 @@ function renderLeague(v, L){
   const dob = v.querySelector("#doBtn"); if (dob) dob.addEventListener("click", () => openDraftOrder(L));
   const mrb = v.querySelector("#mrBtn"); if (mrb) mrb.addEventListener("click", () => openMatchupRecaps(L));
   const mkb = v.querySelector("#mktBtn"); if (mkb) mkb.addEventListener("click", () => openMarket(L));
+  const ctb = v.querySelector("#cutBtn"); if (ctb) ctb.addEventListener("click", () => openCuts(L));
   const rcb = v.querySelector("#rcBtn"); if (rcb) rcb.addEventListener("click", () => openReport(L));
   const pkb = v.querySelector("#pkBtn"); if (pkb) pkb.addEventListener("click", () => openPickem(L));
   const dcb = v.querySelector("#dcBtn"); if (dcb) dcb.addEventListener("click", () => openDraftCenter(L));
@@ -4606,8 +4608,9 @@ async function edgeWaivers(L, el){
   } catch(e){}
   let bids = "";
   try { bids = await waiverBids(L, me, opt, pj, bidC); } catch(e){}
-  el.innerHTML = bids + h;
+  el.innerHTML = bids + h + '<button type="button" class="btn ghost" id="edgeCuts" style="width:100%;margin-top:12px"><i class=ic-list aria-hidden=true></i> Need a roster spot? See who to cut</button>';
   wireRows(el);
+  const ec = el.querySelector("#edgeCuts"); if (ec) ec.addEventListener("click", () => openCuts(L));
 }
 
 /* ---------- Edge: what to bid (FAAB) or whether to use your waiver priority ---------- */
@@ -5396,6 +5399,90 @@ async function openInjuryCenter(){
   leagues.forEach(L => { const me = L.detail && L.detail.teams.find(t => t.mine); if (!me) return; me.roster.forEach(p => { const o = injuryOutlook(p); if (o) rows.push({L, p, o}); }); });
   const seen = new Set(), list = rows.filter(r => { const k = norm(r.p.name); if (seen.has(k)) return false; seen.add(k); return true; });
   body.innerHTML = '<p class="muted" style="margin:-6px 2px 12px">Every hurt player on your teams, when he’s likely back and what to do.</p>' + (list.length ? list.map(r => '<div class="card" style="margin-bottom:10px"><div class="offhead"><div style="display:flex;gap:10px;align-items:center">' + posTag(r.p) + "<b>" + esc(r.p.name) + '</b></div><span class="chip warn">' + esc(r.o.status) + '</span></div><p style="margin:8px 0 0"><b>' + esc(r.o.backText) + "</b> · " + esc(r.o.kind) + '</p><p class="small" style="margin:6px 0 0">' + esc(r.o.advice) + "</p></div>").join("") : '<div class="card"><p style="margin:0">Nobody on your teams is on the injury report.</p></div>');
+}
+
+/* ===================== Who to cut: roster spot advisor ===================== */
+async function cutPlan(L){
+  const d = L.detail, me = d.teams.find(t => t.mine), N = d.teams.length;
+  const st = await getState();
+  await Promise.all([rosterFor(L, me), getProj(), getSeasonStats(L.meta.season || st.league_season)]);
+  const VV = await leagueVals(L), dyn = VV.dyn, slots = leagueSlots(L), POS = ["QB", "RB", "WR", "TE"];
+  const age = p => (VV.row(p) || [])[6] || null;
+  const later = p => { const a = age(p); return VV.val(p) * ageCurveC(p.pos, a ? a + 2 : null) / ageCurveC(p.pos, a); };
+  // What a player is worth keeping: dynasty leans on today's value plus where his age takes him in two years.
+  const keepV = p => dyn ? 0.65 * VV.val(p) + 0.35 * later(p) : VV.val(p);
+  const weekly = p => { const x = projFor(L, p); return x != null && x > 0 ? x : p.avg != null ? p.avg : VV.val(p) / 600; };
+  const active = me.roster.filter(p => p.name && p.slot !== "ir" && !p.taxi), kSlots = d.kdst || (d.slots || []).filter(x => ["K", "DEF", "D/ST"].includes(x));
+  const parked = me.roster.filter(p => p.name && (p.slot === "ir" || p.taxi));
+  const lineup = bestLineup(active.filter(p => POS.includes(p.pos)), slots, weekly), starters = new Set(lineup.list.filter(x => x.p).map(x => x.p));
+  const floor = Math.min(...lineup.list.filter(x => x.p).map(x => x.v), 1e9);
+  // Depth worth carrying at each position: the starters it feeds plus a bye/injury backup.
+  const startN = pos => slots.filter(s => s === pos).length + slots.filter(s => FLEX[s] && FLEX[s].includes(pos)).length * (pos === "QB" ? 1 : pos === "TE" ? 0.25 : 0.5);
+  const depthNeed = pos => Math.max(1, Math.round(startN(pos))) + (dyn ? 2 : 1) - (pos === "TE" ? 1 : 0);
+  // League context: where each player's value sits among everyone rostered.
+  const all = []; d.teams.forEach(t => (t.roster || []).forEach(p => { if (p.name && POS.includes(p.pos)) all.push(keepV(p)); })); all.sort((a, b) => a - b);
+  const pct = v => all.length ? Math.round(100 * all.filter(x => x < v).length / all.length) : 50;
+  const byPos = {}; POS.forEach(pos => { byPos[pos] = active.filter(p => p.pos === pos).sort((a, b) => keepV(b) - keepV(a)); });
+  // Best free agents, priced the same way, to find the line between keep and cut.
+  let fas = [];
+  try { fas = (await Promise.all(POS.map(pos => faPool(L, pos).catch(() => [])))).flat().filter(p => p.name && !OUTISH_C.test(String(p.inj || ""))); } catch(e){}
+  fas.forEach(p => { p._k = keepV(p); p._v = VV.val(p); }); fas.sort((a, b) => b._k - a._k);
+  const repl = fas.length ? fas[Math.min(2, fas.length - 1)]._k : 0;
+  const rows = [];
+  active.forEach(p => {
+    if (!POS.includes(p.pos)) {
+      const same = active.filter(x => x.pos === p.pos || (p.pos === "D/ST" && x.pos === "DEF") || (p.pos === "DEF" && x.pos === "D/ST")), n = kSlots.filter(s => slotOk(s, p.pos)).length;
+      if (same.indexOf(p) >= n) rows.push({p, k: -1, tier: 0, why: [n ? "You carry " + same.length + " at " + p.pos + " and start " + n + ". Stream the position instead." : "Your league has no " + p.pos + " spot in the lineup."]});
+      return;
+    }
+    const k = keepV(p), rk = byPos[p.pos].indexOf(p) + 1, need = depthNeed(p.pos), a = age(p), r = VV.row(p) || [], why = [];
+    const start = starters.has(p), surplus = rk > need;
+    let score = k * (start ? 3 : rk <= Math.ceil(startN(p.pos)) + 1 ? 1.35 : surplus ? 0.8 : 1);
+    if (OUTISH_C.test(String(p.inj || "")) && !start) why.push("Hurt" + (/ir|injured reserve/i.test(String(p.inj)) ? " and on injured reserve: move him to an IR spot if your league has one, so he doesn’t cost a roster spot." : ". Check whether he can go to an IR spot before cutting."));
+    why.push(p.pos + rk + " on your roster" + (start ? ", in your best lineup" : surplus ? ", behind the " + need + " you need at " + p.pos : rk <= Math.ceil(startN(p.pos)) + 1 ? ", your next man up" : ", depth for byes and injuries"));
+    why.push(k < 1 ? "No trade value" : "Worth more than " + pct(k) + "% of players rostered in your league");
+    if (p.avg != null) why.push(fmt(p.avg) + " points a game this season");
+    if (dyn && a) { const ch = later(p) / Math.max(1, VV.val(p)) - 1; if (ch <= -0.15) why.push("Age " + a + ": about " + Math.round(-ch * 100) + "% less valuable in two years"); else if (ch >= 0.06 && a <= 24) { why.push("Only " + a + ": still on the way up"); score *= 1.15; } }
+    if ((r[3] || 0) < -Math.max(150, VV.val(p) * 0.15)) why.push("Value down " + fmtV(-r[3]) + " in 30 days");
+    let tier = start ? 3 : k <= repl * 1.05 ? 0 : surplus && pct(k) < 35 ? 1 : 2;
+    // Scores like one of your starters: never an easy cut, whatever the trade market says.
+    if (!start && p.avg != null && floor > 0 && p.avg >= floor * 0.9) { tier = Math.max(tier, OUTISH_C.test(String(p.inj || "")) ? 1 : 2); score *= 1.5; why.unshift("Scores like a starter: " + fmt(p.avg) + " a game"); }
+    rows.push({p, k, v: VV.val(p), score, tier, why, start, surplus, pct: pct(k)});
+  });
+  rows.sort((a, b) => a.tier - b.tier || (a.score ?? a.k) - (b.score ?? b.k));
+  // Free agents who beat your weakest players, paired one for one.
+  const weak = rows.filter(r => !r.start && r.k >= 0), swaps = [], used = new Set();
+  for (const f of fas) {
+    if (swaps.length >= 4) break;
+    const w = weak.find(r => !used.has(r) && f._k > r.k * 1.12 + 25);
+    if (!w) continue; used.add(w);
+    swaps.push({add: f, cut: w, gain: f._k - w.k});
+  }
+  // Players with real value stuck deep on your bench: trade them in a package before you'd ever cut them.
+  const shop = rows.filter(r => r.surplus && !r.start && pct(r.k) >= 45).sort((a, b) => b.k - a.k).slice(0, 3);
+  return {me, dyn, rows, swaps, shop, parked, starters, active, repl, src: VV.pack.src};
+}
+async function openCuts(L){
+  const body = openSheetShell("Who to cut");
+  body.innerHTML = '<p class="spin">Weighing everyone on your roster…</p>';
+  try {
+    const P = await cutPlan(L), tierLab = [["Cut", "bad"], ["Cut if you need the spot", "warn"], ["Keep", ""], ["Starter", "ok"]];
+    const list = P.rows.filter(r => r.tier < 2).slice(0, 14).concat(P.rows.filter(r => r.tier === 2).slice(0, 2));
+    let h = '<p class="muted" style="margin:-6px 2px 12px">Need a roster spot for a waiver claim or a trade? Your safest drops first, weighing ' + (P.dyn ? "dynasty value, age, " : "trade value, ") + "depth at each position and who’s on the waiver wire.</p>";
+    h += '<div class="card" style="margin-bottom:10px"><p class="small" style="margin:0"><b>' + P.active.length + " players</b> using roster spots · " + P.starters.size + " in your best lineup" + (P.parked.length ? " · " + P.parked.length + " on injured reserve or taxi (no spot used)" : "") + ".</p></div>";
+    if (P.swaps.length) h += "<h3>Upgrade from the waiver wire</h3>" + '<ul class="plist">' + P.swaps.map(s => miniRow(s.add, '<span class="avg">+' + fmtV(Math.max(0, s.add._v - s.cut.v)) + "<small>value</small></span>", '<span class="chip ok" style="padding:2px 7px">Add</span> ' + posTag(s.add) + "Cut " + esc(s.cut.p.name) + " (" + fmtV(s.cut.v) + ") for him (" + fmtV(s.add._v) + ")")).join("") + "</ul>" +
+      '<div class="actions" style="margin-top:8px">' + extBtn(waiverUrl(L), "Add players in " + siteName(L)) + "</div>";
+    h += "<h3>Safest to cut</h3>" + (list.length ? '<ul class="plist">' + list.map(r => { const [lab, tone] = tierLab[r.tier]; return miniRow(r.p, r.k >= 0 ? '<span class="tv">' + fmtV(r.v) + "</span>" : "", '<span class="chip ' + tone + '" style="padding:2px 7px">' + lab + "</span> " + posTag(r.p) + esc(r.why.slice(0, 3).join(" · "))); }).join("") + "</ul>" : '<div class="card"><p style="margin:0">Everyone on your roster is in your best lineup.</p></div>');
+    if (P.shop.length) h += "<h3>Too good to cut: trade instead</h3>" + '<p class="small" style="margin:-2px 2px 8px">Deep on your bench but worth real value. Package one with a better piece in a 2-for-1 and the trade opens the roster spot for you.</p><div class="card">' + P.shop.map(r => '<div class="mrow" style="grid-template-columns:auto minmax(0,1fr) auto">' + posTag(r.p) + '<span class="sn">' + esc(r.p.name) + "<small>Value " + fmtV(r.v) + " · top " + Math.max(1, 100 - r.pct) + '% of rostered players</small></span><button type="button" class="btn ghost" data-shop="' + esc(r.p.id) + '" style="padding:6px 10px">Shop him</button></div>').join("") + "</div>";
+    if (P.parked.length) h += "<h3>Not using a roster spot</h3>" + '<ul class="plist">' + P.parked.map(p => miniRow(p, "", posTag(p) + (p.taxi ? "On your taxi squad" : "On injured reserve") + ". Keep him there; he doesn’t block a pickup.")).join("") + "</ul>";
+    h += '<p class="small muted" style="margin:10px 4px 0">“Cut” means a free agent is worth about as much or more. Your best lineup is kept off the list, backups are protected for byes and injuries, and anyone scoring like a starter is never an easy cut.' + (P.dyn ? " In dynasty, young players get extra credit and aging ones lose some." : "") + " Values from " + esc(P.src) + ".</p>";
+    body.innerHTML = h;
+    wireRows(body);
+    body.querySelectorAll("[data-shop]").forEach(b => b.addEventListener("click", () => {
+      tr.league = leagues.indexOf(L); tr.other = null; tr.mode = "sell"; tr.sellId = b.dataset.shop; tr.give.clear(); tr.get.clear(); tr.ppr = null; tr.dyn = null; tr.keep = null; tr.hide = null; tr.target = null;
+      closeSheet(); setTab("trade");
+    }));
+  } catch(e){ body.innerHTML = '<div class="err">Couldn’t weigh your roster: ' + esc(e.message) + "</div>"; }
 }
 
 /* ===================== 6. League pick'em + roast ===================== */
