@@ -19,6 +19,8 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- [x] Daily values: full recalculation every morning 5:11 AM ET for every format in use, snapshots kept 45 days, "today / this week / 30 days" changes on every player, edge cache refresh every 3 hours, same-day injury adjustment (season-ending: redraft x0.45, dynasty x0.94), "Updated today at…" stamp, biggest movers in Calc
+- [x] Mock draft order: next-12-picks strip under the clock (you, traded picks marked) and a full round-by-round draft board
 - [x] Voice like Claude dictation: record with live waveform and timer, tap ✓ to transcribe (Whisper on Workers AI, roster names as hints), text lands in the box, send with Ask; works on iPhone
 - [x] Rookie mock draft (Calc › Mock draft › Dynasty › Rookie draft): 2027 college class from a consensus of public rookie boards (src/prospects.js — refresh as new boards publish), your league's projected pick order with traded picks, computer teams draft by rank and roster need, grades vs pick value
 - [x] Playoff picture (Leagues › League): bracket if the season ended today (division winners, byes), the race with odds/projected wins/likely seed and the playoff line, this week's highest-leverage games and who to root for

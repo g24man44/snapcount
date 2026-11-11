@@ -1,7 +1,7 @@
 // Snap Count — one Cloudflare Worker that serves the app and fetches live league data.
 // Paste this whole file into a new Cloudflare Worker and deploy. Free plan is fine.
 
-import { alertsRoute, runMinute, staticRoute, injuriesRoute } from "./src/alerts.js";
+import { alertsRoute, runMinute, staticRoute, injuriesRoute, readInjuries } from "./src/alerts.js";
 import { PROSPECTS } from "./src/prospects.js";
 import { transcribeRoute, espnRoute, mflRoute, scoresRoute, calendarRoute, coachRoute, hookPostRoute, espnLineupRoute, mflLoginRoute, mflLineupRoute } from "./src/more.js";
 
@@ -130,9 +130,16 @@ function ageCurve(pos, age) {
   const peak = { QB: 30, RB: 25, WR: 27, TE: 28 }[pos] || 27, drop = { QB: 0.04, RB: 0.12, WR: 0.07, TE: 0.07 }[pos] || 0.07;
   return age <= peak ? 1 + Math.min(0.15, (peak - age) * 0.03) : Math.max(0.3, 1 - (age - peak) * drop);
 }
-async function tradeValues(ppr, teams, qbs, dyn, realTeams) {
+async function tradeValues(ppr, teams, qbs, dyn, realTeams, env) {
   const url = "https://api.fantasycalc.com/values/current?isDynasty=" + (dyn ? "true" : "false") + "&numQbs=" + qbs + "&numTeams=" + teams + "&ppr=" + ppr;
   const now = new Date(), season = now.getUTCMonth() < 2 ? now.getUTCFullYear() - 1 : now.getUTCFullYear();
+  const fmtKey = ppr + "/" + (realTeams || teams) + "/" + qbs + "/" + (dyn ? 1 : 0);
+  const day = d => new Date(Date.now() - d * 864e5).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const [inj, snap1, snap7] = await Promise.all([
+    readInjuries().catch(() => ({})),
+    env && env.SNAP ? env.SNAP.get("vsnap:" + fmtKey + ":" + day(1), "json").catch(() => null) : null,
+    env && env.SNAP ? env.SNAP.get("vsnap:" + fmtKey + ":" + day(7), "json").catch(() => null) : null
+  ]);
   const [r, dpText, stats] = await Promise.all([
     fetch(url, { headers: UA }),
     dyn ? fetch("https://raw.githubusercontent.com/dynastyprocess/data/master/files/values-players.csv", { headers: { "User-Agent": UA["User-Agent"] } }).then(x => x.ok ? x.text() : "").catch(() => "") : Promise.resolve(""),
@@ -184,14 +191,27 @@ async function tradeValues(ppr, teams, qbs, dyn, realTeams) {
   mapByRank(rows, x => x.vorp != null ? x.vorp : null, (x, v) => x.production = v);
   // Blend: in-season production matters more for redraft.
   const W = dyn ? { market: 0.5, experts: 0.25, production: 0.25 } : { market: 0.6, experts: 0, production: 0.4 };
+  // Today's injury report: a season-ending injury hurts a redraft value far more than a dynasty one.
+  // The market often lags the news by a day or two, so this keeps values honest in the meantime.
+  const seasonEnd = (i) => /injured reserve|season/i.test(i.status + " " + i.short + " " + i.long) && !(i.ret && new Date(i.ret) < new Date(new Date().getFullYear() + "-12-20"));
+  rows.forEach(x => {
+    const i = inj[nkey(x.row[4]) + "|" + x.pos] || inj[String(x.row[4] || "").toLowerCase().replace(/[^a-z]/g, "") + "|" + x.pos];
+    if (!i || /^active$/i.test(String(i.status || "").trim()) || !i.status) return;
+    const st = String(i.status || "");
+    let f = 1, tag = st;
+    if (seasonEnd(i)) { f = dyn ? 0.94 : 0.45; tag = /injured reserve/i.test(st) ? "IR" : st; }
+    else if (/out/i.test(st)) f = dyn ? 0.99 : 0.94;
+    else if (/doubtful/i.test(st)) f = dyn ? 1 : 0.97;
+    x.injF = f; x.inj = tag + (i.part ? " (" + i.part + ")" : "");
+  });
   const out = {};
   for (const x of rows) {
     let sum = W.market * x.market, w = W.market;
     if (x.experts != null && W.experts) { sum += W.experts * x.experts; w += W.experts; }
     if (x.production != null) { sum += W.production * x.production; w += W.production; }
     const row = x.row.slice();
-    row[0] = Math.round(sum / w);
-    row.push(x.market, x.experts != null ? Math.round(x.experts) : null, x.production != null ? Math.round(x.production) : null, x.ppg != null ? Math.round(x.ppg * 10) / 10 : null, x.gp || 0, x.recent != null ? Math.round(x.recent * 10) / 10 : null, null, x.team);
+    row[0] = Math.round(sum / w * (x.injF || 1));
+    row.push(x.market, x.experts != null ? Math.round(x.experts) : null, x.production != null ? Math.round(x.production) : null, x.ppg != null ? Math.round(x.ppg * 10) / 10 : null, x.gp || 0, x.recent != null ? Math.round(x.recent * 10) / 10 : null, null, x.team, x.inj || null);
     if (x.sid) out[x.sid] = row;
     if (x.fid) out["f" + x.fid] = row;
   }
@@ -199,7 +219,14 @@ async function tradeValues(ppr, teams, qbs, dyn, realTeams) {
   const uniq = rows.map(x => out[x.sid] || out["f" + x.fid]).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).sort((a, b) => b[0] - a[0]);
   const pr = {}; uniq.forEach((row, i) => { row[1] = i + 1; pr[row[5]] = (pr[row[5]] || 0) + 1; row[2] = pr[row[5]]; });
   for (const [k, row] of picks) out[k] = row;
-  return json({ source: "Snap Count value", blend: { market: "FantasyCalc", experts: haveExperts ? "FantasyPros consensus via DynastyProcess" : null, production: "Sleeper season stats" }, weights: W, ppr, teams, qbs, dynasty: !!dyn, values: out }, 200, 21600);
+  // Day-over-day and week-over-week change, from the daily snapshots.
+  if (snap1 || snap7) uniq.forEach(row => {
+    const id = rows.find(x => (out[x.sid] || out["f" + x.fid]) === row); if (!id) return;
+    const k = id.sid || "f" + id.fid;
+    row[17] = snap1 && snap1[k] != null ? row[0] - snap1[k] : null;
+    row[18] = snap7 && snap7[k] != null ? row[0] - snap7[k] : null;
+  });
+  return json({ source: "Snap Count value", asOf: new Date().toISOString(), fmt: fmtKey, hasDaily: !!(snap1 || snap7), blend: { market: "FantasyCalc", experts: haveExperts ? "FantasyPros consensus via DynastyProcess" : null, production: "Sleeper season stats" }, weights: W, ppr, teams, qbs, dynasty: !!dyn, values: out }, 200, 10800);
 }
 
 async function headlines() {
@@ -431,6 +458,41 @@ async function allowedWeek(ctx, season, week) {
   return json({ season: Number(season), week: Number(week), teams: out }, 200, done ? 604800 : 1800);
 }
 
+// Formats people actually use, so the daily job knows what to refresh.
+async function noteValueFormat(env, fmt) {
+  if (!env.SNAP) return;
+  const m = (await env.SNAP.get("vfmts", "json").catch(() => null)) || {};
+  const today = new Date().toISOString().slice(0, 10);
+  if (m[fmt] === today) return;
+  m[fmt] = today;
+  for (const k of Object.keys(m)) if (Date.now() - Date.parse(m[k]) > 21 * 864e5) delete m[k];
+  await env.SNAP.put("vfmts", JSON.stringify(m));
+}
+// Every morning at 5:11 AM Eastern: recompute values for every format in use, save a snapshot
+// (for "today" and "this week" changes), and put the fresh numbers in the edge cache.
+export async function dailyValues(env, force) {
+  const now = new Date();
+  if (!force && !(now.getUTCHours() === 10 && now.getUTCMinutes() === 11)) return { skipped: true };
+  if (!env.SNAP) return { error: "no KV" };
+  const m = (await env.SNAP.get("vfmts", "json").catch(() => null)) || { "1/16/2/1": "x", "1/12/1/0": "x", "1/12/2/1": "x" };
+  const day = now.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const done = [];
+  for (const fmt of Object.keys(m).slice(0, 10)) {
+    const [ppr, real, qbs, dyn] = fmt.split("/"), t = Number(real), teams = t <= 11 ? 10 : t <= 13 ? 12 : 14;
+    try {
+      const res = await tradeValues(ppr, teams, Number(qbs), dyn === "1", t, env);
+      if (res.status !== 200) continue;
+      const body = await res.clone().json(), snap = {};
+      for (const k in body.values) if (k[0] !== "f" && !k.startsWith("pick:")) snap[k] = body.values[k][0];
+      await env.SNAP.put("vsnap:" + fmt + ":" + day, JSON.stringify(snap), { expirationTtl: 45 * 864e5 / 1000 });
+      const copy = new Response(res.body, res); copy.headers.set("cache-control", "public, max-age=10800");
+      await caches.default.put(new Request("https://snapcount.cache/values8/" + fmt), copy);
+      done.push(fmt);
+    } catch (e) {}
+  }
+  return { day, done };
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -475,13 +537,20 @@ export default {
         if (!/^\d{4}$/.test(season)) return json({ error: "Bad season" }, 400, 0);
         return cached(ctx, "sstats/" + season, 1800, () => seasonStats(season));
       }
+      if (p === "/api/values/refresh") {
+        const last = Number(await env.SNAP.get("vref").catch(() => 0)) || 0;
+        if (Date.now() - last < 15 * 60000) return json({ error: "Values were refreshed in the last 15 minutes." }, 429, 0);
+        await env.SNAP.put("vref", String(Date.now()));
+        return json(await dailyValues(env, true), 200, 0);
+      }
       if (p === "/api/values") {
         const ppr = ["0", "0.5", "1"].includes(url.searchParams.get("ppr")) ? url.searchParams.get("ppr") : "1";
         const t = Number(url.searchParams.get("teams")) || 12, teams = t <= 11 ? 10 : t <= 13 ? 12 : 14;
         const qbs = url.searchParams.get("qbs") === "2" ? 2 : 1;
         const dyn = url.searchParams.get("dyn") === "1";
         const real = Math.min(32, Math.max(4, t));
-        return cached(ctx, "values7/" + ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0), 21600, () => tradeValues(ppr, teams, qbs, dyn, real));
+        ctx.waitUntil(noteValueFormat(env, ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0)));
+        return cached(ctx, "values8/" + ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0), 10800, () => tradeValues(ppr, teams, qbs, dyn, real, env));
       }
       if (p === "/api/wstats") {
         const season = url.searchParams.get("season") || "", week = Number(url.searchParams.get("week") || 0), fresh = url.searchParams.get("fresh") === "1";
@@ -542,5 +611,6 @@ export default {
   },
   async scheduled(event, env, ctx) {
     ctx.waitUntil(runMinute(env));
+    ctx.waitUntil(dailyValues(env).catch(() => {}));
   }
 };

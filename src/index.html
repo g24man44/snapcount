@@ -566,6 +566,31 @@ nav.tabbar button{padding-left:0;padding-right:0}
 .wave i{flex:1;max-width:5px;height:100%;border-radius:3px;background:var(--accent);transform:scaleY(.08);transform-origin:center;transition:transform .08s linear}
 .rect{font:700 14px/1 var(--body);font-stretch:112%;font-variant-numeric:tabular-nums;color:var(--muted);flex:none;min-width:38px}
 .recbar .typing{margin-left:8px}
+
+.vchgs{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.vchg{font-size:12.5px;font-weight:750;font-variant-numeric:tabular-nums;color:var(--muted);white-space:nowrap}
+.vchg.up{color:var(--ok)}.vchg.down{color:var(--bad)}
+.movers{display:grid;grid-template-columns:1fr;gap:10px}
+.movers .card{padding:10px 14px}
+.movers .card>b{display:block;font-size:13px;color:var(--muted);margin:2px 0 4px}
+.mover{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;width:100%;border:0;background:none;color:inherit;text-align:left;padding:8px 0;font:inherit}
+.mover+.mover{border-top:1px solid color-mix(in srgb,var(--line) 70%,transparent)}
+
+.ostrip{display:flex;gap:8px;overflow-x:auto;margin:0;padding:2px 0 6px;scrollbar-width:none;scroll-snap-type:x proximity}
+.ostrip::-webkit-scrollbar{display:none}
+.opk{flex:none;width:112px;scroll-snap-align:start;background:var(--surface);border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:3px}
+.opk b{font:800 16px/1 var(--body);font-stretch:112%;font-variant-numeric:tabular-nums;color:var(--muted)}
+.opk span{font-weight:650;font-size:13.5px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.opk small{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.opk.mine{box-shadow:inset 0 0 0 2px var(--accent)}.opk.mine b{color:var(--accent)}
+.opk.now{background:var(--accent);color:var(--accent-ink)}.opk.now b,.opk.now small{color:var(--accent-ink)}
+.oboard{margin-top:10px;background:var(--surface);border-radius:var(--r);padding:12px 14px}
+.oboard summary{cursor:pointer;font-weight:700}
+.oround{margin-top:12px}.oround>b{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
+.orow{display:grid;grid-template-columns:44px minmax(0,1fr) minmax(0,1.2fr);gap:10px;align-items:center;padding:7px 0;border-top:1px solid color-mix(in srgb,var(--line) 70%,transparent);font-size:14px}
+.orow .op{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:600}
+.orow .op.now{color:var(--accent)}
+.orow.mine .sn{color:var(--accent);font-weight:750}
 </style>
 </head>
 <body>
@@ -1365,8 +1390,12 @@ async function drawValueCard(panel, pl){
   const max = Math.max(...parts.map(x => x[1] || 0), r[0]);
   const el = document.createElement("div");
   el.className = "card valcard";
+  const chg = (x, lab) => x == null ? "" : '<span class="vchg ' + (x > 0 ? "up" : x < 0 ? "down" : "") + '">' + (x > 0 ? "▲ " : x < 0 ? "▼ " : "") + (x ? fmtV(Math.abs(x * prem)) : "No change") + " " + lab + "</span>";
+  const asOf = pack.asOf ? new Date(pack.asOf) : null;
   el.innerHTML = '<div class="vtop"><div><small class="muted">' + (mine ? "Your value" : "Snap Count value") + '</small><b class="vbig">' + fmtV(r[0] * prem) + '</b><small class="muted">' + (mine ? "Consensus " + fmtV(r[14] * prem) : "#" + r[1] + " overall · " + r[5] + r[2]) + "</small></div>" +
-    '<span class="chip ' + (r[3] >= 300 ? "ok" : r[3] <= -300 ? "warn" : "") + '">' + (r[3] >= 0 ? "▲ " : "▼ ") + fmtV(Math.abs(r[3])) + " in 30 days</span></div>" +
+    '<div class="vchgs">' + chg(r[17], "today") + chg(r[18], "this week") + chg(r[3], "in 30 days") + "</div></div>" +
+    (r[16] ? '<p class="small" style="margin:10px 0 0;color:var(--warn)">Injury report: ' + esc(r[16]) + ". Today’s value accounts for it.</p>" : "") +
+    (asOf ? '<p class="small muted" style="margin:8px 0 0">Updated ' + (asOf.toDateString() === new Date().toDateString() ? "today at " : asOf.toLocaleDateString([], {weekday: "short"}) + " ") + asOf.toLocaleTimeString([], {hour: "numeric", minute: "2-digit"}) + ". Values refresh every few hours, with a full recalculation every morning.</p>" : "") +
     (r[8] != null ? '<div class="vparts">' + parts.map(x => '<div class="vp"><div class="vpl"><span>' + x[0] + "</span><b>" + show(x[1]) + '</b></div><div class="vbar"><span style="width:' + (x[1] ? Math.round(x[1] / max * 100) : 0) + '%"></span></div><small class="muted">' + esc(x[2]) + "</small></div>").join("") + "</div>" : "") +
     '<p class="small muted" style="margin:10px 0 0">' + (dyn ? "Dynasty" : "This season") + " value for " + esc(L.meta.name) + "’s format" + (prem > 1 ? ", including the +" + Math.round((prem - 1) * 100) + "% superflex QB bump" : "") + ". The blend is half market, a quarter experts, a quarter production" + (dyn ? "" : " (60/40 market and production for redraft)") + ".</p>" +
     '<details class="small" style="margin-top:8px"' + (mine ? " open" : "") + '><summary>Disagree? Set your own value</summary><p class="muted" style="margin:6px 0">Your number replaces the consensus everywhere in the app: grades, Buy, Sell, Price and the coach.</p><div class="cform"><input id="myvIn" inputmode="numeric" placeholder="' + Math.round(r[0] * prem) + '" value="' + (mine ? Math.round(r[0] * prem) : "") + '"><button type="button" class="btn" id="myvSave">Save</button>' + (mine ? '<button type="button" class="btn ghost" id="myvReset">Reset</button>' : "") + "</div></details>";
@@ -2128,13 +2157,14 @@ function myValues(){ try { return JSON.parse(localStorage.getItem(KEY + ".myv") 
 function setMyValue(key, v){ const m = myValues(); if (v == null) delete m[key]; else m[key] = Math.round(v); try { localStorage.setItem(KEY + ".myv", JSON.stringify(m)); } catch(e){} tr.values = {}; leagues.forEach(L => { L.ctx = null; }); }
 async function loadValues(ppr, teams, qbs, dyn){
   const k = valuesKey(ppr, teams, qbs, dyn);
-  if (tr.values[k]) { tr.valuesHasFlea = tr.values[k].flea; return tr.values[k]; }
+  // Values refresh through the day; an app left open picks up the new numbers after 3 hours.
+  if (tr.values[k] && Date.now() - (tr.values[k].at || 0) < 3 * 3600e3) { tr.valuesHasFlea = tr.values[k].flea; return tr.values[k]; }
   try {
     const r = await api("/api/values?ppr=" + ppr + "&teams=" + teams + "&qbs=" + qbs + (dyn ? "&dyn=1" : ""));
     const flea = Object.keys(r.values).some(x => x[0] === "f");
     const mv = myValues(), v = Object.assign({}, r.values);
     for (const key in mv) if (v[key]) { const row = v[key].slice(); row[14] = row[0]; row[0] = mv[key]; v[key] = row; }
-    tr.values[k] = {src: r.blend ? "Snap Count values (market, experts and production)" : "FantasyCalc", blend: r.blend || null, v, flea}; tr.valuesHasFlea = flea;
+    tr.values[k] = {src: r.blend ? "Snap Count values (market, experts and production)" : "FantasyCalc", blend: r.blend || null, v, flea, at: Date.now(), asOf: r.asOf || null}; tr.valuesHasFlea = flea;
   }
   catch(e){
     // Fallback: season points per game from Sleeper, scaled so stars stand apart.
@@ -2700,7 +2730,7 @@ function drawCalc(v){
     '<div class="card cfmt">' + seg("dyn", [[1, "Dynasty"], [0, "Redraft"]], calc.dyn ? 1 : 0) + seg("qbs", [[1, "1 QB"], [2, "Superflex"]], calc.qbs) +
     '<div class="crow2">' + seg("ppr", [["1", "PPR"], ["0.5", "Half"], ["0", "Std"]], calc.ppr) + '<label class="cteams">Teams <select data-cf="teams">' + [8, 10, 12, 14, 16, 18, 20].map(n => '<option' + (n === Number(calc.teams) ? " selected" : "") + ">" + n + "</option>").join("") + "</select></label></div></div>" +
     side("A", A, effA) + side("B", B, effB) + res +
-    (!both ? '<p class="small muted" style="margin:12px 4px 0">Add players or picks to both sides. Works for any trade, in any league, even ones you’re not in.</p>' : "") +
+    (!both ? '<p class="small muted" style="margin:12px 4px 0">Add players or picks to both sides. Works for any trade, in any league, even ones you’re not in.</p>' : "") + calcMovers() +
     '<p class="small muted" style="margin:14px 4px 0">Values are Snap Count values for this format: trade market, expert rankings and this season’s production, blended. Tap a player you’ve given your own value to see it marked.</p>';
   wireCalc(v);
 }
@@ -2720,8 +2750,21 @@ function renderMockTab(v){
   else if (mockCfg().dyn && mockCfg().kind === "rookie") v.querySelector("#mockBox").innerHTML = '<p class="small muted" style="margin:12px 4px 0">Draft next year’s college class against the rest of your league. The order comes from 1,500 simulated seasons and includes traded picks. Prospects are ranked by a consensus of public 2027 rookie boards (DraftSharks, Dynasty Nerds); each one is valued like the pick where he’s expected to go. Computer teams draft by rank and their roster needs, with some randomness.</p>';
   else v.querySelector("#mockBox").innerHTML = '<p class="small muted" style="margin:12px 4px 0">You draft against computer teams that pick by player value and fill their rosters sensibly, with some randomness so every mock plays out differently. Kickers and defenses are left out; take them last in your real draft.</p>';
 }
+// Biggest value moves: this week from the daily snapshots, or the last 30 days until a week of snapshots exists.
+function calcMovers(){
+  if (!calcIndex) return "";
+  const rows = calcIndex.filter(x => !x.k.startsWith("pick:") && x.r[0] >= 800);
+  const useWeek = rows.some(x => x.r[18] != null), d = x => useWeek ? x.r[18] : x.r[3];
+  const up = rows.filter(x => d(x) > 0).sort((a, b) => d(b) - d(a)).slice(0, 6), dn = rows.filter(x => d(x) < 0).sort((a, b) => d(a) - d(b)).slice(0, 6);
+  if (!up.length && !dn.length) return "";
+  const li = x => { const a = calcAsset(x.k); return '<button type="button" class="mover" data-mv="' + esc(x.k) + '">' + posTag(a) + '<span class="sn">' + esc(a.name) + "<small>" + esc([a.team, fmtV(a.v)].filter(Boolean).join(" · ")) + '</small></span><span class="vchg ' + (d(x) > 0 ? "up" : "down") + '">' + (d(x) > 0 ? "▲ " : "▼ ") + fmtV(Math.abs(d(x))) + "</span></button>"; };
+  return "<h3>Biggest movers " + (useWeek ? "this week" : "in the last 30 days") + '</h3><div class="movers"><div class="card"><b>Rising</b>' + up.map(li).join("") + '</div><div class="card"><b>Falling</b>' + dn.map(li).join("") + "</div></div>" +
+    '<p class="small muted" style="margin:8px 4px 0">Tap a player to add him to Team A.</p>';
+}
+
 function wireCalc(v){
   wireSwitch(v);
+  v.querySelectorAll("[data-mv]").forEach(b => b.addEventListener("click", () => { if (!calc.a.includes(b.dataset.mv) && !calc.b.includes(b.dataset.mv)) calc.a.push(b.dataset.mv); saveCalc(); drawCalc(v); window.scrollTo({top: 0, behavior: "smooth"}); }));
   v.querySelectorAll("[data-cf]").forEach(el => el.addEventListener(el.tagName === "SELECT" ? "change" : "click", async () => {
     const f = el.dataset.cf, val = el.tagName === "SELECT" ? el.value : el.dataset.val;
     if (f === "dyn") calc.dyn = val === "1"; else if (f === "qbs") calc.qbs = Number(val); else if (f === "teams") calc.teams = Number(val); else calc.ppr = val;
@@ -2831,6 +2874,26 @@ function mockGrades(st){
   const G = ["A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D", "F"];
   return st.teams.map((_, i) => { const r = order.indexOf(i), g = G[Math.min(G.length - 1, Math.floor(r / st.cfg.teams * G.length))]; return {rank: r + 1, grade: g, tot: tot[i]}; });
 }
+// The draft order, always visible: who's on the clock, who's next, and the full board by round.
+function mockOrderHTML(st){
+  const N = st.cfg.teams, R = Math.ceil(st.order.length / N), made = {}; st.log.forEach(x => made[x.at] = x);
+  const lab = at => st.labels ? st.labels[at] : pickLabel(st, at);
+  const team = at => st.names[st.order[at]], mine = at => st.order[at] === st.slot;
+  const upcoming = []; for (let k = st.at; k < st.order.length && upcoming.length < 12; k++) upcoming.push(k);
+  let h = '<h3>Draft order</h3><div class="ostrip" role="list">' + upcoming.map(k => '<div role="listitem" class="opk' + (k === st.at ? " now" : "") + (mine(k) ? " mine" : "") + '"><b>' + esc(lab(k).split(" (")[0]) + "</b><span>" + esc(mine(k) ? "You" : team(k)) + "</span>" + (st.labels && st.labels[k].includes("(from") ? "<small>" + esc(st.labels[k].split("(")[1].replace(")", "")) + "</small>" : "") + "</div>").join("") + "</div>";
+  h += '<details class="oboard"><summary>Full draft board</summary>';
+  for (let r = 0; r < R; r++) {
+    h += '<div class="oround"><b>Round ' + (r + 1) + "</b>";
+    for (let k = r * N; k < Math.min(st.order.length, (r + 1) * N); k++) {
+      const x = made[k];
+      h += '<div class="orow' + (mine(k) ? " mine" : "") + (k === st.at ? " now" : "") + '"><span class="dslot">' + esc(lab(k).split(" (")[0]) + '</span><span class="sn">' + esc(mine(k) ? "You" : team(k)) + (st.labels && st.labels[k].includes("(from") ? "<small>" + esc(st.labels[k].split("(")[1].replace(")", "")) + "</small>" : "") + "</span>" +
+        (x ? '<span class="op">' + posTag(x.p) + esc(x.p.name) + "</span>" : k === st.at ? '<span class="op now">On the clock</span>' : '<span class="op muted">–</span>') + "</div>";
+    }
+    h += "</div>";
+  }
+  return h + "</details>";
+}
+
 function drawMock(v){
   const st = mock.st, box = v.querySelector("#mockBox"); if (!box) return;
   const cfg = st.cfg, done = st.at >= st.order.length, mine = st.teams[st.slot];
@@ -2842,6 +2905,7 @@ function drawMock(v){
       (steals.length ? '<p class="small" style="margin:10px 0 0">Best values: ' + steals.map(x => esc(x.p.name) + " (" + pickLabel(st, x.p.pick - 1) + ", about " + x.d + " picks later than his value)").join("; ") + ".</p>" : "") +
       '<div class="sendrow" style="margin-top:12px"><button type="button" class="btn" id="mkAgain">Draft again</button><button type="button" class="btn ghost" id="mkShare">Share my team</button></div><p class="small" id="mkMsg" style="margin:6px 0 0"></p></div>' +
       (st.kind === "rookie" ? "<h3>Your picks</h3>" : "<h3>Your team</h3>") + "<div class=\"card mroster\">" + mine.map(p => '<div class="mrow"><span class="dslot">' + pickLabel(st, p.pick - 1) + "</span>" + posTag(p) + '<span class="sn">' + esc(p.name) + "<small>" + esc([p.team, p.age ? "age " + Math.round(p.age) : ""].filter(Boolean).join(" · ")) + '</small></span><span class="tv">' + fmtV(p.v) + "</span></div>").join("") + "</div>" +
+      mockOrderHTML(Object.assign({}, st, {at: st.order.length})).replace("<h3>Draft order</h3><div class=\"ostrip\" role=\"list\"></div>", "<h3>Draft board</h3>") +
       "<h3>Every team</h3><div class=\"card race\">" + st.teams.map((tm, i) => ({i, g: gr[i]})).sort((a, b) => a.g.rank - b.g.rank).map(x => '<div class="mrow' + (x.i === st.slot ? " me" : "") + '"><span class="mg">' + x.g.grade + '</span><span class="sn">' + esc(st.names[x.i]) + "<small>" + esc(st.teams[x.i].slice(0, 3).map(p => p.name).join(", ")) + "</small></span></div>").join("") + "</div>";
     box.querySelector("#mkAgain").addEventListener("click", () => startMock(v));
     box.querySelector("#mkShare").addEventListener("click", async () => {
@@ -2857,8 +2921,9 @@ function drawMock(v){
   const counts = {QB: 0, RB: 0, WR: 0, TE: 0}; mine.forEach(p => counts[p.pos]++);
   const fromLab = st.labels && st.labels[st.at].includes("(from") ? '<small>' + esc(st.labels[st.at].split(" (")[1].replace(")", "")) + "</small>" : "";
   box.innerHTML = '<div class="card clock"><div><small>On the clock · Round ' + (st.labels ? st.labels[st.at].split(".")[0] : round) + (st.kind === "rookie" ? " · " + st.season + " rookie draft" : "") + "</small><b>You · pick " + pickLabel(st, st.at) + "</b>" + fromLab + '</div><span class="chip">Next: ' + (myNext.slice(1).join(", ") || "last pick") + "</span></div>" +
+    mockOrderHTML(st).replace('<h3>Draft order</h3>', '<h3 style="margin-top:14px">Draft order</h3>') +
     '<div class="card sugg"><small class="muted">Best pick for you</small><div class="mrow">' + posTag(sug) + '<span class="sn"><b>' + esc(sug.name) + "</b><small>" + esc([sug.team, (sug.rookie ? "consensus #" : "value rank ") + sug.adp].filter(Boolean).join(" · ")) + '</small></span><button type="button" class="btn" data-mk="' + esc(sug.id) + '">Draft</button></div></div>' +
-    '<div class="mybar">' + ["QB", "RB", "WR", "TE"].map(ps => '<span><em class="pt" data-pos="' + ps + '">' + ps + "</em> " + counts[ps] + "</span>").join("") + '<button type="button" class="back" id="mkAuto" style="margin-left:auto;font-size:14px">Auto-draft the rest</button></div>' +
+        '<div class="mybar">' + ["QB", "RB", "WR", "TE"].map(ps => '<span><em class="pt" data-pos="' + ps + '">' + ps + "</em> " + counts[ps] + "</span>").join("") + '<button type="button" class="back" id="mkAuto" style="margin-left:auto;font-size:14px">Auto-draft the rest</button></div>' +
     '<div class="seg" role="group" aria-label="Position" style="margin-top:10px">' + ["ALL", "QB", "RB", "WR", "TE"].map(ps => '<button type="button" data-mf="' + ps + '" aria-pressed="' + (mock.filter === ps) + '">' + (ps === "ALL" ? "All" : ps) + "</button>").join("") + "</div>" +
     '<div class="psearch" style="margin-top:10px"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="mkQ" type="search" placeholder="Find a player" autocomplete="off" aria-label="Find a player" value="' + esc(mock.q) + '"></div>' +
     '<div class="card mavail">' + list.map(p => '<div class="mrow">' + '<span class="dslot">' + p.adp + "</span>" + posTag(p) + '<span class="sn"><b>' + esc(p.name) + "</b><small>" + esc([p.team, p.age ? "age " + Math.round(p.age) : ""].filter(Boolean).join(" · ")) + '</small></span><span class="tv">' + fmtV(p.v) + '</span><button type="button" class="btn ghost sm" data-mk="' + esc(p.id) + '">Draft</button></div>').join("") + "</div>" +
