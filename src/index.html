@@ -441,6 +441,32 @@ nav.tabbar button[aria-selected=true]{color:var(--accent)}
 @keyframes viewin{from{opacity:0;transform:translateY(6px)}}
 @media (prefers-reduced-motion:reduce){.spin::after,#view.swap,.sheet .panel,.sheet,.livedot{animation:none!important}}
 footer{font-size:12.5px;line-height:1.5}
+
+/* ===== Clean pass: less chrome, more air ===== */
+.card,.plist{border-color:transparent}
+@media (prefers-color-scheme:light){.card,.plist{border-color:transparent;box-shadow:0 1px 2px rgba(13,23,48,.06),0 4px 14px rgba(13,23,48,.04)}}
+.av{box-shadow:none;background:var(--surface2)}
+.prow{padding:13px 16px;gap:14px}
+.plist li+li{border-top-color:color-mix(in srgb,var(--line) 70%,transparent)}
+.pname small{font-size:13px}
+.note{-webkit-line-clamp:1}
+#wk,footer{display:none!important}
+.stack{gap:10px}
+.btn.ghost{border-color:transparent;background:var(--surface)}
+.tiles .btn{border-color:transparent}
+.chip{background:var(--surface2)}
+.score .t{color:var(--ink)}
+.card.score{padding:14px 16px}
+h3{margin:30px 2px 12px}
+/* explainers fold away behind a small "How this works" */
+details.howto{margin:10px 2px 0;font-size:13.5px;color:var(--muted)}
+details.howto summary{cursor:pointer;list-style:none;display:inline-flex;align-items:center;gap:6px;font-weight:650;color:var(--muted);padding:4px 0}
+details.howto summary::-webkit-details-marker{display:none}
+details.howto summary::before{content:"i";display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;border:1.5px solid currentColor;font:800 10px/1 var(--body);font-style:normal}
+details.howto[open] summary{color:var(--ink)}
+details.howto p{margin:6px 0 0!important}
+.card.score.pre .p{font-size:19px}
+.sproj{grid-column:1/-1;font-size:12px;color:var(--muted);font-weight:600;margin-top:2px}
 </style>
 </head>
 <body>
@@ -940,7 +966,8 @@ function playerRow(p, right){
     '<span class="pts">' + (right == null ? "" : right) + "</span></button></li>";
 }
 function noteLine(p){
-  const n = injFor(p); if (!n || !n.short) return "";
+  // Lists stay clean: a note shows under a player only when it's about his health or practice status.
+  const n = injFor(p); if (!n || !n.short || !(p.inj || n.prac)) return "";
   return '<small class="note">' + pracChip(n.prac) + esc(n.short) + "</small>";
 }
 function wireRows(v){ v.querySelectorAll(".prow[data-i]").forEach(b => b.addEventListener("click", () => openPlayer(reg[+b.dataset.i]))); }
@@ -1060,8 +1087,11 @@ function renderLeague(v, L){
       h += "<h3>Matchups" + (d.week ? " · Week " + d.week : "") + '</h3><div class="stack">';
       d.games.forEach(g => {
         const A = d.teams.find(t => t.id === g.a.id) || {name:"Team"}, B = d.teams.find(t => t.id === g.b.id) || {name:"Team"};
-        const aLead = (g.a.pts||0) > (g.b.pts||0), bLead = (g.b.pts||0) > (g.a.pts||0);
-        h += '<div class="card score' + (m.platform === "flea" && g.id ? ' tapable" data-game="' + esc(g.id) : "") + '"><span class="t' + (me && A.id === me.id ? " me" : "") + '">' + esc(A.name) + '</span><span class="p ' + (aLead ? "lead" : "") + '">' + fmt(g.a.pts) + '</span><span class="t' + (me && B.id === me.id ? " me" : "") + '">' + esc(B.name) + '</span><span class="p ' + (bLead ? "lead" : "") + '">' + fmt(g.b.pts) + "</span></div>";
+        const notStarted = !(g.a.pts || g.b.pts), hasProj = g.a.proj != null && g.b.proj != null;
+        const va = notStarted && hasProj ? g.a.proj : g.a.pts, vb = notStarted && hasProj ? g.b.proj : g.b.pts;
+        const aLead = (va||0) > (vb||0), bLead = (vb||0) > (va||0);
+        const show = v => notStarted && !hasProj ? "–" : fmt(v);
+        h += '<div class="card score' + (notStarted ? " pre" : "") + (m.platform === "flea" && g.id ? ' tapable" data-game="' + esc(g.id) : "") + '"><span class="t' + (me && A.id === me.id ? " me" : "") + '">' + esc(A.name) + '</span><span class="p ' + (aLead ? "lead" : "") + '">' + show(va) + '</span><span class="t' + (me && B.id === me.id ? " me" : "") + '">' + esc(B.name) + '</span><span class="p ' + (bLead ? "lead" : "") + '">' + show(vb) + "</span>" + (notStarted && hasProj ? '<span class="sproj">Projected</span>' : "") + "</div>";
       });
       h += "</div>";
     }
@@ -4591,6 +4621,26 @@ try {
 } catch(e){}
 accts.flea.forEach(a => { if (a.type === "league") a.team = fleaTeamFor(a.value); });
 if (location.hash === "#alerts") { cur.tab = "alerts"; try { history.replaceState(null, "", location.pathname); } catch(e){} try { navigator.clearAppBadge && navigator.clearAppBadge(); } catch(e){} }
+/* ---------- keep screens clean: long explanations fold into "How this works" ---------- */
+(() => {
+  const fold = root => {
+    root.querySelectorAll("p.muted, p.small.muted").forEach(p => {
+      if (p.dataset.kept || p.closest("details,.cmsg,.err,.clog,form,.bug,.vtop")) return;
+      const t = p.textContent.trim();
+      const prev = p.previousElementSibling;
+      if (t.length < 110 || p.querySelector("a,button,input,select") || (prev && prev.tagName === "H2" && !leagues.length)) { p.dataset.kept = 1; return; }
+      p.dataset.kept = 1;
+      const prev2 = p.previousElementSibling;
+      if (prev2 && prev2.tagName === "DETAILS" && prev2.classList.contains("howto")) { prev2.appendChild(p); return; }
+      const d = document.createElement("details"); d.className = "howto";
+      d.innerHTML = "<summary>How this works</summary>";
+      p.replaceWith(d); d.appendChild(p);
+    });
+  };
+  const obs = new MutationObserver(muts => { for (const m of muts) for (const n of m.addedNodes) if (n.nodeType === 1) fold(n.parentNode || n); });
+  ["#view", "#sheetPanel"].forEach(sel => { const el = $(sel); if (el) obs.observe(el, {childList: true, subtree: true}); });
+})();
+
 let goCoach = false;
 try { const go = new URLSearchParams(location.search).get("go"); if (["news", "trade", "edge", "alerts"].includes(go)) cur.tab = go; if (go === "coach") goCoach = true; if (go) history.replaceState(null, "", location.pathname); } catch(e){}
 document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === cur.tab));
