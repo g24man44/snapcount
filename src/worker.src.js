@@ -150,7 +150,7 @@ async function tradeValues(ppr, teams, qbs, dyn, realTeams) {
     const p = x.player || {};
     const row = [Math.round(x.value || 0), x.overallRank || null, x.positionRank || null, Math.round(x.trend30Day || 0), p.name || "", p.position || "", p.maybeAge ? Math.round(p.maybeAge * 10) / 10 : null, Math.round(x.redraftValue || 0)];
     if (p.position === "PICK") { if (p.name) picks.push(["pick:" + p.name, row]); continue; }
-    rows.push({ row, sid: p.sleeperId, fid: p.fleaflickerId, pos: p.position, age: p.maybeAge, key: nkey(p.name) + "|" + p.position, market: row[0] });
+    rows.push({ row, sid: p.sleeperId, fid: p.fleaflickerId, pos: p.position, age: p.maybeAge, team: p.maybeTeam || null, key: nkey(p.name) + "|" + p.position, market: row[0] });
   }
   if (!rows.length) return json({ error: "FantasyCalc returned no players" }, 502, 0);
   const scale = rows.map(x => x.market).sort((a, b) => b - a);
@@ -190,7 +190,7 @@ async function tradeValues(ppr, teams, qbs, dyn, realTeams) {
     if (x.production != null) { sum += W.production * x.production; w += W.production; }
     const row = x.row.slice();
     row[0] = Math.round(sum / w);
-    row.push(x.market, x.experts != null ? Math.round(x.experts) : null, x.production != null ? Math.round(x.production) : null, x.ppg != null ? Math.round(x.ppg * 10) / 10 : null, x.gp || 0, x.recent != null ? Math.round(x.recent * 10) / 10 : null);
+    row.push(x.market, x.experts != null ? Math.round(x.experts) : null, x.production != null ? Math.round(x.production) : null, x.ppg != null ? Math.round(x.ppg * 10) / 10 : null, x.gp || 0, x.recent != null ? Math.round(x.recent * 10) / 10 : null, null, x.team);
     if (x.sid) out[x.sid] = row;
     if (x.fid) out["f" + x.fid] = row;
   }
@@ -478,7 +478,7 @@ export default {
         const qbs = url.searchParams.get("qbs") === "2" ? 2 : 1;
         const dyn = url.searchParams.get("dyn") === "1";
         const real = Math.min(32, Math.max(4, t));
-        return cached(ctx, "values6/" + ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0), 21600, () => tradeValues(ppr, teams, qbs, dyn, real));
+        return cached(ctx, "values7/" + ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0), 21600, () => tradeValues(ppr, teams, qbs, dyn, real));
       }
       if (p === "/api/wstats") {
         const season = url.searchParams.get("season") || "", week = Number(url.searchParams.get("week") || 0), fresh = url.searchParams.get("fresh") === "1";

@@ -467,6 +467,34 @@ details.howto[open] summary{color:var(--ink)}
 details.howto p{margin:6px 0 0!important}
 .card.score.pre .p{font-size:19px}
 .sproj{grid-column:1/-1;font-size:12px;color:var(--muted);font-weight:600;margin-top:2px}
+
+/* trade calculator */
+.cfmt{display:grid;gap:8px}
+.crow2{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+.cteams{display:flex;align-items:center;gap:8px;font-weight:650;font-size:14px;color:var(--muted)}
+.cteams select{width:auto;margin:0;padding:9px 30px 9px 12px}
+.cside{margin-top:12px;padding:14px}
+.cshead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.cshead b{font:800 19px/1.2 var(--display);font-stretch:80%}
+.cshead .tv{font-weight:800;font-size:19px;color:var(--accent)}
+.clist{list-style:none;margin:0 0 10px;padding:0}
+.crow{display:grid;grid-template-columns:40px minmax(0,1fr) auto 32px;gap:12px;align-items:center;padding:8px 0}
+.crow+.crow{border-top:1px solid color-mix(in srgb,var(--line) 70%,transparent)}
+.crow .av{width:40px;height:40px}
+.crow .tv{font-weight:750}
+.cx{border:0;background:var(--surface2);color:var(--muted);width:30px;height:30px;border-radius:50%;font-size:18px;line-height:1}
+.cside .sres{margin-top:6px}
+.cside .sres li button{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:10px;align-items:center;width:100%;text-align:left;padding:11px 14px}
+.cside .psearch{background:var(--surface2);border-color:transparent;margin:0}
+.cres{margin-top:12px}
+.cverdict{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.cverdict b{font:900 26px/1 var(--display);font-stretch:74%}
+.cverdict span{color:var(--muted);font-weight:650;font-size:14px}
+.cbar{height:12px;border-radius:999px;background:var(--surface3);margin-top:14px;overflow:hidden}
+.cbar span{display:block;height:100%;background:var(--accent);border-radius:999px 0 0 999px;transition:width .3s ease}
+.cbarlab{display:flex;justify-content:space-between;margin-top:6px;font-size:13px;font-weight:700;color:var(--muted)}
+.cbarlab span:first-child{color:var(--accent)}
+nav.tabbar button{padding-left:0;padding-right:0}
 </style>
 </head>
 <body>
@@ -481,6 +509,7 @@ details.howto p{margin:6px 0 0!important}
 <nav class="tabbar" role="tablist" id="tabs">
   <button role="tab" data-tab="leagues" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 4l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1Z"/></svg>Leagues</button>
   <button role="tab" data-tab="trade" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4 3 8l4 4"/><path d="M3 8h13"/><path d="m17 20 4-4-4-4"/><path d="M21 16H8"/></svg>Trade</button>
+  <button role="tab" data-tab="calc" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2.5"/><path d="M8.5 7.5h7M8.5 12h.01M12 12h.01M15.5 12h.01M8.5 15.5h.01M12 15.5h.01M15.5 15.5h.01"/></svg>Calc</button>
   <button role="tab" data-tab="news" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h4M7 13h4M15 9v6"/></svg>Scores</button>
   <button role="tab" data-tab="edge" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/></svg>Edge</button>
   <button role="tab" data-tab="alerts" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15Z"/><path d="M10 21h4"/></svg>Alerts</button>
@@ -816,6 +845,7 @@ function render(){
   if (vk !== lastView) { lastView = vk; v.classList.remove("swap"); void v.offsetWidth; v.classList.add("swap"); if (navigator.vibrate && matchMedia("(pointer:coarse)").matches) try { navigator.vibrate(6); } catch(e){} }
   $("#gearBtn").setAttribute("aria-pressed", cur.tab === "accounts");
   if (cur.tab === "trade") return renderTrade(v);
+  if (cur.tab === "calc") return renderCalc(v);
   if (cur.tab === "alerts") return renderAlerts(v);
   if (cur.tab === "accounts") return renderAccounts(v);
   if (cur.tab === "news") return renderNews(v);
@@ -1571,7 +1601,7 @@ function openCoach(){
     (ready.length > 1 ? '<select id="cLeague">' + leagues.map((L, i) => L.detail && L.detail.teams.some(t => t.mine) ? '<option value="' + i + '"' + (i === li ? " selected" : "") + ">" + esc(L.meta.name) + "</option>" : "").join("") + "</select>" : "") +
     '<div id="cLog" class="clog"></div>' +
     '<div class="chips cq" id="cChips">' + COACH_Q.map(q => '<button type="button" class="chip" data-q="' + esc(q) + '">' + esc(q) + "</button>").join("") + "</div>" +
-    '<form id="cForm" class="cform">' + (SR ? '<button type="button" class="mic" id="cMic" aria-label="Ask by voice"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>' : "") +
+    '<form id="cForm" class="cform">' + (SR ? '<button type="button" class="mic" id="cMic" aria-label="Talk instead of typing" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>' : "") +
     '<input id="cIn" autocomplete="off" placeholder="Ask anything about your team…"><button class="btn" type="submit" id="cGo">Ask</button></form>' +
     '<p class="small muted" style="margin:8px 2px 0">Answers use your live roster, projections, free agents and trade values. AI can be wrong, so double-check big moves.</p>';
   sh.hidden = false;
@@ -1580,7 +1610,11 @@ function openCoach(){
   const sel = p.querySelector("#cLeague"); if (sel) sel.addEventListener("change", () => { coach.league = +sel.value; coach.msgs = []; drawCoach(); });
   p.querySelector("#cSpeak").addEventListener("click", e => { coach.speak = !coach.speak; if (!coach.speak) speechSynthesis && speechSynthesis.cancel(); e.currentTarget.innerHTML = coach.speak ? "<i class=ic-speaker aria-hidden=true></i>" : "<i class=ic-mute aria-hidden=true></i>"; e.currentTarget.setAttribute("aria-pressed", coach.speak); });
   p.querySelectorAll("[data-q]").forEach(b => b.addEventListener("click", () => askCoach(b.dataset.q)));
-  p.querySelector("#cForm").addEventListener("submit", e => { e.preventDefault(); const v = p.querySelector("#cIn").value.trim(); if (v) { p.querySelector("#cIn").value = ""; askCoach(v); } });
+  p.querySelector("#cForm").addEventListener("submit", e => {
+    e.preventDefault();
+    if (coach.rec) { stopVoice(); const m = p.querySelector("#cMic"); if (m) { m.classList.remove("on"); m.setAttribute("aria-pressed", "false"); } }
+    const v = p.querySelector("#cIn").value.trim(); if (v) { p.querySelector("#cIn").value = ""; askCoach(v); }
+  });
   const mic = p.querySelector("#cMic"); if (mic) mic.addEventListener("click", () => toggleVoice(mic));
   if (li < 0) $("#cLog").innerHTML = '<p class="muted">Add a league and pick your team first, then ask me anything about it.</p>';
 }
@@ -1606,15 +1640,35 @@ async function askCoach(q){
   } catch(e){ ans.err = e.message; }
   coach.busy = false; if ($("#cGo")) $("#cGo").disabled = false; drawCoach();
 }
-function stopVoice(){ try { coach.rec && coach.rec.stop(); } catch(e){} coach.rec = null; }
+function stopVoice(){ coach.keep = false; const r = coach.rec; coach.rec = null; try { r && r.stop(); } catch(e){} }
+// Talk as long as you like: the mic keeps listening until you tap it again or tap Ask.
+// Nothing is sent until you tap Ask, so you can read and fix the words first.
 function toggleVoice(btn){
-  if (coach.rec) { stopVoice(); btn.classList.remove("on"); return; }
-  const r = new SR(); r.lang = "en-US"; r.interimResults = true; r.maxAlternatives = 1;
-  const inp = $("#cIn"); let final = "";
-  r.onresult = e => { let t = ""; for (const res of e.results) t += res[0].transcript; inp.value = t; if (e.results[e.results.length - 1].isFinal) final = t; };
-  r.onend = () => { btn.classList.remove("on"); coach.rec = null; if (final.trim()) { inp.value = ""; askCoach(final.trim()); } };
-  r.onerror = () => { btn.classList.remove("on"); coach.rec = null; };
-  coach.rec = r; btn.classList.add("on"); r.start();
+  if (coach.rec) { coach.keep = false; stopVoice(); btn.classList.remove("on"); btn.setAttribute("aria-pressed", "false"); return; }
+  const inp = $("#cIn"), before = inp.value.trim();
+  let acc = "";
+  const start = () => {
+    const r = new SR(); r.lang = "en-US"; r.interimResults = true; r.continuous = true; r.maxAlternatives = 1;
+    const base = acc;
+    r.onresult = e => {
+      let fin = "", interim = "";
+      const add = (cur, t) => { t = t.trim(); if (!t) return cur; if (cur && t.toLowerCase().startsWith(cur.trim().toLowerCase())) return t; return cur ? cur + " " + t : t; };
+      for (const res of e.results) { if (res.isFinal) fin = add(fin, res[0].transcript); else interim = add(interim, res[0].transcript); }
+      acc = [base, fin].filter(Boolean).join(" ");
+      inp.value = [before, acc, interim].filter(Boolean).join(" ");
+    };
+    r.onerror = e => { if (e.error === "not-allowed" || e.error === "service-not-allowed" || e.error === "audio-capture") { coach.keep = false; const m = $("#cIn"); if (m) m.placeholder = "Allow the microphone for this site to talk to the coach"; } };
+    r.onend = () => {
+      if (coach.keep && coach.rec === r && document.body.contains(btn)) { try { start(); return; } catch(e){} }
+      if (coach.rec === r) coach.rec = null;
+      btn.classList.remove("on"); btn.setAttribute("aria-pressed", "false");
+      if (acc && document.body.contains(inp) && inp.value.trim() !== "") inp.value = [before, acc].filter(Boolean).join(" ");
+    };
+    coach.rec = r; r.start();
+  };
+  coach.keep = true; btn.classList.add("on"); btn.setAttribute("aria-pressed", "true");
+  try { start(); } catch(e){ coach.keep = false; btn.classList.remove("on"); }
+  inp.focus({preventScroll: true});
 }
 
 /* ---------- AI weekly recap ---------- */
@@ -2433,6 +2487,132 @@ function drawSell(ctx, allPicks){
       render(); window.scrollTo(0, 0);
     }));
   }, 30);
+}
+
+/* ---------- Trade calculator: any players, any format, no league needed ---------- */
+const calc = (() => {
+  let st = null; try { st = JSON.parse(localStorage.getItem(KEY + ".calc") || "null"); } catch(e){}
+  return st || {dyn: null, qbs: null, teams: null, ppr: null, a: [], b: [], q: {a: "", b: ""}};
+})();
+function saveCalc(){ try { localStorage.setItem(KEY + ".calc", JSON.stringify(Object.assign({}, calc, {q: {a: "", b: ""}}))); } catch(e){} }
+function calcDefaults(){
+  if (calc.dyn != null) return;
+  const L = leagues.find(x => x.detail && x.detail.teams.some(t => t.mine));
+  if (L) { const d = L.detail; calc.dyn = !!(d.maxKeepers || /dynasty|keeper/i.test(L.meta.name)); calc.qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1; calc.teams = d.teams.length; calc.ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1"); }
+  else { calc.dyn = false; calc.qbs = 1; calc.teams = 12; calc.ppr = "1"; }
+}
+// Shareable link: the whole calculation lives in the address, so anyone can open it.
+function calcLink(){
+  const s = JSON.stringify({f: [calc.dyn ? 1 : 0, calc.qbs, calc.teams, calc.ppr], a: calc.a, b: calc.b});
+  return location.origin + "/#calc=" + btoa(unescape(encodeURIComponent(s))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function readCalcLink(){
+  const m = location.hash.match(/^#calc=([A-Za-z0-9_-]+)/); if (!m) return false;
+  try {
+    const j = JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/-/g, "+").replace(/_/g, "/")))));
+    calc.dyn = !!j.f[0]; calc.qbs = j.f[1] === 2 ? 2 : 1; calc.teams = Number(j.f[2]) || 12; calc.ppr = ["0", "0.5", "1"].includes(j.f[3]) ? j.f[3] : "1";
+    calc.a = (j.a || []).map(String).slice(0, 12); calc.b = (j.b || []).map(String).slice(0, 12);
+    history.replaceState(null, "", location.pathname); return true;
+  } catch(e){ return false; }
+}
+let calcPack = null, calcKey = "", calcIndex = null;
+async function calcValues(){
+  const k = [calc.ppr, calc.teams, calc.qbs, calc.dyn].join("/");
+  if (calcPack && calcKey === k) return calcPack;
+  calcPack = await loadValues(calc.ppr, calc.teams, calc.qbs, calc.dyn); calcKey = k;
+  // One row per player (values are also keyed by Fleaflicker ID), plus every draft pick.
+  const low = t => String(t || "").toLowerCase().replace(/[.'’]/g, "");
+  calcIndex = Object.keys(calcPack.v).filter(k2 => k2[0] !== "f").map(k2 => ({k: k2, r: calcPack.v[k2], n: low(k2.startsWith("pick:") ? k2.slice(5) : calcPack.v[k2][4])}));
+  return calcPack;
+}
+function calcAsset(k){
+  const r = calcPack && calcPack.v[k]; if (!r) return null;
+  const pick = k.startsWith("pick:"), pos = pick ? "PICK" : r[5];
+  const prem = pos === "QB" ? qbPremium(calc.teams, calc.qbs) : 1;
+  return {k, name: pick ? k.slice(5) : r[4], pos, age: r[6], team: r[15] || "", v: (r[0] || 0) * prem, rank: r[2] ? pos + r[2] : "", mine: r[14] != null};
+}
+function calcSearch(q, exclude){
+  q = String(q || "").toLowerCase().replace(/[.'’]/g, "").trim(); if (!q || !calcIndex) return [];
+  const toks = q.split(/\s+/), ex = new Set(exclude);
+  return calcIndex.filter(x => !ex.has(x.k) && toks.every(t => x.n.includes(t))).sort((a, b) => (b.n.startsWith(q) - a.n.startsWith(q)) || (b.r[0] - a.r[0])).slice(0, 8).map(x => calcAsset(x.k)).filter(Boolean);
+}
+function calcRow(a, side){
+  const p = {id: a.k.startsWith("pick:") ? "" : a.k, name: a.name, pos: a.pos === "PICK" ? "" : a.pos, team: a.team};
+  return '<li class="crow">' + (a.pos === "PICK" ? '<span class="av"><i>PK</i></span>' : avatar(p)) +
+    '<span class="pname"><b>' + esc(a.name) + "</b><small>" + (a.pos === "PICK" ? "Draft pick" : posTag(a) + esc([a.team, a.age ? "age " + Math.round(a.age) : "", a.rank].filter(Boolean).join(" · "))) + (a.mine ? " · your value" : "") + "</small></span>" +
+    '<span class="tv">' + fmtV(a.v) + '</span><button type="button" class="cx" data-rm="' + side + '" data-k="' + esc(a.k) + '" aria-label="Remove ' + esc(a.name) + '">×</button></li>';
+}
+async function renderCalc(v){
+  calcDefaults();
+  v.innerHTML = '<h2>Trade calculator</h2><p class="spin">Loading values…</p>';
+  try { await calcValues(); } catch(e){ v.innerHTML = '<h2>Trade calculator</h2><div class="err">Couldn’t load trade values: ' + esc(e.message) + "</div>"; return; }
+  if (cur.tab !== "calc") return;
+  drawCalc(v);
+}
+function drawCalc(v){
+  const A = calc.a.map(calcAsset).filter(Boolean), B = calc.b.map(calcAsset).filter(Boolean);
+  const sum = xs => xs.reduce((s, x) => s + x.v, 0);
+  const effA = effOf(A.map(x => x.v)), effB = effOf(B.map(x => x.v));
+  const total = effA + effB, share = total ? effA / total : 0.5;
+  const diff = Math.abs(effA - effB), pct = Math.max(effA, effB) ? diff / Math.max(effA, effB) : 0;
+  const both = A.length && B.length;
+  const fair = pct <= 0.05;
+  const winner = effA > effB ? "A" : "B", loser = winner === "A" ? "B" : "A";
+  const seg = (name, opts, curV) => '<div class="seg" role="group" aria-label="' + name + '">' + opts.map(o => '<button type="button" data-cf="' + name + '" data-val="' + o[0] + '" aria-pressed="' + (String(curV) === String(o[0])) + '">' + o[1] + "</button>").join("") + "</div>";
+  const side = (id, list, eff) => '<div class="card cside"><div class="cshead"><b>Team ' + id + ' gets</b><span class="tv">' + (list.length ? fmtV(eff) : "") + "</span></div>" +
+    (list.length ? '<ul class="clist">' + list.map(a => calcRow(a, id.toLowerCase())).join("") + "</ul>" : "") +
+    '<div class="psearch"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" data-cs="' + id.toLowerCase() + '" placeholder="Add a player or pick" autocomplete="off" aria-label="Add a player or pick to Team ' + id + '" value="' + esc(calc.q[id.toLowerCase()] || "") + '"></div><ul class="sres" data-cr="' + id.toLowerCase() + '" hidden></ul></div>';
+  let res = "";
+  if (both) {
+    const need = diff, behind = winner === "A" ? B : A, behindIds = new Set(calc.a.concat(calc.b));
+    // What would even it out: one asset that brings the trailing side up to within a few percent.
+    const fixes = fair ? [] : calcIndex.map(x => calcAsset(x.k)).filter(a => a && !behindIds.has(a.k) && a.v > 0).map(a => {
+      const e = effOf(behind.map(x => x.v).concat([a.v])), other = Math.max(effA, effB); return {a, gap: Math.abs(e - other) / other};
+    }).filter(x => x.gap <= 0.05).sort((p, q) => p.gap - q.gap || q.a.v - p.a.v).slice(0, 6).map(x => x.a);
+    res = '<div class="card cres">' +
+      '<div class="cverdict"><b>' + (fair ? "Fair trade" : "Team " + winner + " wins") + "</b><span>" + (fair ? "Within " + Math.max(1, Math.round(pct * 100)) + "% either way" : "by " + Math.round(pct * 100) + "% (" + fmtV(diff) + ")") + "</span></div>" +
+      '<div class="cbar"><span style="width:' + Math.round(share * 100) + '%"></span></div><div class="cbarlab"><span>Team A ' + fmtV(effA) + "</span><span>Team B " + fmtV(effB) + "</span></div>" +
+      (!fair ? '<p class="small" style="margin:12px 0 6px">To even it out, Team ' + loser + " should also get about <b>" + fmtV(diff) + "</b> in value" + (fixes.length ? ", for example:" : ".") + "</p>" +
+        (fixes.length ? '<div class="chips">' + fixes.map(a => '<button type="button" class="chip" data-fix="' + loser.toLowerCase() + '" data-k="' + esc(a.k) + '">' + esc(a.name) + " · " + fmtV(a.v) + "</button>").join("") + "</div>" : "") : "") +
+      (A.length !== B.length ? '<p class="small muted" style="margin:12px 0 0">Raw totals are ' + fmtV(sum(A)) + " and " + fmtV(sum(B)) + ". The side getting more pieces is counted lower, because several mid players are worth less than one star who fills a single lineup spot.</p>" : "") +
+      '<div class="sendrow" style="margin-top:14px"><button type="button" class="btn" id="cShare">Share this trade</button><button type="button" class="btn ghost" id="cClear">Clear</button></div><p class="small" id="cMsg" style="margin:6px 0 0"></p></div>';
+  }
+  v.innerHTML = '<h2>Trade calculator</h2>' +
+    '<div class="card cfmt">' + seg("dyn", [[1, "Dynasty"], [0, "Redraft"]], calc.dyn ? 1 : 0) + seg("qbs", [[1, "1 QB"], [2, "Superflex"]], calc.qbs) +
+    '<div class="crow2">' + seg("ppr", [["1", "PPR"], ["0.5", "Half"], ["0", "Std"]], calc.ppr) + '<label class="cteams">Teams <select data-cf="teams">' + [8, 10, 12, 14, 16, 18, 20].map(n => '<option' + (n === Number(calc.teams) ? " selected" : "") + ">" + n + "</option>").join("") + "</select></label></div></div>" +
+    side("A", A, effA) + side("B", B, effB) + res +
+    (!both ? '<p class="small muted" style="margin:12px 4px 0">Add players or picks to both sides. Works for any trade, in any league, even ones you’re not in.</p>' : "") +
+    '<p class="small muted" style="margin:14px 4px 0">Values are Snap Count values for this format: trade market, expert rankings and this season’s production, blended. Tap a player you’ve given your own value to see it marked.</p>';
+  wireCalc(v);
+}
+function wireCalc(v){
+  v.querySelectorAll("[data-cf]").forEach(el => el.addEventListener(el.tagName === "SELECT" ? "change" : "click", async () => {
+    const f = el.dataset.cf, val = el.tagName === "SELECT" ? el.value : el.dataset.val;
+    if (f === "dyn") calc.dyn = val === "1"; else if (f === "qbs") calc.qbs = Number(val); else if (f === "teams") calc.teams = Number(val); else calc.ppr = val;
+    saveCalc(); renderCalc(v);
+  }));
+  v.querySelectorAll("[data-rm]").forEach(b => b.addEventListener("click", () => { const s = b.dataset.rm; calc[s] = calc[s].filter(k => k !== b.dataset.k); saveCalc(); drawCalc(v); }));
+  v.querySelectorAll("[data-fix]").forEach(b => b.addEventListener("click", () => { calc[b.dataset.fix].push(b.dataset.k); saveCalc(); drawCalc(v); }));
+  v.querySelectorAll("[data-cs]").forEach(inp => {
+    const s = inp.dataset.cs, out = v.querySelector('[data-cr="' + s + '"]');
+    const show = () => {
+      calc.q[s] = inp.value;
+      const list = calcSearch(inp.value, calc.a.concat(calc.b));
+      out.hidden = !list.length;
+      out.innerHTML = list.map(a => '<li><button type="button" data-add="' + s + '" data-k="' + esc(a.k) + '">' + (a.pos === "PICK" ? '<span class="pos" data-pos="PICK">PK</span>' : posTag(a)) + "<b>" + esc(a.name) + '</b><span class="muted">' + esc(a.team || "") + '</span><span class="tv">' + fmtV(a.v) + "</span></button></li>").join("");
+      out.querySelectorAll("[data-add]").forEach(b => b.addEventListener("click", () => { calc[s].push(b.dataset.k); calc.q[s] = ""; saveCalc(); drawCalc(v); const n = v.querySelector('[data-cs="' + s + '"]'); if (n) n.focus({preventScroll: true}); }));
+    };
+    inp.addEventListener("input", show);
+    if (inp.value) show();
+  });
+  const sh = v.querySelector("#cShare");
+  if (sh) sh.addEventListener("click", async () => {
+    const link = calcLink(), names = s => calc[s].map(calcAsset).filter(Boolean).map(a => a.name).join(", ");
+    const text = "Team A gets " + names("a") + ". Team B gets " + names("b") + ".";
+    if (navigator.share) { try { await navigator.share({title: "Trade calculator", text, url: link}); return; } catch(e){ if (e.name === "AbortError") return; } }
+    try { await navigator.clipboard.writeText(link); v.querySelector("#cMsg").textContent = "Link copied. Anyone who opens it sees this trade."; } catch(e){ v.querySelector("#cMsg").textContent = link; }
+  });
+  const cl = v.querySelector("#cClear"); if (cl) cl.addEventListener("click", () => { calc.a = []; calc.b = []; saveCalc(); drawCalc(v); });
 }
 
 function drawTrade(ctx){
@@ -4642,7 +4822,8 @@ if (location.hash === "#alerts") { cur.tab = "alerts"; try { history.replaceStat
 })();
 
 let goCoach = false;
-try { const go = new URLSearchParams(location.search).get("go"); if (["news", "trade", "edge", "alerts"].includes(go)) cur.tab = go; if (go === "coach") goCoach = true; if (go) history.replaceState(null, "", location.pathname); } catch(e){}
+if (readCalcLink()) cur.tab = "calc";
+try { const go = new URLSearchParams(location.search).get("go"); if (["news", "trade", "edge", "alerts", "calc"].includes(go)) cur.tab = go; if (go === "coach") goCoach = true; if (go) history.replaceState(null, "", location.pathname); } catch(e){}
 document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === cur.tab));
 document.addEventListener("visibilitychange", () => { if (!document.hidden) try { navigator.clearAppBadge && navigator.clearAppBadge(); } catch(e){} });
 render();

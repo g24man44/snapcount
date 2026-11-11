@@ -18,6 +18,8 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- [x] Trade calculator tab (Calc): any players and picks, any format (dynasty/redraft, 1QB/superflex, PPR, 8–20 teams), works without a league, verdict and balance bar, one-tap "even it out" suggestions, shareable link that opens the same trade for anyone
+- [x] Coach voice input keeps listening until you tap the mic again; nothing sends until you tap Ask
 - [x] Broadcast redesign: stadium navy + scoreboard gold, Archivo (self-hosted, condensed headlines, wide tabular numbers), scorebug matchups, drawn icons instead of emoji, action tiles, skeleton loading, sheets slide up and swipe down, screen transitions, new app icon
 - [x] Snap Count value: trade values blend FantasyCalc market (50%), FantasyPros expert consensus via DynastyProcess (25%) and this season's production weighted to recent weeks (25%; 60/40 market/production in redraft); breakdown card on every player; set your own value and it carries everywhere; superflex QB bump no longer double-counted for 16-team leagues
 - [x] Game log on every player (tap any player › Game log): week-by-week fantasy points chart with byes and missed games, opponent, weekly position rank, snap share and box-score line, plus per game, last 3, floor, best and how often he finished as a startable week (“Steady starter”, “Boom or bust”…), in PPR, half PPR or standard. Compare players now shows startable weeks and floor/best week too, and the AI verdict uses them
