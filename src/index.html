@@ -495,6 +495,66 @@ details.howto p{margin:6px 0 0!important}
 .cbarlab{display:flex;justify-content:space-between;margin-top:6px;font-size:13px;font-weight:700;color:var(--muted)}
 .cbarlab span:first-child{color:var(--accent)}
 nav.tabbar button{padding-left:0;padding-right:0}
+.ic-bracket{--m:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M4%205h5v5H4M4%2014h5v5H4M9%207.5h3v9H9M12%2012h4M16%209h4v6h-4z%22%2F%3E%3C%2Fsvg%3E")}
+.ic-list{--m:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M9%206h11M9%2012h11M9%2018h11%22%2F%3E%3Cpath%20d%3D%22M4%206h.01M4%2012h.01M4%2018h.01%22%2F%3E%3C%2Fsvg%3E")}
+
+/* playoff picture, draft order, mock draft */
+.bracket{display:grid;grid-template-columns:1fr;gap:8px}
+.pair,.byes{padding:6px 12px}
+.byes{margin-bottom:8px}
+.byes>b{display:block;font-size:13px;color:var(--muted);margin:6px 0 2px}
+.seedrow{display:grid;grid-template-columns:20px 26px minmax(0,1fr) auto;gap:8px;align-items:center;padding:7px 0}
+.seedrow+.seedrow{border-top:1px solid color-mix(in srgb,var(--line) 70%,transparent)}
+.seedrow .tl,.raceRow .tl,.swrow .tl,.drow .tl{width:26px;height:26px;font-size:10px}
+.seed{font:800 15px/1 var(--body);font-stretch:112%;color:var(--accent);text-align:center}
+.sn{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:650}
+.sn small{display:block;color:var(--muted);font-weight:500;font-size:12.5px;overflow:hidden;text-overflow:ellipsis}
+.sr{font-size:12.5px;color:var(--muted);font-weight:650;font-variant-numeric:tabular-nums}
+.me .sn,.me .sn b{color:var(--accent)}
+.race{padding:4px 14px}
+.raceRow{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:12px;align-items:center;padding:11px 0}
+.raceRow+.raceRow{border-top:1px solid color-mix(in srgb,var(--line) 70%,transparent)}
+.rn b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px}
+.rn small{display:block;color:var(--muted);font-size:12.5px}
+.rbar{height:5px;border-radius:3px;background:var(--surface2);margin-top:6px;overflow:hidden}.rbar span{display:block;height:100%;background:var(--accent)}
+.ro{display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+.ro b{font:800 17px/1 var(--body);font-stretch:112%;font-variant-numeric:tabular-nums}
+.ro .chip{font-size:11.5px;padding:3px 8px}
+.cutline{display:flex;align-items:center;gap:8px;margin:2px 0;color:var(--accent);font-size:11.5px;font-weight:750}
+.cutline::before,.cutline::after{content:"";flex:1;border-top:2px dashed color-mix(in srgb,var(--accent) 60%,transparent)}
+.swing{padding:10px 14px}
+.swrow{display:grid;grid-template-columns:26px minmax(0,1fr) auto;grid-template-rows:auto auto;column-gap:10px;align-items:center;padding:6px 0}
+.swrow .tl{grid-row:1/3}
+.swrow .sn{grid-column:2}
+.swrow .sw{grid-column:3;grid-row:1;font-size:13px;color:var(--muted);text-align:right}.swrow .sw b{color:var(--ok);font-size:15px}
+.swrow .sl{grid-column:3;grid-row:2;font-size:12px;color:var(--muted);text-align:right}
+.dorder{padding:4px 14px}
+.drow{display:grid;grid-template-columns:44px 26px minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 0}
+.drow+.drow{border-top:1px solid color-mix(in srgb,var(--line) 70%,transparent)}
+.dslot{font:800 14px/1 var(--body);font-stretch:112%;font-variant-numeric:tabular-nums;color:var(--muted)}
+.dslot.big{font-size:22px;color:var(--accent)}
+.drange{font-size:12.5px;color:var(--muted);font-weight:650;font-variant-numeric:tabular-nums}
+.mypicks{display:grid;gap:4px}
+.mprow{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 0;border-top:1px solid color-mix(in srgb,var(--line) 70%,transparent)}
+.mset{display:flex;flex-wrap:wrap;gap:8px 14px}
+.clock{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px;background:var(--accent);color:var(--accent-ink)}
+.clock small{display:block;font-weight:650;opacity:.8}
+.clock b{font:900 24px/1.1 var(--display);font-stretch:76%}
+.clock .chip{background:color-mix(in srgb,var(--accent-ink) 14%,transparent);color:var(--accent-ink)}
+.sugg{margin-top:8px}
+.mrow{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:8px 0}
+.sugg .mrow{grid-template-columns:auto minmax(0,1fr) auto}
+.mavail .mrow+.mrow,.mlog .mrow+.mrow,.mroster .mrow+.mrow,.race .mrow+.mrow{border-top:1px solid color-mix(in srgb,var(--line) 70%,transparent)}
+.mavail,.mlog,.mroster{padding:4px 14px;margin-top:10px}
+.mlog .mrow,.mroster .mrow{grid-template-columns:44px auto minmax(0,1fr) auto}
+.race .mrow{grid-template-columns:40px minmax(0,1fr)}
+.mg{font:900 20px/1 var(--display);font-stretch:80%;color:var(--accent)}
+.btn.sm{padding:7px 12px;font-size:13.5px;border-radius:10px;background:var(--surface2)}
+.mybar{display:flex;align-items:center;gap:12px;margin-top:10px;font-weight:700;font-variant-numeric:tabular-nums}
+.mgrade{display:flex;align-items:center;gap:16px}
+.mgrade b{font:900 60px/1 var(--display);font-stretch:72%;color:var(--accent)}
+.mgrade span{font:800 20px/1.2 var(--display);font-stretch:80%}
+.mgrade small{display:block;font:500 13px/1.4 var(--body);color:var(--muted)}
 </style>
 </head>
 <body>
@@ -1111,7 +1171,9 @@ function renderLeague(v, L){
     if (d.games.length) tiles.push('<button type="button" class="btn aibtn" id="recapBtn"><i class=ic-spark aria-hidden=true></i>Write this week’s recap</button>');
     if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="pwBtn"><i class=ic-bars aria-hidden=true></i>Power rankings</button>', '<button type="button" class="btn ghost" id="histBtn"><i class=ic-trophy aria-hidden=true></i>History and rivalries</button>');
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="lsBtn"><i class=ic-compass aria-hidden=true></i>Landscape and trade partners</button>');
+    if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="picBtn"><i class=ic-bracket aria-hidden=true></i>Playoff picture</button>');
     if (d.teams.some(t => t.mine) && ["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="ppBtn"><i class=ic-target aria-hidden=true></i>Playoff path</button>');
+    if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="doBtn"><i class=ic-list aria-hidden=true></i>Projected draft order</button>');
     if (tiles.length) h += '<div class="tiles">' + tiles.join("") + "</div>";
     if (d.games.length) {
       h += "<h3>Matchups" + (d.week ? " · Week " + d.week : "") + '</h3><div class="stack">';
@@ -1150,6 +1212,8 @@ function renderLeague(v, L){
   const pw = v.querySelector("#pwBtn"); if (pw) pw.addEventListener("click", () => openPower(L));
   const lsb = v.querySelector("#lsBtn"); if (lsb) lsb.addEventListener("click", () => openLandscape(L));
   const ppb = v.querySelector("#ppBtn"); if (ppb) ppb.addEventListener("click", () => openPlayoffPath(L));
+  const pcb = v.querySelector("#picBtn"); if (pcb) pcb.addEventListener("click", () => openPlayoffPicture(L));
+  const dob = v.querySelector("#doBtn"); if (dob) dob.addEventListener("click", () => openDraftOrder(L));
 }
 
 /* ---------- free agents ---------- */
@@ -2542,9 +2606,11 @@ function calcRow(a, side){
     '<span class="pname"><b>' + esc(a.name) + "</b><small>" + (a.pos === "PICK" ? "Draft pick" : posTag(a) + esc([a.team, a.age ? "age " + Math.round(a.age) : "", a.rank].filter(Boolean).join(" · "))) + (a.mine ? " · your value" : "") + "</small></span>" +
     '<span class="tv">' + fmtV(a.v) + '</span><button type="button" class="cx" data-rm="' + side + '" data-k="' + esc(a.k) + '" aria-label="Remove ' + esc(a.name) + '">×</button></li>';
 }
+let calcMode = "trade";
 async function renderCalc(v){
   calcDefaults();
-  v.innerHTML = '<h2>Trade calculator</h2><p class="spin">Loading values…</p>';
+  if (calcMode === "mock") return renderMockTab(v);
+  v.innerHTML = '<h2>Trade calculator</h2>' + calcSwitch() + '<p class="spin">Loading values…</p>';
   try { await calcValues(); } catch(e){ v.innerHTML = '<h2>Trade calculator</h2><div class="err">Couldn’t load trade values: ' + esc(e.message) + "</div>"; return; }
   if (cur.tab !== "calc") return;
   drawCalc(v);
@@ -2577,7 +2643,7 @@ function drawCalc(v){
       (A.length !== B.length ? '<p class="small muted" style="margin:12px 0 0">Raw totals are ' + fmtV(sum(A)) + " and " + fmtV(sum(B)) + ". The side getting more pieces is counted lower, because several mid players are worth less than one star who fills a single lineup spot.</p>" : "") +
       '<div class="sendrow" style="margin-top:14px"><button type="button" class="btn" id="cShare">Share this trade</button><button type="button" class="btn ghost" id="cClear">Clear</button></div><p class="small" id="cMsg" style="margin:6px 0 0"></p></div>';
   }
-  v.innerHTML = '<h2>Trade calculator</h2>' +
+  v.innerHTML = '<h2>Trade calculator</h2>' + calcSwitch() +
     '<div class="card cfmt">' + seg("dyn", [[1, "Dynasty"], [0, "Redraft"]], calc.dyn ? 1 : 0) + seg("qbs", [[1, "1 QB"], [2, "Superflex"]], calc.qbs) +
     '<div class="crow2">' + seg("ppr", [["1", "PPR"], ["0.5", "Half"], ["0", "Std"]], calc.ppr) + '<label class="cteams">Teams <select data-cf="teams">' + [8, 10, 12, 14, 16, 18, 20].map(n => '<option' + (n === Number(calc.teams) ? " selected" : "") + ">" + n + "</option>").join("") + "</select></label></div></div>" +
     side("A", A, effA) + side("B", B, effB) + res +
@@ -2585,7 +2651,23 @@ function drawCalc(v){
     '<p class="small muted" style="margin:14px 4px 0">Values are Snap Count values for this format: trade market, expert rankings and this season’s production, blended. Tap a player you’ve given your own value to see it marked.</p>';
   wireCalc(v);
 }
+function calcSwitch(){ return '<div class="seg" role="group" aria-label="Tool" style="margin:-4px 0 12px"><button type="button" data-cm="trade" aria-pressed="' + (calcMode === "trade") + '">Trade calculator</button><button type="button" data-cm="mock" aria-pressed="' + (calcMode === "mock") + '">Mock draft</button></div>'; }
+function wireSwitch(v){ v.querySelectorAll("[data-cm]").forEach(b => b.addEventListener("click", () => { calcMode = b.dataset.cm; render(); })); }
+function renderMockTab(v){
+  v.innerHTML = "<h2>Mock draft</h2>" + calcSwitch() + renderMock(v);
+  wireSwitch(v);
+  v.querySelectorAll("[data-mc]").forEach(el => el.addEventListener(el.tagName === "SELECT" ? "change" : "click", () => {
+    const f = el.dataset.mc, val = el.tagName === "SELECT" ? el.value : el.dataset.val, c = mockCfg();
+    if (f === "dyn") c.dyn = val === "1"; else c[f] = Number(val);
+    if (c.slot > c.teams) c.slot = 0;
+    saveMockCfg(); const keep = mock.st; renderMockTab(v); if (keep && keep.at < keep.order.length) drawMock(v);
+  }));
+  v.querySelector("#mkStart").addEventListener("click", () => startMock(v));
+  if (mock.st) drawMock(v);
+  else v.querySelector("#mockBox").innerHTML = '<p class="small muted" style="margin:12px 4px 0">You draft against computer teams that pick by player value and fill their rosters sensibly, with some randomness so every mock plays out differently. Kickers and defenses are left out; take them last in your real draft.</p>';
+}
 function wireCalc(v){
+  wireSwitch(v);
   v.querySelectorAll("[data-cf]").forEach(el => el.addEventListener(el.tagName === "SELECT" ? "change" : "click", async () => {
     const f = el.dataset.cf, val = el.tagName === "SELECT" ? el.value : el.dataset.val;
     if (f === "dyn") calc.dyn = val === "1"; else if (f === "qbs") calc.qbs = Number(val); else if (f === "teams") calc.teams = Number(val); else calc.ppr = val;
@@ -2613,6 +2695,124 @@ function wireCalc(v){
     try { await navigator.clipboard.writeText(link); v.querySelector("#cMsg").textContent = "Link copied. Anyone who opens it sees this trade."; } catch(e){ v.querySelector("#cMsg").textContent = link; }
   });
   const cl = v.querySelector("#cClear"); if (cl) cl.addEventListener("click", () => { calc.a = []; calc.b = []; saveCalc(); drawCalc(v); });
+}
+
+/* ---------- Mock draft: draft against computer teams, any format, any time ---------- */
+const mock = {cfg: null, st: null, filter: "ALL", q: ""};
+function mockCfg(){
+  if (mock.cfg) return mock.cfg;
+  calcDefaults();
+  let c = null; try { c = JSON.parse(localStorage.getItem(KEY + ".mock") || "null"); } catch(e){}
+  mock.cfg = c || {teams: Number(calc.teams) || 12, slot: 0, rounds: 15, dyn: !!calc.dyn, qbs: calc.qbs || 1, ppr: calc.ppr || "1", names: true};
+  return mock.cfg;
+}
+function saveMockCfg(){ try { localStorage.setItem(KEY + ".mock", JSON.stringify(mock.cfg)); } catch(e){} }
+const MOCK_CAP = qbs => ({QB: qbs === 2 ? 4 : 2, RB: 7, WR: 8, TE: 2});
+function mockNeed(team, pos, cfg, round){
+  const c = {QB: 0, RB: 0, WR: 0, TE: 0}; team.forEach(p => c[p.pos] = (c[p.pos] || 0) + 1);
+  const start = {QB: cfg.qbs === 2 ? 2 : 1, RB: 2, WR: 3, TE: 1};
+  if (c[pos] >= MOCK_CAP(cfg.qbs)[pos]) return 0.15;
+  let f = c[pos] < start[pos] ? 1.12 : c[pos] < start[pos] + 1 ? 1 : 0.86;
+  if (pos === "QB" && cfg.qbs === 1 && c.QB >= 1) f *= 0.6;
+  if (pos === "TE" && c.TE >= 1) f *= 0.65;
+  if (round >= Math.ceil(cfg.rounds * 0.6) && c[pos] === 0) f *= 1.35; // fill an empty position late
+  return f;
+}
+function mockOrder(cfg){ const out = []; for (let r = 0; r < cfg.rounds; r++) for (let k = 0; k < cfg.teams; k++) out.push(r % 2 === 0 ? k : cfg.teams - 1 - k); return out; }
+async function startMock(v){
+  const cfg = mockCfg();
+  v.querySelector("#mockBox").innerHTML = '<p class="spin">Setting up the draft room…</p>';
+  const pack = await loadValues(cfg.ppr, cfg.teams, cfg.qbs, cfg.dyn);
+  const prem = qbPremium(cfg.teams, cfg.qbs);
+  const seen = new Set(), pool = [];
+  Object.keys(pack.v).forEach(k => {
+    if (k[0] === "f" || k.startsWith("pick:")) return; const r = pack.v[k]; if (!r || !["QB", "RB", "WR", "TE"].includes(r[5]) || seen.has(r[4] + r[5])) return; seen.add(r[4] + r[5]);
+    pool.push({id: k, name: r[4], pos: r[5], team: r[15] || "", age: r[6], v: (r[0] || 0) * (r[5] === "QB" ? prem : 1)});
+  });
+  pool.sort((a, b) => b.v - a.v);
+  pool.forEach((p, i) => p.adp = i + 1);
+  const L = leagues.find(x => x.detail && x.detail.teams.some(t => t.mine) && x.detail.teams.length === cfg.teams);
+  const names = Array.from({length: cfg.teams}, (_, i) => "Team " + (i + 1));
+  const slot = cfg.slot ? cfg.slot - 1 : Math.floor(Math.random() * cfg.teams);
+  if (L && cfg.names) { const others = L.detail.teams.filter(t => !t.mine).sort(() => Math.random() - 0.5); let j = 0; for (let i = 0; i < cfg.teams; i++) if (i !== slot) names[i] = (others[j++] || {}).name || names[i]; names[slot] = L.detail.teams.find(t => t.mine).name; }
+  else names[slot] = "You";
+  mock.st = {pool: pool.slice(0, Math.ceil(cfg.teams * cfg.rounds * 1.6) + 40), order: mockOrder(cfg), at: 0, slot, names, teams: names.map(() => []), log: [], cfg: Object.assign({}, cfg)};
+  mock.filter = "ALL"; mock.q = "";
+  mockAdvance(v);
+}
+function mockAiPick(st){
+  const t = st.order[st.at], round = Math.floor(st.at / st.cfg.teams) + 1, cand = st.pool.slice(0, 14);
+  let best = null, bs = -1;
+  cand.forEach(p => { const noise = Math.exp(0.16 * (Math.random() * 2 - 1) * 1.7); const sc = p.v * mockNeed(st.teams[t], p.pos, st.cfg, round) * noise; if (sc > bs) { bs = sc; best = p; } });
+  return best || st.pool[0];
+}
+function mockSuggest(st){
+  const round = Math.floor(st.at / st.cfg.teams) + 1;
+  return st.pool.slice(0, 20).map(p => ({p, s: p.v * mockNeed(st.teams[st.slot], p.pos, st.cfg, round)})).sort((a, b) => b.s - a.s)[0].p;
+}
+function mockTake(st, p){
+  const t = st.order[st.at]; st.pool = st.pool.filter(x => x !== p);
+  st.teams[t].push(Object.assign({}, p, {pick: st.at + 1, round: Math.floor(st.at / st.cfg.teams) + 1}));
+  st.log.unshift({at: st.at, t, p}); st.at++;
+}
+function mockAdvance(v, autoMe){
+  const st = mock.st;
+  while (st.at < st.order.length && (st.order[st.at] !== st.slot || autoMe)) mockTake(st, st.order[st.at] === st.slot ? mockSuggest(st) : mockAiPick(st));
+  drawMock(v);
+}
+function pickLabel(st, at){ const r = Math.floor(at / st.cfg.teams) + 1, k = at % st.cfg.teams + 1; return r + "." + String(k).padStart(2, "0"); }
+function mockGrades(st){
+  const slots = ["QB", "RB", "RB", "WR", "WR", "WR", "TE", "FLEX"].concat(st.cfg.qbs === 2 ? ["SUPER_FLEX"] : []);
+  const tot = st.teams.map(tm => { const lu = bestLineup(tm, slots, p => p.v); return lu.total + 0.25 * (tm.reduce((s, p) => s + p.v, 0) - lu.total); });
+  const order = tot.map((x, i) => i).sort((a, b) => tot[b] - tot[a]);
+  const G = ["A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D", "F"];
+  return st.teams.map((_, i) => { const r = order.indexOf(i), g = G[Math.min(G.length - 1, Math.floor(r / st.cfg.teams * G.length))]; return {rank: r + 1, grade: g, tot: tot[i]}; });
+}
+function drawMock(v){
+  const st = mock.st, box = v.querySelector("#mockBox"); if (!box) return;
+  const cfg = st.cfg, done = st.at >= st.order.length, mine = st.teams[st.slot];
+  if (done) {
+    const gr = mockGrades(st), me = gr[st.slot];
+    const steals = mine.map(p => ({p, d: p.pick - p.adp})).filter(x => x.d >= cfg.teams).sort((a, b) => b.d - a.d).slice(0, 3);
+    box.innerHTML = '<div class="card mockdone"><div class="mgrade"><b>' + me.grade + "</b><span>Your draft<small>#" + me.rank + " of " + cfg.teams + " by projected roster value</small></span></div>" +
+      (steals.length ? '<p class="small" style="margin:10px 0 0">Best values: ' + steals.map(x => esc(x.p.name) + " (" + pickLabel(st, x.p.pick - 1) + ", about " + x.d + " picks later than his value)").join("; ") + ".</p>" : "") +
+      '<div class="sendrow" style="margin-top:12px"><button type="button" class="btn" id="mkAgain">Draft again</button><button type="button" class="btn ghost" id="mkShare">Share my team</button></div><p class="small" id="mkMsg" style="margin:6px 0 0"></p></div>' +
+      "<h3>Your team</h3><div class=\"card mroster\">" + mine.map(p => '<div class="mrow"><span class="dslot">' + pickLabel(st, p.pick - 1) + "</span>" + posTag(p) + '<span class="sn">' + esc(p.name) + "<small>" + esc([p.team, p.age ? "age " + Math.round(p.age) : ""].filter(Boolean).join(" · ")) + '</small></span><span class="tv">' + fmtV(p.v) + "</span></div>").join("") + "</div>" +
+      "<h3>Every team</h3><div class=\"card race\">" + st.teams.map((tm, i) => ({i, g: gr[i]})).sort((a, b) => a.g.rank - b.g.rank).map(x => '<div class="mrow' + (x.i === st.slot ? " me" : "") + '"><span class="mg">' + x.g.grade + '</span><span class="sn">' + esc(st.names[x.i]) + "<small>" + esc(st.teams[x.i].slice(0, 3).map(p => p.name).join(", ")) + "</small></span></div>").join("") + "</div>";
+    box.querySelector("#mkAgain").addEventListener("click", () => startMock(v));
+    box.querySelector("#mkShare").addEventListener("click", async () => {
+      const text = "My " + cfg.teams + "-team " + (cfg.dyn ? "dynasty " : "") + (cfg.qbs === 2 ? "superflex " : "") + "mock draft (pick " + (st.slot + 1) + "), grade " + me.grade + ":\n" + mine.map(p => pickLabel(st, p.pick - 1) + " " + p.name + " (" + p.pos + ")").join("\n");
+      if (navigator.share) { try { await navigator.share({title: "My mock draft", text}); return; } catch(e){ if (e.name === "AbortError") return; } }
+      try { await navigator.clipboard.writeText(text); box.querySelector("#mkMsg").textContent = "Copied your team."; } catch(e){}
+    });
+    return;
+  }
+  const round = Math.floor(st.at / cfg.teams) + 1, sug = mockSuggest(st);
+  const myNext = []; for (let k = st.at; k < st.order.length && myNext.length < 3; k++) if (st.order[k] === st.slot) myNext.push(pickLabel(st, k));
+  const q = mock.q.toLowerCase(), list = st.pool.filter(p => (mock.filter === "ALL" || p.pos === mock.filter) && (!q || p.name.toLowerCase().includes(q))).slice(0, 40);
+  const counts = {QB: 0, RB: 0, WR: 0, TE: 0}; mine.forEach(p => counts[p.pos]++);
+  box.innerHTML = '<div class="card clock"><div><small>On the clock · Round ' + round + "</small><b>You · pick " + pickLabel(st, st.at) + '</b></div><span class="chip">Next: ' + (myNext.slice(1).join(", ") || "last pick") + "</span></div>" +
+    '<div class="card sugg"><small class="muted">Best pick for you</small><div class="mrow">' + posTag(sug) + '<span class="sn"><b>' + esc(sug.name) + "</b><small>" + esc([sug.team, "value rank " + sug.adp].filter(Boolean).join(" · ")) + '</small></span><button type="button" class="btn" data-mk="' + esc(sug.id) + '">Draft</button></div></div>' +
+    '<div class="mybar">' + ["QB", "RB", "WR", "TE"].map(ps => '<span><em class="pt" data-pos="' + ps + '">' + ps + "</em> " + counts[ps] + "</span>").join("") + '<button type="button" class="back" id="mkAuto" style="margin-left:auto;font-size:14px">Auto-draft the rest</button></div>' +
+    '<div class="seg" role="group" aria-label="Position" style="margin-top:10px">' + ["ALL", "QB", "RB", "WR", "TE"].map(ps => '<button type="button" data-mf="' + ps + '" aria-pressed="' + (mock.filter === ps) + '">' + (ps === "ALL" ? "All" : ps) + "</button>").join("") + "</div>" +
+    '<div class="psearch" style="margin-top:10px"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="mkQ" type="search" placeholder="Find a player" autocomplete="off" aria-label="Find a player" value="' + esc(mock.q) + '"></div>' +
+    '<div class="card mavail">' + list.map(p => '<div class="mrow">' + '<span class="dslot">' + p.adp + "</span>" + posTag(p) + '<span class="sn"><b>' + esc(p.name) + "</b><small>" + esc([p.team, p.age ? "age " + Math.round(p.age) : ""].filter(Boolean).join(" · ")) + '</small></span><span class="tv">' + fmtV(p.v) + '</span><button type="button" class="btn ghost sm" data-mk="' + esc(p.id) + '">Draft</button></div>').join("") + "</div>" +
+    (st.log.length ? "<h3>Latest picks</h3><div class=\"card mlog\">" + st.log.slice(0, 12).map(x => '<div class="mrow' + (x.t === st.slot ? " me" : "") + '"><span class="dslot">' + pickLabel(st, x.at) + "</span>" + posTag(x.p) + '<span class="sn">' + esc(x.p.name) + "<small>" + esc(st.names[x.t]) + "</small></span></div>").join("") + "</div>" : "") +
+    (mine.length ? "<h3>Your team so far</h3><div class=\"card mroster\">" + mine.map(p => '<div class="mrow"><span class="dslot">' + pickLabel(st, p.pick - 1) + "</span>" + posTag(p) + '<span class="sn">' + esc(p.name) + '</span><span class="tv">' + fmtV(p.v) + "</span></div>").join("") + "</div>" : "");
+  box.querySelectorAll("[data-mk]").forEach(b => b.addEventListener("click", () => { const p = st.pool.find(x => x.id === b.dataset.mk); if (!p) return; mockTake(st, p); mock.q = ""; mockAdvance(v); box.scrollIntoView({block: "start", behavior: "smooth"}); }));
+  box.querySelectorAll("[data-mf]").forEach(b => b.addEventListener("click", () => { mock.filter = b.dataset.mf; drawMock(v); }));
+  const qi = box.querySelector("#mkQ"); qi.addEventListener("input", () => { mock.q = qi.value; const pos = qi.selectionStart; drawMock(v); const n2 = v.querySelector("#mkQ"); if (n2) { n2.focus(); n2.setSelectionRange(pos, pos); } });
+  box.querySelector("#mkAuto").addEventListener("click", () => mockAdvance(v, true));
+}
+function renderMock(v){
+  const cfg = mockCfg();
+  const seg = (name, opts, curV) => '<div class="seg" role="group" aria-label="' + name + '">' + opts.map(o => '<button type="button" data-mc="' + name + '" data-val="' + o[0] + '" aria-pressed="' + (String(curV) === String(o[0])) + '">' + o[1] + "</button>").join("") + "</div>";
+  const sel = (name, label, opts, curV) => '<label class="cteams">' + label + ' <select data-mc="' + name + '">' + opts.map(o => '<option value="' + o[0] + '"' + (String(o[0]) === String(curV) ? " selected" : "") + ">" + o[1] + "</option>").join("") + "</select></label>";
+  const live = mock.st && mock.st.at > 0 && mock.st.at < mock.st.order.length;
+  return '<div class="card cfmt">' + seg("dyn", [[1, "Dynasty startup"], [0, "Redraft"]], cfg.dyn ? 1 : 0) + seg("qbs", [[1, "1 QB"], [2, "Superflex"]], cfg.qbs) +
+    '<div class="mset">' + sel("teams", "Teams", [8, 10, 12, 14, 16].map(n => [n, n]), cfg.teams) + sel("slot", "Your pick", [[0, "Random"]].concat(Array.from({length: cfg.teams}, (_, i) => [i + 1, "#" + (i + 1)])), cfg.slot) + sel("rounds", "Rounds", [8, 10, 12, 15, 18, 20].map(n => [n, n]), cfg.rounds) + "</div>" +
+    '<button type="button" class="btn" id="mkStart" style="width:100%;margin-top:4px">' + (live ? "Restart the draft" : mock.st ? "Draft again" : "Start mock draft") + "</button></div>" +
+    '<div id="mockBox"></div>';
 }
 
 function drawTrade(ctx){
@@ -4191,6 +4391,118 @@ function simulate(d, sched, boostId, boost, n, hook){
   }
   return T.map((t, i) => ({t, odds: make[i] / n, wins: wins[i] / n, slot: slot[i] / n, seed: make[i] ? seed[i] / make[i] : null, mean: mean[i]}));
 }
+/* ---------- Playoff picture: seeds today, the race, and the games that swing it ---------- */
+function seedsToday(d, P){
+  const T = d.teams, order = T.map((_, i) => i).sort((x, y) => ((T[y].w || 0) + (T[y].t || 0) / 2 - (T[x].w || 0) - (T[x].t || 0) / 2) || ((T[y].pf || 0) - (T[x].pf || 0)));
+  const divs = {}; T.forEach((t, i) => { if (t.div != null) (divs[t.div] = divs[t.div] || []).push(i); });
+  const useDivs = Object.keys(divs).length > 1 && Object.keys(divs).length <= P;
+  if (!useDivs) return {order, seeds: order.slice(0, P), divWinners: []};
+  const winners = Object.values(divs).map(m => m.slice().sort((x, y) => order.indexOf(x) - order.indexOf(y))[0]).sort((x, y) => order.indexOf(x) - order.indexOf(y));
+  return {order, seeds: winners.concat(order.filter(i => !winners.includes(i)).slice(0, P - winners.length)), divWinners: winners};
+}
+function simDetail(d, sched, n){
+  const N = d.teams.length, P = Math.min(sched.po.teams, N);
+  const make = new Array(N).fill(0), slotDist = d.teams.map(() => new Array(N).fill(0)), seedDist = d.teams.map(() => new Array(P).fill(0));
+  const wk0 = (sched.weeks[0] || {games: []}).games.length;
+  const cond = []; for (let g = 0; g < wk0; g++) cond.push({aw: new Array(N).fill(0), bw: new Array(N).fill(0), na: 0, nb: 0});
+  const base = simulate(d, sched, null, 0, n, (W, seeds, res, seedsOf) => {
+    const order = seedsOf(W).order, set = new Set(seeds);
+    order.slice().reverse().forEach((i, k) => slotDist[i][k]++);
+    seeds.forEach((i, k) => seedDist[i][k]++);
+    const r0 = res[0] || [];
+    r0.forEach((g, gi) => { if (!cond[gi]) return; const aWon = g[2] === g[0]; const c = cond[gi]; if (aWon) c.na++; else c.nb++; set.forEach(i => { if (aWon) c.aw[i]++; else c.bw[i]++; }); });
+  });
+  return {base, slotDist, seedDist, cond, n, P};
+}
+async function openPlayoffPicture(L){
+  const sh = $("#sheet"), p = $("#sheetPanel"), d = L.detail, me = d.teams.find(t => t.mine);
+  const head = '<button class="back" id="closeSheet">Close</button><h2>Playoff picture</h2>';
+  p.innerHTML = head + '<p class="spin">Playing out the rest of the season…</p>'; sh.hidden = false;
+  p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+  let sched; try { sched = await getSchedule(L); } catch(e){ p.innerHTML = head + '<div class="err">Couldn’t load the schedule: ' + esc(e.message) + "</div>"; p.querySelector("#closeSheet").addEventListener("click", closeSheet); return; }
+  if (sh.hidden) return;
+  const n = 4000, S = simDetail(d, sched, n), P = S.P, N = d.teams.length, T = d.teams;
+  const now = seedsToday(d, P);
+  const pct = x => x >= 0.995 && x < 1 ? ">99%" : x > 0 && x < 0.005 ? "<1%" : Math.round(x * 100) + "%";
+  const rec = t => t.w + "-" + t.l + (t.t ? "-" + t.t : "");
+  const status = o => o >= 0.995 ? ["Virtually in", "ok"] : o >= 0.8 ? ["Likely in", "ok"] : o >= 0.25 ? ["Bubble", "warn"] : o >= 0.005 ? ["Long shot", ""] : ["Virtually out", "bad"];
+  const left = sched.weeks.length;
+  let h = head + '<p class="muted" style="margin:-6px 2px 12px">' + P + " of " + N + " teams make it · " + (left ? left + " week" + (left > 1 ? "s" : "") + " left · playoffs start week " + sched.po.start : "regular season over") + (now.divWinners.length ? " · division winners get the top " + now.divWinners.length + " seeds" : "") + "</p>";
+  // If the season ended today: first-round pairings.
+  const sd = now.seeds.map(i => T[i]);
+  const pairs = []; for (let k = 0; k < Math.floor(P / 2); k++) pairs.push([k, P - 1 - k]);
+  const byes = P === 6 ? 2 : P === 12 ? 4 : P === 10 ? 6 : 0;
+  h += "<h3>If the season ended today</h3>";
+  if (byes) h += '<div class="card byes"><b>First-round byes</b>' + sd.slice(0, byes).map((t, k) => '<div class="seedrow' + (t.mine ? " me" : "") + '"><span class="seed">' + (k + 1) + "</span>" + teamLogo(t) + '<span class="sn">' + esc(t.name) + '</span><span class="sr">' + rec(t) + "</span></div>").join("") + "</div>";
+  const fr = byes ? (() => { const rest = sd.slice(byes), out = []; for (let k = 0; k < rest.length / 2; k++) out.push([byes + k, P - 1 - k]); return out; })() : pairs;
+  h += '<div class="bracket">' + fr.map(([x, y]) => '<div class="card pair">' + [x, y].map(k => { const t = sd[k]; return '<div class="seedrow' + (t && t.mine ? " me" : "") + '"><span class="seed">' + (k + 1) + "</span>" + (t ? teamLogo(t) + '<span class="sn">' + esc(t.name) + '</span><span class="sr">' + rec(t) + "</span>" : "") + "</div>"; }).join("") + "</div>").join("") + "</div>";
+  // The race
+  const rows = S.base.map((x, i) => ({x, i, now: now.order.indexOf(i) + 1, seedNow: now.seeds.indexOf(i)})).sort((a, b) => b.x.odds - a.x.odds || a.now - b.now);
+  h += "<h3>The race</h3><div class=\"card race\">" + rows.map((r, k) => {
+    const st = status(r.x.odds), t = r.x.t, likely = S.seedDist[r.i].indexOf(Math.max(...S.seedDist[r.i]));
+    return (k === P ? '<div class="cutline"><span>Playoff line</span></div>' : "") + '<div class="raceRow' + (t.mine ? " me" : "") + '">' + teamLogo(t) + '<div class="rn"><b>' + esc(t.name) + "</b><small>" + rec(t) + " · " + fmt(t.pf) + " PF · proj " + r.x.wins.toFixed(1) + " wins" + (r.x.odds > 0.05 ? " · likely seed " + (likely + 1) : "") + '</small><div class="rbar"><span style="width:' + Math.round(r.x.odds * 100) + '%"></span></div></div><div class="ro"><b>' + pct(r.x.odds) + '</b><span class="chip ' + st[1] + '">' + st[0] + "</span></div></div>";
+  }).join("") + "</div>";
+  // Games this week that move the most
+  const wk = sched.weeks[0];
+  if (wk && wk.games.length && left) {
+    const swings = wk.games.map((g, gi) => {
+      const c = S.cond[gi]; if (!c || !c.na || !c.nb) return null;
+      const a = T.findIndex(t => t.id === g[0]), b = T.findIndex(t => t.id === g[1]); if (a < 0 || b < 0) return null;
+      const aWin = c.aw[a] / c.na, aLose = c.bw[a] / c.nb, bWin = c.bw[b] / c.nb, bLose = c.aw[b] / c.na;
+      let mine = null;
+      if (me) { const m = T.indexOf(me); if (m !== a && m !== b) { const ifA = c.aw[m] / c.na, ifB = c.bw[m] / c.nb; mine = {root: ifA >= ifB ? a : b, gain: Math.abs(ifA - ifB)}; } }
+      return {a, b, aWin, aLose, bWin, bLose, lev: Math.abs(aWin - aLose) + Math.abs(bWin - bLose), mine};
+    }).filter(Boolean).sort((x, y) => y.lev - x.lev);
+    if (swings.length) {
+      h += "<h3>Week " + wk.w + " games that matter most</h3>" + '<div class="stack">' + swings.slice(0, 4).map(s => '<div class="card swing">' +
+        [[s.a, s.aWin, s.aLose], [s.b, s.bWin, s.bLose]].map(([i, w, l]) => '<div class="swrow' + (T[i].mine ? " me" : "") + '">' + teamLogo(T[i]) + '<span class="sn">' + esc(T[i].name) + '</span><span class="sw"><b>' + pct(w) + '</b> with a win</span><span class="sl">' + pct(l) + " if they lose</span></div>").join("") +
+        (s.mine && s.mine.gain >= 0.01 ? '<p class="small" style="margin:8px 0 0">Root for <b>' + esc(T[s.mine.root].name) + "</b>: it’s worth " + Math.round(s.mine.gain * 100) + " points of playoff odds to you.</p>" : "") + "</div>").join("") + "</div>";
+    }
+  }
+  h += '<p class="small muted" style="margin:12px 4px 0">Based on ' + n.toLocaleString() + " simulated seasons from each team’s scoring average, this week’s projections and live scores, and the real remaining schedule. Ties go to points for. “Virtually in” and “virtually out” mean every simulation went that way, not that it’s mathematically locked.</p>";
+  p.innerHTML = h;
+  p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+}
+
+/* ---------- Projected draft order: where every pick lands, including traded ones ---------- */
+async function openDraftOrder(L){
+  const sh = $("#sheet"), p = $("#sheetPanel"), d = L.detail, me = d.teams.find(t => t.mine);
+  const head = '<button class="back" id="closeSheet">Close</button><h2>Projected draft order</h2>';
+  p.innerHTML = head + '<p class="spin">Simulating the season and tracking every pick…</p>'; sh.hidden = false;
+  p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+  let sched, picks;
+  try { [sched, picks] = await Promise.all([getSchedule(L), loadPicks(L)]); } catch(e){ p.innerHTML = head + '<div class="err">Couldn’t load the league: ' + esc(e.message) + "</div>"; p.querySelector("#closeSheet").addEventListener("click", closeSheet); return; }
+  if (sh.hidden) return;
+  const n = 3000, S = simDetail(d, sched, n), N = d.teams.length, T = d.teams;
+  // Owner of each (season, round, original team).
+  const owner = {}; let season = null, rounds = 0;
+  Object.keys(picks).forEach(oid => (picks[oid] || []).forEach(pk => { const [, sy, rd, orig] = pk.id.split(":"); owner[sy + ":" + rd + ":" + orig] = oid; if (season == null || Number(sy) < season) season = Number(sy); }));
+  Object.keys(owner).forEach(k => { const [sy, rd] = k.split(":"); if (Number(sy) === season) rounds = Math.max(rounds, Number(rd)); });
+  if (!season) { season = (Number(d.season) || new Date().getFullYear()) + 1; rounds = 4; }
+  const exp = T.map((t, i) => ({t, i, avg: S.slotDist[i].reduce((s, c, k) => s + c * (k + 1), 0) / n, dist: S.slotDist[i]}));
+  exp.sort((a, b) => a.avg - b.avg);
+  const range = dist => { let c = 0, lo = null, hi = null; for (let k = 0; k < dist.length; k++) { c += dist[k]; if (lo == null && c >= n * 0.1) lo = k + 1; if (hi == null && c >= n * 0.9) hi = k + 1; } return [lo, hi]; };
+  const dyn = !!(d.maxKeepers || /dynasty|keeper/i.test(L.meta.name)), qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1;
+  let V = {}; try { V = (await loadValues(({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1"), N, qbs, true)).v; } catch(e){}
+  const pickVal = (rd, slot) => { const tier = slot <= N / 3 ? " (Early)" : slot > N * 2 / 3 ? " (Late)" : " (Mid)"; const r = V["pick:" + season + " " + ORD[rd] + tier] || V["pick:" + season + " " + ORD[rd]]; return r ? r[0] : null; };
+  const label = (rd, slot) => rd + "." + String(slot).padStart(2, "0");
+  const mineList = [];
+  let board = "";
+  for (let rd = 1; rd <= Math.max(1, rounds); rd++) {
+    board += "<h3>Round " + rd + "</h3><div class=\"card dorder\">" + exp.map((x, k) => {
+      const slot = k + 1, own = owner[season + ":" + rd + ":" + x.t.id] || x.t.id, ot = T.find(t => t.id === own) || x.t;
+      const [lo, hi] = range(x.dist), traded = own !== x.t.id, isMine = me && own === me.id, v = pickVal(rd, slot);
+      if (isMine) mineList.push({rd, slot, from: traded ? x.t : null, lo, hi, v});
+      return '<div class="drow' + (isMine ? " me" : "") + '"><span class="dslot">' + label(rd, slot) + "</span>" + teamLogo(ot) + '<span class="sn"><b>' + esc(ot.name) + "</b>" + (traded ? "<small>via " + esc(x.t.name) + "</small>" : "<small>" + x.t.w + "-" + x.t.l + "</small>") + '</span><span class="drange">' + (lo === hi ? "#" + lo : "#" + lo + "–" + hi) + "</span></div>";
+    }).join("") + "</div>";
+  }
+  let h = head + '<p class="muted" style="margin:-6px 2px 12px">' + season + " draft, from " + n.toLocaleString() + " simulated seasons. Worst record picks first; the range is where each pick lands 8 times in 10.</p>";
+  if (me) h += '<div class="card mypicks"><b>Your ' + season + " picks</b>" + (mineList.length ? mineList.map(m => '<div class="mprow"><span class="dslot big">' + label(m.rd, m.slot) + '</span><span class="sn">' + (m.from ? "From " + esc(m.from.name) : "Your own") + "<small>Most likely spot · lands " + label(m.rd, m.lo) + " to " + label(m.rd, m.hi) + "</small></span>" + (m.v ? '<span class="tv">' + fmtV(m.v) + "</span>" : "") + "</div>").join("") : '<p class="small muted" style="margin:6px 0 0">You don’t own any ' + season + " picks in the first " + rounds + " rounds.</p>") + "</div>";
+  h += board + '<p class="small muted" style="margin:12px 4px 0">Order follows regular-season record (ties by points for). If your league seeds the draft by playoff finish or uses a lottery, playoff teams’ picks can shift. Pick values are Snap Count dynasty values.</p>';
+  p.innerHTML = h;
+  p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+}
+
 async function tradeHistory(L){
   const d = L.detail; if (d.trades) return d.trades;
   const out = [];

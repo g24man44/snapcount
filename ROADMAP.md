@@ -18,6 +18,9 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- [x] Playoff picture (Leagues › League): bracket if the season ended today (division winners, byes), the race with odds/projected wins/likely seed and the playoff line, this week's highest-leverage games and who to root for
+- [x] Projected draft order (Leagues › League): every pick for next year's draft by simulated finish, traded picks tracked, your picks with likely range and value
+- [x] Mock draft (Calc › Mock draft): draft against computer teams in any format (dynasty startup or redraft, 1QB/superflex, 8–16 teams, any slot, 8–20 rounds), your league's team names, best-pick suggestion, auto-draft, grades for every team, share
 - [x] Trade calculator tab (Calc): any players and picks, any format (dynasty/redraft, 1QB/superflex, PPR, 8–20 teams), works without a league, verdict and balance bar, one-tap "even it out" suggestions, shareable link that opens the same trade for anyone
 - [x] Coach voice input keeps listening until you tap the mic again; nothing sends until you tap Ask
 - [x] Broadcast redesign: stadium navy + scoreboard gold, Archivo (self-hosted, condensed headlines, wide tabular numbers), scorebug matchups, drawn icons instead of emoji, action tiles, skeleton loading, sheets slide up and swipe down, screen transitions, new app icon
