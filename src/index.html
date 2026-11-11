@@ -591,6 +591,32 @@ nav.tabbar button{padding-left:0;padding-right:0}
 .orow .op{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:600}
 .orow .op.now{color:var(--accent)}
 .orow.mine .sn{color:var(--accent);font-weight:750}
+
+.linkbtn{border:0;background:none;color:var(--accent);font:inherit;font-weight:700;padding:0;cursor:pointer}
+.scout{margin-bottom:10px}
+.pranks{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px}
+.pr{background:var(--surface2);border-radius:10px;padding:6px 8px;font:800 14px/1 var(--body);font-stretch:112%;font-variant-numeric:tabular-nums;display:flex;flex-direction:column;gap:3px}
+.pr em{font:700 11px/1 var(--body);font-style:normal;color:var(--muted)}
+.pr.weak{box-shadow:inset 0 0 0 1.5px var(--bad)}.pr.strong{box-shadow:inset 0 0 0 1.5px var(--ok)}
+.pitch{margin:10px 0 0;font-size:14.5px;line-height:1.45}
+.brk{padding:4px 14px}
+.brow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:start;padding:11px 0}
+.brow+.brow{border-top:1px solid color-mix(in srgb,var(--line) 70%,transparent)}
+.brow .sn{white-space:normal}
+.bl{display:block;font-size:13px;color:var(--ok);font-weight:700;margin-top:2px}
+.bw{display:inline-block;font-size:12px;color:var(--muted);margin:4px 8px 0 0}.bw.k0{color:var(--accent);font-weight:700}.bw.k1{color:var(--ink);font-weight:650}
+.wbars{display:grid;gap:8px;margin-top:12px}
+.wbar{display:grid;grid-template-columns:44px 1fr 36px;gap:10px;align-items:center;font-weight:700;font-variant-numeric:tabular-nums}
+.wtrack{height:10px;border-radius:6px;background:var(--surface3);overflow:hidden}.wtrack span{display:block;height:100%;background:var(--accent)}
+.exp{color:var(--accent)}
+.wrap{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:8px;scrollbar-width:none}
+.wrap::-webkit-scrollbar{display:none}
+.wcard{flex:none;width:82%;scroll-snap-align:center;min-height:300px;border-radius:22px;padding:22px;display:flex;flex-direction:column;gap:8px;background:var(--surface2)}
+.wcard.c0{background:linear-gradient(160deg,#1f3b73,#14213f)}.wcard.c1{background:linear-gradient(160deg,#5b3a07,#2a1d08)}.wcard.c2{background:linear-gradient(160deg,#0f5132,#0d2a22)}.wcard.c3{background:linear-gradient(160deg,#4a1d5e,#1e1230)}
+.wcard small{font-weight:750;color:#ffd27a}
+.wbig{font:900 54px/1 var(--display);font-stretch:72%;color:#fff;overflow-wrap:anywhere}
+.wcard span{font-size:16px;font-weight:650;color:#e8edf7}.wcard p{margin:0;font-size:14px;color:#c6cfe0}
+.wcard .btn{margin-top:auto;align-self:flex-start;background:rgba(255,255,255,.14);color:#fff}
 </style>
 </head>
 <body>
@@ -943,7 +969,7 @@ function render(){
   if (cur.tab === "trade") return renderTrade(v);
   if (cur.tab === "calc") return renderCalc(v);
   if (cur.tab === "alerts") return renderAlerts(v);
-  if (cur.tab === "accounts") return renderAccounts(v);
+  if (cur.tab === "accounts") { const r0 = renderAccounts(v); const div = document.createElement("div"); div.innerHTML = syncCardHTML(); v.appendChild(div); wireSync(div); return r0; }
   if (cur.tab === "news") return renderNews(v);
   if (cur.tab === "trending") return renderTrending(v);
   if (cur.tab === "edge") return renderEdge(v);
@@ -962,7 +988,7 @@ function renderLeagues(v){
   leaguesErr.forEach(e => h += '<div class="err">' + esc(e) + "</div>");
   if (!leaguesLoaded) { v.innerHTML = h + '<p class="spin">Loading your leagues…</p>'; return; }
   if (!leagues.length) { v.innerHTML = h + '<p class="muted">No leagues found for this season.</p>'; return; }
-  if (leagues.some(L => L.detail && L.detail.teams.some(t => t.mine))) h += '<div class="tiles"><button type="button" class="btn ghost" id="sweatBtn"><i class=ic-flame aria-hidden=true></i>Sweat board</button><button type="button" class="btn ghost" id="planBtn"><i class=ic-calendar aria-hidden=true></i>Byes and injuries, next 4 weeks</button></div>';
+  if (leagues.some(L => L.detail && L.detail.teams.some(t => t.mine))) h += '<div class="tiles"><button type="button" class="btn ghost" id="sweatBtn"><i class=ic-flame aria-hidden=true></i>Sweat board</button><button type="button" class="btn ghost" id="planBtn"><i class=ic-calendar aria-hidden=true></i>Byes and injuries, next 4 weeks</button><button type="button" class="btn ghost" id="brkBtn"><i class=ic-pulse aria-hidden=true></i>Breakouts</button><button type="button" class="btn ghost" id="expBtn"><i class=ic-list aria-hidden=true></i>All my leagues</button></div>';
   h += '<div class="stack" style="margin-top:12px">';
   leagues.forEach((L, i) => {
     const m = L.meta, d = L.detail;
@@ -987,6 +1013,8 @@ function renderLeagues(v){
   v.querySelectorAll("[data-l]").forEach(b => b.addEventListener("click", () => { cur.league = +b.dataset.l; cur.team = null; render(); window.scrollTo(0,0); }));
   const sw = v.querySelector("#sweatBtn"); if (sw) sw.addEventListener("click", openSweat);
   const pb = v.querySelector("#planBtn"); if (pb) pb.addEventListener("click", openPlanner);
+  const bk = v.querySelector("#brkBtn"); if (bk) bk.addEventListener("click", openBreakouts);
+  const ex = v.querySelector("#expBtn"); if (ex) ex.addEventListener("click", openExposure);
 }
 
 /* ---------- NFL games (live status for every player) ---------- */
@@ -1210,6 +1238,9 @@ function renderLeague(v, L){
     if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="picBtn"><i class=ic-bracket aria-hidden=true></i>Playoff picture</button>');
     if (d.teams.some(t => t.mine) && ["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="ppBtn"><i class=ic-target aria-hidden=true></i>Playoff path</button>');
     if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="doBtn"><i class=ic-list aria-hidden=true></i>Projected draft order</button>');
+    if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="scoutBtn"><i class=ic-target aria-hidden=true></i>Scouting reports</button>');
+    if (d.teams.some(t => t.mine) && (d.maxKeepers || /dynasty|keeper/i.test(m.name))) tiles.push('<button type="button" class="btn ghost" id="winBtn"><i class=ic-trophy aria-hidden=true></i>Title window</button>');
+    if (d.teams.some(t => t.mine) && ["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="wrapBtn"><i class=ic-spark aria-hidden=true></i>Season Wrapped</button>');
     if (tiles.length) h += '<div class="tiles">' + tiles.join("") + "</div>";
     if (d.games.length) {
       h += "<h3>Matchups" + (d.week ? " · Week " + d.week : "") + '</h3><div class="stack">';
@@ -1248,6 +1279,9 @@ function renderLeague(v, L){
   const pw = v.querySelector("#pwBtn"); if (pw) pw.addEventListener("click", () => openPower(L));
   const lsb = v.querySelector("#lsBtn"); if (lsb) lsb.addEventListener("click", () => openLandscape(L));
   const ppb = v.querySelector("#ppBtn"); if (ppb) ppb.addEventListener("click", () => openPlayoffPath(L));
+  const scb = v.querySelector("#scoutBtn"); if (scb) scb.addEventListener("click", () => openScouting(L));
+  const wnb = v.querySelector("#winBtn"); if (wnb) wnb.addEventListener("click", () => openWindow(L));
+  const wrb = v.querySelector("#wrapBtn"); if (wrb) wrb.addEventListener("click", () => openWrapped(L));
   const pcb = v.querySelector("#picBtn"); if (pcb) pcb.addEventListener("click", () => openPlayoffPicture(L));
   const dob = v.querySelector("#doBtn"); if (dob) dob.addEventListener("click", () => openDraftOrder(L));
 }
@@ -2559,6 +2593,7 @@ function sellPackage(ctx, X, t, theirPicks){
 function drawSell(ctx, allPicks){
   const el = $("#trOut"); if (!el) return;
   const {L, me, V, sid, ppg, prem} = ctx, d = L.detail;
+  if (!L.scout && !L.scoutLoading) { L.scoutLoading = true; scoutAll(L).then(() => { L.scoutLoading = false; if (tr.mode === "sell" && $("#trOut")) drawSell(ctx, allPicks); }).catch(() => { L.scoutLoading = false; }); }
   if (!tr.keep) tr.keep = loadKeep(L);
   const pts = p => ppg.get(p) || 0;
   const cands = sellCandidates(ctx);
@@ -2617,7 +2652,8 @@ function drawSell(ctx, allPicks){
       why.push({tone: r.best.myDelta >= 0.5 ? "good" : r.best.myDelta <= -0.5 ? "bad" : "", text: "Your lineup " + (Math.abs(r.best.myDelta) < 0.5 ? "stays about the same" : (r.best.myDelta > 0 ? "gains " : "loses ") + Math.abs(r.best.myDelta).toFixed(1) + " pts a week") + " after this deal."});
       const alt = r.res.list.slice(1).map(x => x.combo.map(a => a.p.name).join(" + ") + " (" + fmtV(x.eff) + ")");
       out += '<div class="card offer scard" data-ti="' + esc(r.t.id) + '" style="margin-top:12px"><div class="offhead"><div><b style="font-size:17px">' + (i + 1) + ". " + esc(r.t.name) + "</b>" + (r.t.owner ? '<small class="muted" style="display:block">' + esc(r.t.owner) + "</small>" : "") + '</div><span class="ograde ' + GRADE_LABEL(r.g.score)[1] + '">' + r.g.score + "/10</span></div>" +
-        '<div class="chips" style="margin-top:10px"><span class="chip ' + (r.tm.mode === "contend" ? "ok" : r.tm.mode === "rebuild" ? "warn" : "") + '">' + MODE_TXT[r.tm.mode] + "</span>" + acceptChip(r.g) + "</div>" +
+        '<div class="chips" style="margin-top:10px"><span class="chip ' + (r.tm.mode === "contend" ? "ok" : r.tm.mode === "rebuild" ? "warn" : "") + '">' + MODE_TXT[r.tm.mode] + "</span>" + acceptChip(r.g) + (L.scout && L.scout.reports[r.t.id] ? L.scout.reports[r.t.id].tags.slice(0, 2).map(x => '<span class="chip ' + x[1] + '">' + esc(x[0]) + "</span>").join("") : "") + "</div>" +
+        (L.scout && L.scout.reports[r.t.id] ? '<p class="small" style="margin:8px 0 0">' + esc(L.scout.reports[r.t.id].pitch) + "</p>" : "") +
         '<h3 style="margin:14px 0 4px">Ask for</h3><ul class="offlist">' + r.best.combo.map(a => '<li>' + (a.p.pos === "PICK" ? '<span class="pos" data-pos="PICK">PK</span>' : avatar(a.p)) + "<b>" + esc(a.p.name) + "</b><span class='muted'>" + fmtV(a.v) + "</span></li>").join("") + "</ul>" +
         '<p class="small" style="margin:8px 0 0">Return value <b>' + fmtV(r.best.eff) + "</b> for " + fmtV(T) + " (" + (r.best.over >= 0 ? "+" : "") + Math.round(r.best.over * 100) + "%).</p>" +
         '<ul class="reasons">' + why.map(w => '<li class="' + w.tone + '">' + esc(w.text) + "</li>").join("") + "</ul>" +
@@ -3039,6 +3075,8 @@ function drawTrade(ctx){
       (both && g.accept != null ? '<div class="accbar"><div class="acchead"><b>Chance ' + esc(them.name) + ' says yes</b><b class="accn">' + g.accept + '%</b></div><div class="wpbar"><span style="width:' + g.accept + '%"></span></div><p class="small muted" style="margin:6px 0 0">' + esc(g.acceptWhy.charAt(0).toUpperCase() + g.acceptWhy.slice(1)) + ".</p></div>" : "") +
       (g.ask ? '<p class="small" style="margin:10px 0 0">To even it out, ask them to add <b>' + esc(g.ask.name) + "</b>.</p>" : "") +
       (both ? '<button type="button" class="btn aibtn" id="negoBtn" style="width:100%;margin-top:12px"><i class=ic-swap aria-hidden=true></i> Practice the pitch with ' + esc(them.name) + "</button>" : "") +
+      (both ? '<button type="button" class="btn" id="pitchBtn" style="width:100%;margin-top:10px"><i class=ic-spark aria-hidden=true></i> Write the message to ' + esc(them.name) + "</button>" : "") +
+      (both && ctx.L.scout && ctx.L.scout.reports[them.id] ? '<p class="small" style="margin:10px 0 0"><b>About ' + esc(them.name) + ":</b> " + esc(ctx.L.scout.reports[them.id].pitch) + ' <button type="button" class="linkbtn" id="scoutOne">Full report</button></p>' : "") +
       (both ? '<button type="button" class="btn ghost" id="shareGrade" style="width:100%;margin-top:10px">Share this grade as an image</button>' : "") +
       (both ? sendBlock(ctx.L, me, them, me.roster.concat(ctx.myPicks).filter(p => tr.give.has(p.id)), them.roster.concat(ctx.theirPicks).filter(p => tr.get.has(p.id))) : "") +
       '<p class="small muted" style="margin:10px 0 0">Values: ' + esc(ctx.src) + ", " + (ctx.dyn ? "dynasty" : "redraft") + (ctx.qbs === 2 ? " superflex" : "") + ", " + ctx.teams + "-team " + ({"1":"PPR","0.5":"half PPR","0":"standard"}[tr.ppr]) + ".</p></div>";
@@ -3051,6 +3089,9 @@ function drawTrade(ctx){
   el.innerHTML = h;
   const nb = el.querySelector("#negoBtn");
   if (nb) nb.addEventListener("click", () => openNegotiate(ctx, me, them, me.roster.concat(ctx.myPicks).filter(p => tr.give.has(p.id)), them.roster.concat(ctx.theirPicks).filter(p => tr.get.has(p.id))));
+  const ptb = el.querySelector("#pitchBtn"); if (ptb) ptb.addEventListener("click", () => openPitch(ctx));
+  const so1 = el.querySelector("#scoutOne"); if (so1) so1.addEventListener("click", () => openScouting(ctx.L, them.id));
+  if (!ctx.L.scout && ptb) scoutAll(ctx.L).then(() => { if (tr.mode === "grade" && $("#trOut") && !$("#scoutOne")) drawTrade(ctx); }).catch(() => {});
   const sgb = el.querySelector("#shareGrade");
   if (sgb) sgb.addEventListener("click", async () => {
     const g = gradeTrade(ctx), [label, tone] = GRADE_LABEL(g.score);
@@ -4700,6 +4741,339 @@ async function openDraftOrder(L){
   p.querySelector("#closeSheet").addEventListener("click", closeSheet);
 }
 
+/* ===================== Shared: values for one league ===================== */
+async function leagueVals(L){
+  const d = L.detail, qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1, dyn = !!(d.maxKeepers || /dynasty|keeper/i.test(L.meta.name));
+  await getPlayers(); ensureSidIndex();
+  const pack = await loadValues(({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1"), d.teams.length, qbs, dyn), prem = qbPremium(d.teams.length, qbs);
+  const key = p => L.meta.platform === "sleeper" ? String(p.id) : pack.flea && L.meta.platform === "flea" ? "f" + p.id : sleeperKey(L, p);
+  const row = p => (p && pack.v[key(p)]) || null;
+  const val = p => ((row(p) || [0])[0] || 0) * (p.pos === "QB" ? prem : 1);
+  return {pack, V: pack.v, key, row, val, prem, qbs, dyn};
+}
+function openSheetShell(title){
+  const sh = $("#sheet"), p = $("#sheetPanel");
+  p.innerHTML = '<button class="back" id="closeSheet">Close</button><h2>' + esc(title) + '</h2><div id="shBody"><p class="spin">Loading…</p></div>';
+  sh.hidden = false; p.scrollTop = 0;
+  p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+  return p.querySelector("#shBody");
+}
+
+/* ===================== 1. Manager scouting reports ===================== */
+async function scoutAll(L){
+  if (L.scout && Date.now() - L.scout.at < 10 * 60e3) return L.scout;
+  const d = L.detail, VV = await leagueVals(L), trades = await tradeHistory(L).catch(() => []);
+  const POS = ["QB", "RB", "WR", "TE"], need = {QB: VV.qbs, RB: 2, WR: 3, TE: 1}, N = d.teams.length;
+  const str = {};
+  d.teams.forEach(t => { str[t.id] = {}; POS.forEach(ps => { const vs = t.roster.filter(p => p.pos === ps).map(VV.val).sort((a, b) => b - a); str[t.id][ps] = vs.slice(0, need[ps]).reduce((a, b) => a + b, 0); str[t.id][ps + "+"] = vs.slice(need[ps], need[ps] + 2).reduce((a, b) => a + b, 0); }); });
+  const rankOf = (t, ps) => 1 + d.teams.filter(x => str[x.id][ps] > str[t.id][ps]).length;
+  const tr = {};
+  trades.forEach(T => (T.teams || []).forEach(side => {
+    const id = String((side.team || {}).id), s = tr[id] = tr[id] || {n: 0, inPos: {}, outPos: {}, pin: 0, pout: 0, inAge: [], outAge: [], net: 0};
+    s.n++;
+    (side.playersObtained || []).forEach(x => { const pp = x.proPlayer || {}, r = VV.V["f" + pp.id]; s.inPos[pp.position] = (s.inPos[pp.position] || 0) + 1; if (r) { s.net += r[0]; if (r[6]) s.inAge.push(r[6]); } });
+    s.pin += (side.picksObtained || []).length;
+    (T.teams || []).filter(o => o !== side).forEach(o => { (o.playersObtained || []).forEach(x => { const pp = x.proPlayer || {}, r = VV.V["f" + pp.id]; s.outPos[pp.position] = (s.outPos[pp.position] || 0) + 1; if (r) { s.net -= r[0]; if (r[6]) s.outAge.push(r[6]); } }); s.pout += (o.picksObtained || []).length; });
+  }));
+  const avgN = trades.length ? trades.reduce((a, T) => a + (T.teams || []).length, 0) / N : 0;
+  const me = d.teams.find(t => t.mine), slots = leagueSlots(L);
+  const myBest = me ? new Set(bestLineup(me.roster, slots, VV.val).list.filter(x => x.p).map(x => x.p.id)) : new Set();
+  const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+  const reports = {};
+  d.teams.forEach(t => {
+    const m = teamMode(d, t), s = tr[t.id] || {n: 0, inPos: {}, outPos: {}, pin: 0, pout: 0, inAge: [], outAge: [], net: 0};
+    const ranks = {}; POS.forEach(ps => ranks[ps] = rankOf(t, ps));
+    const needs = POS.filter(ps => ranks[ps] > N * 2 / 3).sort((a, b) => ranks[b] - ranks[a]);
+    const surplus = POS.filter(ps => ranks[ps] <= N / 3 && str[t.id][ps + "+"] > 1500);
+    const top = t.roster.map(p => ({p, v: VV.val(p), a: (VV.row(p) || [])[6]})).sort((a, b) => b.v - a.v).slice(0, 12);
+    const age = avg(top.map(x => x.a).filter(Boolean));
+    const tags = [];
+    if (L.meta.platform === "flea") {
+      if (!s.n) tags.push(["Hasn’t traded", ""]);
+      else if (s.n >= Math.max(3, avgN * 1.5)) tags.push(["Active trader", "ok"]);
+      if (s.pin - s.pout >= 2) tags.push(["Collects picks", ""]); if (s.pout - s.pin >= 2) tags.push(["Spends picks", ""]);
+      if ((s.inPos.QB || 0) >= 2) tags.push(["QB hunter", "warn"]);
+      if (s.n && s.net > 1500) tags.push(["Sharp trader", "warn"]); if (s.n && s.net < -1500) tags.push(["Has overpaid", "ok"]);
+      const ia = avg(s.inAge), oa = avg(s.outAge); if (ia && oa && ia - oa > 2) tags.push(["Buys veterans", ""]); if (ia && oa && oa - ia > 2) tags.push(["Buys youth", ""]);
+    }
+    const vets = top.filter(x => x.a && x.a >= 27 && x.v >= 1500).slice(0, 3).map(x => x.p.name);
+    const pitch = [];
+    if (m.mode === "contend") pitch.push("He’s contending (#" + m.rank + "), so he pays for players who score now" + (needs.length ? ", especially at " + needs.join(" and ") : "") + ". Ask for picks or young players in return.");
+    else if (m.mode === "rebuild") pitch.push("He’s rebuilding (#" + m.rank + "): offer picks or young players" + (vets.length ? " and ask about his veterans (" + vets.join(", ") + ")" : "") + ".");
+    else pitch.push("He’s in the middle of the pack (#" + m.rank + "). Lead with a starter" + (needs.length ? " at " + needs[0] : "") + " and keep it simple.");
+    if (tags.some(x => x[0] === "Collects picks")) pitch.push("He likes picks, so they go further with him than with most.");
+    if (tags.some(x => x[0] === "Has overpaid")) pitch.push("He’s given up value in past deals, so start high.");
+    if (tags.some(x => x[0] === "Sharp trader")) pitch.push("He’s won his past trades by today’s values; expect a counter.");
+    if (tags.some(x => x[0] === "Hasn’t traded")) pitch.push("He hasn’t made a trade yet, so make your first offer clearly good for him.");
+    let fit = [];
+    if (me && t !== me) fit = me.roster.filter(p => needs.includes(p.pos) && !myBest.has(p.id) && VV.val(p) >= 500).sort((a, b) => VV.val(b) - VV.val(a)).slice(0, 3).map(p => p.name);
+    reports[t.id] = {t, mode: m.mode, rank: m.rank, ranks, needs, surplus, tags, pitch: pitch.join(" "), fit, age, s};
+  });
+  L.scout = {at: Date.now(), reports, trades: trades.length, flea: L.meta.platform === "flea"};
+  return L.scout;
+}
+function scoutCard(r, N, flea){
+  const posR = ["QB", "RB", "WR", "TE"].map(ps => '<span class="pr ' + (r.ranks[ps] > N * 2 / 3 ? "weak" : r.ranks[ps] <= N / 3 ? "strong" : "") + '"><em>' + ps + "</em>#" + r.ranks[ps] + "</span>").join("");
+  return '<div class="card scout' + (r.t.mine ? " me" : "") + '"><div class="offhead"><div style="display:flex;align-items:center;gap:10px;min-width:0">' + teamLogo(r.t) + '<div style="min-width:0"><b>' + esc(r.t.name) + "</b><small class='muted' style='display:block'>" + r.t.w + "-" + r.t.l + " · " + MODE_TXT[r.mode] + (r.age ? " · core age " + r.age.toFixed(1) : "") + "</small></div></div></div>" +
+    '<div class="pranks">' + posR + "</div>" +
+    (r.tags.length ? '<div class="chips" style="margin-top:8px">' + r.tags.map(x => '<span class="chip ' + x[1] + '">' + esc(x[0]) + "</span>").join("") + "</div>" : "") +
+    (flea && r.s.n ? '<p class="small muted" style="margin:8px 0 0">' + r.s.n + " trade" + (r.s.n > 1 ? "s" : "") + ": got " + (Object.entries(r.s.inPos).map(([k, v]) => v + " " + k).join(", ") || "no players") + (r.s.pin ? " and " + r.s.pin + " pick" + (r.s.pin > 1 ? "s" : "") : "") + "; gave " + (Object.entries(r.s.outPos).map(([k, v]) => v + " " + k).join(", ") || "no players") + (r.s.pout ? " and " + r.s.pout + " pick" + (r.s.pout > 1 ? "s" : "") : "") + ".</p>" : "") +
+    (r.t.mine ? "" : '<p class="pitch">' + esc(r.pitch) + "</p>" + (r.fit.length ? '<p class="small" style="margin:6px 0 0">From your bench that fills his ' + esc(r.needs.slice(0, 2).join("/")) + " need: <b>" + esc(r.fit.join(", ")) + "</b></p>" : "")) + "</div>";
+}
+async function openScouting(L, focusId){
+  const body = openSheetShell("Scouting reports");
+  try {
+    const S = await scoutAll(L), d = L.detail, N = d.teams.length;
+    const list = Object.values(S.reports).filter(r => !r.t.mine && (!focusId || r.t.id === focusId)).sort((a, b) => a.rank - b.rank);
+    body.innerHTML = '<p class="muted" style="margin:-6px 2px 12px">How every manager builds and trades, what each one needs, and how to pitch him. Position ranks compare starters by value (#1 is best).</p>' +
+      list.map(r => scoutCard(r, N, S.flea)).join("") +
+      (focusId ? '<button type="button" class="btn ghost" id="scAll" style="width:100%;margin-top:10px">See every manager</button>' : "") +
+      (S.flea ? '<p class="small muted" style="margin:10px 4px 0">Trading habits come from the league’s last ' + S.trades + " completed trades, valued at today’s Snap Count values.</p>" : '<p class="small muted" style="margin:10px 4px 0">Trading habits need trade history, which is only available for Fleaflicker leagues. Needs and team direction work everywhere.</p>');
+    const b = body.querySelector("#scAll"); if (b) b.addEventListener("click", () => openScouting(L));
+  } catch(e){ body.innerHTML = '<div class="err">Couldn’t build the reports: ' + esc(e.message) + "</div>"; }
+}
+
+/* ===================== 5. AI pitch writer ===================== */
+async function openPitch(ctx){
+  const {L, me, them} = ctx, d = L.detail;
+  const body = openSheetShell("Message to " + them.name);
+  const g = gradeTrade(ctx), VV = await leagueVals(L).catch(() => null);
+  const giveL = me.roster.concat(ctx.myPicks).filter(p => tr.give.has(p.id)), getL = them.roster.concat(ctx.theirPicks).filter(p => tr.get.has(p.id));
+  const S = await scoutAll(L).catch(() => null), rep = S && S.reports[them.id];
+  const line = p => p.pos === "PICK" ? p.name : p.pos + " " + p.name + (p.team ? " (" + p.team + ")" : "") + (VV ? ", value " + Math.round(VV.val(p)) : "");
+  const info = ["League: " + L.meta.name + " (" + d.teams.length + " teams" + (VV && VV.qbs === 2 ? ", superflex" : "") + (VV && VV.dyn ? ", dynasty" : "") + ").",
+    "Sender: " + me.name + " (" + me.w + "-" + me.l + "). Receiver: " + them.name + (them.owner ? " (manager " + them.owner + ")" : "") + " (" + them.w + "-" + them.l + ").",
+    them.name + " RECEIVES: " + giveL.map(line).join("; "), them.name + " GIVES: " + getL.map(line).join("; "),
+    rep ? "Receiver's situation: " + MODE_TXT[rep.mode] + ", #" + rep.rank + " in the league. Weakest positions: " + (rep.needs.join(", ") || "none") + ". Strongest: " + (rep.surplus.join(", ") || "none") + "." : "",
+    g.acceptWhy ? "Why it can work for them: " + g.acceptWhy + "." : ""].filter(Boolean).join("\n");
+  body.innerHTML = '<div class="card"><div id="pitchText" class="recap"><span class="typing"><i></i><i></i><i></i></span></div></div><div class="sendrow" id="pitchAct" hidden><button type="button" class="btn" id="pitchCopy">Copy message</button><button type="button" class="btn ghost" id="pitchAgain">Write another</button></div><p class="small" id="pitchMsg"></p>';
+  let text = "";
+  const run = async () => {
+    body.querySelector("#pitchAct").hidden = true; const el = body.querySelector("#pitchText"); el.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
+    try { text = await streamAI({mode: "pitch", ctx: info}, t => { el.innerHTML = mdLite(t); }); } catch(e){ el.innerHTML = '<div class="err">' + esc(e.message) + "</div>"; return; }
+    body.querySelector("#pitchAct").hidden = false;
+  };
+  await run();
+  body.querySelector("#pitchAgain").addEventListener("click", run);
+  body.querySelector("#pitchCopy").addEventListener("click", async () => {
+    const t = text.replace(/\*\*/g, "");
+    if (navigator.share) { try { await navigator.share({text: t}); return; } catch(e){ if (e.name === "AbortError") return; } }
+    try { await navigator.clipboard.writeText(t); body.querySelector("#pitchMsg").textContent = "Copied. Paste it into Fleaflicker’s trade note or your league chat."; } catch(e){}
+  });
+}
+
+/* ===================== 3. Breakout detector ===================== */
+async function openBreakouts(){
+  const body = openSheetShell("Breakouts");
+  try {
+    const st = await getState(); await getPlayers(); ensureSidIndex();
+    const wk = st.display_week || st.week, season = st.league_season || st.season;
+    const r = await api("/api/roles?season=" + season + "&week=" + wk);
+    const rows = [];
+    for (const id in r.players || {}) {
+      const x = r.players[id], pl = players[id]; if (!pl || !["QB", "RB", "WR", "TE"].includes(pl[1])) continue;
+      const [snap, snapP, tgt, tgtP, car, carP] = x;
+      if (snapP == null) continue;
+      const ds = snap - snapP, dt = tgt - (tgtP || 0), dc = car - (carP || 0);
+      const score = Math.max(0, ds) + 2.2 * Math.max(0, dt) + 1.3 * Math.max(0, dc);
+      if (!((ds >= 15 && snap >= 45) || (dt >= 4 && tgt >= 6) || (dc >= 6 && car >= 10))) continue;
+      rows.push({id, name: pl[0], pos: pl[1], team: pl[2], inj: pl[3], snap, snapP, tgt, tgtP, car, carP, score});
+    }
+    rows.sort((a, b) => b.score - a.score);
+    // Where each one is in your leagues.
+    const tags = row => {
+      const out = [];
+      leagues.forEach(L => {
+        const d = L.detail; if (!d) return; const me = d.teams.find(t => t.mine); if (!me) return;
+        const hit = t => t.roster.find(p => L.meta.platform === "sleeper" ? String(p.id) === row.id : norm(p.name) === norm(row.name) && (p.pos === row.pos || !p.pos));
+        const owner = d.teams.find(hit);
+        if (!owner) out.push({k: 0, t: "Free agent in " + L.meta.name, L});
+        else if (owner === me) { const p = hit(me); out.push({k: p.slot === "start" ? 3 : 1, t: (p.slot === "start" ? "Starting for you" : "On your bench") + " in " + L.meta.name, L}); }
+        else out.push({k: 2, t: "Owned by " + owner.name + (leagues.length > 1 ? " (" + L.meta.name + ")" : ""), L});
+      });
+      return out.sort((a, b) => a.k - b.k);
+    };
+    rows.forEach(x => { x.where = tags(x); x.pri = x.where.length ? x.where[0].k : 9; });
+    rows.sort((a, b) => (a.pri === 0 ? 0 : a.pri === 1 ? 1 : 2) - (b.pri === 0 ? 0 : b.pri === 1 ? 1 : 2) || b.score - a.score);
+    const lines = x => [x.snap - x.snapP >= 10 ? "Snaps " + x.snapP + "% → " + x.snap + "%" : "", x.tgt - (x.tgtP || 0) >= 3 ? "Targets " + (x.tgtP || 0) + " → " + x.tgt : "", x.car - (x.carP || 0) >= 4 ? "Carries " + (x.carP || 0) + " → " + x.car : ""].filter(Boolean).join(" · ");
+    body.innerHTML = '<p class="muted" style="margin:-6px 2px 12px">Players whose role jumped in week ' + r.week + " compared with the weeks before. Free agents in your leagues come first.</p>" +
+      (rows.length ? '<div class="card brk">' + rows.slice(0, 30).map(x => '<div class="brow">' + posTag(x) + '<div class="sn"><b>' + esc(x.name) + "</b> <small style='display:inline'>" + esc(x.team || "FA") + (x.inj ? " · " + esc(x.inj) : "") + '</small><span class="bl">' + esc(lines(x)) + "</span>" +
+        x.where.slice(0, 2).map(w => '<span class="bw k' + w.k + '">' + esc(w.t) + "</span>").join("") + "</div>" +
+        (x.pri === 0 ? '<a class="btn sm" href="' + esc(waiverUrl(x.where[0].L)) + '" target="_blank" rel="noopener">Add</a>' : "") + "</div>").join("") + "</div>" : '<div class="card"><p style="margin:0">No big role changes yet this week. Check back after the games.</p></div>') +
+      '<p class="small muted" style="margin:10px 4px 0">Snap share, targets and carries from Sleeper’s weekly stats: last week against the average of the two before it.</p>';
+  } catch(e){ body.innerHTML = '<div class="err">Couldn’t load roles: ' + esc(e.message) + "</div>"; }
+}
+
+/* ===================== 4. Title window planner ===================== */
+function ageCurveC(pos, age){ if (!age) return 1; const peak = {QB: 30, RB: 25, WR: 27, TE: 28}[pos] || 27, drop = {QB: 0.04, RB: 0.12, WR: 0.07, TE: 0.07}[pos] || 0.07; return age <= peak ? 1 + Math.min(0.15, (peak - age) * 0.03) : Math.max(0.3, 1 - (age - peak) * drop); }
+async function openWindow(L){
+  const body = openSheetShell("Title window");
+  try {
+    const d = L.detail, VV = await leagueVals(L), slots = leagueSlots(L), me = d.teams.find(t => t.mine), N = d.teams.length;
+    const yr = Number(d.season) || new Date().getFullYear();
+    const vAt = (p, y) => { const r = VV.row(p); if (!r) return 0; const prem = p.pos === "QB" ? VV.prem : 1; if (y === 0) return (r[7] || r[0]) * prem; const a = r[6]; return r[0] * prem * ageCurveC(p.pos, a ? a + y : null) / ageCurveC(p.pos, a); };
+    const strength = d.teams.map(t => [0, 1, 2].map(y => { const ro = y > 0 ? t.roster.map(p => Object.assign({}, p, {inj: null})) : t.roster; const lu = bestLineup(ro, slots, p => vAt(p, y)); return lu.total + 0.15 * (t.roster.reduce((s, p) => s + vAt(p, y), 0) - lu.total); }));
+    const rank = (i, y) => 1 + strength.filter(s => s[y] > strength[i][y]).length;
+    const mi = d.teams.indexOf(me), R = [0, 1, 2].map(y => rank(mi, y));
+    const best = [0, 1, 2].map(y => Math.max(...strength.map(s => s[y])));
+    let verdict, tone;
+    if (R[0] <= Math.ceil(N / 4)) { verdict = "Your window is open now. Push: trade future picks and young bench players for starters."; tone = "good"; }
+    else if (R[2] <= Math.ceil(N / 4) || R[2] < R[0] - 3) { verdict = "Your window opens in " + (yr + (R[1] < R[0] - 2 ? 1 : 2)) + ". Build: sell veterans who won’t be good then, buy young players and picks."; tone = "mid"; }
+    else if (R[0] > N * 2 / 3 && R[2] > N * 2 / 3) { verdict = "You’re not close now or later. Rebuild: turn every veteran into picks and players 24 or younger."; tone = "bad"; }
+    else { verdict = "You’re in the middle now and later. Pick a direction: one or two moves at your weakest position could make you a contender, or sell veterans to build."; tone = "mid"; }
+    const decl = me.roster.map(p => ({p, now: vAt(p, 1) ? VV.val(p) : 0, later: vAt(p, 2)})).filter(x => x.now >= 800).map(x => Object.assign(x, {drop: 1 - x.later / Math.max(1, x.now)})).filter(x => x.drop >= 0.18).sort((a, b) => b.now * b.drop - a.now * a.drop).slice(0, 4);
+    const rise = me.roster.map(p => ({p, now: VV.val(p), later: vAt(p, 2)})).filter(x => x.now >= 500 && x.later > x.now * 1.08).sort((a, b) => (b.later - b.now) - (a.later - a.now)).slice(0, 4);
+    const bar = (y, lab) => '<div class="wbar"><span class="wl">' + lab + '</span><div class="wtrack"><span style="width:' + Math.round(strength[mi][y] / best[y] * 100) + '%"></span></div><b>#' + R[y] + "</b></div>";
+    const top = y => d.teams.map((t, i) => ({t, s: strength[i][y]})).sort((a, b) => b.s - a.s).slice(0, 5);
+    body.innerHTML = '<div class="card grade ' + tone + '"><b class="glabel">' + esc(verdict) + "</b>" +
+      '<div class="wbars">' + bar(0, String(yr)) + bar(1, String(yr + 1)) + bar(2, String(yr + 2)) + "</div>" +
+      '<p class="small muted" style="margin:8px 0 0">Bars compare your projected lineup strength with the league’s best that season; the number is your rank of ' + N + ".</p></div>" +
+      (decl.length ? "<h3>Sell before they drop</h3><div class=\"card\">" + decl.map(x => '<div class="mrow" style="grid-template-columns:auto minmax(0,1fr) auto">' + posTag(x.p) + '<span class="sn">' + esc(x.p.name) + "<small>" + ((VV.row(x.p) || [])[6] ? "age " + (VV.row(x.p) || [])[6] + " · " : "") + "about " + Math.round(x.drop * 100) + "% less valuable by " + (yr + 2) + '</small></span><span class="tv">' + fmtV(x.now) + "</span></div>").join("") + "</div>" : "") +
+      (rise.length ? "<h3>Your risers</h3><div class=\"card\">" + rise.map(x => '<div class="mrow" style="grid-template-columns:auto minmax(0,1fr) auto">' + posTag(x.p) + '<span class="sn">' + esc(x.p.name) + "<small>Projected to gain value as he enters his prime</small></span><span class=\"tv\">" + fmtV(x.now) + "</span></div>").join("") + "</div>" : "") +
+      "<h3>Strongest teams by season</h3>" + [0, 1, 2].map(y => '<div class="card" style="margin-bottom:8px"><b>' + (yr + y) + "</b>" + top(y).map((x, k) => '<div class="seedrow' + (x.t.mine ? " me" : "") + '"><span class="seed">' + (k + 1) + "</span>" + teamLogo(x.t) + '<span class="sn">' + esc(x.t.name) + "</span><span></span></div>").join("") + "</div>").join("") +
+      '<p class="small muted" style="margin:10px 4px 0">This season uses current-season values; later seasons age each player along his position’s typical curve (running backs fall fastest after 25). Picks and future rookies aren’t counted.</p>';
+  } catch(e){ body.innerHTML = '<div class="err">Couldn’t project the window: ' + esc(e.message) + "</div>"; }
+}
+
+/* ===================== 6. All my leagues ===================== */
+async function openExposure(){
+  const body = openSheetShell("All my leagues");
+  try {
+    await loadScoreboard().catch(() => {});
+    const mineL = leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine));
+    const agg = {}, issues = [];
+    for (const L of mineL) {
+      const VV = await leagueVals(L).catch(() => null), me = L.detail.teams.find(t => t.mine);
+      me.roster.forEach(p => {
+        if (!p.name) return; const k = norm(p.name) + "|" + p.pos, a = agg[k] = agg[k] || {p, leagues: [], v: 0};
+        a.leagues.push({L, slot: p.slot}); a.v += VV ? VV.val(p) : 0;
+        if (p.slot === "start") {
+          const g = nflGames[tnorm(p.team)], bye = gamesAt && p.team && !g, out = OUTISH_C.test(String(p.inj || ""));
+          if (bye || out || !p.team) issues.push({L, p, why: !p.team ? "not on an NFL team" : bye ? "on bye" : p.inj});
+        }
+      });
+    }
+    const list = Object.values(agg).sort((a, b) => b.leagues.length - a.leagues.length || b.v - a.v);
+    const total = list.reduce((s, x) => s + x.v, 0);
+    body.innerHTML = '<p class="muted" style="margin:-6px 2px 12px">' + mineL.length + " league" + (mineL.length > 1 ? "s" : "") + " · " + list.length + " players · " + fmtV(total) + " in total value</p>" +
+      "<h3>Lineup problems right now</h3>" + (issues.length ? '<div class="card">' + issues.map(x => '<div class="mrow" style="grid-template-columns:auto minmax(0,1fr) auto">' + posTag(x.p) + '<span class="sn">' + esc(x.p.name) + "<small>" + esc(x.L.meta.name) + '</small></span><span class="chip warn">' + esc(x.why) + "</span></div>").join("") + "</div>" : '<div class="card"><p style="margin:0">Every starter in every league is playing. You’re set.</p></div>') +
+      "<h3>Your players across leagues</h3><div class=\"card\">" + list.slice(0, 80).map(x => '<div class="mrow" style="grid-template-columns:auto minmax(0,1fr) auto">' + posTag(x.p) + '<span class="sn">' + esc(x.p.name) + "<small>" + esc(x.leagues.map(l => l.L.meta.name + (l.slot === "start" ? " (starting)" : l.slot === "ir" ? " (IR)" : "")).join(" · ")) + '</small></span><span class="tv">' + (x.leagues.length > 1 ? '<b class="exp">×' + x.leagues.length + "</b> " : "") + fmtV(x.v) + "</span></div>").join("") + "</div>" +
+      '<p class="small muted" style="margin:10px 4px 0">Value is the player’s Snap Count value in each league’s format, added up. A player you own in several leagues is a bigger bet on one person.</p>';
+  } catch(e){ body.innerHTML = '<div class="err">' + esc(e.message) + "</div>"; }
+}
+
+/* ===================== 7. Season Wrapped ===================== */
+async function seasonWeeks(L){
+  const d = L.detail, st = await getState(), last = Math.max(0, (d.week || st.week || 1) - (anyLive() ? 1 : 0));
+  const weeks = [];
+  for (let w = 1; w <= Math.min(17, last); w++) {
+    try {
+      if (L.meta.platform === "flea") {
+        const r = await api(fq("FetchLeagueScoreboard", {league_id: L.meta.id, scoring_period: w}));
+        const games = (r.games || []).map(g => ({a: String((g.away || {}).id), b: String((g.home || {}).id), as: val((g.awayScore || {}).score) || 0, bs: val((g.homeScore || {}).score) || 0, done: !!g.isFinalScore || w < last})).filter(g => g.as || g.bs);
+        if (games.length) weeks.push({w, games});
+      } else if (L.meta.platform === "sleeper") {
+        const r = await api("/api/sleeper/league/" + L.meta.id + "/matchups/" + w); const by = {};
+        (r || []).forEach(m => { if (m.matchup_id) (by[m.matchup_id] = by[m.matchup_id] || []).push(m); });
+        const games = Object.values(by).filter(x => x.length === 2).map(([x, y]) => ({a: String(x.roster_id), b: String(y.roster_id), as: x.points || 0, bs: y.points || 0, done: true})).filter(g => g.as || g.bs);
+        if (games.length) weeks.push({w, games});
+      }
+    } catch(e){}
+  }
+  return weeks;
+}
+async function openWrapped(L){
+  const body = openSheetShell("Season Wrapped");
+  try {
+    const d = L.detail, me = d.teams.find(t => t.mine); if (!me) throw new Error("Pick your team first.");
+    const [weeks, VV] = await Promise.all([seasonWeeks(L), leagueVals(L)]);
+    await getSeasonStats(d.season || (await getState()).season).catch(() => {});
+    const T = id => d.teams.find(t => t.id === id) || {name: "?"};
+    const mine = [];
+    weeks.forEach(W => { const sc = W.games.flatMap(g => [g.as, g.bs]).sort((a, b) => a - b), med = sc[Math.floor(sc.length / 2)];
+      W.games.forEach(g => { if (g.a === me.id || g.b === me.id) { const my = g.a === me.id ? g.as : g.bs, op = g.a === me.id ? g.bs : g.as, oid = g.a === me.id ? g.b : g.a; mine.push({w: W.w, my, op, opp: T(oid), win: my > op, beat: sc.filter(x => x < my).length, of: sc.length - 1, med}); } }); });
+    const cards = [];
+    const wins = mine.filter(x => x.win), losses = mine.filter(x => !x.win);
+    const big = wins.slice().sort((a, b) => (b.my - b.op) - (a.my - a.op))[0], close = losses.slice().sort((a, b) => (a.op - a.my) - (b.op - b.my))[0];
+    const hi = mine.slice().sort((a, b) => b.my - a.my)[0], lucky = wins.filter(x => x.my < x.med).sort((a, b) => a.my - b.my)[0], unlucky = losses.filter(x => x.my > x.med).sort((a, b) => b.my - a.my)[0];
+    const allW = mine.reduce((s, x) => s + x.beat, 0), allL = mine.reduce((s, x) => s + (x.of - x.beat), 0);
+    cards.push({k: "Your season", big: me.w + "-" + me.l, sub: fmt(me.pf) + " points · #" + (d.teams.slice().sort((a, b) => b.w - a.w || b.pf - a.pf).indexOf(me) + 1) + " of " + d.teams.length, lines: allW + allL ? ["Against every team every week you’d be " + allW + "-" + allL + "."] : []});
+    let mvp = null; me.roster.forEach(p => { const k = sleeperKey(L, p), s = k && seasonPts(k, "ppr"); if (s && (!mvp || s.pts > mvp.pts)) mvp = {p, pts: s.pts, gp: s.gp}; });
+    if (mvp) cards.push({k: "Team MVP", big: mvp.p.name, sub: fmt(mvp.pts) + " points in " + mvp.gp + " games", lines: [mvp.p.pos + ", " + (mvp.p.team || "")]});
+    if (hi) cards.push({k: "Best week", big: fmt(hi.my), sub: "Week " + hi.w + " vs " + hi.opp.name, lines: ["Outscored " + hi.beat + " of " + hi.of + " teams that week."]});
+    if (big) cards.push({k: "Biggest win", big: "+" + fmt(big.my - big.op), sub: "Week " + big.w + ": " + fmt(big.my) + " to " + fmt(big.op) + " over " + big.opp.name});
+    if (close) cards.push({k: "Toughest loss", big: "−" + fmt(close.op - close.my), sub: "Week " + close.w + ": " + fmt(close.my) + " to " + fmt(close.op) + " vs " + close.opp.name});
+    if (unlucky) cards.push({k: "Bad beat", big: fmt(unlucky.my), sub: "Week " + unlucky.w + ": beat " + unlucky.beat + " of " + unlucky.of + " teams and still lost to " + unlucky.opp.name});
+    if (lucky) cards.push({k: "Lucky break", big: fmt(lucky.my), sub: "Week " + lucky.w + ": won with a below-average score over " + lucky.opp.name});
+    // Trades
+    const trades = await tradeHistory(L).catch(() => []);
+    const pickName = x => { const pk = x.draftPick || x, sy = pk.season, rd = (pk.slot || {}).round; return {nameFull: sy + " " + (ORD[rd] || rd + "th") + " round pick", v: (VV.V["pick:" + sy + " " + ORD[rd]] || [0])[0] || 0}; };
+    const myTr = trades.map(Tr => {
+      const side = (Tr.teams || []).find(s => String((s.team || {}).id) === me.id); if (!side) return null;
+      const got = (side.playersObtained || []).map(x => ({nameFull: (x.proPlayer || {}).nameFull, v: ((VV.V["f" + (x.proPlayer || {}).id] || [0])[0] || 0)})).concat((side.picksObtained || []).map(pickName));
+      const gave = (Tr.teams || []).filter(s => s !== side).flatMap(s => (s.playersObtained || []).map(x => ({nameFull: (x.proPlayer || {}).nameFull, v: ((VV.V["f" + (x.proPlayer || {}).id] || [0])[0] || 0)})).concat((s.picksObtained || []).map(pickName)));
+      const sum = a => a.reduce((t, x) => t + x.v, 0);
+      return {got, gave, net: sum(got) - sum(gave)};
+    }).filter(x => x && x.got.length && x.gave.length);
+    if (myTr.length) { const b = myTr.slice().sort((a, b) => b.net - a.net)[0]; if (Math.abs(b.net) >= 100) cards.push({k: b.net > 0 ? "Best trade" : "Your trades", big: (b.net >= 0 ? "+" : "−") + fmtV(Math.abs(b.net)), sub: "Got " + b.got.map(x => x.nameFull).join(", ") + " for " + b.gave.map(x => x.nameFull).join(", "), lines: [b.net > 0 ? "Value gained by today’s numbers." : "Your best deal by today’s numbers, and it still cost you value."]}); }
+    // League awards
+    const pa = {}; weeks.forEach(W => W.games.forEach(g => { pa[g.a] = (pa[g.a] || 0) + g.bs; pa[g.b] = (pa[g.b] || 0) + g.as; }));
+    const topPF = d.teams.slice().sort((a, b) => b.pf - a.pf)[0], unluck = d.teams.slice().sort((a, b) => (pa[b.id] || 0) - (pa[a.id] || 0))[0];
+    cards.push({k: "League awards", big: topPF.name, sub: "Highest scorer: " + fmt(topPF.pf) + " points", lines: [unluck ? "Toughest schedule: " + unluck.name + " (" + fmt(pa[unluck.id] || 0) + " points against)" : ""].filter(Boolean)});
+    const done = d.week && d.playoffStart && d.week > d.playoffStart + 2;
+    body.innerHTML = '<p class="muted" style="margin:-6px 2px 12px">' + (done ? "Your " + (d.season || "") + " season, wrapped." : "Your season so far, through week " + (weeks.length ? weeks[weeks.length - 1].w : "?") + ". The final version arrives after the championship.") + " Swipe through, and share any card.</p>" +
+      '<div class="wrap">' + cards.map((c, i) => '<div class="wcard c' + (i % 4) + '"><small>' + esc(c.k) + '</small><b class="wbig">' + esc(c.big) + "</b><span>" + esc(c.sub) + "</span>" + (c.lines || []).map(l => "<p>" + esc(l) + "</p>").join("") + '<button type="button" class="btn ghost sm" data-wshare="' + i + '">Share</button></div>').join("") + "</div>";
+    body.querySelectorAll("[data-wshare]").forEach(b => b.addEventListener("click", () => { const c = cards[+b.dataset.wshare]; shareCard({kicker: L.meta.name + " · " + c.k, big: c.big.length > 7 ? "" : c.big, title: c.big.length > 7 ? c.big : c.sub, lines: (c.big.length > 7 ? [{text: c.sub}] : []).concat((c.lines || []).map(t => ({text: t})))}); }));
+  } catch(e){ body.innerHTML = '<div class="err">' + esc(e.message) + "</div>"; }
+}
+
+/* ===================== 8. Sync across devices ===================== */
+const SYNC_KEYS = () => Object.keys(localStorage).filter(k => k === KEY || (k.startsWith(KEY + ".") && !/\.(sync|syncAt|syncHash|hookId)$/.test(k)));
+function syncKey(){ try { return localStorage.getItem(KEY + ".sync"); } catch(e){ return null; } }
+function syncSnapshot(){ const o = {}; SYNC_KEYS().forEach(k => o[k] = localStorage.getItem(k)); return o; }
+async function syncPush(force){
+  const k = syncKey(); if (!k) return;
+  const data = syncSnapshot(), s = JSON.stringify(data), h = String(s.length) + ":" + [...s].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7);
+  if (!force && localStorage.getItem(KEY + ".syncHash") === h) return;
+  const r = await fetch("/api/sync", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({k, data})});
+  if (r.ok) { localStorage.setItem(KEY + ".syncHash", h); localStorage.setItem(KEY + ".syncAt", String(Date.now())); }
+}
+async function syncPull(k){
+  const r = await fetch("/api/sync?k=" + encodeURIComponent(k)); const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || "Couldn’t find that sync link.");
+  SYNC_KEYS().forEach(x => localStorage.removeItem(x));
+  Object.entries(j.data || {}).forEach(([x, v]) => { if (x === KEY || x.startsWith(KEY + ".")) localStorage.setItem(x, v); });
+  localStorage.setItem(KEY + ".sync", k); localStorage.removeItem(KEY + ".syncHash"); localStorage.setItem(KEY + ".syncAt", String(j.at || Date.now()));
+}
+async function syncStartup(){
+  const m = location.search.match(/[?&]sync=([a-f0-9]{40,64})/);
+  if (m) { try { await syncPull(m[1]); history.replaceState(null, "", location.pathname); location.reload(); return true; } catch(e){ alert(e.message); } }
+  const k = syncKey();
+  if (k) { try { const r = await fetch("/api/sync?k=" + k + "&meta=1"); const j = await r.json(); if (j.at && j.at > Number(localStorage.getItem(KEY + ".syncAt") || 0) + 5000) { await syncPull(k); location.reload(); return true; } } catch(e){} }
+  setInterval(() => { syncPush().catch(() => {}); }, 20000);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) syncPush().catch(() => {}); });
+  return false;
+}
+function syncCardHTML(){
+  const k = syncKey(), link = k ? location.origin + "/?sync=" + k : "";
+  return '<h3>Use Snap Count on another device</h3><div class="card stackc" style="gap:10px">' +
+    (k ? '<p class="small" style="margin:0">Sync is on. Open this link on your other phone or computer and everything here comes with you: leagues, your own player values, alert connections and settings. Changes keep syncing both ways.</p>' +
+      '<div class="sendrow" style="margin:0"><button type="button" class="btn" id="syShare">Share my sync link</button><button type="button" class="btn ghost" id="syOff">Turn off</button></div><p class="small muted" style="margin:0">Treat the link like a password: anyone with it can see your leagues and settings, including private ESPN codes and app connections.</p><p class="small" id="syMsg" style="margin:0"></p>'
+      : '<p class="small muted" style="margin:0">No account or password: you get a private link. Open it on any device to bring your leagues, player values, alert connections and settings along.</p><button type="button" class="btn" id="syOn">Turn on sync</button>') + "</div>";
+}
+function wireSync(v){
+  const on = v.querySelector("#syOn"); if (on) on.addEventListener("click", async () => {
+    const k = Array.from(crypto.getRandomValues(new Uint8Array(24)), b => b.toString(16).padStart(2, "0")).join("");
+    localStorage.setItem(KEY + ".sync", k); await syncPush(true).catch(() => {}); render();
+  });
+  const off = v.querySelector("#syOff"); if (off) off.addEventListener("click", () => { localStorage.removeItem(KEY + ".sync"); localStorage.removeItem(KEY + ".syncHash"); render(); });
+  const sh = v.querySelector("#syShare"); if (sh) sh.addEventListener("click", async () => {
+    const link = location.origin + "/?sync=" + syncKey();
+    if (navigator.share) { try { await navigator.share({title: "Snap Count sync link", url: link}); return; } catch(e){ if (e.name === "AbortError") return; } }
+    try { await navigator.clipboard.writeText(link); v.querySelector("#syMsg").textContent = "Link copied. Open it on your other device."; } catch(e){ v.querySelector("#syMsg").textContent = link; }
+  });
+}
+
 async function tradeHistory(L){
   const d = L.detail; if (d.trades) return d.trades;
   const out = [];
@@ -5084,7 +5458,7 @@ async function post(path, body){
   if (!r.ok) throw new Error(j.error || ("Request failed (" + r.status + ")"));
   return j;
 }
-function alertPrefs(){ try { return Object.assign({mine:true, fa:true, news:true, league:true, brief:true, preview:true, faPos:"ALL"}, JSON.parse(localStorage.getItem(KEY + ".alerts") || "{}")); } catch(e){ return {mine:true, fa:true, news:true, league:true, brief:true, preview:true, faPos:"ALL"}; } }
+function alertPrefs(){ try { return Object.assign({mine:true, fa:true, news:true, league:true, brief:true, preview:true, plays:true, faPos:"ALL"}, JSON.parse(localStorage.getItem(KEY + ".alerts") || "{}")); } catch(e){ return {mine:true, fa:true, news:true, league:true, brief:true, preview:true, faPos:"ALL"}; } }
 function saveAlertPrefs(p){ try { localStorage.setItem(KEY + ".alerts", JSON.stringify(p)); } catch(e){} }
 function b64uBytes(s){ s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; const b = atob(s), a = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; }
 async function getSub(){
@@ -5103,7 +5477,10 @@ function watchList(){
     const lu = {p:L.meta.platform, id:L.meta.id, name:L.meta.name, season:L.meta.season, s:[], b:[], t:me.id};
     me.roster.forEach(p => { if (!p.name) return; const k = norm(p.name) + "|" + (p.pos || ""); if (p.slot === "start") { starters.push(k); lu.s.push(k); } else if (p.slot === "bench") { bench.push(k); lu.b.push(k); } });
     if (lu.s.length) lineups.push(lu); });
-  return {ids:[...ids], names:[...names], starters, bench, lineups, leagues: leagues.map(L => ({p:L.meta.platform, id:L.meta.id, name:L.meta.name, season:L.meta.season}))};
+  const oppStarters = [];
+  leagues.forEach(L => { const d = L.detail, me = d && d.teams.find(t => t.mine); if (!me) return; const g = d.games.find(x => x.a.id === me.id || x.b.id === me.id); if (!g) return;
+    const ot = d.teams.find(t => t.id === (g.a.id === me.id ? g.b.id : g.a.id)); if (ot) ot.roster.filter(p => p.slot === "start" && p.name).forEach(p => oppStarters.push(norm(p.name) + "|" + (p.pos || ""))); });
+  return {ids:[...ids], names:[...names], starters, bench, lineups, oppStarters, leagues: leagues.map(L => ({p:L.meta.platform, id:L.meta.id, name:L.meta.name, season:L.meta.season}))};
 }
 let alertState = {sub:null, watching:null, msg:"", busy:false, list:null};
 function loadHooks(){ try { return JSON.parse(localStorage.getItem(KEY + ".hooks") || "[]"); } catch(e){ return []; } }
@@ -5243,6 +5620,7 @@ async function renderAlerts(v){
     '<label class="toggle"><input type="checkbox" id="alMine"' + (prefs.mine ? " checked" : "") + "> My players: injuries, status changes and trades</label>" +
     '<label class="toggle"><input type="checkbox" id="alFa"' + (prefs.fa ? " checked" : "") + "> Free agents: new starters and projection jumps</label>" +
     '<label class="toggle"><input type="checkbox" id="alNews"' + (prefs.news ? " checked" : "") + "> News: injury report notes and headlines about my players</label>" +
+    '<label class="toggle"><input type="checkbox" id="alPlays"' + (prefs.plays !== false ? " checked" : "") + "> Live plays: touchdowns, long gains and in-game injuries for your starters and your opponent’s</label>" +
     '<label class="toggle"><input type="checkbox" id="alLeague"' + (prefs.league ? " checked" : "") + "> League activity: trades, trade-block posts and QB pickups (Fleaflicker)</label>" +
     '<label class="toggle"><input type="checkbox" id="alPreview"' + (prefs.preview ? " checked" : "") + "> Friday matchup preview at noon ET: your win odds, their threats, who to watch</label>" +
     '<label class="toggle"><input type="checkbox" id="alBrief"' + (prefs.brief ? " checked" : "") + "> Sunday pregame briefing at 11 AM ET: start/sit calls, risky starters and the best pickup</label>" +
@@ -5257,6 +5635,7 @@ async function renderAlerts(v){
   v.querySelector("#alMine").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {mine:e.target.checked})));
   v.querySelector("#alFa").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {fa:e.target.checked})));
   v.querySelector("#alLeague").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {league:e.target.checked})));
+  v.querySelector("#alPlays").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {plays:e.target.checked})));
   v.querySelector("#alNews").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {news:e.target.checked})));
   v.querySelector("#alBrief").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {brief:e.target.checked})));
   v.querySelector("#alPreview").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {preview:e.target.checked})));
@@ -5331,6 +5710,7 @@ if (location.hash === "#alerts") { cur.tab = "alerts"; try { history.replaceStat
 })();
 
 let goCoach = false;
+syncStartup().catch(() => {});
 if (readCalcLink()) cur.tab = "calc";
 try { const go = new URLSearchParams(location.search).get("go"); if (["news", "trade", "edge", "alerts", "calc"].includes(go)) cur.tab = go; if (go === "coach") goCoach = true; if (go) history.replaceState(null, "", location.pathname); } catch(e){}
 document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === cur.tab));

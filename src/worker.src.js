@@ -3,7 +3,7 @@
 
 import { alertsRoute, runMinute, staticRoute, injuriesRoute, readInjuries } from "./src/alerts.js";
 import { PROSPECTS } from "./src/prospects.js";
-import { transcribeRoute, espnRoute, mflRoute, scoresRoute, calendarRoute, coachRoute, hookPostRoute, espnLineupRoute, mflLoginRoute, mflLineupRoute } from "./src/more.js";
+import { syncRoute, transcribeRoute, espnRoute, mflRoute, scoresRoute, calendarRoute, coachRoute, hookPostRoute, espnLineupRoute, mflLoginRoute, mflLineupRoute } from "./src/more.js";
 
 const HTML = __HTML__;
 
@@ -505,6 +505,7 @@ export default {
       if (st) return st;
       if (p.startsWith("/api/push/")) return alertsRoute(request, env, p, url);
       if (p === "/api/coach") return coachRoute(request, env);
+      if (p === "/api/sync") return syncRoute(request, url, env);
       if (p === "/api/prospects") return json(PROSPECTS, 200, 3600);
       if (p === "/api/transcribe") return transcribeRoute(request, env);
       if (p === "/api/hookpost") return hookPostRoute(request);

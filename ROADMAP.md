@@ -11,14 +11,6 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - Never break what works. Test in a headless browser against real Fleaflicker data before pushing. If tests fail, don't push.
 
 ## Next up (top first)
-- [ ] Manager scouting reports: for every leaguemate, trading tendencies from league trade history (positions they buy/sell, picks vs vets, overpays, how active), contend/rebuild window, current needs; "how to pitch him" line; shown in Sell/Buy and the grader.
-- [ ] Touchdown and big-play alerts: live play-by-play for your starters and your opponent's (TDs, long gains, injuries in-game), push + Discord/Slack, Sundays/Mondays/Thursdays only.
-- [ ] Breakout detector: week-over-week jumps in snap share, route share, targets and carries (Sleeper weekly stats); flags free agents before the waiver run and players on your bench before you trade them away; daily alert.
-- [ ] Title window planner (dynasty): your roster's projected strength for the next 3 seasons using age curves and values, vs every other team; tells you whether to push now or build for later and which moves change the window.
-- [ ] AI counter-offer writer: from any trade grade, the coach drafts a short, friendly message to send the other manager explaining why the deal works for them (using their roster needs), ready to copy.
-- [ ] All my leagues: player exposure across every connected league (who you own where, total value tied up per player), plus one combined weekly start/sit list.
-- [ ] Season Wrapped: shareable end-of-season story cards (best trade, worst start/sit, MVP, luckiest week, league awards) generated after the championship week.
-- [ ] Sign-in sync: optional account (email link) so your leagues, your own player values, alerts and settings follow you to any device.
 - [ ] Refresh src/prospects.js with the newest public 2027 rookie boards (superflex and 1QB) about every two weeks; after the NFL draft switch the rookie mock to drafted rookies with landing spots.
 
 ## Blocked (needs the owner)
@@ -27,6 +19,14 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- [x] Manager scouting reports: for every leaguemate, trading tendencies from league trade history (positions they buy/sell, picks vs vets, overpays, how active), contend/rebuild window, current needs; "how to pitch him" line; shown in Sell/Buy and the grader.
+- [x] Touchdown and big-play alerts: live play-by-play for your starters and your opponent's (TDs, long gains, injuries in-game), push + Discord/Slack, Sundays/Mondays/Thursdays only.
+- [x] Breakout detector: week-over-week jumps in snap share, route share, targets and carries (Sleeper weekly stats); flags free agents before the waiver run and players on your bench before you trade them away; daily alert.
+- [x] Title window planner (dynasty): your roster's projected strength for the next 3 seasons using age curves and values, vs every other team; tells you whether to push now or build for later and which moves change the window.
+- [x] AI counter-offer writer: from any trade grade, the coach drafts a short, friendly message to send the other manager explaining why the deal works for them (using their roster needs), ready to copy.
+- [x] All my leagues: player exposure across every connected league (who you own where, total value tied up per player), plus one combined weekly start/sit list.
+- [x] Season Wrapped: shareable end-of-season story cards (best trade, worst start/sit, MVP, luckiest week, league awards) generated after the championship week.
+- [x] Device sync (private sync link instead of email sign-in) so your leagues, your own player values, alerts and settings follow you to any device.
 - [x] Daily values: full recalculation every morning 5:11 AM ET for every format in use, snapshots kept 45 days, "today / this week / 30 days" changes on every player, edge cache refresh every 3 hours, same-day injury adjustment (season-ending: redraft x0.45, dynasty x0.94), "Updated today at…" stamp, biggest movers in Calc
 - [x] Mock draft order: next-12-picks strip under the clock (you, traded picks marked) and a full round-by-round draft board
 - [x] Voice like Claude dictation: record with live waveform and timer, tap ✓ to transcribe (Whisper on Workers AI, roster names as hints), text lands in the box, send with Ask; works on iPhone

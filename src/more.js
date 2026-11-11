@@ -231,6 +231,11 @@ Rules:
 - Lead with the answer in one sentence, then 2-5 short bullet reasons. Under 170 words unless asked for more. No preamble, no disclaimers.
 - Only a player in a FREE AGENTS list can be picked up. Only players on other rosters can be traded for.
 - You can't make moves in the league yourself; tell the user what to do in their league app.`;
+const PITCH_SYS = `You write a short trade message from one fantasy football manager to another, to send with a trade offer.
+Use ONLY the TRADE DATA. Never invent stats, injuries or news.
+Write it in a friendly, confident, casual voice, like texting a friend in your league. 3 to 5 sentences, under 90 words.
+Lead with why the deal helps THEM (their weak positions, contending or rebuilding, what they get), mention one honest reason it works for you too, and end with an easy next step ("open to tweaks", "let me know").
+No greeting fluff, no hashtags, no emojis, no bullet points. Don't mention values, apps or algorithms.`;
 const RECAP_SYS = `You write a punchy, funny weekly fantasy football league recap for a league group chat, like a sports columnist roasting friends.
 Use ONLY the matchups, scores, standings and player points in LEAGUE DATA. Never invent stats or events.
 Format: a headline line, then one short paragraph per matchup (winner, score, the star or the dud from the data), then a "Power rankings" list of every team (one line each with a quip), then one closing line. Under 380 words. No emojis overload: at most one per section.`;
@@ -244,13 +249,13 @@ export async function coachRoute(request, env) {
   if (request.method !== "POST") return out({ error: "POST only" }, 405);
   if (!env.AI) return out({ error: "The AI coach isn't switched on for this app yet." }, 503);
   const b = await request.json().catch(() => ({}));
-  const mode = b.mode === "recap" ? "recap" : b.mode === "negotiate" ? "negotiate" : "coach";
+  const mode = b.mode === "recap" ? "recap" : b.mode === "negotiate" ? "negotiate" : b.mode === "pitch" ? "pitch" : "coach";
   const ctx = String(b.ctx || "").slice(0, 14000);
   const q = String(b.q || "").slice(0, 600);
-  if (mode !== "recap" && !q.trim()) return out({ error: "Ask a question." }, 400);
+  if (mode !== "recap" && mode !== "pitch" && !q.trim()) return out({ error: "Ask a question." }, 400);
   const hist = (Array.isArray(b.history) ? b.history : []).slice(mode === "negotiate" ? -12 : -6).map(m => ({ role: m.role === "assistant" ? "assistant" : "user", content: String(m.content || "").slice(0, 1500) }));
-  const messages = [{ role: "system", content: mode === "negotiate" ? NEGO_SYS + "\n\nTRADE DATA:\n" + ctx : (mode === "recap" ? RECAP_SYS : COACH_SYS) + "\n\nLEAGUE DATA:\n" + ctx }]
-    .concat(hist).concat([{ role: "user", content: mode === "recap" ? "Write this week's recap." : q }]);
+  const messages = [{ role: "system", content: mode === "pitch" ? PITCH_SYS + "\n\nTRADE DATA:\n" + ctx : mode === "negotiate" ? NEGO_SYS + "\n\nTRADE DATA:\n" + ctx : (mode === "recap" ? RECAP_SYS : COACH_SYS) + "\n\nLEAGUE DATA:\n" + ctx }]
+    .concat(mode === "pitch" ? [] : hist).concat([{ role: "user", content: mode === "recap" ? "Write this week's recap." : mode === "pitch" ? "Write the message." : q }]);
   let lastErr = null;
   for (const model of COACH_MODELS) {
     try {
@@ -419,4 +424,28 @@ export async function transcribeRoute(request, env) {
     try { const r2 = await env.AI.run("@cf/openai/whisper", { audio: [...buf] }); return out({ text: String((r2 && r2.text) || "").trim() }); }
     catch (e2) { return out({ error: "Couldn’t understand the recording. Try again, or type it." }, 502); }
   }
+}
+
+/* ---------- device sync: a private link carries your settings to another device ---------- */
+export async function syncRoute(request, url, env) {
+  if (!env.SNAP) return out({ error: "Sync isn't available." }, 503);
+  if (request.method === "GET") {
+    const k = url.searchParams.get("k") || "";
+    if (!/^[a-f0-9]{40,64}$/.test(k)) return out({ error: "That sync link isn't valid." }, 400);
+    const rec = await env.SNAP.get("sync:" + k, "json");
+    if (!rec) return out({ error: "That sync link has expired or was turned off." }, 404);
+    return out(url.searchParams.get("meta") ? { at: rec.at } : rec);
+  }
+  if (request.method === "POST") {
+    const b = await request.json().catch(() => ({}));
+    const k = String(b.k || "");
+    if (!/^[a-f0-9]{40,64}$/.test(k)) return out({ error: "Bad sync key" }, 400);
+    const data = {};
+    for (const [key, v] of Object.entries(b.data || {})) if (/^snapcount\.v1(\.[A-Za-z0-9_-]{1,40})?$/.test(key) && typeof v === "string") data[key] = v;
+    const s = JSON.stringify({ at: Date.now(), data });
+    if (s.length > 400000) return out({ error: "Too much to sync" }, 413);
+    await env.SNAP.put("sync:" + k, s, { expirationTtl: 60 * 60 * 24 * 400 });
+    return out({ ok: true });
+  }
+  return out({ error: "Method not allowed" }, 405);
 }

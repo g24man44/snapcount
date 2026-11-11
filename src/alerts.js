@@ -92,9 +92,10 @@ export async function alertsRoute(request, env, p, url) {
           starters: (body.starters || []).slice(0, 80).map(String),
           bench: (body.bench || []).slice(0, 120).map(String),
           leagues: (body.leagues || []).slice(0, 30).map(l => ({ p: ["flea", "espn", "mfl"].includes(l.p) ? l.p : "sleeper", id: String(l.id), name: String(l.name || "").slice(0, 80), season: /^\d{4}$/.test(String(l.season || "")) ? String(l.season) : undefined })),
+          oppStarters: (body.oppStarters || []).slice(0, 80).map(String),
           lineups: (Array.isArray(body.lineups) ? body.lineups : []).slice(0, 30).map(l => ({ p: ["flea", "espn", "mfl", "sleeper"].includes(l.p) ? l.p : null, id: String(l.id || ""), name: String(l.name || "").slice(0, 80), season: /^\d{4}$/.test(String(l.season || "")) ? String(l.season) : undefined, s: (l.s || []).slice(0, 30).map(String), b: (l.b || []).slice(0, 40).map(String), t: l.t ? String(l.t).slice(0, 40) : undefined })),
           hooks: (body.hooks || []).map(String).filter(u => hookKind(u)).slice(0, 5),
-          prefs: { mine: body.prefs?.mine !== false, fa: body.prefs?.fa !== false, news: body.prefs?.news !== false, league: body.prefs?.league !== false, recap: body.prefs?.recap !== false, brief: body.prefs?.brief !== false, preview: body.prefs?.preview !== false, faPos: body.prefs?.faPos === "QB" ? "QB" : "ALL" },
+          prefs: { mine: body.prefs?.mine !== false, fa: body.prefs?.fa !== false, news: body.prefs?.news !== false, league: body.prefs?.league !== false, recap: body.prefs?.recap !== false, brief: body.prefs?.brief !== false, preview: body.prefs?.preview !== false, plays: body.prefs?.plays !== false, faPos: body.prefs?.faPos === "QB" ? "QB" : "ALL" },
           origin: url.origin
         };
         const prev = await env.SNAP.get("sub:" + id);
@@ -144,6 +145,7 @@ export async function alertsRoute(request, env, p, url) {
     }
     if (p === "/api/push/run" && url.searchParams.get("what") === "preview") return out(await matchupPreviews(env, deliver, true));
     if (p === "/api/push/run" && url.searchParams.get("what") === "power") return out(await weeklyPower(env, true));
+    if (p === "/api/push/run" && url.searchParams.get("what") === "plays") return out(await playAlerts(env));
     if (p === "/api/push/run" && url.searchParams.get("what") === "recap") return out(await weeklyRecaps(Object.assign({}, env, { HOST: url.host }), true));
     if (p === "/api/push/run" && url.searchParams.get("what") === "league") return out(await leagueWatch(env, true));
     if (p === "/api/push/run" && url.searchParams.get("what") === "brief") return out(await pregameBriefings(env, false));
@@ -748,7 +750,64 @@ export async function leagueWatch(env, force) {
   return out;
 }
 
+/* ---------- touchdowns and big plays, live ---------- */
+// Every minute while NFL games are on: the scoreboard's last play catches long gains and scores;
+// when a score changes we also read that game's scoring plays so no touchdown is missed.
+export async function playAlerts(env) {
+  const r = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard", { headers: UA });
+  if (!r.ok) return { error: r.status };
+  const sb = await r.json();
+  const prev = (await env.SNAP.get("plays:state", "json")) || {};
+  const next = {}, events = [];
+  for (const e of sb.events || []) {
+    const c = (e.competitions || [])[0] || {}, st = ((c.status || {}).type || {}).state;
+    if (st !== "in" && !(st === "post" && prev[e.id])) continue;
+    const score = (c.competitors || []).map(x => x.score).join("-"), p0 = prev[e.id] || {};
+    const n = { score, last: p0.last || null, scores: p0.scores || 0 };
+    const lp = (c.situation || {}).lastPlay;
+    if (lp && lp.id && lp.id !== p0.last) {
+      n.last = lp.id;
+      const text = String(lp.text || ""), yds = Number(lp.statYardage) || Number((text.match(/for (\d+) yards?/i) || [])[1]) || 0;
+      const td = /touchdown/i.test(text + " " + ((lp.type || {}).text || ""));
+      if (!td && yds >= 25) events.push({ id: e.id + ":" + lp.id, kind: "big", text, game: e.shortName, yds });
+      if (/injur/i.test(text) && p0.last) events.push({ id: e.id + ":" + lp.id + ":i", kind: "inj", text, game: e.shortName });
+    }
+    if (p0.score && score !== p0.score) {
+      try {
+        const s2 = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event=" + e.id, { headers: UA }).then(x => x.json());
+        const sp = s2.scoringPlays || [];
+        sp.slice(p0.scores || 0).forEach(x => events.push({ id: e.id + ":s" + x.id, kind: /touchdown|td|yd (pass|run|rush|reception)/i.test((x.type || {}).text + " " + x.text) && !/field goal/i.test(x.text) ? "td" : "score", text: String(x.text || ""), game: e.shortName }));
+        n.scores = sp.length;
+      } catch (err) {}
+    } else if (!p0.score) n.scores = -1; // first look at this game: don't replay old scores
+    if (n.scores === -1) {
+      try { const s2 = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event=" + e.id, { headers: UA }).then(x => x.json()); n.scores = (s2.scoringPlays || []).length; } catch (err) { n.scores = 0; }
+    }
+    next[e.id] = n;
+  }
+  await env.SNAP.put("plays:state", JSON.stringify(next), { expirationTtl: 86400 });
+  if (!events.length) return { events: 0 };
+  const sent = await eachSubscriber(env, rec => {
+    if ((rec.prefs || {}).plays === false) return [];
+    const mine = (rec.starters || []).map(k => k.split("|")[0]).filter(x => x.length > 4);
+    const opp = (rec.oppStarters || []).map(k => k.split("|")[0]).filter(x => x.length > 4);
+    const out = [];
+    for (const ev of events) {
+      const t = norm(ev.text);
+      const who = mine.find(n => t.includes(n)), them = !who && opp.find(n => t.includes(n));
+      if (!who && !them) continue;
+      if (ev.kind === "score" && them) continue;
+      const head = ev.kind === "td" ? (who ? "Touchdown for you" : "Opponent touchdown") : ev.kind === "big" ? (who ? "Big play for you" : "Big play against you") : ev.kind === "inj" ? (who ? "Injury: one of your starters" : "Opponent injury") : (who ? "Points for you" : "");
+      if (!head) continue;
+      out.push({ id: "play:" + ev.id, title: head, body: ev.text.replace(/\s+/g, " ").slice(0, 180) + " (" + ev.game + ")" });
+    }
+    return out.slice(0, 4);
+  });
+  return { events: events.length, sent };
+}
+
 export async function runMinute(env) {
+  await playAlerts(env).catch(() => {});
   await leagueWatch(env).catch(() => {});
   await pregameBriefings(env).catch(() => {});
   await matchupPreviews(env, deliver).catch(() => {});
