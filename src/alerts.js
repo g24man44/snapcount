@@ -4,6 +4,7 @@
 // and sends phone notifications to each subscriber whose players or leagues are affected.
 
 import { ICON_192, ICON_512 } from "./icons.js";
+import { ARCHIVO_WOFF } from "./font.js";
 import { matchupPreviews, weeklyPower } from "./weekly.js";
 import { hookKind, sendHook, espnLeagueTaken, mflLeagueTaken, weeklyRecaps, aiComplete } from "./more.js";
 
@@ -763,7 +764,7 @@ export async function runMinute(env) {
 
 /* ---------- files the phone needs ---------- */
 export const SW_JS = `
-const SHELL = "snapcount-shell-v5", DATA = "snapcount-data-v1";
+const SHELL = "snapcount-shell-v9", DATA = "snapcount-data-v1";
 self.addEventListener("install", e => { self.skipWaiting(); e.waitUntil(caches.open(SHELL).then(c => c.addAll(["/", "/icon-192.png"])).catch(() => {})); });
 self.addEventListener("fetch", e => {
   const u = new URL(e.request.url);
@@ -811,7 +812,7 @@ export const MANIFEST = JSON.stringify({
     { name: "Grade a trade", short_name: "Trade", url: "/?go=trade", icons: [{ src: "/icon-192.png", sizes: "192x192" }] },
     { name: "Alerts", short_name: "Alerts", url: "/#alerts", icons: [{ src: "/icon-192.png", sizes: "192x192" }] }
   ],
-  background_color: "#0a0d13", theme_color: "#0a0d13",
+  background_color: "#0d1730", theme_color: "#0d1730",
   icons: [{ src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" }, { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" }]
 });
 
@@ -822,6 +823,11 @@ export function staticRoute(p) {
     const b = atob(p === "/icon-192.png" ? ICON_192 : ICON_512), a = new Uint8Array(b.length);
     for (let i = 0; i < b.length; i++) a[i] = b.charCodeAt(i);
     return new Response(a, { headers: { "content-type": "image/png", "cache-control": "public, max-age=86400" } });
+  }
+  if (p === "/fonts/archivo-v1.woff") {
+    const b = atob(ARCHIVO_WOFF), a = new Uint8Array(b.length);
+    for (let i = 0; i < b.length; i++) a[i] = b.charCodeAt(i);
+    return new Response(a, { headers: { "content-type": "font/woff", "cache-control": "public, max-age=31536000, immutable", "access-control-allow-origin": "*" } });
   }
   return null;
 }
