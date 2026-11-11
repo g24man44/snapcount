@@ -2,7 +2,8 @@
 // Paste this whole file into a new Cloudflare Worker and deploy. Free plan is fine.
 
 import { alertsRoute, runMinute, staticRoute, injuriesRoute } from "./src/alerts.js";
-import { espnRoute, mflRoute, scoresRoute, calendarRoute, coachRoute, hookPostRoute, espnLineupRoute, mflLoginRoute, mflLineupRoute } from "./src/more.js";
+import { PROSPECTS } from "./src/prospects.js";
+import { transcribeRoute, espnRoute, mflRoute, scoresRoute, calendarRoute, coachRoute, hookPostRoute, espnLineupRoute, mflLoginRoute, mflLineupRoute } from "./src/more.js";
 
 const HTML = __HTML__;
 
@@ -442,6 +443,8 @@ export default {
       if (st) return st;
       if (p.startsWith("/api/push/")) return alertsRoute(request, env, p, url);
       if (p === "/api/coach") return coachRoute(request, env);
+      if (p === "/api/prospects") return json(PROSPECTS, 200, 3600);
+      if (p === "/api/transcribe") return transcribeRoute(request, env);
       if (p === "/api/hookpost") return hookPostRoute(request);
       if (p === "/api/espn-lineup") return espnLineupRoute(request);
       if (p === "/api/mfl-login") return mflLoginRoute(request);

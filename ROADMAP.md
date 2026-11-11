@@ -11,6 +11,7 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - Never break what works. Test in a headless browser against real Fleaflicker data before pushing. If tests fail, don't push.
 
 ## Next up (top first)
+- [ ] Refresh src/prospects.js with the newest public 2027 rookie boards (superflex and 1QB) about every two weeks; after the NFL draft switch the rookie mock to drafted rookies with landing spots.
 
 ## Blocked (needs the owner)
 - [ ] Save lineups straight to Fleaflicker and Sleeper: neither has a public way for other apps to change lineups. Fleaflicker would need a sample of the request its site sends when you move a player (from the browser's network tab while signed in).
@@ -18,6 +19,8 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- [x] Voice like Claude dictation: record with live waveform and timer, tap ✓ to transcribe (Whisper on Workers AI, roster names as hints), text lands in the box, send with Ask; works on iPhone
+- [x] Rookie mock draft (Calc › Mock draft › Dynasty › Rookie draft): 2027 college class from a consensus of public rookie boards (src/prospects.js — refresh as new boards publish), your league's projected pick order with traded picks, computer teams draft by rank and roster need, grades vs pick value
 - [x] Playoff picture (Leagues › League): bracket if the season ended today (division winners, byes), the race with odds/projected wins/likely seed and the playoff line, this week's highest-leverage games and who to root for
 - [x] Projected draft order (Leagues › League): every pick for next year's draft by simulated finish, traded picks tracked, your picks with likely range and value
 - [x] Mock draft (Calc › Mock draft): draft against computer teams in any format (dynasty startup or redraft, 1QB/superflex, 8–16 teams, any slot, 8–20 rounds), your league's team names, best-pick suggestion, auto-draft, grades for every team, share

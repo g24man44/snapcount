@@ -400,3 +400,23 @@ export async function mflLineupRoute(request) {
   const err = (t.match(/<error[^>]*>([\s\S]*?)<\/error>/i) || [])[1] || t.replace(/<[^>]+>/g, " ").trim().slice(0, 160);
   return out({ error: /login|cookie|not logged|permission/i.test(err) ? "MyFantasyLeague needs you to sign in again." : "MyFantasyLeague said: " + err, login: /login|cookie|not logged/i.test(err) }, r.ok ? 409 : r.status);
 }
+
+/* ---------- voice: transcribe a short recording (Whisper on Workers AI) ---------- */
+export async function transcribeRoute(request, env) {
+  if (request.method !== "POST") return out({ error: "POST only" }, 405);
+  if (!env.AI) return out({ error: "Voice isn't switched on for this app yet." }, 503);
+  const buf = new Uint8Array(await request.arrayBuffer());
+  if (!buf.length) return out({ error: "No audio came through. Try again." }, 400);
+  if (buf.length > 6 * 1024 * 1024) return out({ error: "That recording is too long. Keep it under two minutes." }, 413);
+  // Player names help Whisper spell them right ("Jaxson Dart", not "Jackson dart").
+  const hint = decodeURIComponent(request.headers.get("x-hint") || "").slice(0, 600);
+  let b64 = ""; for (let i = 0; i < buf.length; i += 0x8000) b64 += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+  b64 = btoa(b64);
+  try {
+    const r = await env.AI.run("@cf/openai/whisper-large-v3-turbo", Object.assign({ audio: b64, language: "en" }, hint ? { initial_prompt: "Fantasy football. " + hint } : {}));
+    return out({ text: String((r && r.text) || "").trim() });
+  } catch (e) {
+    try { const r2 = await env.AI.run("@cf/openai/whisper", { audio: [...buf] }); return out({ text: String((r2 && r2.text) || "").trim() }); }
+    catch (e2) { return out({ error: "Couldn’t understand the recording. Try again, or type it." }, 502); }
+  }
+}

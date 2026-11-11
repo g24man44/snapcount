@@ -555,6 +555,17 @@ nav.tabbar button{padding-left:0;padding-right:0}
 .mgrade b{font:900 60px/1 var(--display);font-stretch:72%;color:var(--accent)}
 .mgrade span{font:800 20px/1.2 var(--display);font-stretch:80%}
 .mgrade small{display:block;font:500 13px/1.4 var(--body);color:var(--muted)}
+
+/* dictation bar */
+.cform{position:relative}
+.cform.rec > :not(.recbar){visibility:hidden}
+.recbar{position:absolute;inset:0;z-index:2;display:flex;align-items:center;gap:10px;background:var(--surface);border-radius:14px;padding:0 6px}
+.recx{border:0;background:var(--surface2);color:var(--muted);width:36px;height:36px;border-radius:50%;font-size:20px;flex:none}
+.recok{border:0;background:var(--accent);color:var(--accent-ink);width:40px;height:40px;border-radius:50%;display:grid;place-items:center;flex:none}
+.wave{flex:1;display:flex;align-items:center;gap:3px;height:32px;overflow:hidden}
+.wave i{flex:1;max-width:5px;height:100%;border-radius:3px;background:var(--accent);transform:scaleY(.08);transform-origin:center;transition:transform .08s linear}
+.rect{font:700 14px/1 var(--body);font-stretch:112%;font-variant-numeric:tabular-nums;color:var(--muted);flex:none;min-width:38px}
+.recbar .typing{margin-left:8px}
 </style>
 </head>
 <body>
@@ -1317,7 +1328,7 @@ async function openPlayer(pl){
     }).join("") + "</div>" : '<p class="muted">No recent news for this player.</p>';
   } catch(e){ $("#pnews").innerHTML = '<div class="err">Couldn’t load headlines: ' + esc(e.message) + "</div>"; }
 }
-function closeSheet(){ $("#sheet").hidden = true; }
+function closeSheet(){ if (typeof voice !== "undefined" && voice.on) stopVoice(false); $("#sheet").hidden = true; }
 // Screen readers and keyboards: move focus into a sheet when it opens and back to where you were when it closes.
 (() => { let back = null; const sh = $("#sheet"), pn = $("#sheetPanel"); pn.tabIndex = -1;
   new MutationObserver(() => {
@@ -1665,18 +1676,18 @@ function openCoach(){
     (ready.length > 1 ? '<select id="cLeague">' + leagues.map((L, i) => L.detail && L.detail.teams.some(t => t.mine) ? '<option value="' + i + '"' + (i === li ? " selected" : "") + ">" + esc(L.meta.name) + "</option>" : "").join("") + "</select>" : "") +
     '<div id="cLog" class="clog"></div>' +
     '<div class="chips cq" id="cChips">' + COACH_Q.map(q => '<button type="button" class="chip" data-q="' + esc(q) + '">' + esc(q) + "</button>").join("") + "</div>" +
-    '<form id="cForm" class="cform">' + (SR ? '<button type="button" class="mic" id="cMic" aria-label="Talk instead of typing" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>' : "") +
+    '<form id="cForm" class="cform">' + (canRecord ? '<button type="button" class="mic" id="cMic" aria-label="Talk instead of typing" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>' : "") +
     '<input id="cIn" autocomplete="off" placeholder="Ask anything about your team…"><button class="btn" type="submit" id="cGo">Ask</button></form>' +
     '<p class="small muted" style="margin:8px 2px 0">Answers use your live roster, projections, free agents and trade values. AI can be wrong, so double-check big moves.</p>';
   sh.hidden = false;
   drawCoach();
-  p.querySelector("#closeSheet").addEventListener("click", () => { stopVoice(); closeSheet(); });
+  p.querySelector("#closeSheet").addEventListener("click", () => { stopVoice(false); closeSheet(); });
   const sel = p.querySelector("#cLeague"); if (sel) sel.addEventListener("change", () => { coach.league = +sel.value; coach.msgs = []; drawCoach(); });
   p.querySelector("#cSpeak").addEventListener("click", e => { coach.speak = !coach.speak; if (!coach.speak) speechSynthesis && speechSynthesis.cancel(); e.currentTarget.innerHTML = coach.speak ? "<i class=ic-speaker aria-hidden=true></i>" : "<i class=ic-mute aria-hidden=true></i>"; e.currentTarget.setAttribute("aria-pressed", coach.speak); });
   p.querySelectorAll("[data-q]").forEach(b => b.addEventListener("click", () => askCoach(b.dataset.q)));
   p.querySelector("#cForm").addEventListener("submit", e => {
     e.preventDefault();
-    if (coach.rec) { stopVoice(); const m = p.querySelector("#cMic"); if (m) { m.classList.remove("on"); m.setAttribute("aria-pressed", "false"); } }
+    if (voice.on) return;
     const v = p.querySelector("#cIn").value.trim(); if (v) { p.querySelector("#cIn").value = ""; askCoach(v); }
   });
   const mic = p.querySelector("#cMic"); if (mic) mic.addEventListener("click", () => toggleVoice(mic));
@@ -1704,36 +1715,78 @@ async function askCoach(q){
   } catch(e){ ans.err = e.message; }
   coach.busy = false; if ($("#cGo")) $("#cGo").disabled = false; drawCoach();
 }
-function stopVoice(){ coach.keep = false; const r = coach.rec; coach.rec = null; try { r && r.stop(); } catch(e){} }
-// Talk as long as you like: the mic keeps listening until you tap it again or tap Ask.
-// Nothing is sent until you tap Ask, so you can read and fix the words first.
-function toggleVoice(btn){
-  if (coach.rec) { coach.keep = false; stopVoice(); btn.classList.remove("on"); btn.setAttribute("aria-pressed", "false"); return; }
-  const inp = $("#cIn"), before = inp.value.trim();
-  let acc = "";
-  const start = () => {
-    const r = new SR(); r.lang = "en-US"; r.interimResults = true; r.continuous = true; r.maxAlternatives = 1;
-    const base = acc;
-    r.onresult = e => {
-      let fin = "", interim = "";
-      const add = (cur, t) => { t = t.trim(); if (!t) return cur; if (cur && t.toLowerCase().startsWith(cur.trim().toLowerCase())) return t; return cur ? cur + " " + t : t; };
-      for (const res of e.results) { if (res.isFinal) fin = add(fin, res[0].transcript); else interim = add(interim, res[0].transcript); }
-      acc = [base, fin].filter(Boolean).join(" ");
-      inp.value = [before, acc, interim].filter(Boolean).join(" ");
-    };
-    r.onerror = e => { if (e.error === "not-allowed" || e.error === "service-not-allowed" || e.error === "audio-capture") { coach.keep = false; const m = $("#cIn"); if (m) m.placeholder = "Allow the microphone for this site to talk to the coach"; } };
-    r.onend = () => {
-      if (coach.keep && coach.rec === r && document.body.contains(btn)) { try { start(); return; } catch(e){} }
-      if (coach.rec === r) coach.rec = null;
-      btn.classList.remove("on"); btn.setAttribute("aria-pressed", "false");
-      if (acc && document.body.contains(inp) && inp.value.trim() !== "") inp.value = [before, acc].filter(Boolean).join(" ");
-    };
-    coach.rec = r; r.start();
-  };
-  coach.keep = true; btn.classList.add("on"); btn.setAttribute("aria-pressed", "true");
-  try { start(); } catch(e){ coach.keep = false; btn.classList.remove("on"); }
-  inp.focus({preventScroll: true});
+// Voice works like dictation in the Claude app: tap the mic, talk, tap the check mark.
+// The recording is transcribed and dropped into the box; nothing sends until you tap Ask.
+const voice = {on: false};
+const canRecord = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && (window.AudioContext || window.webkitAudioContext));
+function wavFrom(chunks, rate){
+  const len = chunks.reduce((s, c) => s + c.length, 0), all = new Float32Array(len); let o = 0; chunks.forEach(c => { all.set(c, o); o += c.length; });
+  const ratio = rate / 16000, n = Math.floor(len / ratio), pcm = new Int16Array(n);
+  for (let i = 0; i < n; i++) { const st = Math.floor(i * ratio), en = Math.min(len, Math.floor((i + 1) * ratio)); let sum = 0; for (let j = st; j < en; j++) sum += all[j]; const v = Math.max(-1, Math.min(1, sum / Math.max(1, en - st))); pcm[i] = v < 0 ? v * 0x8000 : v * 0x7fff; }
+  const buf = new ArrayBuffer(44 + pcm.length * 2), dv = new DataView(buf), w = (off, str) => { for (let i = 0; i < str.length; i++) dv.setUint8(off + i, str.charCodeAt(i)); };
+  w(0, "RIFF"); dv.setUint32(4, 36 + pcm.length * 2, true); w(8, "WAVE"); w(12, "fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+  dv.setUint32(24, 16000, true); dv.setUint32(28, 32000, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true); w(36, "data"); dv.setUint32(40, pcm.length * 2, true);
+  new Int16Array(buf, 44).set(pcm); return new Blob([buf], {type: "audio/wav"});
 }
+function voiceHint(){
+  const L = leagues[coachLeague()]; const names = new Set();
+  if (L && L.detail) { const me = L.detail.teams.find(t => t.mine); (me ? me.roster : []).forEach(p => names.add(p.name)); L.detail.teams.forEach(t => names.add(t.name)); }
+  return [...names].join(", ").slice(0, 500);
+}
+async function startVoice(form){
+  if (voice.on) return;
+  const inp = form.querySelector("#cIn");
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: true, noiseSuppression: true}}); }
+  catch(e){ inp.placeholder = "Allow the microphone for this site to talk to the coach"; return; }
+  const AC = window.AudioContext || window.webkitAudioContext, ctx = new AC();
+  const src = ctx.createMediaStreamSource(stream), proc = ctx.createScriptProcessor(4096, 1, 1), mute = ctx.createGain(); mute.gain.value = 0;
+  Object.assign(voice, {on: true, stream, ctx, src, proc, chunks: [], levels: new Array(36).fill(0), t0: Date.now(), form});
+  proc.onaudioprocess = e => {
+    if (!voice.on) return;
+    const d = e.inputBuffer.getChannelData(0); voice.chunks.push(new Float32Array(d));
+    let peak = 0; for (let i = 0; i < d.length; i += 16) peak = Math.max(peak, Math.abs(d[i]));
+    voice.levels.push(Math.min(1, peak * 2.2)); voice.levels.shift();
+  };
+  src.connect(proc); proc.connect(mute); mute.connect(ctx.destination);
+  form.classList.add("rec");
+  const bar = document.createElement("div"); bar.className = "recbar";
+  bar.innerHTML = '<button type="button" class="recx" aria-label="Cancel recording">×</button><div class="wave" aria-hidden="true">' + voice.levels.map(() => "<i></i>").join("") + '</div><span class="rect">0:00</span><button type="button" class="recok" aria-label="Done talking"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>';
+  form.prepend(bar);
+  bar.querySelector(".recx").addEventListener("click", () => stopVoice(false));
+  bar.querySelector(".recok").addEventListener("click", () => stopVoice(true));
+  const bars = bar.querySelectorAll(".wave i"), tEl = bar.querySelector(".rect");
+  const tick = () => {
+    if (!voice.on) return;
+    voice.levels.forEach((l, i) => { bars[i].style.transform = "scaleY(" + Math.max(0.08, l) + ")"; });
+    const sec = Math.floor((Date.now() - voice.t0) / 1000); tEl.textContent = Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0");
+    if (sec >= 120) return stopVoice(true);
+    voice.raf = requestAnimationFrame(tick);
+  };
+  tick();
+}
+async function stopVoice(keep){
+  if (!voice.on) return;
+  voice.on = false; cancelAnimationFrame(voice.raf);
+  try { voice.src.disconnect(); voice.proc.disconnect(); } catch(e){}
+  try { voice.stream.getTracks().forEach(t => t.stop()); } catch(e){}
+  const rate = voice.ctx.sampleRate; try { voice.ctx.close(); } catch(e){}
+  const form = voice.form; if (!form || !document.body.contains(form)) return;
+  const bar = form.querySelector(".recbar"), inp = form.querySelector("#cIn");
+  if (!keep || !voice.chunks.length) { if (bar) bar.remove(); form.classList.remove("rec"); return; }
+  bar.innerHTML = '<span class="typing"><i></i><i></i><i></i></span><span class="rect">Transcribing…</span>';
+  try {
+    const r = await fetch("/api/transcribe", {method: "POST", headers: {"content-type": "audio/wav", "x-hint": encodeURIComponent(voiceHint())}, body: wavFrom(voice.chunks, rate)});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || "Couldn’t transcribe that.");
+    if (j.text) inp.value = (inp.value.trim() ? inp.value.trim() + " " : "") + j.text;
+    else inp.placeholder = "Didn’t catch that. Try again, or type it.";
+  } catch(e){ inp.placeholder = e.message; }
+  voice.chunks = [];
+  if (bar) bar.remove(); form.classList.remove("rec");
+  inp.focus({preventScroll: true}); try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch(e){}
+}
+function toggleVoice(btn){ const form = btn.closest("form"); if (voice.on) stopVoice(true); else startVoice(form); }
 
 /* ---------- AI weekly recap ---------- */
 async function openRecap(L){
@@ -2656,14 +2709,15 @@ function wireSwitch(v){ v.querySelectorAll("[data-cm]").forEach(b => b.addEventL
 function renderMockTab(v){
   v.innerHTML = "<h2>Mock draft</h2>" + calcSwitch() + renderMock(v);
   wireSwitch(v);
-  v.querySelectorAll("[data-mc]").forEach(el => el.addEventListener(el.tagName === "SELECT" ? "change" : "click", () => {
+  v.querySelectorAll("[data-mc]").forEach(el => el.addEventListener(el.tagName === "SELECT" || el.type === "checkbox" ? "change" : "click", () => {
     const f = el.dataset.mc, val = el.tagName === "SELECT" ? el.value : el.dataset.val, c = mockCfg();
-    if (f === "dyn") c.dyn = val === "1"; else c[f] = Number(val);
+    if (f === "dyn") { c.dyn = val === "1"; c.kind = c.dyn ? "rookie" : "startup"; } else if (f === "kind") c.kind = val; else if (f === "useLeague") c.useLeague = el.checked; else c[f] = Number(val);
     if (c.slot > c.teams) c.slot = 0;
     saveMockCfg(); const keep = mock.st; renderMockTab(v); if (keep && keep.at < keep.order.length) drawMock(v);
   }));
   v.querySelector("#mkStart").addEventListener("click", () => startMock(v));
   if (mock.st) drawMock(v);
+  else if (mockCfg().dyn && mockCfg().kind === "rookie") v.querySelector("#mockBox").innerHTML = '<p class="small muted" style="margin:12px 4px 0">Draft next year’s college class against the rest of your league. The order comes from 1,500 simulated seasons and includes traded picks. Prospects are ranked by a consensus of public 2027 rookie boards (DraftSharks, Dynasty Nerds); each one is valued like the pick where he’s expected to go. Computer teams draft by rank and their roster needs, with some randomness.</p>';
   else v.querySelector("#mockBox").innerHTML = '<p class="small muted" style="margin:12px 4px 0">You draft against computer teams that pick by player value and fill their rosters sensibly, with some randomness so every mock plays out differently. Kickers and defenses are left out; take them last in your real draft.</p>';
 }
 function wireCalc(v){
@@ -2721,6 +2775,7 @@ function mockNeed(team, pos, cfg, round){
 function mockOrder(cfg){ const out = []; for (let r = 0; r < cfg.rounds; r++) for (let k = 0; k < cfg.teams; k++) out.push(r % 2 === 0 ? k : cfg.teams - 1 - k); return out; }
 async function startMock(v){
   const cfg = mockCfg();
+  if (cfg.dyn && cfg.kind === "rookie") { try { return await startRookieMock(v, cfg); } catch(e){ v.querySelector("#mockBox").innerHTML = '<div class="err">Couldn’t set up the rookie draft: ' + esc(e.message) + "</div>"; return; } }
   v.querySelector("#mockBox").innerHTML = '<p class="spin">Setting up the draft room…</p>';
   const pack = await loadValues(cfg.ppr, cfg.teams, cfg.qbs, cfg.dyn);
   const prem = qbPremium(cfg.teams, cfg.qbs);
@@ -2741,18 +2796,21 @@ async function startMock(v){
   mockAdvance(v);
 }
 function mockAiPick(st){
-  const t = st.order[st.at], round = Math.floor(st.at / st.cfg.teams) + 1, cand = st.pool.slice(0, 14);
+  const t = st.order[st.at], round = Math.floor(st.at / st.cfg.teams) + 1, cand = st.pool.slice(0, st.kind === "rookie" ? 8 : 14);
+  if (st.kind === "rookie") { let best = null, bs = -1; cand.forEach(p => { const sc = p.v * rookieNeed(st, t, p.pos) * Math.exp(0.15 * (Math.random() * 2 - 1)); if (sc > bs) { bs = sc; best = p; } }); return best || st.pool[0]; }
   let best = null, bs = -1;
   cand.forEach(p => { const noise = Math.exp(0.16 * (Math.random() * 2 - 1) * 1.7); const sc = p.v * mockNeed(st.teams[t], p.pos, st.cfg, round) * noise; if (sc > bs) { bs = sc; best = p; } });
   return best || st.pool[0];
 }
 function mockSuggest(st){
   const round = Math.floor(st.at / st.cfg.teams) + 1;
+  if (st.kind === "rookie") return st.pool.slice(0, 10).map(p => ({p, s: p.v * rookieNeed(st, st.slot, p.pos)})).sort((a, b) => b.s - a.s)[0].p;
   return st.pool.slice(0, 20).map(p => ({p, s: p.v * mockNeed(st.teams[st.slot], p.pos, st.cfg, round)})).sort((a, b) => b.s - a.s)[0].p;
 }
 function mockTake(st, p){
   const t = st.order[st.at]; st.pool = st.pool.filter(x => x !== p);
-  st.teams[t].push(Object.assign({}, p, {pick: st.at + 1, round: Math.floor(st.at / st.cfg.teams) + 1}));
+  const slotV = st.kind === "rookie" ? (st.slotVals[st.at] || p.v) : null;
+  st.teams[t].push(Object.assign({}, p, {pick: st.at + 1, round: Math.floor(st.at / st.cfg.teams) + 1, slotV}));
   st.log.unshift({at: st.at, t, p}); st.at++;
 }
 function mockAdvance(v, autoMe){
@@ -2760,8 +2818,13 @@ function mockAdvance(v, autoMe){
   while (st.at < st.order.length && (st.order[st.at] !== st.slot || autoMe)) mockTake(st, st.order[st.at] === st.slot ? mockSuggest(st) : mockAiPick(st));
   drawMock(v);
 }
-function pickLabel(st, at){ const r = Math.floor(at / st.cfg.teams) + 1, k = at % st.cfg.teams + 1; return r + "." + String(k).padStart(2, "0"); }
+function pickLabel(st, at){ if (st.labels) return st.labels[at].split(" (")[0]; const r = Math.floor(at / st.cfg.teams) + 1, k = at % st.cfg.teams + 1; return r + "." + String(k).padStart(2, "0"); }
 function mockGrades(st){
+  if (st.kind === "rookie") {
+    const sc = st.teams.map((tm, i) => { const exp = tm.reduce((s, p) => s + p.slotV, 0), got = tm.reduce((s, p) => s + p.v, 0); return tm.length ? got / Math.max(1, exp) : 0; });
+    const ord = sc.map((x, i) => i).filter(i => st.teams[i].length).sort((a, b) => sc[b] - sc[a]), G = ["A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D", "F"];
+    return st.teams.map((tm, i) => { const r = ord.indexOf(i); return r < 0 ? {rank: null, grade: "–", tot: 0} : {rank: r + 1, grade: G[Math.min(G.length - 1, Math.floor(r / ord.length * G.length))], tot: sc[i]}; });
+  }
   const slots = ["QB", "RB", "RB", "WR", "WR", "WR", "TE", "FLEX"].concat(st.cfg.qbs === 2 ? ["SUPER_FLEX"] : []);
   const tot = st.teams.map(tm => { const lu = bestLineup(tm, slots, p => p.v); return lu.total + 0.25 * (tm.reduce((s, p) => s + p.v, 0) - lu.total); });
   const order = tot.map((x, i) => i).sort((a, b) => tot[b] - tot[a]);
@@ -2774,10 +2837,11 @@ function drawMock(v){
   if (done) {
     const gr = mockGrades(st), me = gr[st.slot];
     const steals = mine.map(p => ({p, d: p.pick - p.adp})).filter(x => x.d >= cfg.teams).sort((a, b) => b.d - a.d).slice(0, 3);
-    box.innerHTML = '<div class="card mockdone"><div class="mgrade"><b>' + me.grade + "</b><span>Your draft<small>#" + me.rank + " of " + cfg.teams + " by projected roster value</small></span></div>" +
+    box.innerHTML = '<div class="card mockdone"><div class="mgrade"><b>' + me.grade + "</b><span>" + (st.kind === "rookie" ? "Your " + st.season + " rookie class" : "Your draft") + "<small>" + (me.rank ? "#" + me.rank + " of " + st.teams.filter(t => t.length).length + (st.kind === "rookie" ? " by value for the picks used" : " by projected roster value") : "") + "</small></span></div>" +
+      (st.kind === "rookie" ? '<p class="small muted" style="margin:8px 0 0">Graded on the value of who you took versus the value of the picks you used.</p>' : "") +
       (steals.length ? '<p class="small" style="margin:10px 0 0">Best values: ' + steals.map(x => esc(x.p.name) + " (" + pickLabel(st, x.p.pick - 1) + ", about " + x.d + " picks later than his value)").join("; ") + ".</p>" : "") +
       '<div class="sendrow" style="margin-top:12px"><button type="button" class="btn" id="mkAgain">Draft again</button><button type="button" class="btn ghost" id="mkShare">Share my team</button></div><p class="small" id="mkMsg" style="margin:6px 0 0"></p></div>' +
-      "<h3>Your team</h3><div class=\"card mroster\">" + mine.map(p => '<div class="mrow"><span class="dslot">' + pickLabel(st, p.pick - 1) + "</span>" + posTag(p) + '<span class="sn">' + esc(p.name) + "<small>" + esc([p.team, p.age ? "age " + Math.round(p.age) : ""].filter(Boolean).join(" · ")) + '</small></span><span class="tv">' + fmtV(p.v) + "</span></div>").join("") + "</div>" +
+      (st.kind === "rookie" ? "<h3>Your picks</h3>" : "<h3>Your team</h3>") + "<div class=\"card mroster\">" + mine.map(p => '<div class="mrow"><span class="dslot">' + pickLabel(st, p.pick - 1) + "</span>" + posTag(p) + '<span class="sn">' + esc(p.name) + "<small>" + esc([p.team, p.age ? "age " + Math.round(p.age) : ""].filter(Boolean).join(" · ")) + '</small></span><span class="tv">' + fmtV(p.v) + "</span></div>").join("") + "</div>" +
       "<h3>Every team</h3><div class=\"card race\">" + st.teams.map((tm, i) => ({i, g: gr[i]})).sort((a, b) => a.g.rank - b.g.rank).map(x => '<div class="mrow' + (x.i === st.slot ? " me" : "") + '"><span class="mg">' + x.g.grade + '</span><span class="sn">' + esc(st.names[x.i]) + "<small>" + esc(st.teams[x.i].slice(0, 3).map(p => p.name).join(", ")) + "</small></span></div>").join("") + "</div>";
     box.querySelector("#mkAgain").addEventListener("click", () => startMock(v));
     box.querySelector("#mkShare").addEventListener("click", async () => {
@@ -2791,8 +2855,9 @@ function drawMock(v){
   const myNext = []; for (let k = st.at; k < st.order.length && myNext.length < 3; k++) if (st.order[k] === st.slot) myNext.push(pickLabel(st, k));
   const q = mock.q.toLowerCase(), list = st.pool.filter(p => (mock.filter === "ALL" || p.pos === mock.filter) && (!q || p.name.toLowerCase().includes(q))).slice(0, 40);
   const counts = {QB: 0, RB: 0, WR: 0, TE: 0}; mine.forEach(p => counts[p.pos]++);
-  box.innerHTML = '<div class="card clock"><div><small>On the clock · Round ' + round + "</small><b>You · pick " + pickLabel(st, st.at) + '</b></div><span class="chip">Next: ' + (myNext.slice(1).join(", ") || "last pick") + "</span></div>" +
-    '<div class="card sugg"><small class="muted">Best pick for you</small><div class="mrow">' + posTag(sug) + '<span class="sn"><b>' + esc(sug.name) + "</b><small>" + esc([sug.team, "value rank " + sug.adp].filter(Boolean).join(" · ")) + '</small></span><button type="button" class="btn" data-mk="' + esc(sug.id) + '">Draft</button></div></div>' +
+  const fromLab = st.labels && st.labels[st.at].includes("(from") ? '<small>' + esc(st.labels[st.at].split(" (")[1].replace(")", "")) + "</small>" : "";
+  box.innerHTML = '<div class="card clock"><div><small>On the clock · Round ' + (st.labels ? st.labels[st.at].split(".")[0] : round) + (st.kind === "rookie" ? " · " + st.season + " rookie draft" : "") + "</small><b>You · pick " + pickLabel(st, st.at) + "</b>" + fromLab + '</div><span class="chip">Next: ' + (myNext.slice(1).join(", ") || "last pick") + "</span></div>" +
+    '<div class="card sugg"><small class="muted">Best pick for you</small><div class="mrow">' + posTag(sug) + '<span class="sn"><b>' + esc(sug.name) + "</b><small>" + esc([sug.team, (sug.rookie ? "consensus #" : "value rank ") + sug.adp].filter(Boolean).join(" · ")) + '</small></span><button type="button" class="btn" data-mk="' + esc(sug.id) + '">Draft</button></div></div>' +
     '<div class="mybar">' + ["QB", "RB", "WR", "TE"].map(ps => '<span><em class="pt" data-pos="' + ps + '">' + ps + "</em> " + counts[ps] + "</span>").join("") + '<button type="button" class="back" id="mkAuto" style="margin-left:auto;font-size:14px">Auto-draft the rest</button></div>' +
     '<div class="seg" role="group" aria-label="Position" style="margin-top:10px">' + ["ALL", "QB", "RB", "WR", "TE"].map(ps => '<button type="button" data-mf="' + ps + '" aria-pressed="' + (mock.filter === ps) + '">' + (ps === "ALL" ? "All" : ps) + "</button>").join("") + "</div>" +
     '<div class="psearch" style="margin-top:10px"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="mkQ" type="search" placeholder="Find a player" autocomplete="off" aria-label="Find a player" value="' + esc(mock.q) + '"></div>' +
@@ -2804,14 +2869,81 @@ function drawMock(v){
   const qi = box.querySelector("#mkQ"); qi.addEventListener("input", () => { mock.q = qi.value; const pos = qi.selectionStart; drawMock(v); const n2 = v.querySelector("#mkQ"); if (n2) { n2.focus(); n2.setSelectionRange(pos, pos); } });
   box.querySelector("#mkAuto").addEventListener("click", () => mockAdvance(v, true));
 }
+/* ---------- Rookie draft mock: next year's college class, your league's real pick order ---------- */
+let prospectsP = null;
+function getProspects(){ if (!prospectsP) prospectsP = api("/api/prospects").catch(e => { prospectsP = null; throw e; }); return prospectsP; }
+function prospectBoard(P, sf){
+  const lists = P.sources.filter(x => x.format === "any" || x.format === (sf ? "sf" : "1qb"));
+  const all = {}, key = n => norm(n).replace(/(jr|sr|ii|iii|iv)$/, "");
+  lists.forEach(src => src.list.forEach(([n, pos, school], i) => { const k = key(n) + "|" + pos; (all[k] = all[k] || {name: n, pos, school, ranks: []}).ranks.push({src, r: i + 1}); }));
+  Object.values(all).forEach(x => { const r = lists.map(src => { const h = x.ranks.find(y => y.src === src); return h ? h.r : src.list.length + 12; }); x.avg = r.reduce((a, b) => a + b, 0) / r.length; });
+  return Object.values(all).sort((a, b) => a.avg - b.avg).map((x, i) => Object.assign(x, {rank: i + 1}));
+}
+async function projectDraft(L){
+  const d = L.detail, [sched, picks] = await Promise.all([getSchedule(L), loadPicks(L)]);
+  const N = d.teams.length, S = simDetail(d, sched, 1500);
+  const owner = {}; let season = null, rounds = 0;
+  Object.keys(picks).forEach(oid => (picks[oid] || []).forEach(pk => { const [, sy, rd, orig] = pk.id.split(":"); owner[sy + ":" + rd + ":" + orig] = oid; if (season == null || Number(sy) < season) season = Number(sy); }));
+  Object.keys(owner).forEach(k => { const [sy, rd] = k.split(":"); if (Number(sy) === season) rounds = Math.max(rounds, Number(rd)); });
+  if (!season) { season = (Number(d.season) || new Date().getFullYear()) + 1; rounds = 4; }
+  const exp = d.teams.map((t, i) => ({t, i, avg: S.slotDist[i].reduce((s, c, k) => s + c * (k + 1), 0) / S.n})).sort((a, b) => a.avg - b.avg);
+  const order = [];
+  for (let rd = 1; rd <= rounds; rd++) exp.forEach((x, k) => { const own = owner[season + ":" + rd + ":" + x.t.id] || x.t.id; order.push({rd, slot: k + 1, orig: x.t, owner: d.teams.find(t => t.id === own) || x.t}); });
+  return {season, rounds, order};
+}
+async function startRookieMock(v, cfg){
+  const box = v.querySelector("#mockBox");
+  box.innerHTML = '<p class="spin">Projecting the draft order and loading the ' + "2027 class…</p>";
+  const P = await getProspects();
+  const L = cfg.useLeague ? leagues.find(x => x.detail && x.detail.teams.some(t => t.mine) && (x.detail.maxKeepers || /dynasty|keeper/i.test(x.meta.name)) && ["flea", "sleeper"].includes(x.meta.platform)) : null;
+  const board = prospectBoard(P, cfg.qbs === 2);
+  const N = L ? L.detail.teams.length : cfg.teams;
+  let pv = {}; try { pv = (await loadValues(cfg.ppr, N, cfg.qbs, true)).v; } catch(e){}
+  const pickV = (rd, slot) => { const tier = slot <= N / 3 ? " (Early)" : slot > N * 2 / 3 ? " (Late)" : " (Mid)", lab = P.class + " " + (["", "1st", "2nd", "3rd", "4th"][rd] || "4th"); const r = pv["pick:" + lab + tier] || pv["pick:" + lab]; return r ? r[0] : null; };
+  // Smooth value curve through the market's pick values: the #1 prospect is worth a bit more than an early 1st, the last pick about a late 4th.
+  const top = (pickV(1, 1) || 5000) * 1.12, bottom = pickV(4, N) || pickV(3, N) || top * 0.12, span = Math.max(8, N * 4 - 1), k = Math.log(top / Math.max(50, bottom)) / span;
+  board.forEach(x => { x.v = Math.round(top * Math.exp(-k * (x.rank - 1))); x.id = "pr:" + x.rank; x.team = x.school; x.adp = x.rank; x.rookie = true; });
+  let names, slotIdx, order = [], labels = [], teamsRosters = null;
+  if (L) {
+    const proj = await projectDraft(L), T = L.detail.teams;
+    names = T.map(t => t.name); slotIdx = T.findIndex(t => t.mine);
+    proj.order.forEach(o => { order.push(T.indexOf(o.owner)); labels.push(o.rd + "." + String(o.slot).padStart(2, "0") + (o.owner !== o.orig ? " (from " + o.orig.name + ")" : "")); });
+    teamsRosters = T.map(t => t.roster);
+    cfg.rounds = proj.rounds;
+  } else {
+    names = Array.from({length: N}, (_, i) => "Team " + (i + 1)); slotIdx = cfg.slot ? cfg.slot - 1 : Math.floor(Math.random() * N); names[slotIdx] = "You";
+    const R = Math.min(cfg.rounds, 5);
+    for (let rd = 1; rd <= R; rd++) for (let k = 0; k < N; k++) { order.push(k); labels.push(rd + "." + String(k + 1).padStart(2, "0")); }
+  }
+  // Not enough named prospects for every pick? The rest are late-round fliers.
+  while (board.length < order.length + 8) { const r = board.length + 1; board.push({name: "Late-round flier #" + (r - 50 > 0 ? r - 50 : r), pos: ["RB", "WR", "WR", "TE", "QB"][r % 5], team: "", school: "", rank: r, adp: r, id: "pr:" + r, v: Math.round(6500 * Math.pow(0.95, r - 1)), rookie: true, filler: true}); }
+  const slotVals = board.map(x => x.v).sort((a, b) => b - a);
+  mock.st = {kind: "rookie", slotVals, season: P.class, src: P, pool: board, order, labels, at: 0, slot: slotIdx, names, teams: names.map(() => []), rosters: teamsRosters, log: [], cfg: Object.assign({}, cfg, {teams: N}), league: L ? L.meta.name : null};
+  mock.filter = "ALL"; mock.q = "";
+  mockAdvance(v);
+}
+function rookieNeed(st, t, pos){
+  const ro = st.rosters ? st.rosters[t] : [], drafted = st.teams[t];
+  const c = {QB: 0, RB: 0, WR: 0, TE: 0}; ro.concat(drafted).forEach(p => { if (c[p.pos] != null) c[p.pos]++; });
+  const want = st.cfg.qbs === 2 ? {QB: 4, RB: 6, WR: 7, TE: 3} : {QB: 2, RB: 6, WR: 7, TE: 3};
+  return c[pos] < want[pos] ? 1.06 : c[pos] > want[pos] + 2 ? 0.95 : 1; // rookie drafts are mostly best player available
+}
+
 function renderMock(v){
   const cfg = mockCfg();
   const seg = (name, opts, curV) => '<div class="seg" role="group" aria-label="' + name + '">' + opts.map(o => '<button type="button" data-mc="' + name + '" data-val="' + o[0] + '" aria-pressed="' + (String(curV) === String(o[0])) + '">' + o[1] + "</button>").join("") + "</div>";
   const sel = (name, label, opts, curV) => '<label class="cteams">' + label + ' <select data-mc="' + name + '">' + opts.map(o => '<option value="' + o[0] + '"' + (String(o[0]) === String(curV) ? " selected" : "") + ">" + o[1] + "</option>").join("") + "</select></label>";
   const live = mock.st && mock.st.at > 0 && mock.st.at < mock.st.order.length;
-  return '<div class="card cfmt">' + seg("dyn", [[1, "Dynasty startup"], [0, "Redraft"]], cfg.dyn ? 1 : 0) + seg("qbs", [[1, "1 QB"], [2, "Superflex"]], cfg.qbs) +
-    '<div class="mset">' + sel("teams", "Teams", [8, 10, 12, 14, 16].map(n => [n, n]), cfg.teams) + sel("slot", "Your pick", [[0, "Random"]].concat(Array.from({length: cfg.teams}, (_, i) => [i + 1, "#" + (i + 1)])), cfg.slot) + sel("rounds", "Rounds", [8, 10, 12, 15, 18, 20].map(n => [n, n]), cfg.rounds) + "</div>" +
-    '<button type="button" class="btn" id="mkStart" style="width:100%;margin-top:4px">' + (live ? "Restart the draft" : mock.st ? "Draft again" : "Start mock draft") + "</button></div>" +
+  const dynL = leagues.find(x => x.detail && x.detail.teams.some(t => t.mine) && (x.detail.maxKeepers || /dynasty|keeper/i.test(x.meta.name)) && ["flea", "sleeper"].includes(x.meta.platform));
+  if (cfg.kind == null) cfg.kind = cfg.dyn ? "rookie" : "startup";
+  if (cfg.useLeague == null) cfg.useLeague = true;
+  const rookie = cfg.dyn && cfg.kind === "rookie", viaLeague = rookie && cfg.useLeague && dynL;
+  return '<div class="card cfmt">' + seg("dyn", [[1, "Dynasty"], [0, "Redraft"]], cfg.dyn ? 1 : 0) +
+    (cfg.dyn ? seg("kind", [["rookie", "Rookie draft · 2027 class"], ["startup", "Startup"]], cfg.kind) : "") +
+    seg("qbs", [[1, "1 QB"], [2, "Superflex"]], cfg.qbs) +
+    (rookie && dynL ? '<label class="toggle" style="margin:2px 0"><input type="checkbox" data-mc="useLeague"' + (cfg.useLeague ? " checked" : "") + "> Use " + esc(dynL.meta.name) + "’s projected draft order and traded picks</label>" : "") +
+    (viaLeague ? "" : '<div class="mset">' + sel("teams", "Teams", [8, 10, 12, 14, 16].map(n => [n, n]), cfg.teams) + sel("slot", "Your pick", [[0, "Random"]].concat(Array.from({length: cfg.teams}, (_, i) => [i + 1, "#" + (i + 1)])), cfg.slot) + sel("rounds", "Rounds", (rookie ? [2, 3, 4, 5] : [8, 10, 12, 15, 18, 20]).map(n => [n, n]), rookie ? Math.min(cfg.rounds, 5) : cfg.rounds) + "</div>") +
+    '<button type="button" class="btn" id="mkStart" style="width:100%;margin-top:4px">' + (live ? "Restart the draft" : mock.st ? "Draft again" : rookie ? "Start rookie mock draft" : "Start mock draft") + "</button></div>" +
     '<div id="mockBox"></div>';
 }
 
