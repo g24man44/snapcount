@@ -1733,6 +1733,11 @@ async function buildCtx(L){
       if (ot && ot.roster.length) { const os = ot.roster.filter(p => p.slot === "start"); out.push((os.length ? "Opponent starters:\n" + os.sort(byPos).map(p => "- " + pline(L, p)).join("\n") : "Opponent roster:\n" + ot.roster.filter(p => p.slot !== "ir").sort(byPos).slice(0, 22).map(p => "- " + pline(L, p)).join("\n"))); }
     }
   }
+  if (V && dyn) {
+    const pk = Object.keys(V).filter(k => /^pick:\d{4} (1st|2nd|3rd)/.test(k)).sort().map(k => k.slice(5) + " " + Math.round(V[k][0]));
+    if (pk.length) out.push("\nDRAFT PICK VALUES (same scale as player values; Early/Mid/Late = where in the round the pick lands; years with no tier listed use the plain value; picks further out than listed are worth a bit less than the last year shown): " + pk.join(", "));
+    try { const mp = me && (await loadPicks(L))[me.id] || []; if (mp.length) out.push("MY DRAFT PICKS: " + mp.map(x => x.name + " " + Math.round(((V[x.vkey] || V[x.fallback] || [0])[0]) || 0)).join(", ")); } catch(e){}
+  }
   out.push("\nSTANDINGS:\n" + stand.map((t, i) => (i + 1) + ". " + t.name + (t.mine ? " (ME)" : "") + " " + t.w + "-" + t.l + (t.t ? "-" + t.t : "") + ", PF " + fmt(t.pf) + (t.div != null ? ", div " + t.div : "")).join("\n"));
   try {
     const fa = {};
