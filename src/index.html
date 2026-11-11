@@ -609,8 +609,8 @@ nav.tabbar button{padding-left:0;padding-right:0}
 .wbar{display:grid;grid-template-columns:44px 1fr 36px;gap:10px;align-items:center;font-weight:700;font-variant-numeric:tabular-nums}
 .wtrack{height:10px;border-radius:6px;background:var(--surface3);overflow:hidden}.wtrack span{display:block;height:100%;background:var(--accent)}
 .exp{color:var(--accent)}
-.wrap{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:8px;scrollbar-width:none}
-.wrap::-webkit-scrollbar{display:none}
+.wrapcards{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:8px;scrollbar-width:none}
+.wrapcards::-webkit-scrollbar{display:none}
 .wcard{flex:none;width:82%;scroll-snap-align:center;min-height:300px;border-radius:22px;padding:22px;display:flex;flex-direction:column;gap:8px;background:var(--surface2)}
 .wcard.c0{background:linear-gradient(160deg,#1f3b73,#14213f)}.wcard.c1{background:linear-gradient(160deg,#5b3a07,#2a1d08)}.wcard.c2{background:linear-gradient(160deg,#0f5132,#0d2a22)}.wcard.c3{background:linear-gradient(160deg,#4a1d5e,#1e1230)}
 .wcard small{font-weight:750;color:#ffd27a}
@@ -5042,7 +5042,7 @@ async function openWrapped(L){
     cards.push({k: "League awards", big: topPF.name, sub: "Highest scorer: " + fmt(topPF.pf) + " points", lines: [unluck ? "Toughest schedule: " + unluck.name + " (" + fmt(pa[unluck.id] || 0) + " points against)" : ""].filter(Boolean)});
     const done = d.week && d.playoffStart && d.week > d.playoffStart + 2;
     body.innerHTML = '<p class="muted" style="margin:-6px 2px 12px">' + (done ? "Your " + (d.season || "") + " season, wrapped." : "Your season so far, through week " + (weeks.length ? weeks[weeks.length - 1].w : "?") + ". The final version arrives after the championship.") + " Swipe through, and share any card.</p>" +
-      '<div class="wrap">' + cards.map((c, i) => '<div class="wcard c' + (i % 4) + '"><small>' + esc(c.k) + '</small><b class="wbig">' + esc(c.big) + "</b><span>" + esc(c.sub) + "</span>" + (c.lines || []).map(l => "<p>" + esc(l) + "</p>").join("") + '<button type="button" class="btn ghost sm" data-wshare="' + i + '">Share</button></div>').join("") + "</div>";
+      '<div class="wrapcards">' + cards.map((c, i) => '<div class="wcard c' + (i % 4) + '"><small>' + esc(c.k) + '</small><b class="wbig">' + esc(c.big) + "</b><span>" + esc(c.sub) + "</span>" + (c.lines || []).map(l => "<p>" + esc(l) + "</p>").join("") + '<button type="button" class="btn ghost sm" data-wshare="' + i + '">Share</button></div>').join("") + "</div>";
     body.querySelectorAll("[data-wshare]").forEach(b => b.addEventListener("click", () => { const c = cards[+b.dataset.wshare]; shareCard({kicker: L.meta.name + " · " + c.k, big: c.big.length > 7 ? "" : c.big, title: c.big.length > 7 ? c.big : c.sub, lines: (c.big.length > 7 ? [{text: c.sub}] : []).concat((c.lines || []).map(t => ({text: t})))}); }));
   } catch(e){ body.innerHTML = '<div class="err">' + esc(e.message) + "</div>"; }
 }

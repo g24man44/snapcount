@@ -8,6 +8,7 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - Build with `node build.js && node --check worker.js`. Also syntax-check the inline `<script>` in `src/index.html`.
 - Push to `main` on github.com/g24man44/snapcount; Cloudflare Workers Builds deploys it. Confirm the check run passes.
 - Owner's real league: Fleaflicker league 183120, team 1245245 ("Bumblebee tuna"), 16 teams, dynasty superflex, 18 keepers.
+- Before pushing, look at a 390px screenshot of the home screen: the header must span the full width above the content. Never reuse a CSS class name that already exists (check with grep first); `.wrap` is the page container.
 - Never break what works. Test in a headless browser against real Fleaflicker data before pushing. If tests fail, don't push.
 
 ## Next up (top first)
