@@ -236,6 +236,20 @@ Use ONLY the TRADE DATA. Never invent stats, injuries or news.
 Write it in a friendly, confident, casual voice, like texting a friend in your league. 3 to 5 sentences, under 90 words.
 Lead with why the deal helps THEM (their weak positions, contending or rebuilding, what they get), mention one honest reason it works for you too, and end with an easy next step ("open to tweaks", "let me know").
 No greeting fluff, no hashtags, no emojis, no bullet points. Don't mention values, apps or algorithms.`;
+const BRIEF_SYS = `You are the host of a two-minute morning fantasy football audio briefing made for one listener about their team.
+Use ONLY the LEAGUE DATA. Never invent stats, news or injuries. It will be read aloud, so write for the ear:
+no bullet points, no symbols, no tables, no abbreviations like "pts" (say "points"), spell numbers naturally, short sentences.
+Structure: a one-line warm open with today's date and their record; injury and practice news on their players that matters; their matchup this week (projection and win chance if given) and one start/sit call;
+one waiver or trade move worth making today, with a specific name from the data; a quick sign-off. 220 to 320 words.`;
+const ROAST_SYS = `You write a funny, good-natured roast of each fantasy manager's worst decisions this week, for the league group chat.
+Use ONLY the DATA: points left on the bench, the worst starter each team played, and the score. Never invent anything.
+One short roast per team (one or two sentences), funniest first, then crown a "Blunder of the week". Playful, never mean about anything but fantasy decisions. Under 330 words.`;
+const DRAFT_SYS = `You are a fantasy football columnist writing the league's official draft write-up, the way a good NFL draft analyst grades a real draft: honest, specific, a little funny.
+Use ONLY DRAFT DATA (each team's picks with round.slot, position, value today and its expected value for that slot, the grade, steals and reaches). Never invent players, stats or picks.
+Format: a one-line headline. Then every team, best grade first, as "**Team name — grade**" followed by 2–3 sentences: their best pick, their worst reach or a questionable choice, and one line on how the draft shapes their roster. Keep jokes grounded in the actual picks (a reach, a position run, hoarding RBs); witty, never absurd or mean. End with "Steal of the draft" and "Reach of the draft" lines. Under 650 words.`;
+const MATCHUPS_SYS = `You write a recap of every matchup in one fantasy football league week, like a beat writer: what decided each game, told with some humor but grounded in fact.
+Use ONLY WEEK DATA (scores, top scorers, duds, bench points left, whether the loser would have won with their best lineup). Never invent stats or events.
+Format: a headline line, then for each matchup a bold line "**Winner score, Loser score**" and 2–3 sentences on why it went that way (the star, the dud, a lineup mistake that cost a game, a blowout or a nail-biter). Close with a "Game of the week" line. Under 600 words.`;
 const RECAP_SYS = `You write a punchy, funny weekly fantasy football league recap for a league group chat, like a sports columnist roasting friends.
 Use ONLY the matchups, scores, standings and player points in LEAGUE DATA. Never invent stats or events.
 Format: a headline line, then one short paragraph per matchup (winner, score, the star or the dud from the data), then a "Power rankings" list of every team (one line each with a quip), then one closing line. Under 380 words. No emojis overload: at most one per section.`;
@@ -249,17 +263,17 @@ export async function coachRoute(request, env) {
   if (request.method !== "POST") return out({ error: "POST only" }, 405);
   if (!env.AI) return out({ error: "The AI coach isn't switched on for this app yet." }, 503);
   const b = await request.json().catch(() => ({}));
-  const mode = b.mode === "recap" ? "recap" : b.mode === "negotiate" ? "negotiate" : b.mode === "pitch" ? "pitch" : "coach";
-  const ctx = String(b.ctx || "").slice(0, 14000);
+  const mode = ["recap", "negotiate", "pitch", "brief", "roast", "draft", "matchups"].includes(b.mode) ? b.mode : "coach";
+  const ctx = String(b.ctx || "").slice(0, b.mode === "draft" ? 22000 : 14000);
   const q = String(b.q || "").slice(0, 600);
-  if (mode !== "recap" && mode !== "pitch" && !q.trim()) return out({ error: "Ask a question." }, 400);
+  if ((mode === "coach" || mode === "negotiate") && !q.trim()) return out({ error: "Ask a question." }, 400);
   const hist = (Array.isArray(b.history) ? b.history : []).slice(mode === "negotiate" ? -12 : -6).map(m => ({ role: m.role === "assistant" ? "assistant" : "user", content: String(m.content || "").slice(0, 1500) }));
-  const messages = [{ role: "system", content: mode === "pitch" ? PITCH_SYS + "\n\nTRADE DATA:\n" + ctx : mode === "negotiate" ? NEGO_SYS + "\n\nTRADE DATA:\n" + ctx : (mode === "recap" ? RECAP_SYS : COACH_SYS) + "\n\nLEAGUE DATA:\n" + ctx }]
-    .concat(mode === "pitch" ? [] : hist).concat([{ role: "user", content: mode === "recap" ? "Write this week's recap." : mode === "pitch" ? "Write the message." : q }]);
+  const messages = [{ role: "system", content: mode === "brief" ? BRIEF_SYS + "\n\nLEAGUE DATA:\n" + ctx : mode === "roast" ? ROAST_SYS + "\n\nDATA:\n" + ctx : mode === "draft" ? DRAFT_SYS + "\n\nDRAFT DATA:\n" + ctx : mode === "matchups" ? MATCHUPS_SYS + "\n\nWEEK DATA:\n" + ctx : mode === "pitch" ? PITCH_SYS + "\n\nTRADE DATA:\n" + ctx : mode === "negotiate" ? NEGO_SYS + "\n\nTRADE DATA:\n" + ctx : (mode === "recap" ? RECAP_SYS : COACH_SYS) + "\n\nLEAGUE DATA:\n" + ctx }]
+    .concat(["pitch", "brief", "roast", "draft", "matchups"].includes(mode) ? [] : hist).concat([{ role: "user", content: mode === "recap" ? "Write this week's recap." : mode === "pitch" ? "Write the message." : mode === "brief" ? "Write today's briefing." : mode === "roast" ? "Write the roast." : mode === "draft" ? "Write the draft write-up." : mode === "matchups" ? "Write the matchup recaps." : q }]);
   let lastErr = null;
   for (const model of COACH_MODELS) {
     try {
-      const stream = await env.AI.run(model, { messages, stream: true, max_tokens: mode === "recap" ? 900 : mode === "negotiate" ? 260 : 600, temperature: mode === "recap" ? 0.8 : mode === "negotiate" ? 0.7 : 0.4 });
+      const stream = await env.AI.run(model, { messages, stream: true, max_tokens: mode === "draft" || mode === "matchups" ? 1300 : mode === "recap" || mode === "brief" || mode === "roast" ? 900 : mode === "negotiate" ? 260 : 600, temperature: mode === "recap" || mode === "roast" ? 0.85 : mode === "draft" || mode === "matchups" ? 0.7 : mode === "brief" ? 0.5 : mode === "negotiate" ? 0.7 : 0.4 });
       return new Response(stream, { headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store", "x-model": model } });
     } catch (e) { lastErr = e; }
   }
@@ -448,4 +462,64 @@ export async function syncRoute(request, url, env) {
     return out({ ok: true });
   }
   return out({ error: "Method not allowed" }, 405);
+}
+
+
+/* ---------- read-aloud for the morning briefing (Workers AI text-to-speech) ---------- */
+export async function ttsRoute(request, env) {
+  if (request.method !== "POST") return out({ error: "POST only" }, 405);
+  if (!env.AI) return out({ error: "Voice isn't switched on for this app yet." }, 503);
+  const b = await request.json().catch(() => ({}));
+  const text = String(b.text || "").replace(/[*#_`]/g, "").slice(0, 900);
+  if (!text.trim()) return out({ error: "Nothing to read." }, 400);
+  const toBytes = a => { if (!a) return null; if (typeof a === "string") { const bin = atob(a), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; } return null; };
+  try {
+    const r = await env.AI.run("@cf/deepgram/aura-1", { text, speaker: "asteria" }, { returnRawResponse: true });
+    if (r && r.body && r.ok !== false) return new Response(r.body, { headers: { "content-type": r.headers.get("content-type") || "audio/mpeg", "cache-control": "no-store" } });
+  } catch (e) {}
+  try {
+    const r = await env.AI.run("@cf/myshell-ai/melotts", { prompt: text, lang: "en" });
+    const bytes = r instanceof ReadableStream ? new Uint8Array(await new Response(r).arrayBuffer()) : toBytes(r && r.audio);
+    if (bytes && bytes.length) return new Response(bytes, { headers: { "content-type": "audio/mpeg", "cache-control": "no-store" } });
+  } catch (e) {}
+  return out({ error: "voice unavailable" }, 502);
+}
+
+/* ---------- shared league boards: trade market and weekly pick'em ---------- */
+// Anyone in a league who uses Snap Count reads and writes the same board, keyed by league.
+// Each post is tied to a team and the device that made it, so only that device can change it.
+const okLid = (p, l) => ["flea", "sleeper", "espn", "mfl"].includes(p) && /^[A-Za-z0-9_-]{1,40}$/.test(l);
+export async function marketRoute(request, url, env) {
+  if (!env.SNAP) return out({ error: "unavailable" }, 503);
+  const p = url.searchParams.get("p") || "", l = url.searchParams.get("lid") || "";
+  if (!okLid(p, l)) return out({ error: "Bad league" }, 400);
+  const key = "mkt:" + p + ":" + l;
+  const board = (await env.SNAP.get(key, "json")) || {};
+  if (request.method === "GET") { const now = Date.now(); for (const t in board) if (now - board[t].at > 21 * 864e5) delete board[t]; for (const t in board) delete board[t].dev; return out({ posts: board }); }
+  const b = await request.json().catch(() => ({}));
+  const team = String(b.team || "").slice(0, 40), dev = String(b.dev || "").slice(0, 64);
+  if (!team || !/^[a-f0-9]{16,64}$/.test(dev)) return out({ error: "Bad post" }, 400);
+  if (board[team] && board[team].dev && board[team].dev !== dev) return out({ error: "Another device already posted for this team. Remove it there first." }, 409);
+  if (b.remove) delete board[team];
+  else board[team] = { team, name: String(b.name || "").slice(0, 80), give: (b.give || []).slice(0, 8).map(x => ({ id: String(x.id || "").slice(0, 40), name: String(x.name || "").slice(0, 60), pos: String(x.pos || "").slice(0, 5) })), want: (b.want || []).filter(x => ["QB", "RB", "WR", "TE", "PICK"].includes(x)).slice(0, 5), note: String(b.note || "").slice(0, 200), at: Date.now(), dev };
+  await env.SNAP.put(key, JSON.stringify(board), { expirationTtl: 60 * 864e5 / 1000 });
+  return out({ ok: true });
+}
+export async function pickemRoute(request, url, env) {
+  if (!env.SNAP) return out({ error: "unavailable" }, 503);
+  const p = url.searchParams.get("p") || "", l = url.searchParams.get("lid") || "", season = url.searchParams.get("season") || "";
+  if (!okLid(p, l) || !/^\d{4}$/.test(season)) return out({ error: "Bad league" }, 400);
+  const key = "pkm:" + p + ":" + l + ":" + season;
+  const all = (await env.SNAP.get(key, "json")) || { weeks: {} };
+  if (request.method === "GET") { const c = JSON.parse(JSON.stringify(all)); for (const w in c.weeks) for (const t in c.weeks[w]) delete c.weeks[w][t].dev; return out(c); }
+  const b = await request.json().catch(() => ({}));
+  const w = String(Number(b.week) || ""), team = String(b.team || "").slice(0, 40), dev = String(b.dev || "").slice(0, 64);
+  if (!w || !team || !/^[a-f0-9]{16,64}$/.test(dev)) return out({ error: "Bad picks" }, 400);
+  if (b.lockAt && Date.now() > Number(b.lockAt)) return out({ error: "Picks for this week are locked." }, 409);
+  const wk = all.weeks[w] = all.weeks[w] || {};
+  if (wk[team] && wk[team].dev && wk[team].dev !== dev) return out({ error: "Another device already made picks for this team." }, 409);
+  const picks = {}; for (const [g, v] of Object.entries(b.picks || {}).slice(0, 20)) picks[String(g).slice(0, 40)] = String(v).slice(0, 40);
+  wk[team] = { name: String(b.name || "").slice(0, 80), picks, at: Date.now(), dev };
+  await env.SNAP.put(key, JSON.stringify(all), { expirationTtl: 400 * 864e5 / 1000 });
+  return out({ ok: true });
 }

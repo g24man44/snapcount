@@ -20,6 +20,14 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- [x] Draft write-up (Leagues › League › Draft grades and write-up, also in Draft center): for any real league draft, an AI columnist recap with a grade and 2–3 honest, lightly funny lines per team, steal and reach of the draft; share or post to Discord/Slack
+- [x] Matchup recaps (Leagues › League): every game of any finished week with the score, best player, dud, bench points left and why it went that way (nail-biter, blowout, "lineup cost it" when the loser's best lineup would have won), plus an AI beat-writer recap of every matchup to share or post
+- [x] Morning briefing (home): a 2-minute spoken rundown of your team for today, read aloud with an AI voice (falls back to the phone's voice), cached for the day
+- [x] Trade market (Leagues › League): post who you'd trade and what you want; the app pairs posts from leaguemates into balanced deals with values and opens them in the grader
+- [x] Win-odds chart: your matchup's win chance over the weekend as a line under the scorebug
+- [x] Report card (Fleaflicker, Leagues › League): start/sit grade from points left on the bench vs the league, weekly lineup efficiency bars, costliest start/sit calls, this year's trades aged by today's values (used picks count as the player taken)
+- [x] Injury outlook: likely return window, how close to normal in his first games back, and hold/stash/sell advice on every injured player's card, plus an Injury center on the home screen
+- [x] League pick'em and roast (Leagues › League): pick every matchup winner (locks Sunday 1 PM ET or at first points), season leaderboard, and an AI roast of each team's worst lineup call to post to the group chat
 - [x] Manager scouting reports: for every leaguemate, trading tendencies from league trade history (positions they buy/sell, picks vs vets, overpays, how active), contend/rebuild window, current needs; "how to pitch him" line; shown in Sell/Buy and the grader.
 - [x] Touchdown and big-play alerts: live play-by-play for your starters and your opponent's (TDs, long gains, injuries in-game), push + Discord/Slack, Sundays/Mondays/Thursdays only.
 - [x] Breakout detector: week-over-week jumps in snap share, route share, targets and carries (Sleeper weekly stats); flags free agents before the waiver run and players on your bench before you trade them away; daily alert.
