@@ -231,6 +231,7 @@ Rules:
 - Lead with the answer in one sentence, then 2-5 short bullet reasons. Under 170 words unless asked for more. No preamble, no disclaimers.
 - Only a player in a FREE AGENTS list can be picked up. Only players on other rosters can be traded for.
 - You can't make moves in the league yourself; tell the user what to do in their league app.
+- If LEAGUE DATA starts with a TRADE MATH block, that is the answer key: use its totals, percentage and verdict exactly as written, lead with them, and never do your own arithmetic. Then add context (age, role, contend vs rebuild, how sure a pick's slot is).
 - Trades: total each side using the values in LEAGUE DATA, including DRAFT PICK VALUES (those already reflect how the market discounts picks years away). When one side gets two lesser pieces for one better player, the single best piece is worth a modest premium (about 10–20%), not more. You may disagree with a value, but say it plainly as your opinion with a concrete reason (age, role, injury, contend vs rebuild), and still show the value math. Never claim the app's values are wrong without showing why.`;
 const PITCH_SYS = `You write a short trade message from one fantasy football manager to another, to send with a trade offer.
 Use ONLY the TRADE DATA. Never invent stats, injuries or news.
@@ -274,11 +275,28 @@ export async function coachRoute(request, env) {
   let lastErr = null;
   for (const model of COACH_MODELS) {
     try {
-      const stream = await env.AI.run(model, { messages, stream: true, max_tokens: mode === "draft" || mode === "matchups" ? 1300 : mode === "recap" || mode === "brief" || mode === "roast" ? 900 : mode === "negotiate" ? 260 : 600, temperature: mode === "recap" || mode === "roast" ? 0.85 : mode === "draft" || mode === "matchups" ? 0.7 : mode === "brief" ? 0.5 : mode === "negotiate" ? 0.7 : 0.4 });
-      return new Response(stream, { headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store", "x-model": model } });
+      const ai = await env.AI.run(model, { messages, max_tokens: mode === "draft" || mode === "matchups" ? 1300 : mode === "recap" || mode === "brief" || mode === "roast" ? 900 : mode === "negotiate" ? 260 : 600, temperature: mode === "recap" || mode === "roast" ? 0.85 : mode === "draft" || mode === "matchups" ? 0.7 : mode === "brief" ? 0.5 : mode === "negotiate" ? 0.7 : 0.4 });
+      const full = String((ai && (ai.response ?? (ai.choices && ai.choices[0] && ai.choices[0].message && ai.choices[0].message.content))) ?? "").trim();
+      if (!full) throw new Error("empty answer");
+      return new Response(sseText(full), { headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store", "x-model": model } });
     } catch (e) { lastErr = e; }
   }
   return out({ error: "The AI coach is busy right now. Try again in a minute. (" + String(lastErr && lastErr.message || lastErr).slice(0, 120) + ")" }, 502);
+}
+
+// Send finished text as a short SSE stream so the app still "types" it out.
+function sseText(full) {
+  const parts = full.match(/\S+\s*/g) || [full], enc = new TextEncoder();
+  const per = Math.max(1, Math.ceil(parts.length / 90));
+  let i = 0;
+  return new ReadableStream({
+    async pull(c) {
+      if (i >= parts.length) { c.enqueue(enc.encode("data: [DONE]\n\n")); c.close(); return; }
+      const chunk = (i === 0 && /^\s/.test(full) ? " " : "") + parts.slice(i, i + per).join(""); i += per;
+      c.enqueue(enc.encode("data: " + JSON.stringify({ response: chunk }) + "\n\n"));
+      await new Promise(r => setTimeout(r, 14));
+    }
+  });
 }
 
 // One-shot AI text (no streaming) with model fallback; returns "" if the AI is unavailable.

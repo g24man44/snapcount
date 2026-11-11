@@ -1796,7 +1796,7 @@ async function streamAI(body, onText){
       const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
       if (!line.startsWith("data:")) continue;
       const data = line.slice(5).trim(); if (data === "[DONE]") continue;
-      try { const j = JSON.parse(data); const t = j.response ?? (j.choices && j.choices[0] && (j.choices[0].delta || {}).content) ?? ""; if (t) { text += t; onText(text); } } catch(e){}
+      try { const j = JSON.parse(data); const t = j.response ?? (j.choices && j.choices[0] && (j.choices[0].delta || {}).content) ?? ""; if (t !== "" && t != null) { text += String(t); onText(text); } } catch(e){}
     }
   }
   return text;
@@ -1839,6 +1839,46 @@ function drawCoach(){
   el.scrollTop = el.scrollHeight;
   const ch = $("#cChips"); if (ch) ch.hidden = coach.msgs.length > 0;
 }
+/* Trade questions in the coach: find the players and picks named, total both sides exactly like the calculator. */
+async function coachTradeMath(L, q){
+  const wn = x => " " + String(x || "").toLowerCase().replace(/[’']/g, "").replace(/\b(jr|sr|ii|iii|iv)\b\.?/g, "").replace(/[^a-z0-9]+/g, " ").trim() + " ";
+  const text = wn(q), qn = text;
+  const PR = {first: "1st", second: "2nd", third: "3rd", fourth: "4th", "1st": "1st", "2nd": "2nd", "3rd": "3rd", "4th": "4th"};
+  const re = /(?:\b(early|mid|middle|late)\s+)?\b(20\d\d)(?:\s+(?:projected\s+)?(early|mid|middle|late))?\s*(?:round\s*)?\b(1st|2nd|3rd|4th|first|second|third|fourth)\b/gi;
+  const found = []; let m;
+  while ((m = re.exec(text))) found.push({kind: "pick", at: m.index, year: +m[2], rd: PR[m[4].toLowerCase()], tier: (m[1] || m[3] || "").toLowerCase().replace("middle", "mid"), mine: / (my|our)( own)? $/.test(text.slice(Math.max(0, m.index - 8), m.index + 1)) || null});
+  const d = L.detail, me = d.teams.find(t => t.mine); if (!me) return "";
+  const all = d.teams.flatMap(t => t.roster.map(p => ({p, t})));
+  const byLast = {}; all.forEach(x => { const ln = wn(x.p.name).trim().split(" ").slice(1).join(" "); (byLast[ln] = byLast[ln] || []).push(x); });
+  const seen = new Set();
+  all.forEach(x => { const full = wn(x.p.name).trim(); let at = qn.indexOf(" " + full + " ");
+    if (at < 0) { const ln = wn(x.p.name).trim().split(" ").slice(1).join(" "); if (ln.length >= 5 && byLast[ln].length === 1) at = qn.indexOf(" " + ln + " "); }
+    if (at >= 0 && !seen.has(x.p.id)) { seen.add(x.p.id); found.push({kind: "player", at, p: x.p, t: x.t}); } });
+  if (!found.length || (found.length < 2 && !found.some(f => f.kind === "pick"))) return "";
+  const qbs = (d.slots || []).includes("SUPER_FLEX") || (d.slots || []).filter(x => x === "QB").length > 1 ? 2 : 1;
+  const dyn = !!(d.maxKeepers || /dynasty|keeper/i.test(L.meta.name));
+  const pack = await loadValues(({ppr: "1", half: "0.5", std: "0"}[d.scoring] || "1"), d.teams.length, qbs, dyn), V = pack.v, prem = qbPremium(d.teams.length, qbs);
+  const pv = p => { const k = L.meta.platform === "sleeper" ? String(p.id) : pack.flea && L.meta.platform === "flea" ? "f" + p.id : sleeperKey(L, p); return (((V[k] || [0])[0]) || 0) * (p.pos === "QB" ? prem : 1); };
+  const years = Object.keys(V).filter(k => /^pick:\d{4} 1st$/.test(k)).map(k => +k.slice(5, 9)).sort();
+  const pkv = f => { const y = years.length ? Math.min(Math.max(f.year, years[0]), years[years.length - 1]) : f.year, T = f.tier ? " (" + f.tier[0].toUpperCase() + f.tier.slice(1) + ")" : "";
+    let v = ((V["pick:" + y + " " + f.rd + T] || V["pick:" + y + " " + f.rd] || [0])[0]) || 0; if (f.year > y) v *= Math.pow(0.95, f.year - y); return v; };
+  const items = found.map(f => f.kind === "pick" ? {at: f.at, mine: f.mine, label: f.year + " " + f.rd + (f.tier ? " (" + f.tier + ")" : ""), v: pkv(f)} : {at: f.at, mine: f.t === me, label: f.p.name + " " + f.p.pos + " (" + (f.t === me ? "your team" : f.t.name) + ")", v: pv(f.p)});
+  // Which side is which: split at the first " for "; the side holding your player is what you give.
+  const cut = qn.search(/ for /), give = [], get = [];
+  if (cut > 0) {
+    const A = items.filter(i => i.at < cut), B = items.filter(i => i.at >= cut);
+    const aMine = A.some(i => i.mine), bMine = B.some(i => i.mine);
+    if (aMine && !bMine) { give.push(...A); get.push(...B); } else if (bMine && !aMine) { give.push(...B); get.push(...A); }
+  }
+  if (!give.length && !get.length) items.forEach(i => (i.mine ? give : get).push(i));
+  if (!give.length || !get.length) return "";
+  const sum = a => a.reduce((s, i) => s + i.v, 0), eG = effOf(give.map(i => i.v)), eR = effOf(get.map(i => i.v));
+  const diff = (eR - eG) / Math.max(eR, eG, 1), pct = Math.round(Math.abs(diff) * 100);
+  const verdict = Math.abs(diff) <= 0.05 ? "about even" : diff > 0 ? (diff >= 0.25 ? "clearly in the user's favor" : "slightly in the user's favor") : (diff <= -0.25 ? "clearly against the user" : "slightly against the user");
+  const line = (lab, a, e) => lab + ": " + a.map(i => i.label + " = " + Math.round(i.v)).join("; ") + ". Total " + Math.round(sum(a)) + (a.length > 1 ? " (counted as " + Math.round(e) + " because extra pieces in a multi-player side each count a bit less: they use roster spots)" : "") + ".";
+  return "TRADE MATH (computed by the Snap Count calculator for the trade in the user's question; these totals are exact, quote them and never redo the arithmetic):\n" + line("User gives", give, eG) + "\n" + line("User gets", get, eR) + "\nResult: " + Math.round(eR) + " vs " + Math.round(eG) + ", " + (Math.abs(diff) <= 0.05 ? "within 5%, " : pct + "% ") + verdict + ".\n\n";
+}
+
 async function askCoach(q){
   if (coach.busy) return;
   const li = coachLeague(), L = leagues[li]; if (!L || !L.detail) return;
@@ -1847,7 +1887,8 @@ async function askCoach(q){
   coach.msgs.push({role:"user", content:q}); const ans = {role:"assistant", content:""}; coach.msgs.push(ans); drawCoach();
   try {
     if (!L.ctx || L.ctxAt < Date.now() - 120000) { L.ctx = await buildCtx(L); L.ctxAt = Date.now(); }
-    const text = await streamAI({mode:"coach", q, ctx:L.ctx, history}, t => { ans.content = t; drawCoach(); });
+    let tm = ""; try { tm = await coachTradeMath(L, q); } catch(e){}
+    const text = await streamAI({mode:"coach", q, ctx: tm + L.ctx, history}, t => { ans.content = t; drawCoach(); });
     if (!text) ans.err = "No answer came back. Try again.";
     else if (coach.speak && "speechSynthesis" in window) { const u = new SpeechSynthesisUtterance(text.replace(/[*#•]/g, "")); u.rate = 1.05; speechSynthesis.cancel(); speechSynthesis.speak(u); }
   } catch(e){ ans.err = e.message; }
