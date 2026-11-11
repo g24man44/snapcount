@@ -11,7 +11,7 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - Never break what works. Test in a headless browser against real Fleaflicker data before pushing. If tests fail, don't push.
 
 ## Next up (top first)
-- [ ] Refresh src/prospects.js with the newest public 2027 rookie boards (superflex and 1QB) about every two weeks; after the NFL draft switch the rookie mock to drafted rookies with landing spots.
+- [ ] Every ~10 days refresh src/prospects.js: NFL draft analysts' latest 2027 big boards (Kiper, Jordan Reid, Tankathon, Draft Countdown, B/R, plus Brugler/Jeremiah/PFF when public) and dynasty rookie boards (Dynasty Nerds, DraftSharks SF/1QB). After the NFL draft, switch the rookie mock to drafted rookies with real draft slots and landing spots.
 
 ## Blocked (needs the owner)
 - [ ] Save lineups straight to Fleaflicker and Sleeper: neither has a public way for other apps to change lineups. Fleaflicker would need a sample of the request its site sends when you move a player (from the browser's network tab while signed in).
