@@ -11,6 +11,14 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - Never break what works. Test in a headless browser against real Fleaflicker data before pushing. If tests fail, don't push.
 
 ## Next up (top first)
+- [ ] Manager scouting reports: for every leaguemate, trading tendencies from league trade history (positions they buy/sell, picks vs vets, overpays, how active), contend/rebuild window, current needs; "how to pitch him" line; shown in Sell/Buy and the grader.
+- [ ] Touchdown and big-play alerts: live play-by-play for your starters and your opponent's (TDs, long gains, injuries in-game), push + Discord/Slack, Sundays/Mondays/Thursdays only.
+- [ ] Breakout detector: week-over-week jumps in snap share, route share, targets and carries (Sleeper weekly stats); flags free agents before the waiver run and players on your bench before you trade them away; daily alert.
+- [ ] Title window planner (dynasty): your roster's projected strength for the next 3 seasons using age curves and values, vs every other team; tells you whether to push now or build for later and which moves change the window.
+- [ ] AI counter-offer writer: from any trade grade, the coach drafts a short, friendly message to send the other manager explaining why the deal works for them (using their roster needs), ready to copy.
+- [ ] All my leagues: player exposure across every connected league (who you own where, total value tied up per player), plus one combined weekly start/sit list.
+- [ ] Season Wrapped: shareable end-of-season story cards (best trade, worst start/sit, MVP, luckiest week, league awards) generated after the championship week.
+- [ ] Sign-in sync: optional account (email link) so your leagues, your own player values, alerts and settings follow you to any device.
 - [ ] Refresh src/prospects.js with the newest public 2027 rookie boards (superflex and 1QB) about every two weeks; after the NFL draft switch the rookie mock to drafted rookies with landing spots.
 
 ## Blocked (needs the owner)
