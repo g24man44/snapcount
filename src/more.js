@@ -452,7 +452,12 @@ export async function transcribeRoute(request, env) {
   b64 = btoa(b64);
   try {
     const r = await env.AI.run("@cf/openai/whisper-large-v3-turbo", Object.assign({ audio: b64, language: "en" }, hint ? { initial_prompt: "Fantasy football. " + hint } : {}));
-    return out({ text: String((r && r.text) || "").trim() });
+    let text = String((r && r.text) || "").trim();
+    // Whisper sometimes repeats its prompt or invents a sign-off over silence.
+    if (hint && text && hint.toLowerCase().includes(text.toLowerCase().replace(/[.,]+$/, "")) && text.split(" ").length > 3) text = "";
+    text = text.replace(/^fantasy football\.\s*/i, "").replace(/\s*(thanks for watching|thank you for watching)[.!]*$/i, "");
+    if (/^(thank you|thanks|you|bye)[.!]*$/i.test(text)) text = "";
+    return out({ text });
   } catch (e) {
     try { const r2 = await env.AI.run("@cf/openai/whisper", { audio: [...buf] }); return out({ text: String((r2 && r2.text) || "").trim() }); }
     catch (e2) { return out({ error: "Couldn’t understand the recording. Try again, or type it." }, 502); }

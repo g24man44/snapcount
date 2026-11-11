@@ -1898,14 +1898,70 @@ async function askCoach(q){
 // The recording is transcribed and dropped into the box; nothing sends until you tap Ask.
 const voice = {on: false};
 const canRecord = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && (window.AudioContext || window.webkitAudioContext));
-function wavFrom(chunks, rate){
-  const len = chunks.reduce((s, c) => s + c.length, 0), all = new Float32Array(len); let o = 0; chunks.forEach(c => { all.set(c, o); o += c.length; });
-  const ratio = rate / 16000, n = Math.floor(len / ratio), pcm = new Int16Array(n);
-  for (let i = 0; i < n; i++) { const st = Math.floor(i * ratio), en = Math.min(len, Math.floor((i + 1) * ratio)); let sum = 0; for (let j = st; j < en; j++) sum += all[j]; const v = Math.max(-1, Math.min(1, sum / Math.max(1, en - st))); pcm[i] = v < 0 ? v * 0x8000 : v * 0x7fff; }
+function pcmWav(f32){
+  const pcm = new Int16Array(f32.length); for (let i = 0; i < f32.length; i++) { const v = Math.max(-1, Math.min(1, f32[i])); pcm[i] = v < 0 ? v * 0x8000 : v * 0x7fff; }
   const buf = new ArrayBuffer(44 + pcm.length * 2), dv = new DataView(buf), w = (off, str) => { for (let i = 0; i < str.length; i++) dv.setUint8(off + i, str.charCodeAt(i)); };
   w(0, "RIFF"); dv.setUint32(4, 36 + pcm.length * 2, true); w(8, "WAVE"); w(12, "fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
   dv.setUint32(24, 16000, true); dv.setUint32(28, 32000, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true); w(36, "data"); dv.setUint32(40, pcm.length * 2, true);
   new Int16Array(buf, 44).set(pcm); return new Blob([buf], {type: "audio/wav"});
+}
+// Clean the recording before it goes to Whisper: cut silence at the ends, lift quiet speech, resample to 16 kHz properly.
+async function wavFrom(chunks, rate){
+  const len = chunks.reduce((s, c) => s + c.length, 0); let all = new Float32Array(len), o = 0; chunks.forEach(c => { all.set(c, o); o += c.length; });
+  let mean = 0; for (let i = 0; i < all.length; i++) mean += all[i]; mean /= Math.max(1, all.length); if (Math.abs(mean) > 1e-4) for (let i = 0; i < all.length; i++) all[i] -= mean;
+  const fr = Math.round(rate * 0.02), rms = []; for (let i = 0; i + fr <= all.length; i += fr) { let e = 0; for (let j = i; j < i + fr; j++) e += all[j] * all[j]; rms.push(Math.sqrt(e / fr)); }
+  const sorted = rms.slice().sort((x, y) => x - y), floor = sorted[Math.floor(sorted.length * 0.1)] || 0, top = sorted[Math.floor(sorted.length * 0.95)] || 0;
+  const th = Math.max(0.004, floor * 2.5, top * 0.08);
+  let f0 = rms.findIndex(v => v > th), f1 = rms.length - 1 - rms.slice().reverse().findIndex(v => v > th);
+  if (f0 >= 0 && f1 >= f0) { const pad = Math.round(0.35 / 0.02); all = all.subarray(Math.max(0, (f0 - pad) * fr), Math.min(all.length, (f1 + pad + 1) * fr)); }
+  let peak = 0; for (let i = 0; i < all.length; i++) peak = Math.max(peak, Math.abs(all[i]));
+  const gain = peak > 0 ? Math.min(10, 0.9 / peak) : 1; const g = new Float32Array(all.length); for (let i = 0; i < all.length; i++) g[i] = all[i] * gain;
+  const n16 = Math.max(1, Math.ceil(g.length * 16000 / rate));
+  try {
+    const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext, off = new OAC(1, n16, 16000), ab = off.createBuffer(1, g.length, rate);
+    ab.getChannelData(0).set(g); const sn = off.createBufferSource(); sn.buffer = ab; sn.connect(off.destination); sn.start();
+    const out = await off.startRendering(); return pcmWav(out.getChannelData(0));
+  } catch(e){
+    const ratio = rate / 16000, pcm = new Float32Array(Math.floor(g.length / ratio));
+    for (let i = 0; i < pcm.length; i++) { const st = Math.floor(i * ratio), en = Math.min(g.length, Math.floor((i + 1) * ratio)); let sum = 0; for (let j = st; j < en; j++) sum += g[j]; pcm[i] = sum / Math.max(1, en - st); }
+    return pcmWav(pcm);
+  }
+}
+// Whisper hears "Jackson Dart" or "Bejan Robinson"; snap close matches to the real player and team names.
+const phon = w => String(w).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]/g, "").replace(/ph/g, "f").replace(/ck/g, "k").replace(/x/g, "ks").replace(/q/g, "k").replace(/c(?=[eiy])/g, "s").replace(/c/g, "k").replace(/z/g, "s").replace(/dg/g, "j").replace(/gh/g, "g").replace(/([^aeiou])h/g, "$1").replace(/y/g, "i").replace(/(.)\1+/g, "$1");
+const skel = w => { const p = phon(w); return p.slice(0, 1) + p.slice(1).replace(/[aeiou]/g, ""); };
+function lev(a, b){ const m = a.length, n = b.length; if (!m) return n; if (!n) return m; let prev = Array.from({length: n + 1}, (_, j) => j); for (let i = 1; i <= m; i++) { const cur = [i]; for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; } return prev[n]; }
+const simil = (a, b) => 1 - lev(a, b) / Math.max(a.length, b.length, 1);
+function voiceNames(){
+  const set = new Map();
+  const add = n => { n = String(n || "").trim(); if (n && /^[A-Z]/.test(n) && !set.has(n)) set.set(n, true); };
+  leagues.forEach(L => L.detail && L.detail.teams.forEach(t => { add(t.name); t.roster.forEach(p => add(p.name)); }));
+  try { Object.values(tr.values || {}).forEach(pk => Object.values((pk && pk.v) || {}).forEach(r => { if (Array.isArray(r) && r[1] && r[1] <= 500) add(r[4]); })); } catch(e){}
+  return [...set.keys()].map(n => { const ws = n.replace(/\s+(Jr\.?|Sr\.?|II|III|IV)$/i, "").split(/\s+/); return {n, ws, k: ws.map(phon).join(" "), sk: ws.map(skel).join(" "), last: ws.length > 1 ? ws[ws.length - 1] : null}; });
+}
+function fixNames(text){
+  const pool = voiceNames(); if (!pool.length || !text) return text;
+  const lastCount = {}; pool.forEach(p => { if (p.last) { const k = phon(p.last); lastCount[k] = (lastCount[k] || 0) + 1; } });
+  const toks = text.split(/(\s+)/); const words = []; toks.forEach((t, i) => { if (/\S/.test(t)) words.push(i); });
+  const clean = t => t.replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9.']+$/g, "").replace(/'s$/i, "");
+  const done = new Set();
+  for (const span of [3, 2]) for (let wi = 0; wi + span <= words.length; wi++) {
+    const idx = words.slice(wi, wi + span); if (idx.some(i => done.has(i))) continue;
+    const raw = idx.map(i => clean(toks[i])); if (raw.some(r => !r) || !/^[A-Z]/.test(raw[0])) continue;
+    const k = raw.map(phon).join(" "), sk = raw.map(skel).join(" ");
+    let best = null; pool.forEach(p => { if (p.ws.length !== span) return; const s = Math.max(simil(k, p.k), simil(sk, p.sk) - 0.04); if (!best || s > best.s) best = {p, s}; });
+    if (best && best.s >= 0.8 && raw.join(" ") !== best.p.ws.join(" ")) {
+      const lastTok = toks[idx[idx.length - 1]], tail = (lastTok.match(/('s)?[^A-Za-z0-9']*$/) || [""])[0], lead = (toks[idx[0]].match(/^[^A-Za-z0-9]*/) || [""])[0];
+      toks[idx[0]] = lead + best.p.ws.join(" ") + tail; for (let j = 1; j < idx.length; j++) { toks[idx[j]] = ""; toks[idx[j] - 1] = ""; }
+      idx.forEach(i => done.add(i));
+    } else if (best && best.s >= 0.8) idx.forEach(i => done.add(i));
+  }
+  // Single capitalized words (not starting a sentence) that sound like a unique last name: "Genti" -> "Jeanty".
+  words.forEach((i, wi) => { if (done.has(i) || wi === 0) return; const prev = toks[words[wi - 1]] || ""; if (/[.!?]$/.test(prev)) return;
+    const r = clean(toks[i]); if (!/^[A-Z][a-z]{3,}$/.test(r)) return; const k = phon(r); if (k.length < 4) return;
+    let best = null; pool.forEach(p => { if (!p.last || lastCount[phon(p.last)] > 1) return; const s = simil(k, phon(p.last)); if (!best || s > best.s) best = {p, s}; });
+    if (best && best.s >= 0.86 && best.p.last !== r) toks[i] = toks[i].replace(r, best.p.last); });
+  return toks.join("").replace(/\s{2,}/g, " ");
 }
 function voiceHint(){
   const L = leagues[coachLeague()]; const names = new Set();
@@ -1916,7 +1972,7 @@ async function startVoice(form){
   if (voice.on) return;
   const inp = form.querySelector("#cIn");
   let stream;
-  try { stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: true, noiseSuppression: true}}); }
+  try { stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1}}); }
   catch(e){ inp.placeholder = "Allow the microphone for this site to talk to the coach"; return; }
   const AC = window.AudioContext || window.webkitAudioContext, ctx = new AC();
   const src = ctx.createMediaStreamSource(stream), proc = ctx.createScriptProcessor(4096, 1, 1), mute = ctx.createGain(); mute.gain.value = 0;
@@ -1955,10 +2011,11 @@ async function stopVoice(keep){
   if (!keep || !voice.chunks.length) { if (bar) bar.remove(); form.classList.remove("rec"); return; }
   bar.innerHTML = '<span class="typing"><i></i><i></i><i></i></span><span class="rect">Transcribing…</span>';
   try {
-    const r = await fetch("/api/transcribe", {method: "POST", headers: {"content-type": "audio/wav", "x-hint": encodeURIComponent(voiceHint())}, body: wavFrom(voice.chunks, rate)});
+    const r = await fetch("/api/transcribe", {method: "POST", headers: {"content-type": "audio/wav", "x-hint": encodeURIComponent(voiceHint())}, body: await wavFrom(voice.chunks, rate)});
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || "Couldn’t transcribe that.");
-    if (j.text) inp.value = (inp.value.trim() ? inp.value.trim() + " " : "") + j.text;
+    let said = j.text || ""; try { said = fixNames(said); } catch(e){}
+    if (said) inp.value = (inp.value.trim() ? inp.value.trim() + " " : "") + said;
     else inp.placeholder = "Didn’t catch that. Try again, or type it.";
   } catch(e){ inp.placeholder = e.message; }
   voice.chunks = [];
