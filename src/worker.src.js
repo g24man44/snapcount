@@ -158,7 +158,7 @@ async function tradeValues(ppr, teams, qbs, dyn, realTeams, env) {
     const p = x.player || {};
     const row = [Math.round(x.value || 0), x.overallRank || null, x.positionRank || null, Math.round(x.trend30Day || 0), p.name || "", p.position || "", p.maybeAge ? Math.round(p.maybeAge * 10) / 10 : null, Math.round(x.redraftValue || 0)];
     if (p.position === "PICK") { if (p.name) picks.push(["pick:" + p.name, row]); continue; }
-    rows.push({ row, sid: p.sleeperId, fid: p.fleaflickerId, pos: p.position, age: p.maybeAge, team: p.maybeTeam || null, key: nkey(p.name) + "|" + p.position, market: row[0] });
+    rows.push({ row, sid: p.sleeperId, fid: p.fleaflickerId, pos: p.position, age: p.maybeAge, team: p.maybeTeam || null, key: nkey(p.name) + "|" + p.position, market: row[0], freq: x.maybeTradeFrequency || 0 });
   }
   if (!rows.length) return json({ error: "FantasyCalc returned no players" }, 502, 0);
   const scale = rows.map(x => x.market).sort((a, b) => b - a);
@@ -183,6 +183,7 @@ async function tradeValues(ppr, teams, qbs, dyn, realTeams, env) {
     x.gp = gp; x.ppg = gp ? (s[col] || 0) / gp : null;
     // Per-game catches and carries let the app price TE premium and per-carry scoring.
     x.rpg = gp ? Math.round((s.rec || 0) / gp * 10) / 10 : null; x.cpg = gp ? Math.round((s.rush_att || 0) / gp * 10) / 10 : null;
+    x.tdpg = gp ? Math.round((s.pass_td || 0) / gp * 100) / 100 : null;
     // Last 4 weeks he actually played (counts only games with real snaps).
     const rec = weekly.map(wk => (x.sid && wk[x.sid]) || null).filter(w => w && (w.off_snp || 0) >= 5);
     if (rec.length >= 2 && x.ppg != null) { x.recent = rec.reduce((a, w) => a + (w[col] || 0), 0) / rec.length; x.ppg = 0.6 * x.recent + 0.4 * x.ppg; }
@@ -214,7 +215,7 @@ async function tradeValues(ppr, teams, qbs, dyn, realTeams, env) {
     const row = x.row.slice();
     row[0] = Math.round(sum / w * (x.injF || 1));
     row.push(x.market, x.experts != null ? Math.round(x.experts) : null, x.production != null ? Math.round(x.production) : null, x.ppg != null ? Math.round(x.ppg * 10) / 10 : null, x.gp || 0, x.recent != null ? Math.round(x.recent * 10) / 10 : null, null, x.team, x.inj || null);
-    row[19] = x.rpg != null ? x.rpg : null; row[20] = x.cpg != null ? x.cpg : null;
+    row[19] = x.rpg != null ? x.rpg : null; row[20] = x.cpg != null ? x.cpg : null; row[21] = x.tdpg != null ? x.tdpg : null; row[22] = Math.round((x.freq || 0) * 10000) / 10000;
     if (x.sid) out[x.sid] = row;
     if (x.fid) out["f" + x.fid] = row;
   }
@@ -230,6 +231,37 @@ async function tradeValues(ppr, teams, qbs, dyn, realTeams, env) {
     row[18] = snap7 && snap7[k] != null ? row[0] - snap7[k] : null;
   });
   return json({ source: "Snap Count value", asOf: new Date().toISOString(), fmt: fmtKey, hasDaily: !!(snap1 || snap7), blend: { market: "FantasyCalc", experts: haveExperts ? "FantasyPros consensus via DynastyProcess" : null, production: "Sleeper season stats" }, weights: W, ppr, teams, qbs, dynasty: !!dyn, values: out }, 200, 10800);
+}
+
+// IDP (defensive players): no public trade market exists, so values come from production —
+// Sleeper's standard IDP scoring per game over a replacement starter, aged for dynasty — placed on the
+// same scale as offense: the best defender is worth about what the ~60th best offensive asset is.
+const IDP_GROUP = { DL: "DL", DE: "DL", DT: "DL", LB: "LB", ILB: "LB", OLB: "LB", DB: "DB", CB: "DB", S: "DB", SS: "DB", FS: "DB" };
+async function idpValues(teams, dyn, scaleFrom) {
+  const now = new Date(), season = now.getUTCMonth() < 2 ? now.getUTCFullYear() - 1 : now.getUTCFullYear();
+  const [pl, st] = await Promise.all([
+    fetch("https://api.sleeper.app/v1/players/nfl", { headers: UA }).then(x => x.json()),
+    fetch("https://api.sleeper.app/v1/stats/nfl/regular/" + season, { headers: UA }).then(x => x.ok ? x.json() : {}).catch(() => ({}))
+  ]);
+  const rows = [];
+  for (const id in st) {
+    const p = pl[id], s = st[id]; if (!p) continue;
+    const g = IDP_GROUP[p.position] || IDP_GROUP[(p.fantasy_positions || [])[0]]; if (!g) continue;
+    const gp = s.gp || 0; if (gp < 3 || !s.pts_idp) continue;
+    rows.push({ id, name: p.full_name || "", g, pos: p.position, team: p.team || "", age: p.age || null, ppg: s.pts_idp / gp, gp });
+  }
+  const rep = {}, T = teams;
+  for (const g of ["DL", "LB", "DB"]) { const a = rows.filter(r => r.g === g).map(r => r.ppg).sort((x, y) => y - x); rep[g] = a[Math.min(a.length - 1, Math.round(T * (g === "DB" ? 3 : 2.5)))] || 0; }
+  const peak = { DL: 27, LB: 26, DB: 26 };
+  rows.forEach(r => { const af = !dyn || !r.age ? 1 : r.age <= peak[r.g] ? 1 + Math.min(0.12, (peak[r.g] - r.age) * 0.03) : Math.max(0.35, 1 - (r.age - peak[r.g]) * 0.09); r.vorp = Math.max(0, r.ppg - rep[r.g]) * af; });
+  rows.sort((a, b) => b.vorp - a.vorp);
+  const out = {};
+  rows.forEach((r, i) => {
+    const v = r.vorp > 0 ? Math.round(scaleFrom[Math.min(scaleFrom.length - 1, 60 + Math.round(i * 2.2))] || 0) : Math.round(80 * Math.max(0, r.ppg / Math.max(1, rep[r.g])));
+    out[r.id] = [v, null, null, 0, r.name, r.g, r.age, v, null, null, v, Math.round(r.ppg * 10) / 10, r.gp, null, null, r.team, null];
+  });
+  const pr = {}; Object.values(out).sort((a, b) => b[0] - a[0]).forEach((row, i) => { row[1] = i + 1; pr[row[5]] = (pr[row[5]] || 0) + 1; row[2] = pr[row[5]]; });
+  return json({ values: out, season, note: "IDP values are production-based estimates." }, 200, 10800);
 }
 
 async function headlines() {
@@ -489,7 +521,7 @@ export async function dailyValues(env, force) {
       for (const k in body.values) if (k[0] !== "f" && !k.startsWith("pick:")) snap[k] = body.values[k][0];
       await env.SNAP.put("vsnap:" + fmt + ":" + day, JSON.stringify(snap), { expirationTtl: 45 * 864e5 / 1000 });
       const copy = new Response(res.body, res); copy.headers.set("cache-control", "public, max-age=10800");
-      await caches.default.put(new Request("https://snapcount.cache/values9/" + fmt), copy);
+      await caches.default.put(new Request("https://snapcount.cache/values10/" + fmt), copy);
       done.push(fmt);
     } catch (e) {}
   }
@@ -557,7 +589,16 @@ export default {
         const dyn = url.searchParams.get("dyn") === "1";
         const real = Math.min(32, Math.max(4, t));
         ctx.waitUntil(noteValueFormat(env, ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0)));
-        return cached(ctx, "values9/" + ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0), 10800, () => tradeValues(ppr, teams, qbs, dyn, real, env));
+        return cached(ctx, "values10/" + ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0), 10800, () => tradeValues(ppr, teams, qbs, dyn, real, env));
+      }
+      if (p === "/api/idpvalues") {
+        const t = Math.min(32, Math.max(4, Number(url.searchParams.get("teams")) || 12)), dyn = url.searchParams.get("dyn") === "1";
+        return cached(ctx, "idp2/" + t + "/" + (dyn ? 1 : 0), 10800, async () => {
+          // Borrow the offensive value curve so a defender's number means the same thing as a receiver's.
+          const base = await tradeValues("1", t <= 11 ? 10 : t <= 13 ? 12 : 14, 1, dyn, t, env).then(r => r.json()).catch(() => ({ values: {} }));
+          const scale = [...new Set(Object.entries(base.values || {}).filter(([k]) => !k.startsWith("pick:") && k[0] !== "f").map(([, r]) => r[0]))].sort((a, b) => b - a);
+          return idpValues(t, dyn, scale.length ? scale : [6000]);
+        });
       }
       if (p === "/api/wstats") {
         const season = url.searchParams.get("season") || "", week = Number(url.searchParams.get("week") || 0), fresh = url.searchParams.get("fresh") === "1";

@@ -12,7 +12,7 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - Never break what works. Test in a headless browser against real Fleaflicker data before pushing. If tests fail, don't push.
 
 ## Next up (top first)
-- [ ] IDP values (needs a public IDP value source) and devy leagues that roster college players
+- [ ] Devy leagues that roster college players for several years (needs 2028+ class boards); IDP trade-market data if a public source appears
 - [ ] Every ~10 days refresh src/prospects.js: NFL draft analysts' latest 2027 big boards (Kiper, Jordan Reid, Tankathon, Draft Countdown, B/R, plus Brugler/Jeremiah/PFF when public) and dynasty rookie boards (Dynasty Nerds, DraftSharks SF/1QB). After the NFL draft, switch the rookie mock to drafted rookies with real draft slots and landing spots. Last refreshed 2026-11-10; next due around 2026-11-20 (until then, build a new feature instead).
 
 ## Blocked (needs the owner)
@@ -21,6 +21,9 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- [x] Rankings tab (Calc › Rankings): every player, pick and college prospect ranked for the chosen league's rules, with ranges, weekly moves, Rising/Falling, and "Hot" (most traded in real fantasy trades); tap to put in the calculator
+- [x] League scoring re-scored from real stats: TE catch bonus, points per carry, 4/6-pt passing TDs and 2QB now move each player's value by how his edge over a replacement starter changes under those rules (replaces flat estimates); passing-TD points read from Fleaflicker, Sleeper and ESPN
+- [x] IDP: defensive players valued from production (Sleeper IDP scoring, replacement level by DL/LB/DB, age curve) on the same scale as offense; detected from league roster slots; searchable in calculator and rankings
 - [x] Calculator past DTC: TE premium (+0.5/+1, priced from each TE's catches per game), points per carry (+.25/+.5, from carries per game), true 2QB separate from superflex, startup-draft value scale, buy/sell range per player (where market, experts and production disagree), every trade judged by each source separately with an "all sources agree / sources split" call, next year's college prospects in search; settings read from your league (Fleaflicker scoring rules and Sleeper bonuses now detected, so half-PPR and TE-premium leagues get the right values everywhere: grader, coach, sell, landscape)
 - [x] Who to cut (Leagues › League, and Edge › Waivers): your safest drops ranked by value, age, depth at each position and the waiver wire, with Cut / Cut if you need the spot / Keep calls; free agents worth more than your weakest players paired one-for-one; extra kickers and defenses flagged; bench players with real value sent to Sell instead; injured reserve and taxi players shown as not using a spot
 - [x] Draft write-up (Leagues › League › Draft grades and write-up, also in Draft center): for any real league draft, an AI columnist recap with a grade and 2–3 honest, lightly funny lines per team, steal and reach of the draft; share or post to Discord/Slack

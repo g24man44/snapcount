@@ -682,6 +682,16 @@ nav.tabbar button{padding-left:0;padding-right:0}
 
 .cleague{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--muted)}
 .cleague select{font:inherit;font-size:16px;font-weight:700;color:var(--ink);background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;width:100%}
+
+.rklist{padding:4px 0}
+.rkrow{display:grid;grid-template-columns:30px auto minmax(0,1fr) auto;gap:10px;align-items:center;width:100%;padding:10px 14px;background:none;border:0;border-top:1px solid var(--line);color:inherit;font:inherit;text-align:left;cursor:pointer}
+.rkrow:first-child{border-top:0}
+.rkn{font:700 13px/1 var(--display);color:var(--muted);font-variant-numeric:tabular-nums;text-align:right}
+.rkrow .sn{font-weight:700;min-width:0}
+.rkrow .sn small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+.rkv{text-align:right;font-variant-numeric:tabular-nums}
+.rkv b{display:block}
+.rkv small{font-size:11px}
 </style>
 </head>
 <body>
@@ -781,7 +791,7 @@ async function sleeperDetail(L){
   const groups = {}; teams.forEach(t => { if (t.matchup) (groups[t.matchup] = groups[t.matchup] || []).push(t); });
   const games = Object.values(groups).filter(g => g.length === 2).map(g => ({a:{id:g[0].id, pts:g[0].wk}, b:{id:g[1].id, pts:g[1].wk}}));
   const ss = (lg && lg.scoring_settings) || {};
-  return {week, teams, games, starterSplit:true, scoring, tep: Math.max(0, +ss.bonus_rec_te || 0), ppc: Math.max(0, +ss.rush_att || 0), slots: (lg && lg.roster_positions) || null, draftRounds: (lg && lg.settings && lg.settings.draft_rounds) || 4, season: Number((lg && lg.season) || 0),
+  return {week, teams, games, starterSplit:true, scoring, tep: Math.max(0, +ss.bonus_rec_te || 0), ppc: Math.max(0, +ss.rush_att || 0), ptd: ss.pass_td != null ? Math.round(+ss.pass_td) : 4, idp: ((lg && lg.roster_positions) || []).some(x => /^(DL|LB|DB|IDP_FLEX)$/.test(x)), slots: (lg && lg.roster_positions) || null, draftRounds: (lg && lg.settings && lg.settings.draft_rounds) || 4, season: Number((lg && lg.season) || 0),
     maxKeepers: (lg && lg.settings && lg.settings.max_keepers) || null,
     playoffTeams: (lg && lg.settings && lg.settings.playoff_teams) || null, playoffStart: (lg && lg.settings && lg.settings.playoff_week_start) || null};
 }
@@ -841,16 +851,18 @@ async function fleaDetail(L){
   const slots = [];
   const kdst = [];
   (rules.rosterPositions || []).forEach(rp => { const k = FL[rp.label] || rp.label; if (["QB","RB","WR","TE","FLEX","SUPER_FLEX","REC_FLEX","WRRB_FLEX"].includes(k)) for (let i = 0; i < (rp.start || 0); i++) slots.push(k); if (k === "K" || k === "D/ST") for (let i = 0; i < (rp.start || 0); i++) kdst.push(k); });
-  const sc = fleaScoring(rules);
-  return {week, teams, games, starterSplit:false, slots: slots.length ? slots : null, kdst, scoring: sc.scoring, tep: sc.tep, ppc: sc.ppc};
+  const sc = fleaScoring(rules), idp = (rules.rosterPositions || []).some(rp => (rp.start || 0) > 0 && /^(DL|DE|DT|EDR|IL|LB|DB|CB|S|IDP)(\/(DL|LB|DB))*$/.test(String(rp.label || "")));
+  return {week, teams, games, starterSplit:false, slots: slots.length ? slots : null, kdst, scoring: sc.scoring, tep: sc.tep, ppc: sc.ppc, ptd: sc.ptd, idp};
 }
 // Per-catch and per-carry points by position, from the league's scoring rules (ignores bonus thresholds).
 function fleaScoring(rules){
   const per = {}, carry = {}, add = (o, r) => { const v = r.pointsPer ? val(r.pointsPer) : (val(r.points) || 0) / (r.forEvery || 1); (r.applyTo && r.applyTo.length ? r.applyTo : ["QB", "RB", "WR", "TE"]).forEach(pos => o[pos] = (o[pos] || 0) + (v || 0)); };
-  ((rules && rules.groups) || []).forEach(g => (g.scoringRules || []).forEach(r => { if (r.boundLower != null || r.boundUpper != null) return; const c = (r.category || {}).id; if (c === 41) add(per, r); else if (c === 21) add(carry, r); }));
-  if (!Object.keys(per).length) return {scoring: null, tep: 0, ppc: 0};
+  const ptdO = {};
+  ((rules && rules.groups) || []).forEach(g => (g.scoringRules || []).forEach(r => { if (r.boundLower != null || r.boundUpper != null) return; const c = (r.category || {}).id; if (c === 41) add(per, r); else if (c === 21) add(carry, r); else if (c === 5) add(ptdO, r); }));
+  const ptd = ptdO.QB != null ? Math.round(ptdO.QB) : 4;
+  if (!Object.keys(per).length) return {scoring: null, tep: 0, ppc: 0, ptd};
   const base = per.WR != null ? per.WR : per.RB || 0;
-  return {scoring: base >= 0.95 ? "ppr" : base >= 0.45 ? "half" : "std", tep: Math.max(0, Math.round(((per.TE || 0) - base) * 4) / 4), ppc: Math.max(0, Math.round((carry.RB || 0) * 4) / 4)};
+  return {scoring: base >= 0.95 ? "ppr" : base >= 0.45 ? "half" : "std", tep: Math.max(0, Math.round(((per.TE || 0) - base) * 4) / 4), ppc: Math.max(0, Math.round((carry.RB || 0) * 4) / 4), ptd};
 }
 
 /* ---------- ESPN Fantasy ---------- */
@@ -914,9 +926,9 @@ async function espnDetail(m){
   const counts = ((set.rosterSettings || {}).lineupSlotCounts) || {}, slots = [], kdst = [];
   Object.keys(counts).forEach(k => { const n = counts[k]; const nm = ESPN_SLOTMAP[k]; if (nm) for (let i = 0; i < n; i++) slots.push(nm); if (k === "17") for (let i = 0; i < n; i++) kdst.push("K"); if (k === "16") for (let i = 0; i < n; i++) kdst.push("D/ST"); });
   const recItem = (((set.scoringSettings || {}).scoringItems) || []).find(x => x.statId === 53);
-  const recPts = recItem ? recItem.points : 0;
+  const recPts = recItem ? recItem.points : 0, ptdItem = (((set.scoringSettings || {}).scoringItems) || []).find(x => x.statId === 4);
   const sch = set.scheduleSettings || {};
-  return {week, sp, teams, games, starterSplit:true, scoring: recPts >= 1 ? "ppr" : recPts >= 0.5 ? "half" : "std", slots: slots.length ? slots : null, kdst, season:Number(m.season),
+  return {week, sp, teams, games, starterSplit:true, ptd: ptdItem ? Math.round(ptdItem.points) : 4, scoring: recPts >= 1 ? "ppr" : recPts >= 0.5 ? "half" : "std", slots: slots.length ? slots : null, kdst, season:Number(m.season),
     maxKeepers: ((set.draftSettings || {}).keeperCount) || null, playoffTeams: sch.playoffTeamCount || null, playoffStart: sch.matchupPeriodCount ? sch.matchupPeriodCount + 1 : null};
 }
 async function espnFreeAgents(L, pos){
@@ -2390,37 +2402,56 @@ function myValues(){ try { return JSON.parse(localStorage.getItem(KEY + ".myv") 
 function setMyValue(key, v){ const m = myValues(); if (v == null) delete m[key]; else m[key] = Math.round(v); try { localStorage.setItem(KEY + ".myv", JSON.stringify(m)); } catch(e){} tr.values = {}; leagues.forEach(L => { L.ctx = null; }); }
 // League format beyond PPR/size/QBs: TE premium, points per carry, true 2QB.
 function qbsOf(d){ const sl = (d && d.slots) || []; return sl.includes("SUPER_FLEX") || sl.filter(x => x === "QB").length > 1 ? 2 : 1; }
-function fmtAdj(d){ if (!d) return null; const sl = d.slots || []; const a = {tep: +d.tep || 0, ppc: +d.ppc || 0, two: sl.filter(x => x === "QB").length > 1 && !sl.includes("SUPER_FLEX")}; return a.tep || a.ppc || a.two ? a : null; }
-function adjKey(a){ return a ? [a.tep || 0, a.ppc || 0, a.two ? 1 : 0, a.startup ? 1 : 0].join(",") : ""; }
-// How much a format setting moves one player's value. Rows: [11] ppg, [19] catches/g, [20] carries/g, [2] position rank.
-function fmtMult(r, a){
-  if (!a || !r) return 1; const pos = r[5]; let m = 1;
-  if (pos === "TE" && a.tep) m *= 1 + a.tep * (r[19] != null ? Math.min(8, Math.max(0, r[19])) * 0.05 : 0.125);
-  if (pos === "RB" && a.ppc) m *= 1 + a.ppc * (r[20] != null ? Math.min(22, Math.max(0, r[20])) * 0.025 : 0.15);
-  // 2QB: you must start two, so starting-caliber QBs (and the mid-tier ones most of all) get much scarcer than in superflex.
-  if (pos === "QB" && a.two) { const k = r[2] || 99; m *= k <= 12 ? 1.06 : k <= 30 ? 1.15 : k <= 40 ? 1.08 : 1.03; }
-  return m;
-}
-function adjustPack(base, a){
-  if (!a || !adjKey(a).replace(/[0,]/g, "")) return base;
-  const v = {}, seen = new Map();
-  for (const k in base.v) {
-    const r = base.v[k]; if (k.startsWith("pick:") || !Array.isArray(r)) { v[k] = r; continue; }
-    if (seen.has(r)) { v[k] = seen.get(r); continue; }
-    const row = r.slice();
-    if (a.startup && row[8] != null) { const e = row[9]; row[0] = Math.round(e != null ? 0.6 * row[8] + 0.4 * e : row[8]); if (row[14] != null) row[0] = r[0]; }
-    const m = fmtMult(row, a);
-    if (m !== 1) [0, 8, 9, 10].forEach(i => { if (row[i] != null) row[i] = Math.round(row[i] * m); });
-    seen.set(r, row); v[k] = row;
+function fmtAdj(d){ if (!d) return null; const sl = d.slots || []; const a = {tep: +d.tep || 0, ppc: +d.ppc || 0, ptd: d.ptd != null ? +d.ptd : 4, idp: !!d.idp, two: sl.filter(x => x === "QB").length > 1 && !sl.includes("SUPER_FLEX")}; return adjOn(a) ? a : null; }
+const adjOn = a => !!a && !!(a.tep || a.ppc || (a.ptd != null && a.ptd !== 4) || a.two || a.startup || a.idp);
+function adjKey(a){ return adjOn(a) ? [a.tep || 0, a.ppc || 0, a.two ? 1 : 0, a.startup ? 1 : 0, a.ptd != null ? a.ptd : 4, a.idp ? 1 : 0].join(",") : ""; }
+// Re-score every player's season under the league's rules (TE catch bonus, points per carry, passing TD
+// points, how many QBs must start) and scale his value by how much his edge over a replacement starter changes.
+// Rows: [11] points per game, [12] games, [19] catches/g, [20] carries/g, [21] passing TDs/g.
+function fmtMults(rows, a, teams, qbs){
+  const T = Number(teams) || 12, out = new Map();
+  const extra = r => (r[5] === "TE" ? (a.tep || 0) * (r[19] || 0) : 0) + (a.ppc || 0) * (r[20] || 0) + (r[5] === "QB" ? ((a.ptd != null ? a.ptd : 4) - 4) * (r[21] || 0) : 0);
+  const rr0 = {QB: T * (qbs === 2 ? 1.7 : 1.1), RB: T * 2.4, WR: T * 3, TE: T * 1.2}, rr1 = Object.assign({}, rr0, {QB: T * (qbs === 2 ? (a.two ? 2.2 : 1.7) : 1.1)});
+  for (const pos of ["QB", "RB", "WR", "TE"]) {
+    const list = rows.filter(r => r[5] === pos && r[11] != null && (r[12] || 0) >= 3); if (list.length < 10) continue;
+    const b0 = list.map(r => r[11]).sort((x, y) => y - x), b1 = list.map(r => r[11] + extra(r)).sort((x, y) => y - x);
+    const rep0 = b0[Math.min(b0.length - 1, Math.round(rr0[pos]))], rep1 = b1[Math.min(b1.length - 1, Math.round(rr1[pos]))];
+    const ms = [];
+    list.forEach(r => { const vb = r[11] - rep0, va = r[11] + extra(r) - rep1; if (vb >= 1) { const m = Math.pow(Math.min(1.8, Math.max(0.6, va / vb)), 0.85); out.set(r, m); ms.push([r[0], m]); } });
+    // Players without a usable season (rookies, injured) get the typical change for a starter at their position.
+    const top = ms.sort((x, y) => y[0] - x[0]).slice(0, 24).map(x => x[1]).sort((x, y) => x - y), med = top.length ? top[Math.floor(top.length / 2)] : 1;
+    rows.forEach(r => { if (r[5] === pos && !out.has(r)) out.set(r, med); });
   }
+  return out;
+}
+function adjustPack(base, a, teams, qbs){
+  if (!adjOn(a)) return base;
+  const v = {}, seen = new Map(), uniq = [];
+  for (const k in base.v) { const r = base.v[k]; if (!Array.isArray(r) || k.startsWith("pick:")) continue; if (!seen.has(r)) { seen.set(r, null); uniq.push(r); } }
+  const mults = (a.tep || a.ppc || (a.ptd != null && a.ptd !== 4) || a.two) ? fmtMults(uniq, a, teams, qbs) : new Map();
+  uniq.forEach(r => {
+    const row = r.slice();
+    if (a.startup && row[8] != null && row[14] == null) { const e = row[9]; row[0] = Math.round(e != null ? 0.6 * row[8] + 0.4 * e : row[8]); }
+    const m = mults.get(r) || 1;
+    if (m !== 1) [0, 8, 9, 10].forEach(i => { if (row[i] != null) row[i] = Math.round(row[i] * m); });
+    row.fm = m; seen.set(r, row);
+  });
+  for (const k in base.v) { const r = base.v[k]; v[k] = seen.get(r) || r; }
   return Object.assign({}, base, {v, adj: a});
 }
 async function loadValues(ppr, teams, qbs, dyn, adj){
-  if (adj && adjKey(adj).replace(/[0,]/g, "")) {
+  if (adjOn(adj)) {
     const k2 = valuesKey(ppr, teams, qbs, dyn) + "|" + adjKey(adj);
     if (tr.values[k2] && Date.now() - (tr.values[k2].at || 0) < 3 * 3600e3) { tr.valuesHasFlea = tr.values[k2].flea; return tr.values[k2]; }
     const base = await loadValues(ppr, teams, qbs, dyn);
-    return (tr.values[k2] = adjustPack(base, adj));
+    const pk = adjustPack(base, adj, teams, qbs);
+    if (adj.idp) try {
+      // Defensive players: production-based values on the same scale, keyed by Sleeper ID and by name.
+      const j = await api("/api/idpvalues?teams=" + teams + (dyn ? "&dyn=1" : ""));
+      pk.v = Object.assign({}, pk.v); for (const id in j.values) { const r = j.values[id]; pk.v[id] = r; pk.v["n:" + norm(r[4])] = r; }
+      pk.idp = true;
+    } catch(e){}
+    return (tr.values[k2] = pk);
   }
   const k = valuesKey(ppr, teams, qbs, dyn);
   // Values refresh through the day; an app left open picks up the new numbers after 3 hours.
@@ -2915,23 +2946,23 @@ const lgKey = L => L.meta.platform + ":" + L.meta.id;
 function calcLeagues(){ return leagues.filter(L => L.detail && L.detail.teams && L.detail.teams.length); }
 function applyLeagueFmt(L){
   const d = L.detail, a = fmtAdj(d) || {};
-  calc.dyn = !!(d.maxKeepers || /dynasty|keeper/i.test(L.meta.name)); calc.qbs = qbsOf(d); calc.two = !!a.two; calc.tep = a.tep || 0; calc.ppc = a.ppc || 0; calc.startup = false;
+  calc.dyn = !!(d.maxKeepers || /dynasty|keeper/i.test(L.meta.name)); calc.qbs = qbsOf(d); calc.two = !!a.two; calc.tep = a.tep || 0; calc.ppc = a.ppc || 0; calc.ptd = a.ptd != null ? a.ptd : (d.ptd || 4); calc.idp = !!d.idp; calc.startup = false;
   calc.teams = d.teams.length; calc.ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1");
 }
 function calcDefaults(){
   if (calc.src && calc.src !== "custom") { const L = calcLeagues().find(x => lgKey(x) === calc.src); if (L) { applyLeagueFmt(L); return; } }
-  if (calc.src === "custom" && !calc.autoCustom && calc.dyn != null && calc.tep != null) return;
+  if (calc.src === "custom" && !calc.autoCustom && calc.dyn != null && calc.tep != null) { if (calc.ptd == null) calc.ptd = 4; return; }
   const L = calcLeagues().find(x => x.detail.teams.some(t => t.mine)) || calcLeagues()[0];
   if (L) { calc.src = lgKey(L); calc.autoCustom = false; applyLeagueFmt(L); }
   else { calc.src = "custom"; calc.autoCustom = true; if (calc.dyn == null) { calc.dyn = false; calc.qbs = 1; calc.teams = 12; calc.ppr = "1"; } if (calc.tep == null) { calc.tep = 0; calc.ppc = 0; } }
 }
 function fmtSummary(){
   const q = calc.qbs === 2 ? (calc.two ? "2QB" : "Superflex") : "1 QB", sc = {"1": "PPR", "0.5": "Half PPR", "0": "Standard"}[calc.ppr] || "PPR";
-  return [calc.dyn ? (calc.startup ? "Dynasty startup" : "Dynasty") : "Redraft", calc.teams + " teams", q, sc, calc.tep ? "TE +" + calc.tep : "", calc.ppc ? "+" + calc.ppc + " per carry" : ""].filter(Boolean).join(" · ");
+  return [calc.dyn ? (calc.startup ? "Dynasty startup" : "Dynasty") : "Redraft", calc.teams + " teams", q, sc, calc.tep ? "TE +" + calc.tep : "", calc.ppc ? "+" + calc.ppc + " per carry" : "", (+calc.ptd || 4) !== 4 ? calc.ptd + "-pt passing TD" : "", calc.idp ? "IDP" : ""].filter(Boolean).join(" · ");
 }
 // Shareable link: the whole calculation lives in the address, so anyone can open it.
 function calcLink(){
-  const s = JSON.stringify({f: [calc.dyn ? 1 : 0, calc.qbs, calc.teams, calc.ppr, calc.tep || 0, calc.ppc || 0, calc.two ? 1 : 0, calc.startup ? 1 : 0], a: calc.a, b: calc.b});
+  const s = JSON.stringify({f: [calc.dyn ? 1 : 0, calc.qbs, calc.teams, calc.ppr, calc.tep || 0, calc.ppc || 0, calc.two ? 1 : 0, calc.startup ? 1 : 0, +calc.ptd || 4, calc.idp ? 1 : 0], a: calc.a, b: calc.b});
   return location.origin + "/#calc=" + btoa(unescape(encodeURIComponent(s))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 function readCalcLink(){
@@ -2939,20 +2970,20 @@ function readCalcLink(){
   try {
     const j = JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/-/g, "+").replace(/_/g, "/")))));
     calc.dyn = !!j.f[0]; calc.qbs = j.f[1] === 2 ? 2 : 1; calc.teams = Number(j.f[2]) || 12; calc.ppr = ["0", "0.5", "1"].includes(j.f[3]) ? j.f[3] : "1";
-    calc.tep = [0, 0.5, 1].includes(j.f[4]) ? j.f[4] : 0; calc.ppc = [0, 0.25, 0.5].includes(j.f[5]) ? j.f[5] : 0; calc.two = j.f[6] === 1 && calc.qbs === 2; calc.startup = j.f[7] === 1 && calc.dyn; calc.src = "custom"; calc.autoCustom = false;
+    calc.tep = [0, 0.5, 1].includes(j.f[4]) ? j.f[4] : 0; calc.ppc = [0, 0.25, 0.5].includes(j.f[5]) ? j.f[5] : 0; calc.two = j.f[6] === 1 && calc.qbs === 2; calc.startup = j.f[7] === 1 && calc.dyn; calc.ptd = j.f[8] === 6 ? 6 : 4; calc.idp = j.f[9] === 1; calc.src = "custom"; calc.autoCustom = false;
     calc.a = (j.a || []).map(String).slice(0, 12); calc.b = (j.b || []).map(String).slice(0, 12);
     history.replaceState(null, "", location.pathname); return true;
   } catch(e){ return false; }
 }
 let calcPack = null, calcKey = "", calcIndex = null, calcPros = {};
-const calcAdj = () => ({tep: +calc.tep || 0, ppc: +calc.ppc || 0, two: !!calc.two && calc.qbs === 2, startup: !!calc.startup && !!calc.dyn});
+const calcAdj = () => ({tep: +calc.tep || 0, ppc: +calc.ppc || 0, ptd: +calc.ptd || 4, idp: !!calc.idp, two: !!calc.two && calc.qbs === 2, startup: !!calc.startup && !!calc.dyn});
 async function calcValues(){
   const a = calcAdj(), k = [calc.ppr, calc.teams, calc.qbs, calc.dyn, adjKey(a)].join("/");
   if (calcPack && calcKey === k) return calcPack;
   calcPack = await loadValues(calc.ppr, calc.teams, calc.qbs, calc.dyn, a); calcKey = k;
   // One row per player (values are also keyed by Fleaflicker ID), plus every draft pick.
   const low = t => String(t || "").toLowerCase().replace(/[.'’]/g, "");
-  calcIndex = Object.keys(calcPack.v).filter(k2 => k2[0] !== "f").map(k2 => ({k: k2, r: calcPack.v[k2], n: low(k2.startsWith("pick:") ? k2.slice(5) : calcPack.v[k2][4])}));
+  calcIndex = Object.keys(calcPack.v).filter(k2 => k2[0] !== "f" && !k2.startsWith("n:")).map(k2 => ({k: k2, r: calcPack.v[k2], n: low(k2.startsWith("pick:") ? k2.slice(5) : calcPack.v[k2][4])}));
   // Dynasty: next year's college class, valued like the rookie pick it takes to draft each one.
   calcPros = {};
   if (calc.dyn) try {
@@ -2989,13 +3020,44 @@ function calcRange(a){
   return '<small class="crange">Range ' + fmtV(lo) + "–" + fmtV(hi) + "</small>";
 }
 let calcMode = "trade";
+const rk = {pos: "ALL", sort: "value", q: "", n: 60};
+// Every player and pick ranked for the chosen league's rules: value, range, this week's move, how often he's traded.
+function drawRankings(v){
+  const seen = new Set(), items = [];
+  calcIndex.forEach(x => { const a = calcAsset(x.k); if (!a || seen.has(a.name + a.pos)) return; seen.add(a.name + a.pos); const r = calcPack.v[x.k] || [];
+    items.push({a, chg: r[18] != null ? r[18] : null, chg30: r[3] || 0, freq: r[22] || 0}); });
+  const groups = ["ALL", "QB", "RB", "WR", "TE"].concat(calc.idp ? ["DL", "LB", "DB"] : []).concat(["PICK"]).concat(calc.dyn ? ["PROS"] : []);
+  const lab = {ALL: "All", PICK: "Picks", PROS: "College"};
+  let list = items.filter(x => rk.pos === "ALL" ? x.a.pos !== "PICK" && !x.a.prospect : rk.pos === "PICK" ? x.a.pos === "PICK" : rk.pos === "PROS" ? !!x.a.prospect : x.a.pos === rk.pos && !x.a.prospect);
+  const q = rk.q.toLowerCase().replace(/[.'’]/g, "").trim(); if (q) list = list.filter(x => x.a.name.toLowerCase().replace(/[.'’]/g, "").includes(q));
+  const week = items.some(x => x.chg != null), mv = x => week ? (x.chg || 0) : x.chg30;
+  list.sort(rk.sort === "rising" ? (p, q2) => mv(q2) - mv(p) : rk.sort === "falling" ? (p, q2) => mv(p) - mv(q2) : rk.sort === "traded" ? (p, q2) => q2.freq - p.freq || q2.a.v - p.a.v : (p, q2) => q2.a.v - p.a.v);
+  const byVal = list.slice().sort((p, q2) => q2.a.v - p.a.v), rank = new Map(byVal.map((x, i) => [x, i + 1]));
+  const maxF = Math.max(...items.map(x => x.freq), 0.0001);
+  const row = x => { const a = x.a, c = mv(x);
+    return '<button type="button" class="rkrow" data-rk="' + esc(a.k) + '"><span class="rkn">' + rank.get(x) + "</span>" + (a.pos === "PICK" ? '<em class="pt" data-pos="PICK">PK</em>' : posTag(a)) + '<span class="sn">' + esc(a.name) + "<small>" + esc([a.team, a.age ? "age " + Math.round(a.age) : "", a.prospect ? "proj. NFL pick ~" + Math.max(1, Math.round(a.prospect.nfl || 0)) : ""].filter(Boolean).join(" · ")) + (rk.sort === "traded" && x.freq ? " · traded often" .replace("often", x.freq > maxF * 0.5 ? "very often" : "often") : "") + "</small>" + calcRange(a) + '</span><span class="rkv"><b>' + fmtV(a.v) + "</b>" + (c ? '<small class="vchg ' + (c > 0 ? "up" : "down") + '">' + (c > 0 ? "▲ " : "▼ ") + fmtV(Math.abs(c)) + "</small>" : "") + "</span></button>"; };
+  v.innerHTML = "<h2>Rankings</h2>" + calcSwitch() + calcFmtCard() +
+    '<div class="psearch" style="margin-top:12px"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" id="rkQ" placeholder="Find a player" value="' + esc(rk.q) + '" autocomplete="off"></div>' +
+    '<div class="chips" style="margin:10px 0 6px">' + groups.map(g => '<button type="button" class="chip' + (rk.pos === g ? " on" : "") + '" data-rkp="' + g + '">' + (lab[g] || g) + "</button>").join("") + "</div>" +
+    '<div class="seg" role="group" aria-label="Sort" style="margin-bottom:10px">' + [["value", "Value"], ["rising", "Rising"], ["falling", "Falling"], ["traded", "Hot"]].map(o => '<button type="button" data-rks="' + o[0] + '" aria-pressed="' + (rk.sort === o[0]) + '">' + o[1] + "</button>").join("") + "</div>" +
+    '<div class="card rklist">' + (list.length ? list.slice(0, rk.n).map(row).join("") : '<p style="margin:0">No players match.</p>') + "</div>" +
+    (list.length > rk.n ? '<button type="button" class="btn ghost" id="rkMore" style="width:100%;margin-top:10px">Show more</button>' : "") +
+    '<p class="small muted" style="margin:12px 4px 0">' + (rk.sort === "traded" ? "Most traded: how often each player changes hands in real fantasy trades (FantasyCalc), a sign of what the market is buying and selling right now. " : "") + "Changes are " + (week ? "this week" : "the last 30 days") + ". Tap a player to put him in the calculator.</p>";
+  wireCalc(v);
+  v.querySelectorAll("[data-rkp]").forEach(b => b.addEventListener("click", () => { rk.pos = b.dataset.rkp; rk.n = 60; drawRankings(v); }));
+  v.querySelectorAll("[data-rks]").forEach(b => b.addEventListener("click", () => { rk.sort = b.dataset.rks; rk.n = 60; drawRankings(v); }));
+  v.querySelectorAll("[data-rk]").forEach(b => b.addEventListener("click", () => { const k = b.dataset.rk; if (!calc.a.includes(k) && !calc.b.includes(k)) calc.a.push(k); saveCalc(); calcMode = "trade"; render(); window.scrollTo({top: 0}); }));
+  const mo = v.querySelector("#rkMore"); if (mo) mo.addEventListener("click", () => { rk.n += 60; drawRankings(v); });
+  const qi = v.querySelector("#rkQ"); let t = null; qi.addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => { rk.q = qi.value; rk.n = 60; drawRankings(v); const n = v.querySelector("#rkQ"); n.focus({preventScroll: true}); n.setSelectionRange(n.value.length, n.value.length); }, 250); });
+}
 async function renderCalc(v){
   calcDefaults();
   if (calcMode === "mock") return renderMockTab(v);
-  v.innerHTML = '<h2>Trade calculator</h2>' + calcSwitch() + '<p class="spin">Loading values…</p>';
-  try { await calcValues(); } catch(e){ v.innerHTML = '<h2>Trade calculator</h2><div class="err">Couldn’t load trade values: ' + esc(e.message) + "</div>"; return; }
+  const title = calcMode === "rank" ? "Rankings" : "Trade calculator";
+  v.innerHTML = "<h2>" + title + "</h2>" + calcSwitch() + '<p class="spin">Loading values…</p>';
+  try { await calcValues(); } catch(e){ v.innerHTML = "<h2>" + title + '</h2><div class="err">Couldn’t load trade values: ' + esc(e.message) + "</div>"; return; }
   if (cur.tab !== "calc") return;
-  drawCalc(v);
+  if (calcMode === "rank") drawRankings(v); else drawCalc(v);
 }
 function drawCalc(v){
   const A = calc.a.map(calcAsset).filter(Boolean), B = calc.b.map(calcAsset).filter(Boolean);
@@ -3027,15 +3089,10 @@ function drawCalc(v){
       '<div class="sendrow" style="margin-top:14px"><button type="button" class="btn" id="cShare">Share this trade</button><button type="button" class="btn ghost" id="cClear">Clear</button></div><p class="small" id="cMsg" style="margin:6px 0 0"></p></div>';
   }
   v.innerHTML = '<h2>Trade calculator</h2>' + calcSwitch() +
-    '<div class="card cfmt"><label class="cleague"><span>Use the rules of</span><select data-cf="src">' + calcLeagues().map(L => '<option value="' + esc(lgKey(L)) + '"' + (calc.src === lgKey(L) ? " selected" : "") + ">" + esc(L.meta.name) + "</option>").join("") + '<option value="custom"' + (calc.src === "custom" ? " selected" : "") + '>Custom settings</option></select></label>' +
-      (calc.src === "custom" ? seg("dyn", [[1, "Dynasty"], [0, "Redraft"]], calc.dyn ? 1 : 0) + seg("qbs", [[1, "1 QB"], ["sf", "Superflex"], ["2qb", "2QB"]], calc.qbs === 2 ? (calc.two ? "2qb" : "sf") : 1) +
-    '<div class="crow2">' + seg("ppr", [["1", "PPR"], ["0.5", "Half"], ["0", "Std"]], calc.ppr) + '<label class="cteams">Teams <select data-cf="teams">' + [8, 10, 12, 14, 16, 18, 20].map(n => '<option' + (n === Number(calc.teams) ? " selected" : "") + ">" + n + "</option>").join("") + "</select></label></div>" +
-    '<div class="crow2">' + seg("tep", [[0, "No TE bonus"], [0.5, "TE +0.5"], [1, "TE +1"]], +calc.tep || 0) + "</div>" +
-    '<div class="crow2">' + seg("ppc", [[0, "No carry pts"], [0.25, "Carry +.25"], [0.5, "Carry +.5"]], +calc.ppc || 0) + "</div>" +
-    (calc.dyn ? '<div class="crow2">' + seg("startup", [[0, "In-season values"], [1, "Startup draft"]], calc.startup ? 1 : 0) + "</div>" : "") : '<p class="small muted" style="margin:8px 2px 0">' + esc(fmtSummary()) + "</p>") + "</div>" +
+    calcFmtCard() +
     side("A", A, effA) + side("B", B, effB) + res +
     (!both ? '<p class="small muted" style="margin:12px 4px 0">Add players or picks to both sides. Works for any trade, in any league, even ones you’re not in.</p>' : "") + calcMovers() +
-    '<p class="small muted" style="margin:14px 4px 0">Values are Snap Count values for this format: trade market, expert rankings and this season’s production, blended' + (calc.startup && calc.dyn ? " (startup: market and experts only, since a startup drafts for the long run)" : "") + ". TE and per-carry bonuses are priced from each player’s catches and carries per game. 2QB lifts starting quarterbacks more than superflex does, most of all the mid-tier starters. “Range” is where the three sources disagree: buy near the low end, sell near the high end." + (calc.dyn ? " College players are next year’s class, valued like the rookie pick it would take to draft them." : "") + "</p>";
+    '<p class="small muted" style="margin:14px 4px 0">Values are Snap Count values for this format: trade market, expert rankings and this season’s production, blended' + (calc.startup && calc.dyn ? " (startup: market and experts only, since a startup drafts for the long run)" : "") + ". League scoring is applied by re-scoring every player’s season under these rules (TE catch bonus, points per carry, passing TD points, two required QBs) and moving his value by how much his edge over a replacement starter changes." + (calc.idp ? " Defensive players have no public trade market, so their values come from production under standard IDP scoring." : "") + " “Range” is where the three sources disagree: buy near the low end, sell near the high end." + (calc.dyn ? " College players are next year’s class, valued like the rookie pick it would take to draft them." : "") + "</p>";
   wireCalc(v);
 }
 // The same trade judged by each source on its own, so you know how solid the verdict is.
@@ -3052,7 +3109,17 @@ function calcSources(A, B){
   const line = o => '<div class="csrc"><span>' + o.n + "</span><b>" + (o.w ? "Team " + o.w + " +" + Math.round(o.pct * 100) + "%" : "Even") + "</b></div>";
   return '<div class="csrcs">' + out.map(line).join("") + '</div><p class="small" style="margin:8px 0 0">' + (agree ? (out[0].w ? "Every source agrees Team " + out[0].w + " comes out ahead." : "Every source calls it even.") : "The sources split: whether this is a win depends on whether you trust the market, the experts, or this season’s production.") + "</p>";
 }
-function calcSwitch(){ return '<div class="seg" role="group" aria-label="Tool" style="margin:-4px 0 12px"><button type="button" data-cm="trade" aria-pressed="' + (calcMode === "trade") + '">Trade calculator</button><button type="button" data-cm="mock" aria-pressed="' + (calcMode === "mock") + '">Mock draft</button></div>'; }
+function calcFmtCard(){
+  const seg = (name, opts, curV) => '<div class="seg" role="group" aria-label="' + name + '">' + opts.map(o => '<button type="button" data-cf="' + name + '" data-val="' + o[0] + '" aria-pressed="' + (String(curV) === String(o[0])) + '">' + o[1] + "</button>").join("") + "</div>";
+  return '<div class="card cfmt"><label class="cleague"><span>Use the rules of</span><select data-cf="src">' + calcLeagues().map(L => '<option value="' + esc(lgKey(L)) + '"' + (calc.src === lgKey(L) ? " selected" : "") + ">" + esc(L.meta.name) + "</option>").join("") + '<option value="custom"' + (calc.src === "custom" ? " selected" : "") + '>Custom settings</option></select></label>' +
+      (calc.src === "custom" ? seg("dyn", [[1, "Dynasty"], [0, "Redraft"]], calc.dyn ? 1 : 0) + seg("qbs", [[1, "1 QB"], ["sf", "Superflex"], ["2qb", "2QB"]], calc.qbs === 2 ? (calc.two ? "2qb" : "sf") : 1) +
+    '<div class="crow2">' + seg("ppr", [["1", "PPR"], ["0.5", "Half"], ["0", "Std"]], calc.ppr) + '<label class="cteams">Teams <select data-cf="teams">' + [8, 10, 12, 14, 16, 18, 20].map(n => '<option' + (n === Number(calc.teams) ? " selected" : "") + ">" + n + "</option>").join("") + "</select></label></div>" +
+    '<div class="crow2">' + seg("tep", [[0, "No TE bonus"], [0.5, "TE +0.5"], [1, "TE +1"]], +calc.tep || 0) + "</div>" +
+    '<div class="crow2">' + seg("ppc", [[0, "No carry pts"], [0.25, "Carry +.25"], [0.5, "Carry +.5"]], +calc.ppc || 0) + "</div>" +
+    '<div class="crow2">' + seg("ptd", [[4, "4-pt pass TD"], [6, "6-pt pass TD"]], +calc.ptd || 4) + seg("idp", [[0, "Offense"], [1, "With IDP"]], calc.idp ? 1 : 0) + "</div>" +
+    (calc.dyn ? '<div class="crow2">' + seg("startup", [[0, "In-season values"], [1, "Startup draft"]], calc.startup ? 1 : 0) + "</div>" : "") : '<p class="small muted" style="margin:8px 2px 0">' + esc(fmtSummary()) + "</p>") + "</div>";
+}
+function calcSwitch(){ return '<div class="seg" role="group" aria-label="Tool" style="margin:-4px 0 12px"><button type="button" data-cm="trade" aria-pressed="' + (calcMode === "trade") + '">Calculator</button><button type="button" data-cm="rank" aria-pressed="' + (calcMode === "rank") + '">Rankings</button><button type="button" data-cm="mock" aria-pressed="' + (calcMode === "mock") + '">Mock draft</button></div>'; }
 function wireSwitch(v){ v.querySelectorAll("[data-cm]").forEach(b => b.addEventListener("click", () => { calcMode = b.dataset.cm; render(); })); }
 function renderMockTab(v){
   v.innerHTML = "<h2>Mock draft</h2>" + calcSwitch() + renderMock(v);
@@ -3086,7 +3153,7 @@ function wireCalc(v){
   v.querySelectorAll("[data-cf]").forEach(el => el.addEventListener(el.tagName === "SELECT" ? "change" : "click", async () => {
     const f = el.dataset.cf, val = el.tagName === "SELECT" ? el.value : el.dataset.val;
     if (f === "src") { calc.src = val; calc.autoCustom = false; if (val !== "custom") { const L = calcLeagues().find(x => lgKey(x) === val); if (L) applyLeagueFmt(L); } saveCalc(); renderCalc(v); return; }
-    if (f === "dyn") calc.dyn = val === "1"; else if (f === "qbs") { calc.qbs = val === "1" ? 1 : 2; calc.two = val === "2qb"; } else if (f === "teams") calc.teams = Number(val); else if (f === "tep") calc.tep = Number(val); else if (f === "ppc") calc.ppc = Number(val); else if (f === "startup") calc.startup = val === "1"; else calc.ppr = val;
+    if (f === "dyn") calc.dyn = val === "1"; else if (f === "qbs") { calc.qbs = val === "1" ? 1 : 2; calc.two = val === "2qb"; } else if (f === "teams") calc.teams = Number(val); else if (f === "tep") calc.tep = Number(val); else if (f === "ppc") calc.ppc = Number(val); else if (f === "ptd") calc.ptd = Number(val); else if (f === "idp") calc.idp = val === "1"; else if (f === "startup") calc.startup = val === "1"; else calc.ppr = val;
     saveCalc(); renderCalc(v);
   }));
   v.querySelectorAll("[data-rm]").forEach(b => b.addEventListener("click", () => { const s = b.dataset.rm; calc[s] = calc[s].filter(k => k !== b.dataset.k); saveCalc(); drawCalc(v); }));
@@ -5067,7 +5134,7 @@ async function leagueVals(L){
   await getPlayers(); ensureSidIndex();
   const pack = await loadValues(({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1"), d.teams.length, qbs, dyn, fmtAdj(d)), prem = qbPremium(d.teams.length, qbs);
   const key = p => L.meta.platform === "sleeper" ? String(p.id) : pack.flea && L.meta.platform === "flea" ? "f" + p.id : sleeperKey(L, p);
-  const row = p => (p && pack.v[key(p)]) || null;
+  const row = p => (p && (pack.v[key(p)] || (pack.idp && !["QB", "RB", "WR", "TE"].includes(p.pos) && pack.v["n:" + norm(p.name)]))) || null;
   const val = p => ((row(p) || [0])[0] || 0) * (p.pos === "QB" ? prem : 1);
   return {pack, V: pack.v, key, row, val, prem, qbs, dyn};
 }
