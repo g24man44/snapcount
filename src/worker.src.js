@@ -181,6 +181,8 @@ async function tradeValues(ppr, teams, qbs, dyn, realTeams, env) {
   rows.forEach(x => {
     const s = (x.sid && stats[x.sid]) || null, gp = s ? (s.gp || s.gms_active || 0) : 0;
     x.gp = gp; x.ppg = gp ? (s[col] || 0) / gp : null;
+    // Per-game catches and carries let the app price TE premium and per-carry scoring.
+    x.rpg = gp ? Math.round((s.rec || 0) / gp * 10) / 10 : null; x.cpg = gp ? Math.round((s.rush_att || 0) / gp * 10) / 10 : null;
     // Last 4 weeks he actually played (counts only games with real snaps).
     const rec = weekly.map(wk => (x.sid && wk[x.sid]) || null).filter(w => w && (w.off_snp || 0) >= 5);
     if (rec.length >= 2 && x.ppg != null) { x.recent = rec.reduce((a, w) => a + (w[col] || 0), 0) / rec.length; x.ppg = 0.6 * x.recent + 0.4 * x.ppg; }
@@ -212,6 +214,7 @@ async function tradeValues(ppr, teams, qbs, dyn, realTeams, env) {
     const row = x.row.slice();
     row[0] = Math.round(sum / w * (x.injF || 1));
     row.push(x.market, x.experts != null ? Math.round(x.experts) : null, x.production != null ? Math.round(x.production) : null, x.ppg != null ? Math.round(x.ppg * 10) / 10 : null, x.gp || 0, x.recent != null ? Math.round(x.recent * 10) / 10 : null, null, x.team, x.inj || null);
+    row[19] = x.rpg != null ? x.rpg : null; row[20] = x.cpg != null ? x.cpg : null;
     if (x.sid) out[x.sid] = row;
     if (x.fid) out["f" + x.fid] = row;
   }
@@ -486,7 +489,7 @@ export async function dailyValues(env, force) {
       for (const k in body.values) if (k[0] !== "f" && !k.startsWith("pick:")) snap[k] = body.values[k][0];
       await env.SNAP.put("vsnap:" + fmt + ":" + day, JSON.stringify(snap), { expirationTtl: 45 * 864e5 / 1000 });
       const copy = new Response(res.body, res); copy.headers.set("cache-control", "public, max-age=10800");
-      await caches.default.put(new Request("https://snapcount.cache/values8/" + fmt), copy);
+      await caches.default.put(new Request("https://snapcount.cache/values9/" + fmt), copy);
       done.push(fmt);
     } catch (e) {}
   }
@@ -554,7 +557,7 @@ export default {
         const dyn = url.searchParams.get("dyn") === "1";
         const real = Math.min(32, Math.max(4, t));
         ctx.waitUntil(noteValueFormat(env, ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0)));
-        return cached(ctx, "values8/" + ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0), 10800, () => tradeValues(ppr, teams, qbs, dyn, real, env));
+        return cached(ctx, "values9/" + ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0), 10800, () => tradeValues(ppr, teams, qbs, dyn, real, env));
       }
       if (p === "/api/wstats") {
         const season = url.searchParams.get("season") || "", week = Number(url.searchParams.get("week") || 0), fresh = url.searchParams.get("fresh") === "1";

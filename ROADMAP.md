@@ -12,6 +12,7 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - Never break what works. Test in a headless browser against real Fleaflicker data before pushing. If tests fail, don't push.
 
 ## Next up (top first)
+- [ ] IDP values (needs a public IDP value source) and devy leagues that roster college players
 - [ ] Every ~10 days refresh src/prospects.js: NFL draft analysts' latest 2027 big boards (Kiper, Jordan Reid, Tankathon, Draft Countdown, B/R, plus Brugler/Jeremiah/PFF when public) and dynasty rookie boards (Dynasty Nerds, DraftSharks SF/1QB). After the NFL draft, switch the rookie mock to drafted rookies with real draft slots and landing spots. Last refreshed 2026-11-10; next due around 2026-11-20 (until then, build a new feature instead).
 
 ## Blocked (needs the owner)
@@ -20,6 +21,7 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- [x] Calculator past DTC: TE premium (+0.5/+1, priced from each TE's catches per game), points per carry (+.25/+.5, from carries per game), true 2QB separate from superflex, startup-draft value scale, buy/sell range per player (where market, experts and production disagree), every trade judged by each source separately with an "all sources agree / sources split" call, next year's college prospects in search; settings read from your league (Fleaflicker scoring rules and Sleeper bonuses now detected, so half-PPR and TE-premium leagues get the right values everywhere: grader, coach, sell, landscape)
 - [x] Who to cut (Leagues › League, and Edge › Waivers): your safest drops ranked by value, age, depth at each position and the waiver wire, with Cut / Cut if you need the spot / Keep calls; free agents worth more than your weakest players paired one-for-one; extra kickers and defenses flagged; bench players with real value sent to Sell instead; injured reserve and taxi players shown as not using a spot
 - [x] Draft write-up (Leagues › League › Draft grades and write-up, also in Draft center): for any real league draft, an AI columnist recap with a grade and 2–3 honest, lightly funny lines per team, steal and reach of the draft; share or post to Discord/Slack
 - [x] Matchup recaps (Leagues › League): every game of any finished week with the score, best player, dud, bench points left and why it went that way (nail-biter, blowout, "lineup cost it" when the loser's best lineup would have won), plus an AI beat-writer recap of every matchup to share or post

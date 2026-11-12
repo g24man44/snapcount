@@ -672,6 +672,13 @@ nav.tabbar button{padding-left:0;padding-right:0}
 .mrline .sn{display:flex;gap:8px;align-items:center;min-width:0}
 .mrline .tv{font:800 18px/1 var(--display);font-variant-numeric:tabular-nums}
 @media (max-width:420px){.injgrid{grid-template-columns:1fr 1fr}}
+
+.crange{display:block;color:var(--muted);font-size:11px;margin-top:1px;font-variant-numeric:tabular-nums}
+.csrcs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:14px}
+.csrc{border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.csrc span{display:block;font-size:11px;color:var(--muted)}
+.csrc b{font-size:14px;font-variant-numeric:tabular-nums}
+@media (max-width:380px){.csrcs{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -770,7 +777,8 @@ async function sleeperDetail(L){
   });
   const groups = {}; teams.forEach(t => { if (t.matchup) (groups[t.matchup] = groups[t.matchup] || []).push(t); });
   const games = Object.values(groups).filter(g => g.length === 2).map(g => ({a:{id:g[0].id, pts:g[0].wk}, b:{id:g[1].id, pts:g[1].wk}}));
-  return {week, teams, games, starterSplit:true, scoring, slots: (lg && lg.roster_positions) || null, draftRounds: (lg && lg.settings && lg.settings.draft_rounds) || 4, season: Number((lg && lg.season) || 0),
+  const ss = (lg && lg.scoring_settings) || {};
+  return {week, teams, games, starterSplit:true, scoring, tep: Math.max(0, +ss.bonus_rec_te || 0), ppc: Math.max(0, +ss.rush_att || 0), slots: (lg && lg.roster_positions) || null, draftRounds: (lg && lg.settings && lg.settings.draft_rounds) || 4, season: Number((lg && lg.season) || 0),
     maxKeepers: (lg && lg.settings && lg.settings.max_keepers) || null,
     playoffTeams: (lg && lg.settings && lg.settings.playoff_teams) || null, playoffStart: (lg && lg.settings && lg.settings.playoff_week_start) || null};
 }
@@ -830,7 +838,16 @@ async function fleaDetail(L){
   const slots = [];
   const kdst = [];
   (rules.rosterPositions || []).forEach(rp => { const k = FL[rp.label] || rp.label; if (["QB","RB","WR","TE","FLEX","SUPER_FLEX","REC_FLEX","WRRB_FLEX"].includes(k)) for (let i = 0; i < (rp.start || 0); i++) slots.push(k); if (k === "K" || k === "D/ST") for (let i = 0; i < (rp.start || 0); i++) kdst.push(k); });
-  return {week, teams, games, starterSplit:false, slots: slots.length ? slots : null, kdst};
+  const sc = fleaScoring(rules);
+  return {week, teams, games, starterSplit:false, slots: slots.length ? slots : null, kdst, scoring: sc.scoring, tep: sc.tep, ppc: sc.ppc};
+}
+// Per-catch and per-carry points by position, from the league's scoring rules (ignores bonus thresholds).
+function fleaScoring(rules){
+  const per = {}, carry = {}, add = (o, r) => { const v = r.pointsPer ? val(r.pointsPer) : (val(r.points) || 0) / (r.forEvery || 1); (r.applyTo && r.applyTo.length ? r.applyTo : ["QB", "RB", "WR", "TE"]).forEach(pos => o[pos] = (o[pos] || 0) + (v || 0)); };
+  ((rules && rules.groups) || []).forEach(g => (g.scoringRules || []).forEach(r => { if (r.boundLower != null || r.boundUpper != null) return; const c = (r.category || {}).id; if (c === 41) add(per, r); else if (c === 21) add(carry, r); }));
+  if (!Object.keys(per).length) return {scoring: null, tep: 0, ppc: 0};
+  const base = per.WR != null ? per.WR : per.RB || 0;
+  return {scoring: base >= 0.95 ? "ppr" : base >= 0.45 ? "half" : "std", tep: Math.max(0, Math.round(((per.TE || 0) - base) * 4) / 4), ppc: Math.max(0, Math.round((carry.RB || 0) * 4) / 4)};
 }
 
 /* ---------- ESPN Fantasy ---------- */
@@ -1482,9 +1499,9 @@ function valueLeagueFor(pl){
 async function drawValueCard(panel, pl){
   if (!pl || !["QB", "RB", "WR", "TE"].includes(pl.pos)) return;
   const L = valueLeagueFor(pl); if (!L || !L.detail) return;
-  const d = L.detail, qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1, dyn = !!(d.maxKeepers || /dynasty|keeper/i.test(L.meta.name));
+  const d = L.detail, qbs = qbsOf(d), dyn = !!(d.maxKeepers || /dynasty|keeper/i.test(L.meta.name));
   await Promise.all([getPlayers(), getState()]); ensureSidIndex();
-  const pack = await loadValues(({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1"), d.teams.length, qbs, dyn);
+  const pack = await loadValues(({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1"), d.teams.length, qbs, dyn, fmtAdj(d));
   const key = L.meta.platform === "sleeper" ? String(pl.id) : pack.flea && L.meta.platform === "flea" ? "f" + pl.id : sleeperKey(L, pl);
   const r = key && pack.v[key]; if (!r) return;
   const prem = pl.pos === "QB" ? qbPremium(d.teams.length, qbs) : 1;
@@ -1708,10 +1725,10 @@ function pline(L, p){
 async function buildCtx(L){
   const d = L.detail, me = d.teams.find(t => t.mine);
   await Promise.all([getProj(), getPlayers(), loadScoreboard().catch(() => {})]); ensureSidIndex();
-  const qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1;
+  const qbs = qbsOf(d);
   const dyn = !!(d.maxKeepers || /dynasty|keeper/i.test(L.meta.name));
   let V = null;
-  try { const pack = await loadValues(({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1"), d.teams.length, qbs, dyn); V = pack.v; } catch(e){}
+  try { const pack = await loadValues(({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1"), d.teams.length, qbs, dyn, fmtAdj(d)); V = pack.v; } catch(e){}
   const vOf = p => { if (!V) return null; const k = L.meta.platform === "sleeper" ? String(p.id) : tr.valuesHasFlea && L.meta.platform === "flea" ? "f" + p.id : sleeperKey(L, p); const r = k && V[k]; return r ? r : null; };
   const vs = p => { const r = vOf(p); return r ? " value " + Math.round(r[0]) + (r[6] ? " age " + r[6] : "") : ""; };
   const stand = d.teams.slice().sort((a, b) => b.w - a.w || (b.pf || 0) - (a.pf || 0));
@@ -1857,7 +1874,7 @@ async function coachTradeMath(L, q){
   if (!found.length || (found.length < 2 && !found.some(f => f.kind === "pick"))) return "";
   const qbs = (d.slots || []).includes("SUPER_FLEX") || (d.slots || []).filter(x => x === "QB").length > 1 ? 2 : 1;
   const dyn = !!(d.maxKeepers || /dynasty|keeper/i.test(L.meta.name));
-  const pack = await loadValues(({ppr: "1", half: "0.5", std: "0"}[d.scoring] || "1"), d.teams.length, qbs, dyn), V = pack.v, prem = qbPremium(d.teams.length, qbs);
+  const pack = await loadValues(({ppr: "1", half: "0.5", std: "0"}[d.scoring] || "1"), d.teams.length, qbs, dyn, fmtAdj(d)), V = pack.v, prem = qbPremium(d.teams.length, qbs);
   const pv = p => { const k = L.meta.platform === "sleeper" ? String(p.id) : pack.flea && L.meta.platform === "flea" ? "f" + p.id : sleeperKey(L, p); return (((V[k] || [0])[0]) || 0) * (p.pos === "QB" ? prem : 1); };
   const years = Object.keys(V).filter(k => /^pick:\d{4} 1st$/.test(k)).map(k => +k.slice(5, 9)).sort();
   const pkv = f => { const y = years.length ? Math.min(Math.max(f.year, years[0]), years[years.length - 1]) : f.year, T = f.tier ? " (" + f.tier[0].toUpperCase() + f.tier.slice(1) + ")" : "";
@@ -2368,7 +2385,40 @@ const qbPremium = (teams, qbs) => { const base = teams <= 11 ? 10 : teams <= 13 
 
 function myValues(){ try { return JSON.parse(localStorage.getItem(KEY + ".myv") || "{}"); } catch(e){ return {}; } }
 function setMyValue(key, v){ const m = myValues(); if (v == null) delete m[key]; else m[key] = Math.round(v); try { localStorage.setItem(KEY + ".myv", JSON.stringify(m)); } catch(e){} tr.values = {}; leagues.forEach(L => { L.ctx = null; }); }
-async function loadValues(ppr, teams, qbs, dyn){
+// League format beyond PPR/size/QBs: TE premium, points per carry, true 2QB.
+function qbsOf(d){ const sl = (d && d.slots) || []; return sl.includes("SUPER_FLEX") || sl.filter(x => x === "QB").length > 1 ? 2 : 1; }
+function fmtAdj(d){ if (!d) return null; const sl = d.slots || []; const a = {tep: +d.tep || 0, ppc: +d.ppc || 0, two: sl.filter(x => x === "QB").length > 1 && !sl.includes("SUPER_FLEX")}; return a.tep || a.ppc || a.two ? a : null; }
+function adjKey(a){ return a ? [a.tep || 0, a.ppc || 0, a.two ? 1 : 0, a.startup ? 1 : 0].join(",") : ""; }
+// How much a format setting moves one player's value. Rows: [11] ppg, [19] catches/g, [20] carries/g, [2] position rank.
+function fmtMult(r, a){
+  if (!a || !r) return 1; const pos = r[5]; let m = 1;
+  if (pos === "TE" && a.tep) m *= 1 + a.tep * (r[19] != null ? Math.min(8, Math.max(0, r[19])) * 0.05 : 0.125);
+  if (pos === "RB" && a.ppc) m *= 1 + a.ppc * (r[20] != null ? Math.min(22, Math.max(0, r[20])) * 0.025 : 0.15);
+  // 2QB: you must start two, so starting-caliber QBs (and the mid-tier ones most of all) get much scarcer than in superflex.
+  if (pos === "QB" && a.two) { const k = r[2] || 99; m *= k <= 12 ? 1.06 : k <= 30 ? 1.15 : k <= 40 ? 1.08 : 1.03; }
+  return m;
+}
+function adjustPack(base, a){
+  if (!a || !adjKey(a).replace(/[0,]/g, "")) return base;
+  const v = {}, seen = new Map();
+  for (const k in base.v) {
+    const r = base.v[k]; if (k.startsWith("pick:") || !Array.isArray(r)) { v[k] = r; continue; }
+    if (seen.has(r)) { v[k] = seen.get(r); continue; }
+    const row = r.slice();
+    if (a.startup && row[8] != null) { const e = row[9]; row[0] = Math.round(e != null ? 0.6 * row[8] + 0.4 * e : row[8]); if (row[14] != null) row[0] = r[0]; }
+    const m = fmtMult(row, a);
+    if (m !== 1) [0, 8, 9, 10].forEach(i => { if (row[i] != null) row[i] = Math.round(row[i] * m); });
+    seen.set(r, row); v[k] = row;
+  }
+  return Object.assign({}, base, {v, adj: a});
+}
+async function loadValues(ppr, teams, qbs, dyn, adj){
+  if (adj && adjKey(adj).replace(/[0,]/g, "")) {
+    const k2 = valuesKey(ppr, teams, qbs, dyn) + "|" + adjKey(adj);
+    if (tr.values[k2] && Date.now() - (tr.values[k2].at || 0) < 3 * 3600e3) { tr.valuesHasFlea = tr.values[k2].flea; return tr.values[k2]; }
+    const base = await loadValues(ppr, teams, qbs, dyn);
+    return (tr.values[k2] = adjustPack(base, adj));
+  }
   const k = valuesKey(ppr, teams, qbs, dyn);
   // Values refresh through the day; an app left open picks up the new numbers after 3 hours.
   if (tr.values[k] && Date.now() - (tr.values[k].at || 0) < 3 * 3600e3) { tr.valuesHasFlea = tr.values[k].flea; return tr.values[k]; }
@@ -2408,7 +2458,7 @@ async function renderTrade(v){
   if (!tr.other || !others.find(t => t.id === tr.other)) { tr.other = others[0] && others[0].id; tr.get.clear(); }
   const them = others.find(t => t.id === tr.other);
   if (tr.ppr == null) tr.ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1");
-  const qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1;
+  const qbs = qbsOf(d);
   if (tr.dyn == null) { const sv = savedDyn(L); tr.dyn = sv != null ? sv : /dynasty|keeper/i.test(L.meta.name); }
   if (tr.mode !== "scan" && tr.mode !== "sell") h += '<div class="psearch"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="trS" type="search" placeholder="Search any player in this league" autocomplete="off" aria-label="Search any player in this league"></div><ul id="trSR" class="sres" hidden></ul>';
   h += '<p class="muted small" style="margin:' + (tr.mode === "scan" ? "-2px" : "-4px") + ' 2px 12px">' + (tr.mode === "sell" ? "Pick a player to shop. Every team is checked for how much he’d help them, and you get a fair return to ask for from each." : tr.mode === "scan" ? "Pick a position. The finder checks every roster for players who would start for you and owners who can spare them, then builds an offer." : tr.mode === "find" ? "Pick a player you want and see the fairest packages from your roster and picks." : "Got an offer? Pick the players from it and get a grade from 1 to 10.") + "</p>";
@@ -2442,7 +2492,7 @@ async function renderTrade(v){
   v.querySelectorAll("[data-dyn]").forEach(b => b.addEventListener("click", () => { tr.dyn = b.dataset.dyn === "true"; saveDyn(L, tr.dyn); render(); }));
   if (!them) return;
   const token = (tr.loading = Math.random());
-  const pack = await loadValues(tr.ppr, d.teams.length, qbs, tr.dyn);
+  const pack = await loadValues(tr.ppr, d.teams.length, qbs, tr.dyn, fmtAdj(d));
   const sid = new Map(), ppg = new Map();
   const pool2 = tr.mode === "scan" || tr.mode === "sell" ? d.teams.flatMap(t => t.roster) : me.roster.concat(them.roster);
   for (const p of pool2) sid.set(p, await sleeperIdFor(L, p));
@@ -2858,14 +2908,14 @@ const calc = (() => {
 })();
 function saveCalc(){ try { localStorage.setItem(KEY + ".calc", JSON.stringify(Object.assign({}, calc, {q: {a: "", b: ""}}))); } catch(e){} }
 function calcDefaults(){
-  if (calc.dyn != null) return;
+  if (calc.dyn != null && calc.tep != null) return;
   const L = leagues.find(x => x.detail && x.detail.teams.some(t => t.mine));
-  if (L) { const d = L.detail; calc.dyn = !!(d.maxKeepers || /dynasty|keeper/i.test(L.meta.name)); calc.qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1; calc.teams = d.teams.length; calc.ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1"); }
+  if (L) { const d = L.detail, a = fmtAdj(d) || {}; calc.dyn = !!(d.maxKeepers || /dynasty|keeper/i.test(L.meta.name)); calc.qbs = qbsOf(d); calc.two = !!a.two; calc.tep = a.tep || 0; calc.ppc = a.ppc || 0; calc.teams = d.teams.length; calc.ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1"); calc.fromLeague = L.meta.name; }
   else { calc.dyn = false; calc.qbs = 1; calc.teams = 12; calc.ppr = "1"; }
 }
 // Shareable link: the whole calculation lives in the address, so anyone can open it.
 function calcLink(){
-  const s = JSON.stringify({f: [calc.dyn ? 1 : 0, calc.qbs, calc.teams, calc.ppr], a: calc.a, b: calc.b});
+  const s = JSON.stringify({f: [calc.dyn ? 1 : 0, calc.qbs, calc.teams, calc.ppr, calc.tep || 0, calc.ppc || 0, calc.two ? 1 : 0, calc.startup ? 1 : 0], a: calc.a, b: calc.b});
   return location.origin + "/#calc=" + btoa(unescape(encodeURIComponent(s))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 function readCalcLink(){
@@ -2873,25 +2923,37 @@ function readCalcLink(){
   try {
     const j = JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/-/g, "+").replace(/_/g, "/")))));
     calc.dyn = !!j.f[0]; calc.qbs = j.f[1] === 2 ? 2 : 1; calc.teams = Number(j.f[2]) || 12; calc.ppr = ["0", "0.5", "1"].includes(j.f[3]) ? j.f[3] : "1";
+    calc.tep = [0, 0.5, 1].includes(j.f[4]) ? j.f[4] : 0; calc.ppc = [0, 0.25, 0.5].includes(j.f[5]) ? j.f[5] : 0; calc.two = j.f[6] === 1 && calc.qbs === 2; calc.startup = j.f[7] === 1 && calc.dyn; calc.fromLeague = null;
     calc.a = (j.a || []).map(String).slice(0, 12); calc.b = (j.b || []).map(String).slice(0, 12);
     history.replaceState(null, "", location.pathname); return true;
   } catch(e){ return false; }
 }
-let calcPack = null, calcKey = "", calcIndex = null;
+let calcPack = null, calcKey = "", calcIndex = null, calcPros = {};
+const calcAdj = () => ({tep: +calc.tep || 0, ppc: +calc.ppc || 0, two: !!calc.two && calc.qbs === 2, startup: !!calc.startup && !!calc.dyn});
 async function calcValues(){
-  const k = [calc.ppr, calc.teams, calc.qbs, calc.dyn].join("/");
+  const a = calcAdj(), k = [calc.ppr, calc.teams, calc.qbs, calc.dyn, adjKey(a)].join("/");
   if (calcPack && calcKey === k) return calcPack;
-  calcPack = await loadValues(calc.ppr, calc.teams, calc.qbs, calc.dyn); calcKey = k;
+  calcPack = await loadValues(calc.ppr, calc.teams, calc.qbs, calc.dyn, a); calcKey = k;
   // One row per player (values are also keyed by Fleaflicker ID), plus every draft pick.
   const low = t => String(t || "").toLowerCase().replace(/[.'’]/g, "");
   calcIndex = Object.keys(calcPack.v).filter(k2 => k2[0] !== "f").map(k2 => ({k: k2, r: calcPack.v[k2], n: low(k2.startsWith("pick:") ? k2.slice(5) : calcPack.v[k2][4])}));
+  // Dynasty: next year's college class, valued like the rookie pick it takes to draft each one.
+  calcPros = {};
+  if (calc.dyn) try {
+    const P = await getProspects(), board = prospectBoard(P, calc.qbs === 2).slice(0, 72), N = Number(calc.teams) || 12, pv = calcPack.v;
+    const pickV = (rd, slot) => { const tier = slot <= N / 3 ? " (Early)" : slot > N * 2 / 3 ? " (Late)" : " (Mid)", lab = P.class + " " + (["", "1st", "2nd", "3rd", "4th"][rd] || "4th"); const r = pv["pick:" + lab + tier] || pv["pick:" + lab]; return r ? r[0] : null; };
+    const top = (pickV(1, 1) || 5000) * 1.12, bottom = pickV(4, N) || pickV(3, N) || top * 0.12, kk = Math.log(top / Math.max(50, bottom)) / Math.max(8, N * 4 - 1);
+    board.forEach(x => { const id = "cp:" + norm(x.name) + ":" + x.pos; calcPros[id] = {name: x.name, pos: x.pos, school: x.school, rank: x.rank, cls: P.class, nfl: x.nfl, v: Math.round(top * Math.exp(-kk * (x.rank - 1)))}; calcIndex.push({k: id, r: [calcPros[id].v], n: low(x.name)}); });
+  } catch(e){}
   return calcPack;
 }
 function calcAsset(k){
+  if (k.startsWith("cp:")) { const x = calcPros[k]; return x ? {k, name: x.name, pos: x.pos, age: null, team: x.school, v: x.v, rank: x.cls + " prospect #" + x.rank, prospect: x} : null; }
   const r = calcPack && calcPack.v[k]; if (!r) return null;
   const pick = k.startsWith("pick:"), pos = pick ? "PICK" : r[5];
   const prem = pos === "QB" ? qbPremium(calc.teams, calc.qbs) : 1;
-  return {k, name: pick ? k.slice(5) : r[4], pos, age: r[6], team: r[15] || "", v: (r[0] || 0) * prem, rank: r[2] ? pos + r[2] : "", mine: r[14] != null};
+  const srcs = pick ? null : [r[8], r[9], r[10]].map(x => x != null ? x * prem : null);
+  return {k, name: pick ? k.slice(5) : r[4], pos, age: r[6], team: r[15] || "", v: (r[0] || 0) * prem, rank: r[2] ? pos + r[2] : "", mine: r[14] != null, srcs};
 }
 function calcSearch(q, exclude){
   q = String(q || "").toLowerCase().replace(/[.'’]/g, "").trim(); if (!q || !calcIndex) return [];
@@ -2901,8 +2963,14 @@ function calcSearch(q, exclude){
 function calcRow(a, side){
   const p = {id: a.k.startsWith("pick:") ? "" : a.k, name: a.name, pos: a.pos === "PICK" ? "" : a.pos, team: a.team};
   return '<li class="crow">' + (a.pos === "PICK" ? '<span class="av"><i>PK</i></span>' : avatar(p)) +
-    '<span class="pname"><b>' + esc(a.name) + "</b><small>" + (a.pos === "PICK" ? "Draft pick" : posTag(a) + esc([a.team, a.age ? "age " + Math.round(a.age) : "", a.rank].filter(Boolean).join(" · "))) + (a.mine ? " · your value" : "") + "</small></span>" +
+    '<span class="pname"><b>' + esc(a.name) + "</b><small>" + (a.pos === "PICK" ? "Draft pick" : posTag(a) + esc([a.team, a.age ? "age " + Math.round(a.age) : "", a.rank].filter(Boolean).join(" · "))) + (a.mine ? " · your value" : "") + "</small>" + calcRange(a) + "</span>" +
     '<span class="tv">' + fmtV(a.v) + '</span><button type="button" class="cx" data-rm="' + side + '" data-k="' + esc(a.k) + '" aria-label="Remove ' + esc(a.name) + '">×</button></li>';
+}
+// Where the market, the experts and this season's production disagree: a buy-low / sell-high band.
+function calcRange(a){
+  const xs = (a.srcs || []).filter(x => x != null && x > 0); if (xs.length < 2) return "";
+  const lo = Math.min(...xs), hi = Math.max(...xs); if (hi - lo < Math.max(150, a.v * 0.08)) return '<small class="crange">Sources agree</small>';
+  return '<small class="crange">Range ' + fmtV(lo) + "–" + fmtV(hi) + "</small>";
 }
 let calcMode = "trade";
 async function renderCalc(v){
@@ -2938,16 +3006,34 @@ function drawCalc(v){
       '<div class="cbar"><span style="width:' + Math.round(share * 100) + '%"></span></div><div class="cbarlab"><span>Team A ' + fmtV(effA) + "</span><span>Team B " + fmtV(effB) + "</span></div>" +
       (!fair ? '<p class="small" style="margin:12px 0 6px">To even it out, Team ' + loser + " should also get about <b>" + fmtV(diff) + "</b> in value" + (fixes.length ? ", for example:" : ".") + "</p>" +
         (fixes.length ? '<div class="chips">' + fixes.map(a => '<button type="button" class="chip" data-fix="' + loser.toLowerCase() + '" data-k="' + esc(a.k) + '">' + esc(a.name) + " · " + fmtV(a.v) + "</button>").join("") + "</div>" : "") : "") +
+      calcSources(A, B) +
       (A.length !== B.length ? '<p class="small muted" style="margin:12px 0 0">Raw totals are ' + fmtV(sum(A)) + " and " + fmtV(sum(B)) + ". The side getting more pieces is counted lower, because several mid players are worth less than one star who fills a single lineup spot.</p>" : "") +
       '<div class="sendrow" style="margin-top:14px"><button type="button" class="btn" id="cShare">Share this trade</button><button type="button" class="btn ghost" id="cClear">Clear</button></div><p class="small" id="cMsg" style="margin:6px 0 0"></p></div>';
   }
   v.innerHTML = '<h2>Trade calculator</h2>' + calcSwitch() +
-    '<div class="card cfmt">' + seg("dyn", [[1, "Dynasty"], [0, "Redraft"]], calc.dyn ? 1 : 0) + seg("qbs", [[1, "1 QB"], [2, "Superflex"]], calc.qbs) +
-    '<div class="crow2">' + seg("ppr", [["1", "PPR"], ["0.5", "Half"], ["0", "Std"]], calc.ppr) + '<label class="cteams">Teams <select data-cf="teams">' + [8, 10, 12, 14, 16, 18, 20].map(n => '<option' + (n === Number(calc.teams) ? " selected" : "") + ">" + n + "</option>").join("") + "</select></label></div></div>" +
+    '<div class="card cfmt">' + (calc.fromLeague ? '<p class="small muted" style="margin:0 2px 2px">Set from ' + esc(calc.fromLeague) + "’s scoring. Change anything to price another league.</p>" : "") + seg("dyn", [[1, "Dynasty"], [0, "Redraft"]], calc.dyn ? 1 : 0) + seg("qbs", [[1, "1 QB"], ["sf", "Superflex"], ["2qb", "2QB"]], calc.qbs === 2 ? (calc.two ? "2qb" : "sf") : 1) +
+    '<div class="crow2">' + seg("ppr", [["1", "PPR"], ["0.5", "Half"], ["0", "Std"]], calc.ppr) + '<label class="cteams">Teams <select data-cf="teams">' + [8, 10, 12, 14, 16, 18, 20].map(n => '<option' + (n === Number(calc.teams) ? " selected" : "") + ">" + n + "</option>").join("") + "</select></label></div>" +
+    '<div class="crow2">' + seg("tep", [[0, "No TE bonus"], [0.5, "TE +0.5"], [1, "TE +1"]], +calc.tep || 0) + "</div>" +
+    '<div class="crow2">' + seg("ppc", [[0, "No carry pts"], [0.25, "Carry +.25"], [0.5, "Carry +.5"]], +calc.ppc || 0) + "</div>" +
+    (calc.dyn ? '<div class="crow2">' + seg("startup", [[0, "In-season values"], [1, "Startup draft"]], calc.startup ? 1 : 0) + "</div>" : "") + "</div>" +
     side("A", A, effA) + side("B", B, effB) + res +
     (!both ? '<p class="small muted" style="margin:12px 4px 0">Add players or picks to both sides. Works for any trade, in any league, even ones you’re not in.</p>' : "") + calcMovers() +
-    '<p class="small muted" style="margin:14px 4px 0">Values are Snap Count values for this format: trade market, expert rankings and this season’s production, blended. Tap a player you’ve given your own value to see it marked.</p>';
+    '<p class="small muted" style="margin:14px 4px 0">Values are Snap Count values for this format: trade market, expert rankings and this season’s production, blended' + (calc.startup && calc.dyn ? " (startup: market and experts only, since a startup drafts for the long run)" : "") + ". TE and per-carry bonuses are priced from each player’s catches and carries per game. 2QB lifts starting quarterbacks more than superflex does, most of all the mid-tier starters. “Range” is where the three sources disagree: buy near the low end, sell near the high end." + (calc.dyn ? " College players are next year’s class, valued like the rookie pick it would take to draft them." : "") + "</p>";
   wireCalc(v);
+}
+// The same trade judged by each source on its own, so you know how solid the verdict is.
+function calcSources(A, B){
+  const names = ["Trade market", "Expert rankings", "This season"], out = [];
+  for (let i = 0; i < 3; i++) {
+    const has = A.concat(B).some(a => a.srcs && a.srcs[i] != null); if (!has) continue;
+    const sv = a => a.srcs && a.srcs[i] != null ? a.srcs[i] : a.v, ea = effOf(A.map(sv)), eb = effOf(B.map(sv));
+    const pct = Math.abs(ea - eb) / Math.max(ea, eb, 1);
+    out.push({n: names[i], w: pct <= 0.05 ? null : ea > eb ? "A" : "B", pct});
+  }
+  if (out.length < 2) return "";
+  const ws = new Set(out.map(o => o.w || "=")), agree = ws.size === 1;
+  const line = o => '<div class="csrc"><span>' + o.n + "</span><b>" + (o.w ? "Team " + o.w + " +" + Math.round(o.pct * 100) + "%" : "Even") + "</b></div>";
+  return '<div class="csrcs">' + out.map(line).join("") + '</div><p class="small" style="margin:8px 0 0">' + (agree ? (out[0].w ? "Every source agrees Team " + out[0].w + " comes out ahead." : "Every source calls it even.") : "The sources split: whether this is a win depends on whether you trust the market, the experts, or this season’s production.") + "</p>";
 }
 function calcSwitch(){ return '<div class="seg" role="group" aria-label="Tool" style="margin:-4px 0 12px"><button type="button" data-cm="trade" aria-pressed="' + (calcMode === "trade") + '">Trade calculator</button><button type="button" data-cm="mock" aria-pressed="' + (calcMode === "mock") + '">Mock draft</button></div>'; }
 function wireSwitch(v){ v.querySelectorAll("[data-cm]").forEach(b => b.addEventListener("click", () => { calcMode = b.dataset.cm; render(); })); }
@@ -2968,7 +3054,7 @@ function renderMockTab(v){
 // Biggest value moves: this week from the daily snapshots, or the last 30 days until a week of snapshots exists.
 function calcMovers(){
   if (!calcIndex) return "";
-  const rows = calcIndex.filter(x => !x.k.startsWith("pick:") && x.r[0] >= 800);
+  const rows = calcIndex.filter(x => !x.k.startsWith("pick:") && !x.k.startsWith("cp:") && x.r[0] >= 800);
   const useWeek = rows.some(x => x.r[18] != null), d = x => useWeek ? x.r[18] : x.r[3];
   const up = rows.filter(x => d(x) > 0).sort((a, b) => d(b) - d(a)).slice(0, 6), dn = rows.filter(x => d(x) < 0).sort((a, b) => d(a) - d(b)).slice(0, 6);
   if (!up.length && !dn.length) return "";
@@ -2982,7 +3068,8 @@ function wireCalc(v){
   v.querySelectorAll("[data-mv]").forEach(b => b.addEventListener("click", () => { if (!calc.a.includes(b.dataset.mv) && !calc.b.includes(b.dataset.mv)) calc.a.push(b.dataset.mv); saveCalc(); drawCalc(v); window.scrollTo({top: 0, behavior: "smooth"}); }));
   v.querySelectorAll("[data-cf]").forEach(el => el.addEventListener(el.tagName === "SELECT" ? "change" : "click", async () => {
     const f = el.dataset.cf, val = el.tagName === "SELECT" ? el.value : el.dataset.val;
-    if (f === "dyn") calc.dyn = val === "1"; else if (f === "qbs") calc.qbs = Number(val); else if (f === "teams") calc.teams = Number(val); else calc.ppr = val;
+    if (f === "dyn") calc.dyn = val === "1"; else if (f === "qbs") { calc.qbs = val === "1" ? 1 : 2; calc.two = val === "2qb"; } else if (f === "teams") calc.teams = Number(val); else if (f === "tep") calc.tep = Number(val); else if (f === "ppc") calc.ppc = Number(val); else if (f === "startup") calc.startup = val === "1"; else calc.ppr = val;
+    calc.fromLeague = null;
     saveCalc(); renderCalc(v);
   }));
   v.querySelectorAll("[data-rm]").forEach(b => b.addEventListener("click", () => { const s = b.dataset.rm; calc[s] = calc[s].filter(k => k !== b.dataset.k); saveCalc(); drawCalc(v); }));
@@ -3482,10 +3569,10 @@ async function openCompare(){
   const season = st.league_season || st.season, week = st.display_week || st.week;
   await Promise.all([getPlayers(), getProj(), getSeasonStats(season), gamesAt ? null : loadScoreboard()]);
   const L = cmpLeague(), d = L && L.detail;
-  const qbs = d && (d.slots || []).includes("SUPER_FLEX") ? 2 : 1, ppr = d ? ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1") : "1";
+  const qbs = d ? qbsOf(d) : 1, ppr = d ? ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1") : "1";
   const dyn = L ? (savedDyn(L) != null ? savedDyn(L) : /dynasty|keeper/i.test(L.meta.name)) : false;
   const col = {"1": 0, "0.5": 1, "0": 2}[ppr];
-  const [pack, roles] = await Promise.all([loadValues(ppr, d ? d.teams.length : 12, qbs, true).catch(() => ({v: {}})), api("/api/roles?season=" + season + "&week=" + week).catch(() => ({players: {}}))]);
+  const [pack, roles] = await Promise.all([loadValues(ppr, d ? d.teams.length : 12, qbs, true, d ? fmtAdj(d) : null).catch(() => ({v: {}})), api("/api/roles?season=" + season + "&week=" + week).catch(() => ({players: {}}))]);
   const V = pack.v || {}, prem = d ? qbPremium(d.teams.length, qbs) : 1;
   const owner = sid => { const q = players[sid]; if (!q) return []; const k = norm(q[0]) + "|" + q[1]; return leagues.filter(x => x.detail).map(x => { const t = x.detail.teams.find(t2 => t2.roster.some(r => (x.meta.platform === "sleeper" ? String(r.id) === sid : norm(r.name) + "|" + (r.pos === "D/ST" ? "DEF" : r.pos) === k))); return t ? (t.mine ? "You" : t.name) + (leagues.length > 1 ? " (" + x.meta.name + ")" : "") : null; }).filter(Boolean); };
   const row = sid => {
@@ -3595,8 +3682,8 @@ async function openDraftCenter(L){
   // A draft that's scheduled or under way: this season's board with empty slots.
   try { const live = S.boards[cur] || await draftBoard(L, cur); S.live = live.length && live.some(x => !x.player) ? live : null; if (S.live && S.year == null) S.year = "live"; } catch(e){ S.live = null; }
   if (!S.years.length && !S.live) { p.innerHTML = '<button class="back" id="closeSheet">Close</button><h2>Draft center</h2><div class="card"><p class="small" style="margin:0">No drafts found for this league yet.</p></div>'; p.querySelector("#closeSheet").addEventListener("click", closeSheet); return; }
-  const qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1, ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1");
-  const pack = await loadValues(ppr, d.teams.length, qbs, true), V = pack.v, prem = qbPremium(d.teams.length, qbs);
+  const qbs = qbsOf(d), ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1");
+  const pack = await loadValues(ppr, d.teams.length, qbs, true, fmtAdj(d)), V = pack.v, prem = qbPremium(d.teams.length, qbs);
   const pv = pl => ((V[pack.flea ? "f" + pl.id : sleeperKey(L, pl)] || [0])[0] || 0) * (pl.pos === "QB" ? prem : 1);
   const curName = id => { const t = d.teams.find(x => x.id === id); return t ? t.name : null; };
   const chips = y => '<div class="chips" style="margin:2px 0 10px">' + (S.live ? '<button type="button" class="chip' + (y === "live" ? " on" : "") + '" data-dy="live"><span class=livedot></span>Live draft</button>' : "") + S.years.filter(yy => !(S.live && yy === cur)).map(yy => '<button type="button" class="chip' + (yy === y ? " on" : "") + '" data-dy="' + yy + '">' + yy + "</button>").join("") + "</div>";
@@ -3728,12 +3815,12 @@ async function openLandscape(L){
   if (!me) return fail("Pick your team in this league first.");
   const n = d.teams.length;
   if (n < 4) return fail("This needs a league with at least 4 teams.");
-  const qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1, ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1");
+  const qbs = qbsOf(d), ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1");
   const dyn = savedDyn(L) != null ? savedDyn(L) : /dynasty|keeper/i.test(L.meta.name);
   let nowPk, dynPk, picks = {};
   try {
     await getPlayers(); ensureSidIndex();
-    [nowPk, dynPk] = await Promise.all([loadValues(ppr, n, qbs, false), dyn ? loadValues(ppr, n, qbs, true) : null]);
+    [nowPk, dynPk] = await Promise.all([loadValues(ppr, n, qbs, false, fmtAdj(d)), dyn ? loadValues(ppr, n, qbs, true, fmtAdj(d)) : null]);
     if (dyn && ["flea", "sleeper"].includes(L.meta.platform)) picks = await loadPicks(L);
   } catch(e){ if (!sh.hidden) fail("Couldn’t load player values: " + e.message); return; }
   if (sh.hidden) return;
@@ -4399,7 +4486,7 @@ async function renderLeagueTrades(L, el){
   const qbs = (d.slots || []).some(x => /SUPER_FLEX|QB\/RB\/WR\/TE/.test(x)) || (d.slots || []).filter(x => x === "QB").length > 1 ? 2 : 1, ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1");
   const dyn = savedDyn(L) != null ? savedDyn(L) : /dynasty|keeper/i.test(L.meta.name);
   await getPlayers();
-  const pack = await loadValues(ppr, d.teams.length, qbs, dyn), prem = qbPremium(d.teams.length, qbs);
+  const pack = await loadValues(ppr, d.teams.length, qbs, dyn, fmtAdj(d)), prem = qbPremium(d.teams.length, qbs);
   await ltBoards(L, S, S.trades.flatMap(t => t.sides.flatMap(s => s.picks.map(x => x.season))));
   const val = ltValuer(L, S, pack.v, pack.flea, prem, d.teams.length);
   const graded = S.trades.slice().sort((a, b) => b.t - a.t).map(t => ltGrade(t, val));
@@ -4728,9 +4815,9 @@ async function waiverBids(L, me, opt, pj, bidC){
   // Top free agents at every position too, so there's always something to price.
   if (L.meta.platform === "flea" || projMap) await Promise.all(["QB", "RB", "WR", "TE"].map(async pos => { try { (await faPool(L, pos)).slice(0, 3).forEach(p => bidC.push({p, kind: "top"})); } catch(e){} }));
   if (!bidC.length) return "";
-  const qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1, ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1");
+  const qbs = qbsOf(d), ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1");
   const dyn = savedDyn(L) != null ? savedDyn(L) : /dynasty|keeper/i.test(L.meta.name);
-  const pack = await loadValues(ppr, d.teams.length, qbs, dyn).catch(() => ({v: {}})), V = pack.v || {}, prem = qbPremium(d.teams.length, qbs);
+  const pack = await loadValues(ppr, d.teams.length, qbs, dyn, fmtAdj(d)).catch(() => ({v: {}})), V = pack.v || {}, prem = qbPremium(d.teams.length, qbs);
   const vOf = c => { const p = c.p, k = c.sid || L.meta.platform === "sleeper" ? String(p.id) : pack.flea ? "f" + p.id : sleeperKey(L, p); return (((V[k] || V[sleeperKey(L, p)] || [0])[0]) || 0) * (p.pos === "QB" ? prem : 1); };
   const startAt = pos => { const xs = opt.list.filter(x => (FLEX[x.slot] || [x.slot]).includes(pos)); if (!xs.length) return null; return xs.reduce((a, b) => (b.v < a.v ? b : a)); };
   const seen = new Set(), rows = [];
@@ -4936,8 +5023,8 @@ async function openDraftOrder(L){
   const exp = T.map((t, i) => ({t, i, avg: S.slotDist[i].reduce((s, c, k) => s + c * (k + 1), 0) / n, dist: S.slotDist[i]}));
   exp.sort((a, b) => a.avg - b.avg);
   const range = dist => { let c = 0, lo = null, hi = null; for (let k = 0; k < dist.length; k++) { c += dist[k]; if (lo == null && c >= n * 0.1) lo = k + 1; if (hi == null && c >= n * 0.9) hi = k + 1; } return [lo, hi]; };
-  const dyn = !!(d.maxKeepers || /dynasty|keeper/i.test(L.meta.name)), qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1;
-  let V = {}; try { V = (await loadValues(({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1"), N, qbs, true)).v; } catch(e){}
+  const dyn = !!(d.maxKeepers || /dynasty|keeper/i.test(L.meta.name)), qbs = qbsOf(d);
+  let V = {}; try { V = (await loadValues(({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1"), N, qbs, true, fmtAdj(d))).v; } catch(e){}
   const pickVal = (rd, slot) => { const tier = slot <= N / 3 ? " (Early)" : slot > N * 2 / 3 ? " (Late)" : " (Mid)"; const r = V["pick:" + season + " " + ORD[rd] + tier] || V["pick:" + season + " " + ORD[rd]]; return r ? r[0] : null; };
   const label = (rd, slot) => rd + "." + String(slot).padStart(2, "0");
   const mineList = [];
@@ -4959,9 +5046,9 @@ async function openDraftOrder(L){
 
 /* ===================== Shared: values for one league ===================== */
 async function leagueVals(L){
-  const d = L.detail, qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1, dyn = !!(d.maxKeepers || /dynasty|keeper/i.test(L.meta.name));
+  const d = L.detail, qbs = qbsOf(d), dyn = !!(d.maxKeepers || /dynasty|keeper/i.test(L.meta.name));
   await getPlayers(); ensureSidIndex();
-  const pack = await loadValues(({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1"), d.teams.length, qbs, dyn), prem = qbPremium(d.teams.length, qbs);
+  const pack = await loadValues(({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1"), d.teams.length, qbs, dyn, fmtAdj(d)), prem = qbPremium(d.teams.length, qbs);
   const key = p => L.meta.platform === "sleeper" ? String(p.id) : pack.flea && L.meta.platform === "flea" ? "f" + p.id : sleeperKey(L, p);
   const row = p => (p && pack.v[key(p)]) || null;
   const val = p => ((row(p) || [0])[0] || 0) * (p.pos === "QB" ? prem : 1);
@@ -5732,9 +5819,9 @@ async function edgeLeague(L, el){
   try { h += await sosHtml(L, me, sched, base); } catch(e){}
   // intel
   el.innerHTML = h + '<p class="spin">Reading the league’s trade history…</p>';
-  const qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1, ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1");
+  const qbs = qbsOf(d), ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1");
   const dyn = savedDyn(L) != null ? savedDyn(L) : /dynasty|keeper/i.test(L.meta.name);
-  const pack = await loadValues(ppr, d.teams.length, qbs, dyn), V = pack.v, prem = qbPremium(d.teams.length, qbs);
+  const pack = await loadValues(ppr, d.teams.length, qbs, dyn, fmtAdj(d)), V = pack.v, prem = qbPremium(d.teams.length, qbs);
   const vkey = p => L.meta.platform === "sleeper" ? String(p.id) : pack.flea && L.meta.platform === "flea" ? "f" + p.id : sleeperKey(L, p);
   const pv = p => ((V[vkey(p)] || [0])[0] || 0) * (p.pos === "QB" ? prem : 1), age = p => (V[vkey(p)] || [])[6];
   await Promise.all([getProj(), getPlayers()]);
@@ -5920,9 +6007,9 @@ async function sosHtml(L, me, sched, base){
 /* ---------- Edge: Dynasty ---------- */
 async function edgeDynasty(L, el){
   const d = L.detail, me = d.teams.find(t => t.mine);
-  const qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1, ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1");
+  const qbs = qbsOf(d), ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1");
   await getPlayers(); ensureSidIndex();
-  const pack = await loadValues(ppr, d.teams.length, qbs, true), V = pack.v, prem = qbPremium(d.teams.length, qbs);
+  const pack = await loadValues(ppr, d.teams.length, qbs, true, fmtAdj(d)), V = pack.v, prem = qbPremium(d.teams.length, qbs);
   const vkey = p => L.meta.platform === "sleeper" ? String(p.id) : pack.flea && L.meta.platform === "flea" ? "f" + p.id : sleeperKey(L, p);
   const row = p => V[vkey(p)] || [];
   const pv = p => (row(p)[0] || 0) * (p.pos === "QB" ? prem : 1);
@@ -6003,9 +6090,9 @@ function keeperWhy(x, rank, N){
 }
 async function edgeKeepers(L, el){
   const d = L.detail, me = d.teams.find(t => t.mine);
-  const qbs = (d.slots || []).includes("SUPER_FLEX") ? 2 : 1, ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1");
+  const qbs = qbsOf(d), ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1");
   await Promise.all([getPlayers(), rosterFor(L, me)]); ensureSidIndex();
-  const pack = await loadValues(ppr, d.teams.length, qbs, true), V = pack.v, prem = qbPremium(d.teams.length, qbs);
+  const pack = await loadValues(ppr, d.teams.length, qbs, true, fmtAdj(d)), V = pack.v, prem = qbPremium(d.teams.length, qbs);
   const vkey = p => L.meta.platform === "sleeper" ? String(p.id) : pack.flea && L.meta.platform === "flea" ? "f" + p.id : sleeperKey(L, p);
   const kp = await keepersFor(L, me);
   const N = kp.max || L.detail.maxKeepers || 0;
