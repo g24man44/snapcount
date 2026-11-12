@@ -2571,7 +2571,8 @@ async function loadValues(ppr, teams, qbs, dyn, adj){
   // Values refresh through the day; an app left open picks up the new numbers after 3 hours.
   if (tr.values[k] && Date.now() - (tr.values[k].at || 0) < 3 * 3600e3) { tr.valuesHasFlea = tr.values[k].flea; return tr.values[k]; }
   try {
-    const r = await api("/api/values?ppr=" + ppr + "&teams=" + teams + "&qbs=" + qbs + (dyn ? "&dyn=1" : ""));
+    // "v" changes whenever the server's value math changes, so phones don't keep showing old cached values.
+    const r = await api("/api/values?ppr=" + ppr + "&teams=" + teams + "&qbs=" + qbs + (dyn ? "&dyn=1" : "") + "&v=15");
     const flea = Object.keys(r.values).some(x => x[0] === "f");
     const v = Object.assign({}, r.values);
     tr.values[k] = {src: r.blend ? "Snap Count values (market, experts and production)" : "FantasyCalc", blend: r.blend || null, v, flea, at: Date.now(), asOf: r.asOf || null}; tr.valuesHasFlea = flea;
