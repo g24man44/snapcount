@@ -16,12 +16,12 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Every ~10 days refresh src/prospects.js: NFL draft analysts' latest 2027 big boards (Kiper, Jordan Reid, Tankathon, Draft Countdown, B/R, plus Brugler/Jeremiah/PFF when public) and dynasty rookie boards (Dynasty Nerds, DraftSharks SF/1QB). After the NFL draft, switch the rookie mock to drafted rookies with real draft slots and landing spots. Last refreshed 2026-11-10; next due around 2026-11-20 (until then, build a new feature instead).
 
 ## Blocked (needs the owner)
-- [ ] Calibrate grades against DTC: needs 5–10 DTC trade results (screenshots), or Claude in Chrome at a computer, to tune the extra-piece discount, pick weighting and verdict thresholds
 - [ ] Save lineups straight to Fleaflicker and Sleeper: neither has a public way for other apps to change lineups. Fleaflicker would need a sample of the request its site sends when you move a player (from the browser's network tab while signed in).
 - [ ] Yahoo leagues: needs a Yahoo developer app (client ID and secret) for sign-in.
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- [x] Calibrated to DTC (checked in DTC's calculator Nov 12, 2026, 16-team half-PPR superflex TE prem): player values already matched within ~3% (~207 Snap Count points per DTC point); nearest-draft picks rescaled (1st Early ×1.6, Mid ×1.53, Late ×1.38, 2nd ×1.25, 3rd ×0.45, 4th ×0.4); unbalanced trade reduction now DTC-style (whole side cut 26%/31%/35% for 1/2/3+ extra pieces, small pieces half) in calculator, grader, coach and market. Re-check against DTC after the 2027 rookie draft, when pick years roll over.
 - [x] Grades closer to market calculators like DTC: dynasty blend now 70% trade market / 20% experts / 10% this season (was 50/25/25); verdict ladder Fair (≤5%) · Slight win (<15%) · Wins (<30%) · Big win; explicit "Unbalanced trade adjustment" line for uneven piece counts
 - [x] Removed "set your own value": every user sees the same Snap Count values everywhere (owner's call — don't re-add)
 - [x] Trade tab merged: My league (Buy/Sell/Price/Grade) · Calculator · Rankings · Mock draft in one tab; bottom bar down to five tabs

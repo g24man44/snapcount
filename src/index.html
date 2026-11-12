@@ -2013,7 +2013,7 @@ async function coachTradeMath(L, q){
   }
   if (!give.length && !get.length) items.forEach(i => (i.mine ? give : get).push(i));
   if (!give.length || !get.length) return "";
-  const sum = a => a.reduce((s, i) => s + i.v, 0), eG = effOf(give.map(i => i.v)), eR = effOf(get.map(i => i.v));
+  const sum = a => a.reduce((s, i) => s + i.v, 0), eG = effOf(give.map(i => i.v), get.length), eR = effOf(get.map(i => i.v), give.length);
   const diff = (eR - eG) / Math.max(eR, eG, 1), pct = Math.round(Math.abs(diff) * 100);
   const verdict = Math.abs(diff) <= 0.05 ? "about even" : diff > 0 ? (diff >= 0.25 ? "clearly in the user's favor" : "slightly in the user's favor") : (diff <= -0.25 ? "clearly against the user" : "slightly against the user");
   const line = (lab, a, e) => lab + ": " + a.map(i => i.label + " = " + Math.round(i.v)).join("; ") + ". Total " + Math.round(sum(a)) + (a.length > 1 ? " (counted as " + Math.round(e) + " because extra pieces in a multi-player side each count a bit less: they use roster spots)" : "") + ".";
@@ -2373,9 +2373,9 @@ function gradeTrade(ctx){
   const val = p => p.pos === "PICK" ? ((V[p.vkey] || V[p.fallback] || [0])[0] || 0) : (((V[sid.get(p)] || [0])[0]) || 0) * (p.pos === "QB" ? prem : 1);
   const pts = p => ppg.get(p) || 0;
   const give = me.roster.concat(myPicks).filter(p => tr.give.has(p.id)), get = them.roster.concat(theirPicks).filter(p => tr.get.has(p.id));
-  const eff = arr => arr.map(val).sort((a, b) => b - a).reduce((s, v, i) => s + v * Math.max(0.4, 1 - 0.15 * i), 0);
+  const eff = (arr, other) => effOf(arr.map(val), other.length);
   const rawG = give.reduce((s, p) => s + val(p), 0), rawR = get.reduce((s, p) => s + val(p), 0);
-  const G = eff(give), R = eff(get), ratio = (R + 50) / (G + 50);
+  const G = eff(give, get), R = eff(get, give), ratio = (R + 50) / (G + 50);
   const valueScore = 5.5 + 4.5 * clamp(Math.log(ratio) / Math.log(1.6), -1, 1);
   const slots = leagueSlots(L);
   const before = bestLineup(me.roster, slots, pts);
@@ -2672,7 +2672,16 @@ async function renderTrade(v){
 function keepKey(L){ return KEY + ".keep." + L.meta.platform + L.meta.id; }
 function loadKeep(L){ try { return new Set(JSON.parse(localStorage.getItem(keepKey(L)) || "[]")); } catch(e){ return new Set(); } }
 function saveKeep(L, set){ try { localStorage.setItem(keepKey(L), JSON.stringify([...set])); } catch(e){} }
-const effOf = vals => vals.slice().sort((a, b) => b - a).reduce((s, v, i) => s + v * Math.max(0.4, 1 - 0.15 * i), 0);
+// Unbalanced trade reduction, calibrated to DTC's: when a side gets more pieces than the other side,
+// every piece on it is cut (about 26% for one extra piece, 31% for two, 35% for three or more), with
+// small pieces (under a fifth of that side's best) cut half as much. Even piece counts are a straight sum.
+function unbalancedCut(extra){ return extra <= 0 ? 0 : extra === 1 ? 0.26 : extra === 2 ? 0.31 : 0.35; }
+const effOf = (vals, otherCount) => {
+  const n = vals.length, extra = n - (otherCount == null ? 1 : otherCount), cut = unbalancedCut(extra);
+  if (!cut) return vals.reduce((s, v) => s + v, 0);
+  const top = Math.max(...vals, 0);
+  return vals.reduce((s, v) => s + v * (1 - (v < top * 0.2 ? cut / 2 : cut)), 0);
+};
 function findPackages(ctx, target, opts){
   const want = (opts && opts.over != null) ? opts.over : 0.03, exPos = opts && opts.excludePos;
   const {L, me, V, sid, ppg, myPicks, prem} = ctx;
@@ -3201,7 +3210,7 @@ async function renderCalc(v){
 function drawCalc(v){
   const A = calc.a.map(calcAsset).filter(Boolean), B = calc.b.map(calcAsset).filter(Boolean);
   const sum = xs => xs.reduce((s, x) => s + x.v, 0);
-  const effA = effOf(A.map(x => x.v)), effB = effOf(B.map(x => x.v));
+  const effA = effOf(A.map(x => x.v), B.length), effB = effOf(B.map(x => x.v), A.length);
   const total = effA + effB, share = total ? effA / total : 0.5;
   const diff = Math.abs(effA - effB), pct = Math.max(effA, effB) ? diff / Math.max(effA, effB) : 0;
   const both = A.length && B.length;
@@ -3216,7 +3225,7 @@ function drawCalc(v){
     const need = diff, behind = winner === "A" ? B : A, behindIds = new Set(calc.a.concat(calc.b));
     // What would even it out: one asset that brings the trailing side up to within a few percent.
     const fixes = fair ? [] : calcIndex.map(x => calcAsset(x.k)).filter(a => a && !behindIds.has(a.k) && a.v > 0).map(a => {
-      const e = effOf(behind.map(x => x.v).concat([a.v])), other = Math.max(effA, effB); return {a, gap: Math.abs(e - other) / other};
+      const e = effOf(behind.map(x => x.v).concat([a.v]), (behind === A ? B : A).length), other = Math.max(effA, effB); return {a, gap: Math.abs(e - other) / other};
     }).filter(x => x.gap <= 0.05).sort((p, q) => p.gap - q.gap || q.a.v - p.a.v).slice(0, 6).map(x => x.a);
     res = '<div class="card cres">' +
       // Verdict ladder in the style of market calculators: fair within 5%, then slight, clear, big.
@@ -3226,7 +3235,7 @@ function drawCalc(v){
         (fixes.length ? '<div class="chips">' + fixes.map(a => '<button type="button" class="chip" data-fix="' + loser.toLowerCase() + '" data-k="' + esc(a.k) + '">' + esc(a.name) + " · " + fmtV(a.v) + "</button>").join("") + "</div>" : "") : "") +
       calcSources(A, B) + '<div id="cComps"></div>' +
       (A.length !== B.length ? (() => { const many = A.length > B.length ? "A" : "B", raw = many === "A" ? sum(A) : sum(B), eff = many === "A" ? effA : effB;
-        return '<div class="cadj"><span>Unbalanced trade adjustment</span><b>Team ' + many + " −" + fmtV(raw - eff) + '</b></div><p class="small muted" style="margin:6px 0 0">Team ' + many + " gets more pieces: raw " + fmtV(raw) + ", counted as " + fmtV(eff) + ". Each extra piece counts a bit less (the 2nd at 85%, the 3rd at 70%…), because several mid players are worth less than one star who fills a single lineup spot.</p>"; })() : "") +
+        return '<div class="cadj"><span>Unbalanced trade adjustment</span><b>Team ' + many + " −" + fmtV(raw - eff) + '</b></div><p class="small muted" style="margin:6px 0 0">Team ' + many + " gets more pieces: raw " + fmtV(raw) + ", counted as " + fmtV(eff) + ". Every piece on the side with more pieces is cut (26% for one extra piece, 31% for two, 35% for three or more; small pieces half as much), because several mid players are worth less than one star who fills a single lineup spot. The same rule DTC uses.</p>"; })() : "") +
       '<div class="sendrow" style="margin-top:14px"><button type="button" class="btn" id="cShare">Share this trade</button><button type="button" class="btn ghost" id="cClear">Clear</button></div><p class="small" id="cMsg" style="margin:6px 0 0"></p></div>';
   }
   v.innerHTML = '<h2>Trade</h2>' + calcSwitch() +
@@ -3251,7 +3260,7 @@ function calcSources(A, B){
   const names = ["Trade market", "Expert rankings", "This season"], out = [];
   for (let i = 0; i < 3; i++) {
     const has = A.concat(B).some(a => a.srcs && a.srcs[i] != null); if (!has) continue;
-    const sv = a => a.srcs && a.srcs[i] != null ? a.srcs[i] : a.v, ea = effOf(A.map(sv)), eb = effOf(B.map(sv));
+    const sv = a => a.srcs && a.srcs[i] != null ? a.srcs[i] : a.v, ea = effOf(A.map(sv), B.length), eb = effOf(B.map(sv), A.length);
     const pct = Math.abs(ea - eb) / Math.max(ea, eb, 1);
     out.push({n: names[i], w: pct <= 0.05 ? null : ea > eb ? "A" : "B", pct});
   }
@@ -5816,7 +5825,7 @@ async function openMarket(L){
       if (best && best.gap > 0.15) { const short = best.va > best.vb ? "give" : "get", pool = short === "give" ? forThem.concat(myGive) : theirs, diff = Math.abs(best.va - best.vb);
         const add = pool.filter(x => !best.give.includes(x) && !best.get.includes(x)).map(x => ({x, d: Math.abs(VV.val(x) - diff)})).sort((a, b) => a.d - b.d)[0];
         if (add && VV.val(add.x) < diff * 1.6) { best[short].push(add.x); } }
-      const gv = effOf(best.get.map(VV.val)), yv = effOf(best.give.map(VV.val));
+      const gv = effOf(best.get.map(VV.val), best.give.length), yv = effOf(best.give.map(VV.val), best.get.length);
       return {o, t: theirT, get: best.get, give: best.give, gv, yv, gap: Math.abs(gv - yv) / Math.max(gv, yv, 1)};
     }).filter(Boolean).sort((a, b) => a.gap - b.gap);
     let h = '<p class="muted" style="margin:-6px 2px 12px">Post who you’d trade and what you want. Leaguemates who use Snap Count see it, and the app pairs up deals that fit both sides. ' + Object.keys(posts).length + " of " + d.teams.length + " teams have posted.</p>";

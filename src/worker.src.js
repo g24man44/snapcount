@@ -227,6 +227,7 @@ async function tradeValues(ppr, teams, qbs, dyn, realTeams, env) {
   const pr = {}; uniq.forEach((row, i) => { row[1] = i + 1; pr[row[5]] = (pr[row[5]] || 0) + 1; row[2] = pr[row[5]]; });
   for (const [k, row] of picks) out[k] = row;
   smoothPicks(out);
+  calibratePicks(out);
   // Day-over-day and week-over-week change, from the daily snapshots.
   if (snap1 || snap7) uniq.forEach(row => {
     const id = rows.find(x => (out[x.sid] || out["f" + x.fid]) === row); if (!id) return;
@@ -293,6 +294,22 @@ function smoothPicks(out) {
       out[k] = mk(row, v);
       if (tiers.every(Boolean)) T.forEach((t, i) => { const spread = (tiers[i] / avg - 1) * Math.pow(0.6, n); out[k + " (" + t + ")"] = mk(row, v * (1 + spread)); });
     }
+  }
+}
+
+// Calibration to DTC (checked against DTC's calculator on Nov 12, 2026, 16-team superflex): player values
+// line up within a few percent, but DTC prices the coming draft's picks very differently: 1sts much higher,
+// 2nds higher, 3rds and 4ths much lower. Later years already match after smoothing, so only the nearest draft moves.
+const PICK_CAL = { "1st (Early)": 1.6, "1st (Mid)": 1.53, "1st (Late)": 1.38, "1st": 1.5, "2nd": 1.25, "3rd": 0.45, "4th": 0.4, "5th": 0.4 };
+function calibratePicks(out) {
+  const years = [...new Set(Object.keys(out).filter(k => k.startsWith("pick:")).map(k => +k.slice(5, 9)))].sort();
+  if (!years.length) return;
+  const y = years[0];
+  for (const k of Object.keys(out)) {
+    if (!k.startsWith("pick:" + y + " ")) continue;
+    const label = k.slice(10), f = PICK_CAL[label] || PICK_CAL[label.replace(/ \((Early|Mid|Late)\)$/, "")];
+    if (!f) continue;
+    const r = out[k].slice(); r[0] = r[7] = Math.round(r[0] * f); out[k] = r;
   }
 }
 
@@ -618,7 +635,7 @@ export async function dailyValues(env, force) {
       for (const k in body.values) if (k[0] !== "f" && !k.startsWith("pick:")) snap[k] = [body.values[k][0], body.values[k][8]];
       await env.SNAP.put("vsnap:" + fmt + ":" + day, JSON.stringify(snap), { expirationTtl: 45 * 864e5 / 1000 });
       const copy = new Response(res.body, res); copy.headers.set("cache-control", "public, max-age=10800");
-      await caches.default.put(new Request("https://snapcount.cache/values13/" + fmt), copy);
+      await caches.default.put(new Request("https://snapcount.cache/values14/" + fmt), copy);
       done.push(fmt);
     } catch (e) {}
   }
@@ -687,7 +704,7 @@ export default {
         const dyn = url.searchParams.get("dyn") === "1";
         const real = Math.min(32, Math.max(4, t));
         ctx.waitUntil(noteValueFormat(env, ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0)));
-        return cached(ctx, "values13/" + ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0), 10800, () => tradeValues(ppr, teams, qbs, dyn, real, env));
+        return cached(ctx, "values14/" + ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0), 10800, () => tradeValues(ppr, teams, qbs, dyn, real, env));
       }
       if (p === "/api/phist") {
         const fc = /^\d{1,7}$/.test(url.searchParams.get("fc") || "") ? url.searchParams.get("fc") : null, sid = /^[\w-]{1,20}$/.test(url.searchParams.get("sid") || "") ? url.searchParams.get("sid") : null;
