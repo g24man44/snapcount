@@ -12,7 +12,7 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - Never break what works. Test in a headless browser against real Fleaflicker data before pushing. If tests fail, don't push.
 
 ## Next up (top first)
-- [ ] Devy leagues that roster college players for several years (needs 2028+ class boards); IDP trade-market data if a public source appears
+- [ ] Refresh the devy board (src/prospects.js "devy") with the 2027 board every ~10 days; IDP trade-market data if a public source appears
 - [ ] Every ~10 days refresh src/prospects.js: NFL draft analysts' latest 2027 big boards (Kiper, Jordan Reid, Tankathon, Draft Countdown, B/R, plus Brugler/Jeremiah/PFF when public) and dynasty rookie boards (Dynasty Nerds, DraftSharks SF/1QB). After the NFL draft, switch the rookie mock to drafted rookies with real draft slots and landing spots. Last refreshed 2026-11-10; next due around 2026-11-20 (until then, build a new feature instead).
 
 ## Blocked (needs the owner)
@@ -21,6 +21,8 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- [x] Devy leagues (Calc › Custom › "Devy: all college"): college players of every class from a crowd devy ranking, later classes priced against next year's class (fit on players both boards share) and discounted for the extra year
+- [x] Player badges in calculator and rankings (Hurt, Young, Aging, Rising, Falling, Outplaying his price, Priced on potential, Hot in trades, College/Devy), with a show/hide switch
 - [x] Rankings tab (Calc › Rankings): every player, pick and college prospect ranked for the chosen league's rules, with ranges, weekly moves, Rising/Falling, and "Hot" (most traded in real fantasy trades); tap to put in the calculator
 - [x] League scoring re-scored from real stats: TE catch bonus, points per carry, 4/6-pt passing TDs and 2QB now move each player's value by how his edge over a replacement starter changes under those rules (replaces flat estimates); passing-TD points read from Fleaflicker, Sleeper and ESPN
 - [x] IDP: defensive players valued from production (Sleeper IDP scoring, replacement level by DL/LB/DB, age curve) on the same scale as offense; detected from league roster slots; searchable in calculator and rankings
