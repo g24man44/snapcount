@@ -748,6 +748,9 @@ path.vho{stroke:var(--ok);stroke-dasharray:4 3}
 .tswitch{margin:-4px 0 10px}
 .tswitch button{font-size:13px;padding-left:4px;padding-right:4px}
 .tmodes{margin:0 0 12px;gap:6px}
+
+.cadj{display:flex;justify-content:space-between;gap:10px;margin-top:14px;padding:10px 12px;border-radius:10px;background:var(--surface2);font-size:13px}
+.cadj b{font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
@@ -1636,7 +1639,7 @@ async function drawValueCard(panel, pl){
     (r[16] ? '<p class="small" style="margin:10px 0 0;color:var(--warn)">Injury report: ' + esc(r[16]) + ". Today’s value accounts for it.</p>" : "") +
     (asOf ? '<p class="small muted" style="margin:8px 0 0">Updated ' + (asOf.toDateString() === new Date().toDateString() ? "today at " : asOf.toLocaleDateString([], {weekday: "short"}) + " ") + asOf.toLocaleTimeString([], {hour: "numeric", minute: "2-digit"}) + ". Values refresh every few hours, with a full recalculation every morning.</p>" : "") +
     (r[8] != null ? '<div class="vparts">' + parts.map(x => '<div class="vp"><div class="vpl"><span>' + x[0] + "</span><b>" + show(x[1]) + '</b></div><div class="vbar"><span style="width:' + (x[1] ? Math.round(x[1] / max * 100) : 0) + '%"></span></div><small class="muted">' + esc(x[2]) + "</small></div>").join("") + "</div>" : "") +
-    '<p class="small muted" style="margin:10px 0 0">' + (dyn ? "Dynasty" : "This season") + " value for " + esc(L.meta.name) + "’s format" + (prem > 1 ? ", including the +" + Math.round((prem - 1) * 100) + "% superflex QB bump" : "") + ". The blend is half market, a quarter experts, a quarter production" + (dyn ? "" : " (60/40 market and production for redraft)") + ".</p>" +
+    '<p class="small muted" style="margin:10px 0 0">' + (dyn ? "Dynasty" : "This season") + " value for " + esc(L.meta.name) + "’s format" + (prem > 1 ? ", including the +" + Math.round((prem - 1) * 100) + "% superflex QB bump" : "") + ". The blend is " + (dyn ? "70% trade market, 20% experts, 10% this season’s production" : "60% trade market, 40% this season’s production") + ".</p>" +
     "";
   const anchor = panel.querySelector("#plog") || panel.querySelector("#pnews");
   if (!anchor || !document.body.contains(panel)) return;
@@ -3216,12 +3219,14 @@ function drawCalc(v){
       const e = effOf(behind.map(x => x.v).concat([a.v])), other = Math.max(effA, effB); return {a, gap: Math.abs(e - other) / other};
     }).filter(x => x.gap <= 0.05).sort((p, q) => p.gap - q.gap || q.a.v - p.a.v).slice(0, 6).map(x => x.a);
     res = '<div class="card cres">' +
-      '<div class="cverdict"><b>' + (fair ? "Fair trade" : "Team " + winner + " wins") + "</b><span>" + (fair ? "Within " + Math.max(1, Math.round(pct * 100)) + "% either way" : "by " + Math.round(pct * 100) + "% (" + fmtV(diff) + ")") + "</span></div>" +
+      // Verdict ladder in the style of market calculators: fair within 5%, then slight, clear, big.
+      '<div class="cverdict"><b>' + (fair ? "Fair trade" : pct < 0.15 ? "Slight win for Team " + winner : pct < 0.3 ? "Team " + winner + " wins" : "Big win for Team " + winner) + "</b><span>" + (fair ? "Within " + Math.max(1, Math.round(pct * 100)) + "% either way" : "by " + Math.round(pct * 100) + "% (" + fmtV(diff) + ")") + "</span></div>" +
       '<div class="cbar"><span style="width:' + Math.round(share * 100) + '%"></span></div><div class="cbarlab"><span>Team A ' + fmtV(effA) + "</span><span>Team B " + fmtV(effB) + "</span></div>" +
       (!fair ? '<p class="small" style="margin:12px 0 6px">To even it out, Team ' + loser + " should also get about <b>" + fmtV(diff) + "</b> in value" + (fixes.length ? ", for example:" : ".") + "</p>" +
         (fixes.length ? '<div class="chips">' + fixes.map(a => '<button type="button" class="chip" data-fix="' + loser.toLowerCase() + '" data-k="' + esc(a.k) + '">' + esc(a.name) + " · " + fmtV(a.v) + "</button>").join("") + "</div>" : "") : "") +
       calcSources(A, B) + '<div id="cComps"></div>' +
-      (A.length !== B.length ? '<p class="small muted" style="margin:12px 0 0">Raw totals are ' + fmtV(sum(A)) + " and " + fmtV(sum(B)) + ". The side getting more pieces is counted lower, because several mid players are worth less than one star who fills a single lineup spot.</p>" : "") +
+      (A.length !== B.length ? (() => { const many = A.length > B.length ? "A" : "B", raw = many === "A" ? sum(A) : sum(B), eff = many === "A" ? effA : effB;
+        return '<div class="cadj"><span>Unbalanced trade adjustment</span><b>Team ' + many + " −" + fmtV(raw - eff) + '</b></div><p class="small muted" style="margin:6px 0 0">Team ' + many + " gets more pieces: raw " + fmtV(raw) + ", counted as " + fmtV(eff) + ". Each extra piece counts a bit less (the 2nd at 85%, the 3rd at 70%…), because several mid players are worth less than one star who fills a single lineup spot.</p>"; })() : "") +
       '<div class="sendrow" style="margin-top:14px"><button type="button" class="btn" id="cShare">Share this trade</button><button type="button" class="btn ghost" id="cClear">Clear</button></div><p class="small" id="cMsg" style="margin:6px 0 0"></p></div>';
   }
   v.innerHTML = '<h2>Trade</h2>' + calcSwitch() +

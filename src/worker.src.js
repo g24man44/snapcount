@@ -194,7 +194,8 @@ async function tradeValues(ppr, teams, qbs, dyn, realTeams, env) {
   rows.forEach(x => { if (x.ppg != null && x.gp >= 3 && rep[x.pos] != null) x.vorp = (x.ppg - rep[x.pos]) * (dyn ? (0.55 + 0.45 * ageCurve(x.pos, x.age ? x.age + 1 : null)) : 1); });
   mapByRank(rows, x => x.vorp != null ? x.vorp : null, (x, v) => x.production = v);
   // Blend: in-season production matters more for redraft.
-  const W = dyn ? { market: 0.5, experts: 0.25, production: 0.25 } : { market: 0.6, experts: 0, production: 0.4 };
+  // Dynasty leans on the trade market (70%), like market-based calculators such as DTC; experts 20%, this season 10%.
+  const W = dyn ? { market: 0.7, experts: 0.2, production: 0.1 } : { market: 0.6, experts: 0, production: 0.4 };
   // Today's injury report: a season-ending injury hurts a redraft value far more than a dynasty one.
   // The market often lags the news by a day or two, so this keeps values honest in the meantime.
   const seasonEnd = (i) => /injured reserve|season/i.test(i.status + " " + i.short + " " + i.long) && !(i.ret && new Date(i.ret) < new Date(new Date().getFullYear() + "-12-20"));
@@ -617,7 +618,7 @@ export async function dailyValues(env, force) {
       for (const k in body.values) if (k[0] !== "f" && !k.startsWith("pick:")) snap[k] = [body.values[k][0], body.values[k][8]];
       await env.SNAP.put("vsnap:" + fmt + ":" + day, JSON.stringify(snap), { expirationTtl: 45 * 864e5 / 1000 });
       const copy = new Response(res.body, res); copy.headers.set("cache-control", "public, max-age=10800");
-      await caches.default.put(new Request("https://snapcount.cache/values12/" + fmt), copy);
+      await caches.default.put(new Request("https://snapcount.cache/values13/" + fmt), copy);
       done.push(fmt);
     } catch (e) {}
   }
@@ -686,7 +687,7 @@ export default {
         const dyn = url.searchParams.get("dyn") === "1";
         const real = Math.min(32, Math.max(4, t));
         ctx.waitUntil(noteValueFormat(env, ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0)));
-        return cached(ctx, "values12/" + ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0), 10800, () => tradeValues(ppr, teams, qbs, dyn, real, env));
+        return cached(ctx, "values13/" + ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0), 10800, () => tradeValues(ppr, teams, qbs, dyn, real, env));
       }
       if (p === "/api/phist") {
         const fc = /^\d{1,7}$/.test(url.searchParams.get("fc") || "") ? url.searchParams.get("fc") : null, sid = /^[\w-]{1,20}$/.test(url.searchParams.get("sid") || "") ? url.searchParams.get("sid") : null;

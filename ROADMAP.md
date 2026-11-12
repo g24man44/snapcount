@@ -16,11 +16,13 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Every ~10 days refresh src/prospects.js: NFL draft analysts' latest 2027 big boards (Kiper, Jordan Reid, Tankathon, Draft Countdown, B/R, plus Brugler/Jeremiah/PFF when public) and dynasty rookie boards (Dynasty Nerds, DraftSharks SF/1QB). After the NFL draft, switch the rookie mock to drafted rookies with real draft slots and landing spots. Last refreshed 2026-11-10; next due around 2026-11-20 (until then, build a new feature instead).
 
 ## Blocked (needs the owner)
+- [ ] Calibrate grades against DTC: needs 5–10 DTC trade results (screenshots), or Claude in Chrome at a computer, to tune the extra-piece discount, pick weighting and verdict thresholds
 - [ ] Save lineups straight to Fleaflicker and Sleeper: neither has a public way for other apps to change lineups. Fleaflicker would need a sample of the request its site sends when you move a player (from the browser's network tab while signed in).
 - [ ] Yahoo leagues: needs a Yahoo developer app (client ID and secret) for sign-in.
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- [x] Grades closer to market calculators like DTC: dynasty blend now 70% trade market / 20% experts / 10% this season (was 50/25/25); verdict ladder Fair (≤5%) · Slight win (<15%) · Wins (<30%) · Big win; explicit "Unbalanced trade adjustment" line for uneven piece counts
 - [x] Removed "set your own value": every user sees the same Snap Count values everywhere (owner's call — don't re-add)
 - [x] Trade tab merged: My league (Buy/Sell/Price/Grade) · Calculator · Rankings · Mock draft in one tab; bottom bar down to five tabs
 - [x] Snap Count pick values: plain pick = average of its Early/Mid/Late prices; later years blend FantasyCalc's thin far-out prices 50/50 with a 15%-a-year discount; Early/Mid/Late for every year, narrowing further out
