@@ -725,6 +725,25 @@ path.vho{stroke:var(--ok);stroke-dasharray:4 3}
 .accmeter i{display:block;height:100%}
 .accmeter.us i{background:var(--accent)}
 .accmeter.nv i{background:var(--muted)}
+
+/* Tighter lists: one clean line of details under each name, more players per screen. */
+.prow{grid-template-columns:40px minmax(0,1fr) auto;gap:12px;padding:10px 16px}
+.prow .av{width:40px;height:40px}
+.prow .pname small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.45}
+.prow .pname small.note{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;white-space:normal;overflow:hidden}
+.bug.noproj .bugrow{grid-template-columns:30px minmax(0,1fr) auto auto}
+.bugname{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.1}
+
+.tgh{margin:22px 4px 8px;font-size:13px;font-weight:700;color:var(--muted);letter-spacing:0}
+.tlist{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.tlist .btn{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:10px;min-height:50px;padding:10px 12px;margin:0!important;width:auto!important;text-align:left;font-size:13.5px;font-weight:650;line-height:1.2;background:var(--surface);border:1px solid var(--line);color:var(--ink);border-radius:12px}
+.tlist .btn [class^=ic-]{width:18px;height:18px;flex:none;color:var(--accent)}
+.tlist .btn:last-child:nth-child(odd){grid-column:1/-1}
+
+.fmtd summary{display:flex;justify-content:space-between;gap:10px;align-items:center;cursor:pointer;list-style:none;font-size:13px;color:var(--muted);padding:2px 2px 0}
+.fmtd summary::-webkit-details-marker{display:none}
+.fmtd summary span{color:var(--accent);font-weight:700;flex:none}
+.fmtd[open] summary{margin-bottom:10px}
 </style>
 </head>
 <body>
@@ -1108,8 +1127,8 @@ function renderLeagues(v){
   leaguesErr.forEach(e => h += '<div class="err">' + esc(e) + "</div>");
   if (!leaguesLoaded) { v.innerHTML = h + '<p class="spin">Loading your leagues…</p>'; return; }
   if (!leagues.length) { v.innerHTML = h + '<p class="muted">No leagues found for this season.</p>'; return; }
-  if (leagues.some(L => L.detail && L.detail.teams.some(t => t.mine))) h += '<div class="tiles"><button type="button" class="btn ghost" id="sweatBtn"><i class=ic-flame aria-hidden=true></i>Sweat board</button><button type="button" class="btn ghost" id="planBtn"><i class=ic-calendar aria-hidden=true></i>Byes and injuries, next 4 weeks</button><button type="button" class="btn ghost" id="brkBtn"><i class=ic-pulse aria-hidden=true></i>Breakouts</button><button type="button" class="btn ghost" id="expBtn"><i class=ic-list aria-hidden=true></i>All my leagues</button><button type="button" class="btn ghost" id="briefBtn"><i class=ic-speaker aria-hidden=true></i>Morning briefing</button><button type="button" class="btn ghost" id="injBtn"><i class=ic-medic aria-hidden=true></i>Injury center</button><button type="button" class="btn ghost" id="wxBtn"><i class=ic-wind aria-hidden=true></i>Game weather</button></div>';
-  h += '<div class="stack" style="margin-top:12px">';
+  const tools = leagues.some(L => L.detail && L.detail.teams.some(t => t.mine)) ? '<h3 class="tgh">Tools</h3><div class="tlist"><button type="button" class="btn ghost" id="sweatBtn"><i class=ic-flame aria-hidden=true></i>Sweat board</button><button type="button" class="btn ghost" id="planBtn"><i class=ic-calendar aria-hidden=true></i>Byes and injuries, next 4 weeks</button><button type="button" class="btn ghost" id="brkBtn"><i class=ic-pulse aria-hidden=true></i>Breakouts</button><button type="button" class="btn ghost" id="expBtn"><i class=ic-list aria-hidden=true></i>All my leagues</button><button type="button" class="btn ghost" id="briefBtn"><i class=ic-speaker aria-hidden=true></i>Morning briefing</button><button type="button" class="btn ghost" id="injBtn"><i class=ic-medic aria-hidden=true></i>Injury center</button><button type="button" class="btn ghost" id="wxBtn"><i class=ic-wind aria-hidden=true></i>Game weather</button></div>' : "";
+  h += '<div class="stack">';
   leagues.forEach((L, i) => {
     const m = L.meta, d = L.detail;
     h += '<button class="card league" data-l="' + i + '"><div class="row1"><span class="name">' + esc(m.name) + '</span><span class="badge">' + PLAT[m.platform] + "</span></div>";
@@ -1129,7 +1148,7 @@ function renderLeagues(v){
     }
     h += "</button>";
   });
-  v.innerHTML = h + "</div>";
+  v.innerHTML = h + "</div>" + tools;
   v.querySelectorAll("[data-l]").forEach(b => b.addEventListener("click", () => { cur.league = +b.dataset.l; cur.team = null; render(); window.scrollTo(0,0); }));
   const sw = v.querySelector("#sweatBtn"); if (sw) sw.addEventListener("click", openSweat);
   const pb = v.querySelector("#planBtn"); if (pb) pb.addEventListener("click", openPlanner);
@@ -1154,13 +1173,21 @@ async function loadScoreboard(){
   } catch(e){}
 }
 const anyLive = () => Object.values(nflGames).some(g => g.state === "in");
+// "11/15 - 4:05 PM EST" -> "Sun 4:05 PM": the day is enough within a week, the time zone is noise.
+function shortKick(detail){
+  const m = String(detail || "").match(/(\d{1,2})\/(\d{1,2})\s*-\s*(\d{1,2}:\d{2}\s*[AP]M)/i);
+  if (!m) return String(detail || "").replace(/\s+E[SD]T\b/, "");
+  const now = new Date(), d = new Date(now.getFullYear(), +m[1] - 1, +m[2]); if (d - now > 200 * 864e5) d.setFullYear(d.getFullYear() - 1);
+  const days = (d - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 864e5;
+  return (days >= 0 && days < 6.5 ? d.toLocaleDateString([], {weekday: "short"}) : (+m[1]) + "/" + (+m[2])) + " " + m[3].toUpperCase();
+}
 function gameLine(team){
   if (!team) return '<span class="muted">Free agent</span>';
   const t = tnorm(team), g = nflGames[t];
   if (!gamesAt) return esc(t);
   if (!g) return esc(t) + ' · <span class="muted">Bye</span>';
   const opp = tnorm(g.away) === t ? "@" + tnorm(g.home) : "vs " + tnorm(g.away);
-  if (g.state === "pre") return esc(t) + " " + esc(opp) + ' · <span class="muted">' + esc(g.detail) + "</span>";
+  if (g.state === "pre") return esc(t) + " " + esc(opp) + ' · <span class="muted">' + esc(shortKick(g.detail)) + "</span>";
   const sc = tnorm(g.away) + " " + g.awayScore + " – " + tnorm(g.home) + " " + g.homeScore;
   if (g.state === "in") return '<span class="live">LIVE</span> ' + esc(sc) + " · " + esc(g.detail);
   return esc(sc) + ' · <span class="muted">Final</span>';
@@ -1210,7 +1237,7 @@ function matchupHero(d, me, g, compact){
   const aLead = (A || 0) >= (B || 0);
   const row = (t, pts, proj, lead) => '<div class="bugrow' + (lead ? " lead" : "") + '">' + teamLogo(t) + '<span class="bugname">' + esc(t.name) + '</span><span class="bugrec">' + rec(t) + '</span><span class="bugpts">' + fmt(pts) + "</span>" + (showPts && proj != null ? '<span class="bugproj">' + fmt(proj) + "</span>" : '<span class="bugproj"></span>') + "</div>";
   const status = pre ? "Projected · Week " + (d.week || "") : (mine.proj != null ? "Week " + (d.week || "") + " · projected finish " + fmt(mine.proj) + " to " + fmt(opp.proj) : "Week " + (d.week || ""));
-  return '<div class="bug' + (compact ? " compact" : "") + '">' +
+  return '<div class="bug' + (compact ? " compact" : "") + (showPts && mine.proj != null ? "" : " noproj") + '">' +
     '<div class="bughead"><span>' + esc(status) + '</span>' + (showPts && mine.proj != null ? '<span class="bugproj h">Proj</span>' : "") + "</div>" +
     row(me, A, mine.proj, aLead) + row(ot, B, opp.proj, !aLead) +
     (wp != null ? '<div class="bugwp"><div class="wpbar"><span style="width:' + Math.round(wp * 100) + '%"></span></div><b>' + Math.round(wp * 100) + "%</b><small>win chance</small></div>" : "") +
@@ -1372,7 +1399,12 @@ function renderLeague(v, L){
     if (d.teams.some(t => t.mine) && m.platform === "flea") tiles.push('<button type="button" class="btn ghost" id="rcBtn"><i class=ic-scale aria-hidden=true></i>Your report card</button>');
     if (d.teams.some(t => t.mine) && d.games.length) tiles.push('<button type="button" class="btn ghost" id="pkBtn"><i class=ic-flame aria-hidden=true></i>Pick’em and roast</button>');
     if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="dcBtn"><i class=ic-pencil aria-hidden=true></i>Draft grades and write-up</button>');
-    if (tiles.length) h += '<div class="tiles">' + tiles.join("") + "</div>";
+    // Grouped by what you're trying to do, as compact rows instead of a wall of identical tiles.
+    const GROUPS = [["This week", ["mrBtn", "pwBtn", "pkBtn", "cutBtn"]], ["Trades", ["lsBtn", "scoutBtn", "mktBtn"]], ["Season", ["picBtn", "ppBtn", "histBtn", "rcBtn", "winBtn", "wrapBtn"]], ["Draft", ["doBtn", "dcBtn"]]];
+    const idOf = t => (t.match(/id="(\w+)"/) || [])[1], used = new Set();
+    const hero = tiles.find(t => idOf(t) === "recapBtn"); if (hero) { used.add(hero); h += '<div style="margin-top:12px">' + hero.replace('class="btn aibtn"', 'class="btn aibtn" style="width:100%"') + "</div>"; }
+    GROUPS.forEach(([title, ids]) => { const list = ids.map(id => tiles.find(t => idOf(t) === id)).filter(Boolean); list.forEach(t => used.add(t)); if (list.length) h += '<h3 class="tgh">' + title + '</h3><div class="tlist">' + list.join("") + "</div>"; });
+    const rest = tiles.filter(t => !used.has(t)); if (rest.length) h += '<h3 class="tgh">More</h3><div class="tlist">' + rest.join("") + "</div>";
     if (d.games.length) {
       h += "<h3>Matchups" + (d.week ? " · Week " + d.week : "") + '</h3><div class="stack">';
       d.games.forEach(g => {
@@ -2569,8 +2601,10 @@ async function renderTrade(v){
   h += '<p class="muted small" style="margin:' + (tr.mode === "scan" ? "-2px" : "-4px") + ' 2px 12px">' + (tr.mode === "sell" ? "Pick a player to shop. Every team is checked for how much he’d help them, and you get a fair return to ask for from each." : tr.mode === "scan" ? "Pick a position. The finder checks every roster for players who would start for you and owners who can spare them, then builds an offer." : tr.mode === "find" ? "Pick a player you want and see the fairest packages from your roster and picks." : "Got an offer? Pick the players from it and get a grade from 1 to 10.") + "</p>";
   h += '<div class="card stackc" style="gap:10px"><label for="trL">League</label><select id="trL">' + ready.map(x => '<option value="' + x.i + '"' + (x.i === tr.league ? " selected" : "") + ">" + esc(x.L.meta.name) + "</option>").join("") + "</select>" +
     (tr.mode === "scan" || tr.mode === "sell" ? "" : '<label for="trT">Trading with</label><select id="trT">' + others.map(t => '<option value="' + esc(t.id) + '"' + (t.id === tr.other ? " selected" : "") + ">" + esc(t.name) + (t.owner ? " (" + esc(t.owner) + ")" : "") + "</option>").join("") + "</select>") +
+    // The league already says its format; show it in one line and keep the switches one tap away.
+    '<details class="fmtd"><summary>' + esc([tr.dyn ? "Dynasty" : "Redraft", ({"1": "PPR", "0.5": "Half PPR", "0": "Standard"})[tr.ppr], qbs === 2 ? "Superflex" : "1 QB", d.teams.length + " teams"].concat((fmtAdj(d) || {}).tep ? ["TE +" + fmtAdj(d).tep] : []).join(" · ")) + '<span>Change</span></summary>' +
     '<div class="seg" role="group" aria-label="League type">' + [[false,"Redraft"],[true,"Dynasty"]].map(x => '<button type="button" data-dyn="' + x[0] + '" aria-pressed="' + (tr.dyn === x[0]) + '">' + x[1] + "</button>").join("") + "</div>" +
-    '<div class="seg" role="group" aria-label="Scoring">' + [["1","PPR"],["0.5","Half PPR"],["0","Standard"]].map(x => '<button type="button" data-ppr="' + x[0] + '" aria-pressed="' + (tr.ppr === x[0]) + '">' + x[1] + "</button>").join("") + "</div></div>";
+    '<div class="seg" role="group" aria-label="Scoring" style="margin-top:8px">' + [["1","PPR"],["0.5","Half PPR"],["0","Standard"]].map(x => '<button type="button" data-ppr="' + x[0] + '" aria-pressed="' + (tr.ppr === x[0]) + '">' + x[1] + "</button>").join("") + "</div></details></div>";
   h += '<div id="trOut"><p class="spin">Loading trade values…</p></div>';
   v.innerHTML = h;
   v.querySelectorAll("[data-mode]").forEach(b => b.addEventListener("click", () => { tr.mode = b.dataset.mode; render(); }));
