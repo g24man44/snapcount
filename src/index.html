@@ -679,6 +679,9 @@ nav.tabbar button{padding-left:0;padding-right:0}
 .csrc span{display:block;font-size:11px;color:var(--muted)}
 .csrc b{font-size:14px;font-variant-numeric:tabular-nums}
 @media (max-width:380px){.csrcs{grid-template-columns:1fr}}
+
+.cleague{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--muted)}
+.cleague select{font:inherit;font-size:16px;font-weight:700;color:var(--ink);background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;width:100%}
 </style>
 </head>
 <body>
@@ -2907,11 +2910,24 @@ const calc = (() => {
   return st || {dyn: null, qbs: null, teams: null, ppr: null, a: [], b: [], q: {a: "", b: ""}};
 })();
 function saveCalc(){ try { localStorage.setItem(KEY + ".calc", JSON.stringify(Object.assign({}, calc, {q: {a: "", b: ""}}))); } catch(e){} }
+// The calculator follows one of your leagues' rules, or custom settings.
+const lgKey = L => L.meta.platform + ":" + L.meta.id;
+function calcLeagues(){ return leagues.filter(L => L.detail && L.detail.teams && L.detail.teams.length); }
+function applyLeagueFmt(L){
+  const d = L.detail, a = fmtAdj(d) || {};
+  calc.dyn = !!(d.maxKeepers || /dynasty|keeper/i.test(L.meta.name)); calc.qbs = qbsOf(d); calc.two = !!a.two; calc.tep = a.tep || 0; calc.ppc = a.ppc || 0; calc.startup = false;
+  calc.teams = d.teams.length; calc.ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1");
+}
 function calcDefaults(){
-  if (calc.dyn != null && calc.tep != null) return;
-  const L = leagues.find(x => x.detail && x.detail.teams.some(t => t.mine));
-  if (L) { const d = L.detail, a = fmtAdj(d) || {}; calc.dyn = !!(d.maxKeepers || /dynasty|keeper/i.test(L.meta.name)); calc.qbs = qbsOf(d); calc.two = !!a.two; calc.tep = a.tep || 0; calc.ppc = a.ppc || 0; calc.teams = d.teams.length; calc.ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1"); calc.fromLeague = L.meta.name; }
-  else { calc.dyn = false; calc.qbs = 1; calc.teams = 12; calc.ppr = "1"; }
+  if (calc.src && calc.src !== "custom") { const L = calcLeagues().find(x => lgKey(x) === calc.src); if (L) { applyLeagueFmt(L); return; } }
+  if (calc.src === "custom" && !calc.autoCustom && calc.dyn != null && calc.tep != null) return;
+  const L = calcLeagues().find(x => x.detail.teams.some(t => t.mine)) || calcLeagues()[0];
+  if (L) { calc.src = lgKey(L); calc.autoCustom = false; applyLeagueFmt(L); }
+  else { calc.src = "custom"; calc.autoCustom = true; if (calc.dyn == null) { calc.dyn = false; calc.qbs = 1; calc.teams = 12; calc.ppr = "1"; } if (calc.tep == null) { calc.tep = 0; calc.ppc = 0; } }
+}
+function fmtSummary(){
+  const q = calc.qbs === 2 ? (calc.two ? "2QB" : "Superflex") : "1 QB", sc = {"1": "PPR", "0.5": "Half PPR", "0": "Standard"}[calc.ppr] || "PPR";
+  return [calc.dyn ? (calc.startup ? "Dynasty startup" : "Dynasty") : "Redraft", calc.teams + " teams", q, sc, calc.tep ? "TE +" + calc.tep : "", calc.ppc ? "+" + calc.ppc + " per carry" : ""].filter(Boolean).join(" · ");
 }
 // Shareable link: the whole calculation lives in the address, so anyone can open it.
 function calcLink(){
@@ -2923,7 +2939,7 @@ function readCalcLink(){
   try {
     const j = JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/-/g, "+").replace(/_/g, "/")))));
     calc.dyn = !!j.f[0]; calc.qbs = j.f[1] === 2 ? 2 : 1; calc.teams = Number(j.f[2]) || 12; calc.ppr = ["0", "0.5", "1"].includes(j.f[3]) ? j.f[3] : "1";
-    calc.tep = [0, 0.5, 1].includes(j.f[4]) ? j.f[4] : 0; calc.ppc = [0, 0.25, 0.5].includes(j.f[5]) ? j.f[5] : 0; calc.two = j.f[6] === 1 && calc.qbs === 2; calc.startup = j.f[7] === 1 && calc.dyn; calc.fromLeague = null;
+    calc.tep = [0, 0.5, 1].includes(j.f[4]) ? j.f[4] : 0; calc.ppc = [0, 0.25, 0.5].includes(j.f[5]) ? j.f[5] : 0; calc.two = j.f[6] === 1 && calc.qbs === 2; calc.startup = j.f[7] === 1 && calc.dyn; calc.src = "custom"; calc.autoCustom = false;
     calc.a = (j.a || []).map(String).slice(0, 12); calc.b = (j.b || []).map(String).slice(0, 12);
     history.replaceState(null, "", location.pathname); return true;
   } catch(e){ return false; }
@@ -3011,11 +3027,12 @@ function drawCalc(v){
       '<div class="sendrow" style="margin-top:14px"><button type="button" class="btn" id="cShare">Share this trade</button><button type="button" class="btn ghost" id="cClear">Clear</button></div><p class="small" id="cMsg" style="margin:6px 0 0"></p></div>';
   }
   v.innerHTML = '<h2>Trade calculator</h2>' + calcSwitch() +
-    '<div class="card cfmt">' + (calc.fromLeague ? '<p class="small muted" style="margin:0 2px 2px">Set from ' + esc(calc.fromLeague) + "’s scoring. Change anything to price another league.</p>" : "") + seg("dyn", [[1, "Dynasty"], [0, "Redraft"]], calc.dyn ? 1 : 0) + seg("qbs", [[1, "1 QB"], ["sf", "Superflex"], ["2qb", "2QB"]], calc.qbs === 2 ? (calc.two ? "2qb" : "sf") : 1) +
+    '<div class="card cfmt"><label class="cleague"><span>Use the rules of</span><select data-cf="src">' + calcLeagues().map(L => '<option value="' + esc(lgKey(L)) + '"' + (calc.src === lgKey(L) ? " selected" : "") + ">" + esc(L.meta.name) + "</option>").join("") + '<option value="custom"' + (calc.src === "custom" ? " selected" : "") + '>Custom settings</option></select></label>' +
+      (calc.src === "custom" ? seg("dyn", [[1, "Dynasty"], [0, "Redraft"]], calc.dyn ? 1 : 0) + seg("qbs", [[1, "1 QB"], ["sf", "Superflex"], ["2qb", "2QB"]], calc.qbs === 2 ? (calc.two ? "2qb" : "sf") : 1) +
     '<div class="crow2">' + seg("ppr", [["1", "PPR"], ["0.5", "Half"], ["0", "Std"]], calc.ppr) + '<label class="cteams">Teams <select data-cf="teams">' + [8, 10, 12, 14, 16, 18, 20].map(n => '<option' + (n === Number(calc.teams) ? " selected" : "") + ">" + n + "</option>").join("") + "</select></label></div>" +
     '<div class="crow2">' + seg("tep", [[0, "No TE bonus"], [0.5, "TE +0.5"], [1, "TE +1"]], +calc.tep || 0) + "</div>" +
     '<div class="crow2">' + seg("ppc", [[0, "No carry pts"], [0.25, "Carry +.25"], [0.5, "Carry +.5"]], +calc.ppc || 0) + "</div>" +
-    (calc.dyn ? '<div class="crow2">' + seg("startup", [[0, "In-season values"], [1, "Startup draft"]], calc.startup ? 1 : 0) + "</div>" : "") + "</div>" +
+    (calc.dyn ? '<div class="crow2">' + seg("startup", [[0, "In-season values"], [1, "Startup draft"]], calc.startup ? 1 : 0) + "</div>" : "") : '<p class="small muted" style="margin:8px 2px 0">' + esc(fmtSummary()) + "</p>") + "</div>" +
     side("A", A, effA) + side("B", B, effB) + res +
     (!both ? '<p class="small muted" style="margin:12px 4px 0">Add players or picks to both sides. Works for any trade, in any league, even ones you’re not in.</p>' : "") + calcMovers() +
     '<p class="small muted" style="margin:14px 4px 0">Values are Snap Count values for this format: trade market, expert rankings and this season’s production, blended' + (calc.startup && calc.dyn ? " (startup: market and experts only, since a startup drafts for the long run)" : "") + ". TE and per-carry bonuses are priced from each player’s catches and carries per game. 2QB lifts starting quarterbacks more than superflex does, most of all the mid-tier starters. “Range” is where the three sources disagree: buy near the low end, sell near the high end." + (calc.dyn ? " College players are next year’s class, valued like the rookie pick it would take to draft them." : "") + "</p>";
@@ -3068,8 +3085,8 @@ function wireCalc(v){
   v.querySelectorAll("[data-mv]").forEach(b => b.addEventListener("click", () => { if (!calc.a.includes(b.dataset.mv) && !calc.b.includes(b.dataset.mv)) calc.a.push(b.dataset.mv); saveCalc(); drawCalc(v); window.scrollTo({top: 0, behavior: "smooth"}); }));
   v.querySelectorAll("[data-cf]").forEach(el => el.addEventListener(el.tagName === "SELECT" ? "change" : "click", async () => {
     const f = el.dataset.cf, val = el.tagName === "SELECT" ? el.value : el.dataset.val;
+    if (f === "src") { calc.src = val; calc.autoCustom = false; if (val !== "custom") { const L = calcLeagues().find(x => lgKey(x) === val); if (L) applyLeagueFmt(L); } saveCalc(); renderCalc(v); return; }
     if (f === "dyn") calc.dyn = val === "1"; else if (f === "qbs") { calc.qbs = val === "1" ? 1 : 2; calc.two = val === "2qb"; } else if (f === "teams") calc.teams = Number(val); else if (f === "tep") calc.tep = Number(val); else if (f === "ppc") calc.ppc = Number(val); else if (f === "startup") calc.startup = val === "1"; else calc.ppr = val;
-    calc.fromLeague = null;
     saveCalc(); renderCalc(v);
   }));
   v.querySelectorAll("[data-rm]").forEach(b => b.addEventListener("click", () => { const s = b.dataset.rm; calc[s] = calc[s].filter(k => k !== b.dataset.k); saveCalc(); drawCalc(v); }));
