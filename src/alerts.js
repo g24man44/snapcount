@@ -6,6 +6,7 @@
 import { ICON_192, ICON_512 } from "./icons.js";
 import { ARCHIVO_WOFF } from "./font.js";
 import { matchupPreviews, weeklyPower } from "./weekly.js";
+import { gameWeather } from "./weather.js";
 import { hookKind, sendHook, espnLeagueTaken, mflLeagueTaken, weeklyRecaps, aiComplete } from "./more.js";
 
 const UA = { "User-Agent": "SnapCount/1.0 (fantasy dashboard)", "Accept": "application/json" };
@@ -471,6 +472,7 @@ Format, plain text, no markdown headings:
 - First line: the single most important move in one sentence.
 - "Start/sit:" then one short line per suggested move with the projection numbers. If there are none, say the lineup is set.
 - "Risky starters:" one short line each with the reason and the backup plan. Skip this section if there are none.
+- "Weather:" one short line per starter in bad weather (wind, rain, snow) with the expected dip and the bench alternative if one is given. Skip if none.
 - "Best pickup:" one line per league that has one. Skip if none.
 Keep the league name in each line when there is more than one league. Under 140 words. Confident, no disclaimers, at most one emoji.`;
 const PRAC_TXT = { DNP: "missed practice", LP: "limited in practice", FP: "practiced fully" };
@@ -520,10 +522,10 @@ function lineupsOf(rec) {
 }
 
 // Pure analysis: given the lineups, projections, injury report, locked teams and who's rostered, pick the moves.
-export function briefingCalls(lineups, slate, inj, locked, rosteredFor) {
+export function briefingCalls(lineups, slate, inj, locked, rosteredFor, wx) {
   const res = [];
   for (const lu of lineups) {
-    const out = { name: lu.name || "Your league", swaps: [], risky: [], pickup: null };
+    const out = { name: lu.name || "Your league", swaps: [], risky: [], pickup: null, weather: [] };
     const info = k => {
       const v = slate.byName[k], i = inj[k] || {};
       if (!v) return null;
@@ -555,6 +557,18 @@ export function briefingCalls(lineups, slate, inj, locked, rosteredFor) {
       const alt = bench.filter(x => x.pos === s.pos && !used.has(x.key)).sort((a, b) => b.proj - a.proj)[0];
       out.risky.push({ name: s.name, pos: s.pos, proj: s.proj, why: [s.status, pr ? PRAC_TXT[s.prac] : ""].filter(Boolean).join(", "), backup: alt ? alt.name + " (" + fmtPts(alt.proj) + ")" : null, late: false });
     }
+    // Starters playing in wind, rain or snow bad enough to matter, with a bench option when the weather flips the call.
+    if (wx) {
+      const fxOf = x => { const g = wx[x.team]; return g && !g.indoor && g.level >= 2 && g.fx ? (g.fx[x.pos] || 0) : 0; };
+      for (const s of starters) {
+        if (s.locked || swapped.has(s.name) || OUTISH.has(st(s.status)) || !s.proj) continue;
+        const f = fxOf(s); if (f > -5) continue;
+        const g = wx[s.team], adj = s.proj * (1 + f / 100);
+        const alt = bench.filter(x => x.pos === s.pos && !used.has(x.key) && x.proj * (1 + fxOf(x) / 100) > adj + 0.5).sort((a, b) => b.proj - a.proj)[0];
+        if (alt) used.add(alt.key);
+        out.weather.push({ name: s.name, pos: s.pos, team: s.team, fx: f, proj: s.proj, wind: g.wx ? g.wx.wind : null, why: (g.causes[0] || {}).t || "Bad weather", alt: alt ? alt.name + " (" + fmtPts(alt.proj) + ")" : null });
+      }
+    }
     const taken = rosteredFor ? rosteredFor(lu) : null;
     if (taken) {
       // Compare free agents with the lineup after the suggested swaps.
@@ -585,6 +599,8 @@ export function briefingText(calls) {
   if (swaps.length) swaps.forEach(({ c, x }) => lines.push("• " + tag(c) + "Start " + x.start + " (" + fmtPts(x.startProj) + ") over " + x.sit + " (" + fmtPts(x.sitProj) + "). " + (x.why ? x.sit + " " + x.why + "." : "That’s +" + x.gain.toFixed(1) + " projected.")));
   else lines.push("• Your lineup" + (multi ? "s are" : " is") + " set. No bench player projects meaningfully better than a starter.");
   if (risky.length) { lines.push("", "Risky starters:"); risky.forEach(({ c, x }) => lines.push("• " + tag(c) + x.name + " " + (x.must ? x.why + " and you have no healthy " + x.pos + " on the bench. Pick one up." : "(" + x.why + ")." + (x.backup ? " Backup plan: " + x.backup + "." : " No healthy " + x.pos + " backup on your bench.")))); }
+  const wxs = calls.flatMap(c => (c.weather || []).map(x => ({ c, x })));
+  if (wxs.length) { lines.push("", "Weather:"); wxs.forEach(({ c, x }) => lines.push("• " + tag(c) + x.name + " (" + x.pos + ", " + x.team + "): " + (x.wind != null && x.wind >= 12 ? x.wind + " mph wind. " : "") + x.why + ". Expect about " + Math.abs(x.fx) + "% less." + (x.alt ? " Consider " + x.alt + " instead." : ""))); }
   if (picks.length) { lines.push("", "Best pickup:"); picks.forEach(c => { const p = c.pickup; lines.push("• " + tag(c) + p.name + " (" + p.pos + ", " + p.team + ") projected " + fmtPts(p.proj) + (p.over ? ", more than " + p.over + " (" + "+" + p.gain.toFixed(1) + ")" : "") + (p.status ? ". Listed " + p.status : "") + "."); }); }
   const short = [];
   swaps.slice(0, 2).forEach(({ x }) => short.push("Start " + x.start + " over " + x.sit + "."));
@@ -592,6 +608,7 @@ export function briefingText(calls) {
   if (rNames.length) short.push("Risky: " + rNames.slice(0, 2).join(", ") + ".");
   const bp = picks.map(c => c.pickup).sort((a, b) => b.gain - a.gain)[0];
   if (bp) short.push("Grab " + bp.name + " (" + bp.pos + ", " + fmtPts(bp.proj) + ").");
+  if (wxs.length) short.push("Weather: " + [...new Set(wxs.map(({ x }) => nm1(x.name)))].slice(0, 2).join(", ") + ".");
   if (!swaps.length && !risky.length) short.unshift("Lineup looks set.");
   const n = swaps.length + risky.filter(r => r.x.must).length;
   const title = "Sunday briefing: " + (n ? n + " lineup move" + (n > 1 ? "s" : "") : risky.length ? risky.length + " risky starter" + (risky.length > 1 ? "s" : "") : "you're set");
@@ -604,6 +621,7 @@ function briefingData(calls) {
     c.swaps.forEach(x => o.push("- MOVE: start " + x.start + " (" + x.pos + ", proj " + fmtPts(x.startProj) + ") instead of " + x.sit + " (proj " + fmtPts(x.sitProj) + ")" + (x.why ? "; " + x.sit + " " + x.why : "; +" + x.gain.toFixed(1) + " projected")));
     if (!c.swaps.length) o.push("- No lineup moves needed.");
     c.risky.forEach(x => o.push("- RISKY STARTER: " + x.name + " (" + x.pos + ", proj " + fmtPts(x.proj) + "): " + x.why + (x.backup ? "; backup on bench: " + x.backup : x.must ? "; no healthy backup on the bench" : "; no backup on the bench")));
+    (c.weather || []).forEach(x => o.push("- WEATHER: " + x.name + " (" + x.pos + ", " + x.team + ", proj " + fmtPts(x.proj) + "): " + x.why + (x.wind != null ? ", wind " + x.wind + " mph" : "") + ", expect about " + x.fx + "%" + (x.alt ? "; bench option " + x.alt : "")));
     if (c.pickup) o.push("- BEST FREE AGENT: " + c.pickup.name + " (" + c.pickup.pos + ", " + c.pickup.team + ", proj " + fmtPts(c.pickup.proj) + ")" + (c.pickup.over ? ", outprojects starter " + c.pickup.over + " by " + c.pickup.gain.toFixed(1) : ""));
   }
   return o.join("\n");
@@ -618,12 +636,13 @@ export async function makeBriefing(env, rec, shared) {
   if (!shared.inj) shared.inj = await readInjuries().catch(() => ({}));
   if (!shared.locked) shared.locked = await lockedTeams();
   if (!shared.rost) shared.rost = new Map();
+  if (!shared.wx) { shared.wx = {}; try { (await gameWeather()).games.forEach(g => { shared.wx[g.home] = g; shared.wx[g.away] = g; }); } catch (e) {} }
   if (!shared.slate.rows.length) return null;
   const sets = new Map();
   for (const lu of lineups) if (lu.id && lu.p) sets.set(lu, await leagueRostered({ p: lu.p, id: lu.id, season: lu.season }, shared.rost));
   const known = lineups.flatMap(lu => (lu.s || []).map(k => shared.slate.byName[k]).filter(Boolean));
   if (known.length && known.every(v => shared.locked.has(v.team))) return { over: true };
-  const calls = briefingCalls(lineups, shared.slate, shared.inj, shared.locked, lu => sets.get(lu) || null);
+  const calls = briefingCalls(lineups, shared.slate, shared.inj, shared.locked, lu => sets.get(lu) || null, shared.wx);
   const b = briefingText(calls);
   const ai = await aiComplete(env, BRIEF_SYS + "\n\nBRIEFING DATA:\n" + briefingData(calls), "Write my pregame briefing.", 420, 0.4);
   return Object.assign(b, { full: ai || b.text, ai: !!ai, calls });

@@ -496,6 +496,10 @@ details.howto p{margin:6px 0 0!important}
 .cbarlab{display:flex;justify-content:space-between;margin-top:6px;font-size:13px;font-weight:700;color:var(--muted)}
 .cbarlab span:first-child{color:var(--accent)}
 nav.tabbar button{padding-left:0;padding-right:0}
+.ic-wind{--m:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M3%208.5h10.5a2.75%202.75%200%201%200-2.75-2.75M3%2012.5h15a3%203%200%201%201-3%203M3%2016.5h6%22%2F%3E%3C%2Fsvg%3E")}
+.chip.wxhi{background:var(--bad-soft);color:var(--bad)}
+.wxg{margin-bottom:10px}
+.chip [class^=ic-]{width:1em;height:1em;vertical-align:-.15em}
 .ic-bracket{--m:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M4%205h5v5H4M4%2014h5v5H4M9%207.5h3v9H9M12%2012h4M16%209h4v6h-4z%22%2F%3E%3C%2Fsvg%3E")}
 .ic-list{--m:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M9%206h11M9%2012h11M9%2018h11%22%2F%3E%3Cpath%20d%3D%22M4%206h.01M4%2012h.01M4%2018h.01%22%2F%3E%3C%2Fsvg%3E")}
 
@@ -1104,7 +1108,7 @@ function renderLeagues(v){
   leaguesErr.forEach(e => h += '<div class="err">' + esc(e) + "</div>");
   if (!leaguesLoaded) { v.innerHTML = h + '<p class="spin">Loading your leagues…</p>'; return; }
   if (!leagues.length) { v.innerHTML = h + '<p class="muted">No leagues found for this season.</p>'; return; }
-  if (leagues.some(L => L.detail && L.detail.teams.some(t => t.mine))) h += '<div class="tiles"><button type="button" class="btn ghost" id="sweatBtn"><i class=ic-flame aria-hidden=true></i>Sweat board</button><button type="button" class="btn ghost" id="planBtn"><i class=ic-calendar aria-hidden=true></i>Byes and injuries, next 4 weeks</button><button type="button" class="btn ghost" id="brkBtn"><i class=ic-pulse aria-hidden=true></i>Breakouts</button><button type="button" class="btn ghost" id="expBtn"><i class=ic-list aria-hidden=true></i>All my leagues</button><button type="button" class="btn ghost" id="briefBtn"><i class=ic-speaker aria-hidden=true></i>Morning briefing</button><button type="button" class="btn ghost" id="injBtn"><i class=ic-medic aria-hidden=true></i>Injury center</button></div>';
+  if (leagues.some(L => L.detail && L.detail.teams.some(t => t.mine))) h += '<div class="tiles"><button type="button" class="btn ghost" id="sweatBtn"><i class=ic-flame aria-hidden=true></i>Sweat board</button><button type="button" class="btn ghost" id="planBtn"><i class=ic-calendar aria-hidden=true></i>Byes and injuries, next 4 weeks</button><button type="button" class="btn ghost" id="brkBtn"><i class=ic-pulse aria-hidden=true></i>Breakouts</button><button type="button" class="btn ghost" id="expBtn"><i class=ic-list aria-hidden=true></i>All my leagues</button><button type="button" class="btn ghost" id="briefBtn"><i class=ic-speaker aria-hidden=true></i>Morning briefing</button><button type="button" class="btn ghost" id="injBtn"><i class=ic-medic aria-hidden=true></i>Injury center</button><button type="button" class="btn ghost" id="wxBtn"><i class=ic-wind aria-hidden=true></i>Game weather</button></div>';
   h += '<div class="stack" style="margin-top:12px">';
   leagues.forEach((L, i) => {
     const m = L.meta, d = L.detail;
@@ -1133,6 +1137,7 @@ function renderLeagues(v){
   const ex = v.querySelector("#expBtn"); if (ex) ex.addEventListener("click", openExposure);
   const bf = v.querySelector("#briefBtn"); if (bf) bf.addEventListener("click", openMorning);
   const ij = v.querySelector("#injBtn"); if (ij) ij.addEventListener("click", openInjuryCenter);
+  const wb = v.querySelector("#wxBtn"); if (wb) wb.addEventListener("click", openWeather);
 }
 
 /* ---------- NFL games (live status for every player) ---------- */
@@ -1145,6 +1150,7 @@ async function loadScoreboard(){
     const map = {};
     (r.games || []).forEach(g => { map[tnorm(g.away)] = g; map[tnorm(g.home)] = g; });
     nflGames = map; gamesAt = Date.now();
+    if (!wxAt && (r.games || []).some(g => g.state === "pre")) loadWeather().catch(() => {});
   } catch(e){}
 }
 const anyLive = () => Object.values(nflGames).some(g => g.state === "in");
@@ -4855,8 +4861,95 @@ function envChips(team){
   const it = impliedTotal(team), out = [];
   if (it != null) out.push('<span class="chip' + (it >= 26 ? " ok" : it <= 18 ? " warn" : "") + '">Team total ' + it.toFixed(1) + "</span>");
   if (g.indoor) out.push('<span class="chip">Dome</span>');
+  else if (wxTemp(team)) out.push(wxTemp(team));
   else if (g.temp != null) out.push('<span class="chip' + (/rain|snow|storm|shower/i.test(g.sky) || g.temp <= 32 ? " warn" : "") + '">' + Math.round(g.temp) + "°" + (g.sky ? " " + esc(g.sky) : "") + "</span>");
+  return out.join("") + (g.indoor ? "" : wxChips(team));
+}
+/* ---------- Game weather: wind, rain, snow and cold at kickoff for every outdoor game ---------- */
+let wxGames = {}, wxAt = 0, wxP = null, wxData = null;
+function loadWeather(force){
+  if (wxP && !force && Date.now() - wxAt < 20 * 60000) return wxP;
+  wxP = api("/api/weather").then(r => { const m = {}; (r.games || []).forEach(g => { m[tnorm(g.home)] = g; m[tnorm(g.away)] = g; }); wxGames = m; wxData = r; wxAt = Date.now(); return r; }).catch(e => { wxP = null; throw e; });
+  return wxP;
+}
+const wxPos = pos => pos === "D/ST" ? "DEF" : pos === "PK" ? "K" : pos;
+function wxFx(p){ const g = p && p.team && wxGames[tnorm(p.team)]; if (!g || g.indoor || !g.fx || g.state === "post") return 0; return g.fx[wxPos(p.pos)] || 0; }
+const WX_LAB = [["Clear", "ok"], ["Watch", ""], ["Bad weather", "warn"], ["Major weather", "wxhi"]];
+function wxSummary(g){
+  if (g.indoor) return g.roof === "retract" ? "Roof expected closed" : "Dome";
+  const w = g.wx; if (!w) return g.sky ? (g.espnTemp != null ? Math.round(g.espnTemp) + "° " : "") + g.sky : "No forecast yet";
+  const out = [w.wind + " mph wind" + (w.gust >= w.wind + 8 ? ", gusts " + w.gust : "")];
+  if (w.snow >= 0.1) out.push(w.snow + " in snow");
+  else if (w.rain >= 0.04) out.push((w.prob != null ? w.prob + "% chance of rain, " : "") + w.rain + " in");
+  else if (w.prob != null && w.prob >= 30) out.push(w.prob + "% chance of rain");
+  if (w.temp != null) out.push(w.temp + "°" + (w.feels != null && w.feels <= w.temp - 6 ? " (feels " + w.feels + "°)" : ""));
+  return out.join(" · ");
+}
+function wxEffects(g){
+  const fx = g.fx || {}, name = {QB: "Passers", WR: "Receivers", TE: "Tight ends", K: "Kickers", RB: "Running backs", DEF: "Defenses"};
+  return ["QB", "WR", "TE", "K", "RB", "DEF"].filter(k => fx[k]).map(k => name[k] + " " + (fx[k] > 0 ? "+" : "−") + Math.abs(fx[k]) + "%").join(", ");
+}
+function wxChips(team){
+  const g = wxGames[tnorm(team)]; if (!g || g.indoor || !g.wx || g.state === "post") return "";
+  const w = g.wx, out = [];
+  if (w.wind >= 12 || w.gust >= 24) out.push('<span class="chip ' + (w.wind >= 20 || w.gust >= 35 ? "wxhi" : "warn") + '"><i class=ic-wind aria-hidden=true></i> ' + w.wind + " mph" + (w.gust >= w.wind + 8 ? ", gusts " + w.gust : "") + "</span>");
+  if (w.snow >= 0.1) out.push('<span class="chip warn">Snow ' + w.snow + " in</span>");
+  else if (w.rain >= 0.1 || (w.rain >= 0.04 && (w.prob || 0) >= 50)) out.push('<span class="chip warn">Rain ' + (w.prob != null ? w.prob + "%" : w.rain + " in") + "</span>");
   return out.join("");
+}
+// Temperature at kickoff from the same forecast as the wind, so the chips agree with each other.
+function wxTemp(team){ const g = wxGames[tnorm(team)]; if (!g || g.indoor || !g.wx || g.wx.temp == null || g.state !== "pre") return ""; return '<span class="chip' + (g.wx.temp <= 32 ? " warn" : "") + '">' + g.wx.temp + "° at kickoff</span>"; }
+function kickText(iso){ const d = new Date(iso); if (isNaN(d)) return ""; return d.toLocaleString("en-US", {weekday: "short", hour: "numeric", minute: "2-digit"}); }
+// Lineup changes the weather alone would flip: best lineup with each player's projection nudged by his game's weather.
+function wxMoves(L, me, slots, pj){
+  const base = optimize(me.roster, slots, pj), adj = optimize(me.roster, slots, p => pj(p) * (1 + wxFx(p) / 100));
+  const a = new Set(base.list.filter(x => x.p).map(x => x.p)), b = new Set(adj.list.filter(x => x.p).map(x => x.p));
+  const ins = [...b].filter(p => !a.has(p)), outs = [...a].filter(p => !b.has(p));
+  const set = me.roster.filter(p => p.slot === "start" && p.name), hit = (set.length ? set : [...a]).filter(p => wxFx(p) !== 0).map(p => ({p, fx: wxFx(p), v: pj(p)})).sort((x, y) => x.fx - y.fx);
+  return {ins, outs, hit, gain: adj.total - base.list.reduce((s, x) => s + (x.p ? pj(x.p) * (1 + wxFx(x.p) / 100) : 0), 0)};
+}
+function wxPlayerRows(hit, pj){
+  return '<ul class="plist">' + hit.map(r => { const g = wxGames[tnorm(r.p.team)];
+    return miniRow(r.p, r.v ? '<span class="avg">' + fmt(r.v * (1 + r.fx / 100)) + "<small>" + (r.fx > 0 ? "+" : "−") + Math.abs(r.fx) + "% weather</small></span>" : '<span class="avg">' + (r.fx > 0 ? "+" : "−") + Math.abs(r.fx) + "%<small>weather</small></span>",
+      posTag(r.p) + esc(tnorm(r.p.team)) + " · " + esc(wxSummary(g)) + '<span class="envrow"><span class="chip ' + WX_LAB[g.level][1] + '">' + WX_LAB[g.level][0] + "</span>" + (g.early ? '<span class="chip">Early forecast</span>' : "") + "</span>"); }).join("") + "</ul>";
+}
+function wxMovesHTML(m){
+  if (!(m.ins.length && m.gain > 0.3)) return "";
+  return '<div class="card" style="margin-top:8px"><p class="small" style="margin:0 0 6px"><b>Weather changes your best lineup</b> (+' + m.gain.toFixed(1) + ' weather-adjusted)</p><div class="swaps"><div><small>Start</small>' + m.ins.map(p => "<b>" + esc(p.name) + "</b>").join("") + "</div><div><small>Bench</small>" + m.outs.map(p => "<b>" + esc(p.name) + "</b>").join("") + "</div></div></div>";
+}
+async function openWeather(){
+  const body = openSheetShell("Game weather");
+  body.innerHTML = '<p class="spin">Checking the forecast at every stadium…</p>';
+  let r;
+  try { [r] = await Promise.all([loadWeather(true), getPlayers().catch(() => null), getProj().catch(() => null), gamesAt ? null : loadScoreboard()]); }
+  catch(e){ body.innerHTML = '<div class="err">Couldn’t load the forecast: ' + esc(e.message) + "</div>"; return; }
+  ensureSidIndex();
+  const games = (r.games || []).filter(g => g.state !== "post");
+  let h = '<p class="muted" style="margin:-6px 2px 12px">Wind, rain, snow and cold at each stadium during the game' + (r.week ? ", week " + r.week : "") + ". Wind matters most: 15+ mph hurts passing and kicking.</p>";
+  // Your starters in bad weather, every league.
+  const seen = new Set(), mine = [], moves = [];
+  leagues.forEach(L => {
+    const d = L.detail, me = d && d.teams.find(t => t.mine); if (!me) return;
+    const pj = p => { const v = projFor(L, p); return v == null ? 0 : v; };
+    const m = wxMoves(L, me, edgeSlots(L), pj);
+    m.hit.forEach(x => { const k = norm(x.p.name); if (!seen.has(k)) { seen.add(k); mine.push(x); } });
+    if (m.ins.length && m.gain > 0.3) moves.push({L, m});
+  });
+  if (mine.length) {
+    h += "<h3>Your starters</h3>" + wxPlayerRows(mine.sort((a, b) => a.fx - b.fx));
+    moves.forEach(({L, m}) => { h += wxMovesHTML(m).replace("<b>Weather changes your best lineup</b>", "<b>" + esc(L.meta.name) + ":</b> weather changes your best lineup"); });
+  } else if (leagues.some(L => L.detail && L.detail.teams.some(t => t.mine))) h += '<div class="card"><p style="margin:0">None of your starters are in games the weather should affect.</p></div>';
+  if (!r.source && games.some(g => !g.indoor)) h += '<div class="err">The weather service didn’t answer, so only the basic forecast is shown. Try again in a few minutes.</div>';
+  h += "<h3>Every game</h3>" + games.map(g => {
+    const [lab, tone] = g.indoor ? ["Indoors", ""] : g.wx ? WX_LAB[g.level] : ["No forecast", ""], fx = wxEffects(g);
+    return '<div class="card wxg"><div class="offhead"><div><b>' + esc(g.away + " @ " + g.home) + '</b><small class="muted"> · ' + esc(g.state === "in" ? "Live now" : kickText(g.kick)) + '</small></div><span class="chip ' + tone + '">' + lab + "</span></div>" +
+      '<p class="small" style="margin:6px 0 0">' + esc(wxSummary(g)) + (g.city && !g.indoor ? ' <span class="muted">· ' + esc(g.city) + "</span>" : "") + "</p>" +
+      (g.causes && g.causes.length ? '<p class="small" style="margin:6px 0 0">' + g.causes.map(c => esc(c.t)).join(". ") + ".</p>" : "") +
+      (fx ? '<p class="small muted" style="margin:4px 0 0">About: ' + esc(fx) + "</p>" : "") + (g.early && g.level ? '<p class="small muted" style="margin:4px 0 0">Forecast is still several days out. Check again Sunday morning.</p>' : "") + "</div>";
+  }).join("");
+  h += '<p class="small muted" style="margin:10px 4px 0">Forecast for the game’s hours at the stadium from Open-Meteo, refreshed every 30 minutes. Percent changes are rough rules of thumb from how past games played in similar weather; they nudge your projections, they don’t replace them. Retractable roofs are assumed closed.</p>';
+  body.innerHTML = h;
+  wireRows(body);
 }
 const SLOT_LABEL = {FLEX:"Flex", SUPER_FLEX:"Superflex", REC_FLEX:"WR/TE", WRRB_FLEX:"RB/WR", "D/ST":"D/ST", DEF:"DEF"};
 function miniRow(p, right, sub){
@@ -4871,7 +4964,7 @@ async function rosterFor(L, t){
 /* ---------- Edge: This week ---------- */
 async function edgeWeek(L, el){
   const d = L.detail, me = d.teams.find(t => t.mine);
-  await Promise.all([getPlayers(), getProj(), gamesAt ? null : loadScoreboard(), rosterFor(L, me)]);
+  await Promise.all([getPlayers(), getProj(), gamesAt ? null : loadScoreboard(), rosterFor(L, me), loadWeather().catch(() => null)]);
   ensureSidIndex();
   const pj0 = p => { const v = projFor(L, p); return v == null ? 0 : v; };
   const pj = p => pj0(p) + (p.slot === "start" ? 0.001 : 0);
@@ -4892,6 +4985,9 @@ async function edgeWeek(L, el){
   h += "</div>";
   h += "<h3>Best lineup · Week " + (d.week || "") + '</h3><ul class="plist">' + opt.list.map(x => x.p ? miniRow(x.p, fmt(x.v), '<em class="pt" data-pos="' + esc(x.p.pos) + '">' + esc(SLOT_LABEL[x.slot] || x.slot) + "</em>" + gameLine(x.p.team) + (x.p.slot !== "start" ? ' <span class="chip ok" style="padding:2px 7px">In</span>' : "") + (x.locked ? ' <span class="chip" style="padding:2px 7px">Locked</span>' : "") + '<span class="envrow">' + envChips(x.p.team) + "</span>") : '<li><div class="prow"><span class="pos">' + esc(SLOT_LABEL[x.slot] || x.slot) + '</span><span class="muted">No healthy player for this spot</span></div></li>').join("") + "</ul>";
   h += '<p class="small muted" style="margin:8px 4px 0">' + (L.meta.platform === "flea" ? "Projections use your league’s scoring from Fleaflicker." : "Projections from Sleeper.") + " Team totals come from the betting line: higher means more expected scoring. Players whose games have started are locked.</p>";
+  const wm = wxMoves(L, me, slots, pj);
+  if (wm.hit.length || (wm.ins.length && wm.gain > 0.3)) h += '<h3>Weather</h3>' + (wm.hit.length ? wxPlayerRows(wm.hit) : "") + wxMovesHTML(wm);
+  h += '<button type="button" class="btn ghost" data-wxopen="1" style="width:100%;margin-top:10px"><i class=ic-wind aria-hidden=true></i> Weather for every game</button>';
   // opponent
   const g = d.games.find(x => x.a.id === me.id || x.b.id === me.id);
   if (g) {
@@ -4920,6 +5016,7 @@ async function edgeWeek(L, el){
   wireRows(el);
   el.querySelectorAll("[data-luopen]").forEach(b => b.addEventListener("click", () => openLineup(L)));
   el.querySelectorAll("[data-planopen]").forEach(b => b.addEventListener("click", openPlanner));
+  el.querySelectorAll("[data-wxopen]").forEach(b => b.addEventListener("click", openWeather));
 }
 
 /* ---------- Edge: Waivers ---------- */
@@ -6477,7 +6574,7 @@ function calCard(){
 /* ---------- Sunday pregame briefing ---------- */
 function briefCard(on){
   if (!on && !loadHooks().length) return "";
-  return '<h3>Sunday pregame briefing</h3><div class="card stackc" style="gap:10px"><p class="small muted" style="margin:0">Every Sunday at 11 AM Eastern, before the early games lock, the AI coach checks your lineups against the latest projections and injury report and sends you the moves to make: who to start or sit, which starters are risky and the best free agent to grab.' + (on ? "" : " It posts to your connected apps.") + '</p><button type="button" class="btn aibtn" id="briefBtn"><i class=ic-spark aria-hidden=true></i> Preview this week’s briefing</button></div>';
+  return '<h3>Sunday pregame briefing</h3><div class="card stackc" style="gap:10px"><p class="small muted" style="margin:0">Every Sunday at 11 AM Eastern, before the early games lock, the AI coach checks your lineups against the latest projections and injury report and sends you the moves to make: who to start or sit, which starters are risky, who’s playing in strong wind, rain or snow, and the best free agent to grab.' + (on ? "" : " It posts to your connected apps.") + '</p><button type="button" class="btn aibtn" id="briefBtn"><i class=ic-spark aria-hidden=true></i> Preview this week’s briefing</button></div>';
 }
 function wireBrief(v){ const b = v.querySelector("#briefBtn"); if (b) b.addEventListener("click", openBriefing); }
 async function openBriefing(){
@@ -6544,7 +6641,7 @@ async function renderAlerts(v){
     '<label class="toggle"><input type="checkbox" id="alPlays"' + (prefs.plays !== false ? " checked" : "") + "> Live plays: touchdowns, long gains and in-game injuries for your starters and your opponent’s</label>" +
     '<label class="toggle"><input type="checkbox" id="alLeague"' + (prefs.league ? " checked" : "") + "> League activity: trades, trade-block posts and QB pickups (Fleaflicker)</label>" +
     '<label class="toggle"><input type="checkbox" id="alPreview"' + (prefs.preview ? " checked" : "") + "> Friday matchup preview at noon ET: your win odds, their threats, who to watch</label>" +
-    '<label class="toggle"><input type="checkbox" id="alBrief"' + (prefs.brief ? " checked" : "") + "> Sunday pregame briefing at 11 AM ET: start/sit calls, risky starters and the best pickup</label>" +
+    '<label class="toggle"><input type="checkbox" id="alBrief"' + (prefs.brief ? " checked" : "") + "> Sunday pregame briefing at 11 AM ET: start/sit calls, risky starters, bad weather and the best pickup</label>" +
     '<div class="seg" role="group" aria-label="Free agent positions"><button type="button" data-fp="ALL" aria-pressed="' + (prefs.faPos === "ALL") + '">All positions</button><button type="button" data-fp="QB" aria-pressed="' + (prefs.faPos === "QB") + '">QBs only</button></div></div>';
   h += '<div class="btnrow"><button class="btn ghost" id="alTest">Send a test alert</button><button class="btn ghost" id="alOff">Turn off</button></div>';
   if (alertState.msg) h += '<p class="small" style="margin:8px 0 0">' + esc(alertState.msg) + "</p>";

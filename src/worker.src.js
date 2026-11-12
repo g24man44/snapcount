@@ -3,6 +3,7 @@
 
 import { alertsRoute, runMinute, staticRoute, injuriesRoute, readInjuries } from "./src/alerts.js";
 import { PROSPECTS } from "./src/prospects.js";
+import { gameWeather } from "./src/weather.js";
 import { ttsRoute, marketRoute, pickemRoute, syncRoute, transcribeRoute, espnRoute, mflRoute, scoresRoute, calendarRoute, coachRoute, hookPostRoute, espnLineupRoute, mflLoginRoute, mflLineupRoute } from "./src/more.js";
 
 const HTML = __HTML__;
@@ -638,6 +639,7 @@ export default {
         return cached(ctx, "f/" + ep + url.search, ttl, () => upstream(target, ttl));
       }
       if (p === "/api/scoreboard") return cached(ctx, "scoreboard", 30, scoreboard);
+      if (p === "/api/weather") return cached(ctx, "weather1", 1800, async () => { const w = await gameWeather(); return json(w, w.source || !w.games.some(g => !g.indoor) ? 200 : 203, w.source ? 1800 : 60); }); // 203 = forecast missing, not cached
       if (p === "/api/sstats") {
         const season = url.searchParams.get("season") || "";
         if (!/^\d{4}$/.test(season)) return json({ error: "Bad season" }, 400, 0);
