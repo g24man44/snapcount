@@ -2512,8 +2512,9 @@ try { localStorage.removeItem(KEY + ".myv"); } catch(e){}
 function myValues(){ return {}; }
 // League format beyond PPR/size/QBs: TE premium, points per carry, true 2QB.
 function qbsOf(d){ const sl = (d && d.slots) || []; return sl.includes("SUPER_FLEX") || sl.filter(x => x === "QB").length > 1 ? 2 : 1; }
-function fmtAdj(d){ if (!d) return null; const sl = d.slots || []; const a = {tep: +d.tep || 0, ppc: +d.ppc || 0, ptd: d.ptd != null ? +d.ptd : 4, idp: !!d.idp, two: sl.filter(x => x === "QB").length > 1 && !sl.includes("SUPER_FLEX")}; return adjOn(a) ? a : null; }
-const adjOn = a => !!a && !!(a.tep || a.ppc || (a.ptd != null && a.ptd !== 4) || a.two || a.startup || a.idp);
+function fmtAdj(d){ if (!d) return null; const sl = d.slots || []; return {tep: +d.tep || 0, ppc: +d.ppc || 0, ptd: d.ptd != null ? +d.ptd : 4, idp: !!d.idp, two: sl.filter(x => x === "QB").length > 1 && !sl.includes("SUPER_FLEX")}; }
+// Any league format counts (no TE premium is itself an adjustment: see adjustPack).
+const adjOn = a => !!a;
 function adjKey(a){ return adjOn(a) ? [a.tep || 0, a.ppc || 0, a.two ? 1 : 0, a.startup ? 1 : 0, a.ptd != null ? a.ptd : 4, a.idp ? 1 : 0].join(",") : ""; }
 // Re-score every player's season under the league's rules (TE catch bonus, points per carry, passing TD
 // points, how many QBs must start) and scale his value by how much his edge over a replacement starter changes.
@@ -2536,13 +2537,16 @@ function fmtMults(rows, a, teams, qbs){
 }
 function adjustPack(base, a, teams, qbs){
   if (!adjOn(a)) return base;
+  if (!a.tep && !a.ppc && (a.ptd == null || a.ptd === 4) && !a.two && !a.startup && !a.idp && !Object.values(base.v).some(r => Array.isArray(r) && r[5] === "TE")) return base;
   const v = {}, seen = new Map(), uniq = [];
   for (const k in base.v) { const r = base.v[k]; if (!Array.isArray(r) || k.startsWith("pick:")) continue; if (!seen.has(r)) { seen.set(r, null); uniq.push(r); } }
   const mults = (a.tep || a.ppc || (a.ptd != null && a.ptd !== 4) || a.two) ? fmtMults(uniq, a, teams, qbs) : new Map();
   uniq.forEach(r => {
     const row = r.slice();
     if (a.startup && row[8] != null && row[14] == null) { const e = row[9]; row[0] = Math.round(e != null ? 0.6 * row[8] + 0.4 * e : row[8]); }
-    const m = mults.get(r) || 1;
+    // The trade market prices tight ends as if TE premium were on; DTC (Nov 12, 2026) has an elite TE ~26%
+    // lower without it. So leagues without TE premium take tight ends down a quarter.
+    const m = (mults.get(r) || 1) * (r[5] === "TE" && !a.tep ? 0.75 : 1);
     if (m !== 1) [0, 8, 9, 10].forEach(i => { if (row[i] != null) row[i] = Math.round(row[i] * m); });
     row.fm = m; seen.set(r, row);
   });
