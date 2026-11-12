@@ -1623,7 +1623,7 @@ async function drawValueCard(panel, pl){
   const key = L.meta.platform === "sleeper" ? String(pl.id) : pack.flea && L.meta.platform === "flea" ? "f" + pl.id : sleeperKey(L, pl);
   const r = key && pack.v[key]; if (!r) return;
   const prem = pl.pos === "QB" ? qbPremium(d.teams.length, qbs) : 1;
-  const mine = r[14] != null;
+  const mine = false;
   const show = x => x == null ? "–" : fmtV(x * prem);
   const parts = [["Trade market", r[8], "What managers are paying in real trades (FantasyCalc)"], ["Experts", r[9], "FantasyPros expert consensus rankings"], ["Production", r[10], r[11] != null ? Number(r[11]).toFixed(1) + " pts a game, weighted to his last few games" + (r[13] != null ? " (" + Number(r[13]).toFixed(1) + " lately)" : "") : "Not enough games this season"]];
   const max = Math.max(...parts.map(x => x[1] || 0), r[0]);
@@ -1631,13 +1631,13 @@ async function drawValueCard(panel, pl){
   el.className = "card valcard";
   const chg = (x, lab) => x == null ? "" : '<span class="vchg ' + (x > 0 ? "up" : x < 0 ? "down" : "") + '">' + (x > 0 ? "▲ " : x < 0 ? "▼ " : "") + (x ? fmtV(Math.abs(x * prem)) : "No change") + " " + lab + "</span>";
   const asOf = pack.asOf ? new Date(pack.asOf) : null;
-  el.innerHTML = '<div class="vtop"><div><small class="muted">' + (mine ? "Your value" : "Snap Count value") + '</small><b class="vbig">' + fmtV(r[0] * prem) + '</b><small class="muted">' + (mine ? "Consensus " + fmtV(r[14] * prem) : "#" + r[1] + " overall · " + r[5] + r[2]) + "</small></div>" +
+  el.innerHTML = '<div class="vtop"><div><small class="muted">' + "Snap Count value" + '</small><b class="vbig">' + fmtV(r[0] * prem) + '</b><small class="muted">' + (mine ? "Consensus " + fmtV(r[14] * prem) : "#" + r[1] + " overall · " + r[5] + r[2]) + "</small></div>" +
     '<div class="vchgs">' + chg(r[17], "today") + chg(r[18], "this week") + chg(r[3], "in 30 days") + "</div></div>" +
     (r[16] ? '<p class="small" style="margin:10px 0 0;color:var(--warn)">Injury report: ' + esc(r[16]) + ". Today’s value accounts for it.</p>" : "") +
     (asOf ? '<p class="small muted" style="margin:8px 0 0">Updated ' + (asOf.toDateString() === new Date().toDateString() ? "today at " : asOf.toLocaleDateString([], {weekday: "short"}) + " ") + asOf.toLocaleTimeString([], {hour: "numeric", minute: "2-digit"}) + ". Values refresh every few hours, with a full recalculation every morning.</p>" : "") +
     (r[8] != null ? '<div class="vparts">' + parts.map(x => '<div class="vp"><div class="vpl"><span>' + x[0] + "</span><b>" + show(x[1]) + '</b></div><div class="vbar"><span style="width:' + (x[1] ? Math.round(x[1] / max * 100) : 0) + '%"></span></div><small class="muted">' + esc(x[2]) + "</small></div>").join("") + "</div>" : "") +
     '<p class="small muted" style="margin:10px 0 0">' + (dyn ? "Dynasty" : "This season") + " value for " + esc(L.meta.name) + "’s format" + (prem > 1 ? ", including the +" + Math.round((prem - 1) * 100) + "% superflex QB bump" : "") + ". The blend is half market, a quarter experts, a quarter production" + (dyn ? "" : " (60/40 market and production for redraft)") + ".</p>" +
-    '<details class="small" style="margin-top:8px"' + (mine ? " open" : "") + '><summary>Disagree? Set your own value</summary><p class="muted" style="margin:6px 0">Your number replaces the consensus everywhere in the app: grades, Buy, Sell, Price and the coach.</p><div class="cform"><input id="myvIn" inputmode="numeric" placeholder="' + Math.round(r[0] * prem) + '" value="' + (mine ? Math.round(r[0] * prem) : "") + '"><button type="button" class="btn" id="myvSave">Save</button>' + (mine ? '<button type="button" class="btn ghost" id="myvReset">Reset</button>' : "") + "</div></details>";
+    "";
   const anchor = panel.querySelector("#plog") || panel.querySelector("#pnews");
   if (!anchor || !document.body.contains(panel)) return;
   const before = anchor.previousElementSibling && anchor.previousElementSibling.tagName === "H3" ? anchor.previousElementSibling : anchor;
@@ -1647,8 +1647,6 @@ async function drawValueCard(panel, pl){
     if (!h || !document.body.contains(histBox)) return; const m = prem * (r.fm || 1);
     histBox.innerHTML = histChart(h, m) + (h.trades && h.trades.length ? '<b class="small" style="display:block;margin-top:12px">His latest real trades</b><p class="small muted" style="margin:2px 0 6px">From fantasy leagues tracked by FantasyCalc, with what he was worth in each deal.</p>' + tradesList(h, m, 6) : "");
   });
-  el.querySelector("#myvSave").addEventListener("click", () => { const n = Number(String(el.querySelector("#myvIn").value).replace(/[^0-9.]/g, "")); if (n > 0) { setMyValue(key, n / prem); openPlayer(pl); } });
-  const rs = el.querySelector("#myvReset"); if (rs) rs.addEventListener("click", () => { setMyValue(key, null); openPlayer(pl); });
 }
 
 /* ---------- game log: week-by-week fantasy points ---------- */
@@ -2506,8 +2504,9 @@ async function loadPicks(L){
 // Values already come priced for 10, 12 or 14 teams; this only covers leagues bigger than that (QBs get scarcer).
 const qbPremium = (teams, qbs) => { const base = teams <= 11 ? 10 : teams <= 13 ? 12 : 14; return 1 + (qbs === 2 ? 0.06 : 0.03) * Math.max(0, teams - base); };
 
-function myValues(){ try { return JSON.parse(localStorage.getItem(KEY + ".myv") || "{}"); } catch(e){ return {}; } }
-function setMyValue(key, v){ const m = myValues(); if (v == null) delete m[key]; else m[key] = Math.round(v); try { localStorage.setItem(KEY + ".myv", JSON.stringify(m)); } catch(e){} tr.values = {}; leagues.forEach(L => { L.ctx = null; }); }
+// Everyone sees the same values: personal overrides are no longer supported (and old ones are cleared).
+try { localStorage.removeItem(KEY + ".myv"); } catch(e){}
+function myValues(){ return {}; }
 // League format beyond PPR/size/QBs: TE premium, points per carry, true 2QB.
 function qbsOf(d){ const sl = (d && d.slots) || []; return sl.includes("SUPER_FLEX") || sl.filter(x => x === "QB").length > 1 ? 2 : 1; }
 function fmtAdj(d){ if (!d) return null; const sl = d.slots || []; const a = {tep: +d.tep || 0, ppc: +d.ppc || 0, ptd: d.ptd != null ? +d.ptd : 4, idp: !!d.idp, two: sl.filter(x => x === "QB").length > 1 && !sl.includes("SUPER_FLEX")}; return adjOn(a) ? a : null; }
@@ -2567,8 +2566,7 @@ async function loadValues(ppr, teams, qbs, dyn, adj){
   try {
     const r = await api("/api/values?ppr=" + ppr + "&teams=" + teams + "&qbs=" + qbs + (dyn ? "&dyn=1" : ""));
     const flea = Object.keys(r.values).some(x => x[0] === "f");
-    const mv = myValues(), v = Object.assign({}, r.values);
-    for (const key in mv) if (v[key]) { const row = v[key].slice(); row[14] = row[0]; row[0] = mv[key]; v[key] = row; }
+    const v = Object.assign({}, r.values);
     tr.values[k] = {src: r.blend ? "Snap Count values (market, experts and production)" : "FantasyCalc", blend: r.blend || null, v, flea, at: Date.now(), asOf: r.asOf || null}; tr.valuesHasFlea = flea;
   }
   catch(e){
@@ -3132,7 +3130,7 @@ function calcSearch(q, exclude){
 function calcRow(a, side){
   const p = {id: a.k.startsWith("pick:") ? "" : a.k, name: a.name, pos: a.pos === "PICK" ? "" : a.pos, team: a.team};
   return '<li class="crow">' + (a.pos === "PICK" ? '<span class="av"><i>PK</i></span>' : avatar(p)) +
-    '<span class="pname"><b>' + esc(a.name) + "</b><small>" + (a.pos === "PICK" ? "Draft pick" : posTag(a) + esc([a.team, a.age ? "age " + Math.round(a.age) : "", a.rank].filter(Boolean).join(" · "))) + (a.mine ? " · your value" : "") + "</small>" + calcRange(a) + calcBadges(a) + "</span>" +
+    '<span class="pname"><b>' + esc(a.name) + "</b><small>" + (a.pos === "PICK" ? "Draft pick" : posTag(a) + esc([a.team, a.age ? "age " + Math.round(a.age) : "", a.rank].filter(Boolean).join(" · ")))  + "</small>" + calcRange(a) + calcBadges(a) + "</span>" +
     '<span class="tv">' + fmtV(a.v) + '</span><button type="button" class="cx" data-rm="' + side + '" data-k="' + esc(a.k) + '" aria-label="Remove ' + esc(a.name) + '">×</button></li>';
 }
 // Quick-read tags on a player, like DTC's badges. Each one comes straight from the numbers.

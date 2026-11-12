@@ -21,6 +21,7 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- [x] Removed "set your own value": every user sees the same Snap Count values everywhere (owner's call — don't re-add)
 - [x] Trade tab merged: My league (Buy/Sell/Price/Grade) · Calculator · Rankings · Mock draft in one tab; bottom bar down to five tabs
 - [x] Snap Count pick values: plain pick = average of its Early/Mid/Late prices; later years blend FantasyCalc's thin far-out prices 50/50 with a 15%-a-year discount; Early/Mid/Late for every year, narrowing further out
 - [x] Layout cleanup: league matchup first on Home with tools listed below; compact player rows (one detail line, "Sun 4:05 PM" kickoffs, smaller photos, one-line notes); League tab tools grouped (This week, Trades, Season, Draft) as compact rows; Trade tab format shown as one line with "Change"; scorebug team names no longer cut off
