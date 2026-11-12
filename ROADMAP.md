@@ -21,6 +21,8 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- [x] Trade tab merged: My league (Buy/Sell/Price/Grade) · Calculator · Rankings · Mock draft in one tab; bottom bar down to five tabs
+- [x] Snap Count pick values: plain pick = average of its Early/Mid/Late prices; later years blend FantasyCalc's thin far-out prices 50/50 with a 15%-a-year discount; Early/Mid/Late for every year, narrowing further out
 - [x] Layout cleanup: league matchup first on Home with tools listed below; compact player rows (one detail line, "Sun 4:05 PM" kickoffs, smaller photos, one-line notes); League tab tools grouped (This week, Trades, Season, Draft) as compact rows; Trade tab format shown as one line with "Change"; scorebug team names no longer cut off
 - [x] Game weather (home › Game weather, Edge › Week, chips on every player): wind, gusts, rain, snow and cold at each stadium for the game’s hours (Open-Meteo, domes and retractable roofs skipped, international venues included), rated Clear / Watch / Bad / Major with rough per-position effects; your starters in bad weather with weather-adjusted projections and any lineup change the weather flips; the Sunday pregame briefing now calls out starters in strong wind, rain or snow with a bench option
 - [x] Value history chart on every player (FantasyCalc daily trade-market price for ~4 months, plus Snap Count's own saved daily values) and his latest real trades with what he was worth in each

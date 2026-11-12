@@ -225,6 +225,7 @@ async function tradeValues(ppr, teams, qbs, dyn, realTeams, env) {
   const uniq = rows.map(x => out[x.sid] || out["f" + x.fid]).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).sort((a, b) => b[0] - a[0]);
   const pr = {}; uniq.forEach((row, i) => { row[1] = i + 1; pr[row[5]] = (pr[row[5]] || 0) + 1; row[2] = pr[row[5]]; });
   for (const [k, row] of picks) out[k] = row;
+  smoothPicks(out);
   // Day-over-day and week-over-week change, from the daily snapshots.
   if (snap1 || snap7) uniq.forEach(row => {
     const id = rows.find(x => (out[x.sid] || out["f" + x.fid]) === row); if (!id) return;
@@ -265,6 +266,33 @@ async function idpValues(teams, dyn, scaleFrom) {
   });
   const pr = {}; Object.values(out).sort((a, b) => b[0] - a[0]).forEach((row, i) => { row[1] = i + 1; pr[row[5]] = (pr[row[5]] || 0) + 1; row[2] = pr[row[5]]; });
   return json({ values: out, season, note: "IDP values are production-based estimates." }, 200, 10800);
+}
+
+// Snap Count pick values. FantasyCalc's pick prices are the base, with three fixes:
+// 1) a pick with no projected slot is worth the average of its Early/Mid/Late prices (the market's plain price runs low);
+// 2) later years blend the market (thin: few trades that far out) half-and-half with a steady 15%-a-year discount
+//    from the nearest year with full prices, so far-out picks don't fall off a cliff on thin trading;
+// 3) later years get Early/Mid/Late too, with the gap between them shrinking each year out, since a pick's slot
+//    gets harder to predict the further away the draft is.
+function smoothPicks(out) {
+  const R = ["1st", "2nd", "3rd", "4th", "5th"], T = ["Early", "Mid", "Late"];
+  const years = [...new Set(Object.keys(out).filter(k => k.startsWith("pick:")).map(k => +k.slice(5, 9)))].sort();
+  if (!years.length) return;
+  const get = k => out[k] && out[k][0], mk = (base, v) => { const r = base.slice(); r[0] = r[7] = Math.round(v); return r; };
+  const baseY = years.find(y => T.every(t => get("pick:" + y + " 1st (" + t + ")"))) || years[0];
+  for (const rd of R) {
+    const tiers = T.map(t => get("pick:" + baseY + " " + rd + " (" + t + ")"));
+    const avg = tiers.every(Boolean) ? tiers.reduce((a, b) => a + b, 0) / 3 : get("pick:" + baseY + " " + rd);
+    if (!avg) continue;
+    const plainK = "pick:" + baseY + " " + rd; if (out[plainK] && tiers.every(Boolean)) out[plainK] = mk(out[plainK], avg);
+    for (const y of years) {
+      if (y <= baseY) continue;
+      const n = y - baseY, k = "pick:" + y + " " + rd, row = out[k]; if (!row) continue;
+      const model = avg * Math.pow(0.85, n), v = 0.5 * (row[0] || model) + 0.5 * model;
+      out[k] = mk(row, v);
+      if (tiers.every(Boolean)) T.forEach((t, i) => { const spread = (tiers[i] / avg - 1) * Math.pow(0.6, n); out[k + " (" + t + ")"] = mk(row, v * (1 + spread)); });
+    }
+  }
 }
 
 // One player's story: daily market price over the season (FantasyCalc), Snap Count's own daily values
@@ -589,7 +617,7 @@ export async function dailyValues(env, force) {
       for (const k in body.values) if (k[0] !== "f" && !k.startsWith("pick:")) snap[k] = [body.values[k][0], body.values[k][8]];
       await env.SNAP.put("vsnap:" + fmt + ":" + day, JSON.stringify(snap), { expirationTtl: 45 * 864e5 / 1000 });
       const copy = new Response(res.body, res); copy.headers.set("cache-control", "public, max-age=10800");
-      await caches.default.put(new Request("https://snapcount.cache/values11/" + fmt), copy);
+      await caches.default.put(new Request("https://snapcount.cache/values12/" + fmt), copy);
       done.push(fmt);
     } catch (e) {}
   }
@@ -658,7 +686,7 @@ export default {
         const dyn = url.searchParams.get("dyn") === "1";
         const real = Math.min(32, Math.max(4, t));
         ctx.waitUntil(noteValueFormat(env, ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0)));
-        return cached(ctx, "values11/" + ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0), 10800, () => tradeValues(ppr, teams, qbs, dyn, real, env));
+        return cached(ctx, "values12/" + ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0), 10800, () => tradeValues(ppr, teams, qbs, dyn, real, env));
       }
       if (p === "/api/phist") {
         const fc = /^\d{1,7}$/.test(url.searchParams.get("fc") || "") ? url.searchParams.get("fc") : null, sid = /^[\w-]{1,20}$/.test(url.searchParams.get("sid") || "") ? url.searchParams.get("sid") : null;

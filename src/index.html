@@ -744,6 +744,10 @@ path.vho{stroke:var(--ok);stroke-dasharray:4 3}
 .fmtd summary::-webkit-details-marker{display:none}
 .fmtd summary span{color:var(--accent);font-weight:700;flex:none}
 .fmtd[open] summary{margin-bottom:10px}
+
+.tswitch{margin:-4px 0 10px}
+.tswitch button{font-size:13px;padding-left:4px;padding-right:4px}
+.tmodes{margin:0 0 12px;gap:6px}
 </style>
 </head>
 <body>
@@ -758,7 +762,6 @@ path.vho{stroke:var(--ok);stroke-dasharray:4 3}
 <nav class="tabbar" role="tablist" id="tabs">
   <button role="tab" data-tab="leagues" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 4l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1Z"/></svg>Leagues</button>
   <button role="tab" data-tab="trade" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4 3 8l4 4"/><path d="M3 8h13"/><path d="m17 20 4-4-4-4"/><path d="M21 16H8"/></svg>Trade</button>
-  <button role="tab" data-tab="calc" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2.5"/><path d="M8.5 7.5h7M8.5 12h.01M12 12h.01M15.5 12h.01M8.5 15.5h.01M12 15.5h.01M15.5 15.5h.01"/></svg>Calc</button>
   <button role="tab" data-tab="news" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h4M7 13h4M15 9v6"/></svg>Scores</button>
   <button role="tab" data-tab="edge" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/></svg>Edge</button>
   <button role="tab" data-tab="alerts" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15Z"/><path d="M10 21h4"/></svg>Alerts</button>
@@ -1095,7 +1098,9 @@ async function loadAll(){
 
 /* ---------- views ---------- */
 const cur = {tab:"leagues", league:null, newsMine:false};
-function setTab(t){ cur.tab = t; cur.league = null; document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === t)); render(); window.scrollTo(0,0); }
+// Calculator, Rankings and Mock draft live inside the Trade tab.
+const navTab = t => t === "calc" ? "trade" : t;
+function setTab(t){ cur.tab = t; cur.league = null; document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === navTab(t))); render(); window.scrollTo(0,0); }
 $("#gearBtn").addEventListener("click", () => setTab(cur.tab === "accounts" ? "leagues" : "accounts"));
 $("#tabs").addEventListener("click", e => { const b = e.target.closest("button[data-tab]"); if (b) setTab(b.dataset.tab); });
 
@@ -2586,7 +2591,7 @@ function pickRow(p, side, V, sid, selected, prem){
 async function renderTrade(v){
   const ready = leagues.map((L, i) => ({L, i})).filter(x => x.L.detail && x.L.detail.teams.find(t => t.mine));
   if (!tr.mode) tr.mode = "scan";
-  let h = "<h2>Trades</h2>" + '<div class="seg" role="group" aria-label="Trade tool" style="margin-bottom:12px">' + [["scan","Buy"],["sell","Sell"],["find","Price"],["grade","Grade"]].map(x => '<button type="button" data-mode="' + x[0] + '" aria-pressed="' + (tr.mode === x[0]) + '">' + x[1] + "</button>").join("") + "</div>";
+  let h = "<h2>Trade</h2>" + tradeSwitch("league") + '<div class="chips tmodes" role="group" aria-label="What do you want to do?">' + [["scan","Buy a player"],["sell","Sell a player"],["find","Price a player"],["grade","Grade a trade"]].map(x => '<button type="button" class="chip' + (tr.mode === x[0] ? " on" : "") + '" data-mode="' + x[0] + '" aria-pressed="' + (tr.mode === x[0]) + '">' + x[1] + "</button>").join("") + "</div>";
   h += '<button type="button" class="btn ghost" id="cmpOpen" style="width:100%;margin:-2px 0 12px"><i class=ic-scale aria-hidden=true></i> Compare players side by side' + (cmpList.length ? " (" + cmpList.length + ")" : "") + "</button>";
   if (!ready.length) { v.innerHTML = h + '<div class="card"><p style="margin:0">' + (hasAccts() ? "Your leagues are still loading, or you haven’t picked your team in a league yet. Open the league once and choose your team." : "Add your leagues under the settings button first.") + "</p></div>"; return; }
   if (tr.league == null || !ready.find(x => x.i === tr.league)) { tr.league = ready[0].i; tr.other = null; tr.give.clear(); tr.get.clear(); tr.ppr = null; tr.dyn = null; tr.keep = null; tr.target = null; }
@@ -3169,7 +3174,7 @@ function drawRankings(v){
   const maxF = Math.max(...items.map(x => x.freq), 0.0001);
   const row = x => { const a = x.a, c = mv(x);
     return '<button type="button" class="rkrow" data-rk="' + esc(a.k) + '"><span class="rkn">' + rank.get(x) + "</span>" + (a.pos === "PICK" ? '<em class="pt" data-pos="PICK">PK</em>' : posTag(a)) + '<span class="sn">' + esc(a.name) + "<small>" + esc([a.team, a.age ? "age " + Math.round(a.age) : "", a.prospect && a.prospect.nfl ? "proj. NFL pick ~" + Math.max(1, Math.round(a.prospect.nfl)) : a.prospect && a.prospect.devy ? "devy #" + a.prospect.devy : ""].filter(Boolean).join(" · ")) + (rk.sort === "traded" && x.freq ? " · traded often" .replace("often", x.freq > maxF * 0.5 ? "very often" : "often") : "") + "</small>" + calcRange(a) + calcBadges(a) + '</span><span class="rkv"><b>' + fmtV(a.v) + "</b>" + (c ? '<small class="vchg ' + (c > 0 ? "up" : "down") + '">' + (c > 0 ? "▲ " : "▼ ") + fmtV(Math.abs(c)) + "</small>" : "") + "</span></button>"; };
-  v.innerHTML = "<h2>Rankings</h2>" + calcSwitch() + calcFmtCard() +
+  v.innerHTML = "<h2>Trade</h2>" + calcSwitch() + calcFmtCard() +
     '<div class="psearch" style="margin-top:12px"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" id="rkQ" placeholder="Find a player" value="' + esc(rk.q) + '" autocomplete="off"></div>' +
     '<div class="chips" style="margin:10px 0 6px">' + groups.map(g => '<button type="button" class="chip' + (rk.pos === g ? " on" : "") + '" data-rkp="' + g + '">' + (lab[g] || g) + "</button>").join("") + "</div>" +
     '<div class="seg" role="group" aria-label="Sort" style="margin-bottom:10px">' + [["value", "Value"], ["rising", "Rising"], ["falling", "Falling"], ["traded", "Hot"]].map(o => '<button type="button" data-rks="' + o[0] + '" aria-pressed="' + (rk.sort === o[0]) + '">' + o[1] + "</button>").join("") + "</div>" +
@@ -3186,7 +3191,7 @@ function drawRankings(v){
 async function renderCalc(v){
   calcDefaults();
   if (calcMode === "mock") return renderMockTab(v);
-  const title = calcMode === "rank" ? "Rankings" : "Trade calculator";
+  const title = "Trade";
   v.innerHTML = "<h2>" + title + "</h2>" + calcSwitch() + '<p class="spin">Loading values…</p>';
   try { await calcValues(); } catch(e){ v.innerHTML = "<h2>" + title + '</h2><div class="err">Couldn’t load trade values: ' + esc(e.message) + "</div>"; return; }
   if (cur.tab !== "calc") return;
@@ -3221,7 +3226,7 @@ function drawCalc(v){
       (A.length !== B.length ? '<p class="small muted" style="margin:12px 0 0">Raw totals are ' + fmtV(sum(A)) + " and " + fmtV(sum(B)) + ". The side getting more pieces is counted lower, because several mid players are worth less than one star who fills a single lineup spot.</p>" : "") +
       '<div class="sendrow" style="margin-top:14px"><button type="button" class="btn" id="cShare">Share this trade</button><button type="button" class="btn ghost" id="cClear">Clear</button></div><p class="small" id="cMsg" style="margin:6px 0 0"></p></div>';
   }
-  v.innerHTML = '<h2>Trade calculator</h2>' + calcSwitch() +
+  v.innerHTML = '<h2>Trade</h2>' + calcSwitch() +
     calcFmtCard() +
     side("A", A, effA) + side("B", B, effB) + res +
     badgeToggle() + (!both ? '<p class="small muted" style="margin:12px 4px 0">Add players or picks to both sides. Works for any trade, in any league, even ones you’re not in.</p>' : "") + calcMovers() +
@@ -3287,10 +3292,14 @@ async function openAccuracy(){
   } catch(e){ body.innerHTML = '<div class="err">' + esc(e.message) + "</div>"; }
 }
 function badgeToggle(){ return '<div style="display:flex;gap:16px;flex-wrap:wrap;margin:10px 4px 0"><button type="button" class="linkbtn small" data-badges="1">' + (calc.badges === false ? "Show player badges" : "Hide player badges") + '</button><button type="button" class="linkbtn small" data-acc="1">How accurate are these values?</button></div>'; }
-function calcSwitch(){ return '<div class="seg" role="group" aria-label="Tool" style="margin:-4px 0 12px"><button type="button" data-cm="trade" aria-pressed="' + (calcMode === "trade") + '">Calculator</button><button type="button" data-cm="rank" aria-pressed="' + (calcMode === "rank") + '">Rankings</button><button type="button" data-cm="mock" aria-pressed="' + (calcMode === "mock") + '">Mock draft</button></div>'; }
-function wireSwitch(v){ v.querySelectorAll("[data-cm]").forEach(b => b.addEventListener("click", () => { calcMode = b.dataset.cm; render(); })); }
+// One switch across the whole Trade tab: deals in your league, the calculator, rankings, mock draft.
+function tradeSwitch(active){ return '<div class="seg tswitch" role="group" aria-label="Trade tools">' + [["league", "My league"], ["trade", "Calculator"], ["rank", "Rankings"], ["mock", "Mock draft"]].map(x => '<button type="button" data-cm="' + x[0] + '" aria-pressed="' + (active === x[0]) + '">' + x[1] + "</button>").join("") + "</div>"; }
+function calcSwitch(){ return tradeSwitch(calcMode); }
+// One listener for the Trade tab switch on every screen that shows it.
+document.addEventListener("click", e => { const b = e.target.closest(".tswitch [data-cm]"); if (!b) return; const m = b.dataset.cm; if (m === "league") { if (cur.tab !== "trade") setTab("trade"); return; } calcMode = m; if (cur.tab !== "calc") setTab("calc"); else render(); });
+function wireSwitch(){}
 function renderMockTab(v){
-  v.innerHTML = "<h2>Mock draft</h2>" + calcSwitch() + renderMock(v);
+  v.innerHTML = "<h2>Trade</h2>" + calcSwitch() + renderMock(v);
   wireSwitch(v);
   v.querySelectorAll("[data-mc]").forEach(el => el.addEventListener(el.tagName === "SELECT" || el.type === "checkbox" ? "change" : "click", () => {
     const f = el.dataset.mc, val = el.tagName === "SELECT" ? el.value : el.dataset.val, c = mockCfg();
@@ -6765,7 +6774,7 @@ let goCoach = false;
 syncStartup().catch(() => {});
 if (readCalcLink()) cur.tab = "calc";
 try { const go = new URLSearchParams(location.search).get("go"); if (["news", "trade", "edge", "alerts", "calc"].includes(go)) cur.tab = go; if (go === "coach") goCoach = true; if (go) history.replaceState(null, "", location.pathname); } catch(e){}
-document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === cur.tab));
+document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === navTab(cur.tab)));
 document.addEventListener("visibilitychange", () => { if (!document.hidden) try { navigator.clearAppBadge && navigator.clearAppBadge(); } catch(e){} });
 render();
 async function refreshLive(){
