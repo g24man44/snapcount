@@ -1986,7 +1986,7 @@ async function startVoice(form){
   src.connect(proc); proc.connect(mute); mute.connect(ctx.destination);
   form.classList.add("rec");
   const bar = document.createElement("div"); bar.className = "recbar";
-  bar.innerHTML = '<button type="button" class="recx" aria-label="Cancel recording">×</button><div class="wave" aria-hidden="true">' + voice.levels.map(() => "<i></i>").join("") + '</div><span class="rect">0:00</span><button type="button" class="recok" aria-label="Done talking"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>';
+  bar.innerHTML = '<button type="button" class="recx" aria-label="Cancel recording">×</button><div class="wave" aria-hidden="true">' + voice.levels.map(() => "<i></i>").join("") + '</div><span class="rect">0:00</span><button type="button" class="recok" aria-label="Send to the coach"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5.5 11.5L12 5l6.5 6.5"/></svg></button>';
   form.prepend(bar);
   bar.querySelector(".recx").addEventListener("click", () => stopVoice(false));
   bar.querySelector(".recok").addEventListener("click", () => stopVoice(true));
@@ -2015,7 +2015,13 @@ async function stopVoice(keep){
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || "Couldn’t transcribe that.");
     let said = j.text || ""; try { said = fixNames(said); } catch(e){}
-    if (said) inp.value = (inp.value.trim() ? inp.value.trim() + " " : "") + said;
+    if (said) {
+      inp.value = (inp.value.trim() ? inp.value.trim() + " " : "") + said;
+      // Tapping the arrow means "send": no second tap on Ask.
+      if (bar) bar.remove(); form.classList.remove("rec"); voice.chunks = [];
+      if (form.requestSubmit) form.requestSubmit(); else { const go = form.querySelector("#cGo"); if (go) go.click(); }
+      return;
+    }
     else inp.placeholder = "Didn’t catch that. Try again, or type it.";
   } catch(e){ inp.placeholder = e.message; }
   voice.chunks = [];
