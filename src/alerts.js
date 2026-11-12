@@ -273,6 +273,7 @@ export function messagesFor(rec, events, week, now) {
   return { minePush, faCandidates: fa.slice(0, 3) };
 }
 
+
 export async function runChecks(env, forcePos) {
   if (!env.SNAP) return { skipped: "no storage" };
   const st = await (await fetch("https://api.sleeper.app/v1/state/nfl", { headers: UA })).json();
@@ -757,7 +758,7 @@ export async function playAlerts(env) {
   const r = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard", { headers: UA });
   if (!r.ok) return { error: r.status };
   const sb = await r.json();
-  const prev = (await env.SNAP.get("plays:state", "json")) || {};
+  const prevRaw = await env.SNAP.get("plays:state"), prev = prevRaw ? JSON.parse(prevRaw) : {};
   const next = {}, events = [];
   for (const e of sb.events || []) {
     const c = (e.competitions || [])[0] || {}, st = ((c.status || {}).type || {}).state;
@@ -785,7 +786,9 @@ export async function playAlerts(env) {
     }
     next[e.id] = n;
   }
-  await env.SNAP.put("plays:state", JSON.stringify(next), { expirationTtl: 86400 });
+  // Free KV allows 1,000 writes a day: only save when a game's state actually moved.
+  const nextRaw = JSON.stringify(next);
+  if (nextRaw !== (prevRaw || "{}")) await env.SNAP.put("plays:state", nextRaw, { expirationTtl: 86400 });
   if (!events.length) return { events: 0 };
   const sent = await eachSubscriber(env, rec => {
     if ((rec.prefs || {}).plays === false) return [];
@@ -807,14 +810,15 @@ export async function playAlerts(env) {
 }
 
 export async function runMinute(env) {
-  await playAlerts(env).catch(() => {});
+  const m = new Date().getUTCMinutes();
+  // Every 2 minutes is plenty: scoring plays come from the full game summary, so no touchdown is missed.
+  if (m % 2 === 0) await playAlerts(env).catch(() => {});
   await leagueWatch(env).catch(() => {});
   await pregameBriefings(env).catch(() => {});
   await matchupPreviews(env, deliver).catch(() => {});
   await weeklyPower(env).catch(() => {});
   await lineupCheck(env).catch(() => {});
   await runChecks(env, "QB").catch(() => {});
-  const m = new Date().getUTCMinutes();
   await runChecks(env, OTHERS[m % OTHERS.length]).catch(() => {});
   if (m % 2 === 1) await runInjuryNotes(env).catch(() => {});
   if (m % 5 === 0) await runHeadlines(env).catch(() => {});

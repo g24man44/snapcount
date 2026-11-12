@@ -497,14 +497,19 @@ export async function ttsRoute(request, env) {
   const text = String(b.text || "").replace(/[*#_`]/g, "").slice(0, 900);
   if (!text.trim()) return out({ error: "Nothing to read." }, 400);
   const toBytes = a => { if (!a) return null; if (typeof a === "string") { const bin = atob(a), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; } return null; };
-  try {
-    const r = await env.AI.run("@cf/deepgram/aura-1", { text, speaker: "asteria" }, { returnRawResponse: true });
-    if (r && r.body && r.ok !== false) return new Response(r.body, { headers: { "content-type": r.headers.get("content-type") || "audio/mpeg", "cache-control": "no-store" } });
-  } catch (e) {}
+  // Cache each spoken chunk so replays are free; MeloTTS costs ~1% of Aura per briefing.
+  const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))), x => x.toString(16).padStart(2, "0")).join("").slice(0, 32);
+  const ck = new Request("https://snapcount.tts/" + hash);
+  try { const hit = await caches.default.match(ck); if (hit) return new Response(hit.body, { headers: { "content-type": hit.headers.get("content-type") || "audio/mpeg", "cache-control": "no-store" } }); } catch (e) {}
+  const keep = async (bytes, type) => { try { await caches.default.put(ck, new Response(bytes, { headers: { "content-type": type, "cache-control": "max-age=172800" } })); } catch (e) {} return new Response(bytes, { headers: { "content-type": type, "cache-control": "no-store" } }); };
   try {
     const r = await env.AI.run("@cf/myshell-ai/melotts", { prompt: text, lang: "en" });
     const bytes = r instanceof ReadableStream ? new Uint8Array(await new Response(r).arrayBuffer()) : toBytes(r && r.audio);
-    if (bytes && bytes.length) return new Response(bytes, { headers: { "content-type": "audio/mpeg", "cache-control": "no-store" } });
+    if (bytes && bytes.length) return keep(bytes, "audio/mpeg");
+  } catch (e) {}
+  try {
+    const r = await env.AI.run("@cf/deepgram/aura-1", { text, speaker: "asteria" }, { returnRawResponse: true });
+    if (r && r.body && r.ok !== false) return keep(new Uint8Array(await r.arrayBuffer()), r.headers.get("content-type") || "audio/mpeg");
   } catch (e) {}
   return out({ error: "voice unavailable" }, 502);
 }

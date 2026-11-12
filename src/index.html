@@ -5300,7 +5300,7 @@ async function openMorning(){
   const textEl = body.querySelector("#bText"), st = body.querySelector("#bState"), play = body.querySelector("#bPlay");
   let text = "";
   const prepare = () => {
-    brief.chunks = splitForSpeech(text); brief.audio = brief.chunks.map(c => fetch("/api/tts", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({text: c})}).then(r => r.ok && /audio/.test(r.headers.get("content-type") || "") ? r.blob() : null).catch(() => null));
+    brief.chunks = splitForSpeech(text); brief.audio = [];
     play.disabled = false; st.textContent = "About " + Math.max(1, Math.round(text.split(/\s+/).length / 150)) + " min · tap play";
   };
   const write = async fresh => {
@@ -5326,7 +5326,9 @@ async function toggleBrief(body){
   const st = body.querySelector("#bState");
   for (let i = 0; i < brief.chunks.length && brief.playing; i++) {
     st.textContent = "Playing · part " + (i + 1) + " of " + brief.chunks.length;
-    const blob = await brief.audio[i];
+    // Voice is made only when you press play, one part ahead of where you are.
+    const getA = j => brief.audio[j] || (brief.audio[j] = fetch("/api/tts", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({text: brief.chunks[j]})}).then(r => r.ok && /audio/.test(r.headers.get("content-type") || "") ? r.blob() : null).catch(() => null));
+    const blob = await getA(i); if (i + 1 < brief.chunks.length) getA(i + 1);
     if (!brief.playing) break;
     if (blob) {
       await new Promise(res => { const a = brief.el = new Audio(URL.createObjectURL(blob)); a.onended = res; a.onerror = res; a.play().catch(res); });
