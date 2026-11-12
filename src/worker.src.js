@@ -158,7 +158,7 @@ async function tradeValues(ppr, teams, qbs, dyn, realTeams, env) {
     const p = x.player || {};
     const row = [Math.round(x.value || 0), x.overallRank || null, x.positionRank || null, Math.round(x.trend30Day || 0), p.name || "", p.position || "", p.maybeAge ? Math.round(p.maybeAge * 10) / 10 : null, Math.round(x.redraftValue || 0)];
     if (p.position === "PICK") { if (p.name) picks.push(["pick:" + p.name, row]); continue; }
-    rows.push({ row, sid: p.sleeperId, fid: p.fleaflickerId, pos: p.position, age: p.maybeAge, team: p.maybeTeam || null, key: nkey(p.name) + "|" + p.position, market: row[0], freq: x.maybeTradeFrequency || 0 });
+    rows.push({ fc: p.id || null, row, sid: p.sleeperId, fid: p.fleaflickerId, pos: p.position, age: p.maybeAge, team: p.maybeTeam || null, key: nkey(p.name) + "|" + p.position, market: row[0], freq: x.maybeTradeFrequency || 0 });
   }
   if (!rows.length) return json({ error: "FantasyCalc returned no players" }, 502, 0);
   const scale = rows.map(x => x.market).sort((a, b) => b - a);
@@ -215,6 +215,7 @@ async function tradeValues(ppr, teams, qbs, dyn, realTeams, env) {
     const row = x.row.slice();
     row[0] = Math.round(sum / w * (x.injF || 1));
     row.push(x.market, x.experts != null ? Math.round(x.experts) : null, x.production != null ? Math.round(x.production) : null, x.ppg != null ? Math.round(x.ppg * 10) / 10 : null, x.gp || 0, x.recent != null ? Math.round(x.recent * 10) / 10 : null, null, x.team, x.inj || null);
+    row[23] = x.fc;
     row[19] = x.rpg != null ? x.rpg : null; row[20] = x.cpg != null ? x.cpg : null; row[21] = x.tdpg != null ? x.tdpg : null; row[22] = Math.round((x.freq || 0) * 10000) / 10000;
     if (x.sid) out[x.sid] = row;
     if (x.fid) out["f" + x.fid] = row;
@@ -227,8 +228,9 @@ async function tradeValues(ppr, teams, qbs, dyn, realTeams, env) {
   if (snap1 || snap7) uniq.forEach(row => {
     const id = rows.find(x => (out[x.sid] || out["f" + x.fid]) === row); if (!id) return;
     const k = id.sid || "f" + id.fid;
-    row[17] = snap1 && snap1[k] != null ? row[0] - snap1[k] : null;
-    row[18] = snap7 && snap7[k] != null ? row[0] - snap7[k] : null;
+    const sv = x => Array.isArray(x) ? x[0] : x;
+    row[17] = snap1 && snap1[k] != null ? row[0] - sv(snap1[k]) : null;
+    row[18] = snap7 && snap7[k] != null ? row[0] - sv(snap7[k]) : null;
   });
   return json({ source: "Snap Count value", asOf: new Date().toISOString(), fmt: fmtKey, hasDaily: !!(snap1 || snap7), blend: { market: "FantasyCalc", experts: haveExperts ? "FantasyPros consensus via DynastyProcess" : null, production: "Sleeper season stats" }, weights: W, ppr, teams, qbs, dynasty: !!dyn, values: out }, 200, 10800);
 }
@@ -262,6 +264,70 @@ async function idpValues(teams, dyn, scaleFrom) {
   });
   const pr = {}; Object.values(out).sort((a, b) => b[0] - a[0]).forEach((row, i) => { row[1] = i + 1; pr[row[5]] = (pr[row[5]] || 0) + 1; row[2] = pr[row[5]]; });
   return json({ values: out, season, note: "IDP values are production-based estimates." }, 200, 10800);
+}
+
+// One player's story: daily market price over the season (FantasyCalc), Snap Count's own daily values
+// (our snapshots), and his most recent real trades with what he was worth in each.
+async function playerHistory(env, fc, fmt, sid, dyn, qbs, teams, ppr) {
+  const q = "?isDynasty=" + (dyn ? "true" : "false") + "&numQbs=" + qbs + "&numTeams=" + teams + "&ppr=" + ppr;
+  const fcData = fc ? await fetch("https://api.fantasycalc.com/trades/implied/" + fc + q, { headers: UA }).then(r => r.ok ? r.json() : {}).catch(() => ({})) : {};
+  const md = s => { const [m, d, y] = String(s).split("/"); return y + "-" + m + "-" + d; };
+  const market = (fcData.historicalValues || []).map(h => [md(h.date), h.value]).filter(x => x[0] >= new Date(Date.now() - 200 * 864e5).toISOString().slice(0, 10));
+  const trades = (fcData.impliedValues || []).slice().sort((a, b) => md(b.date) < md(a.date) ? -1 : 1).slice(0, 12)
+    .map(t => ({ date: md(t.date), value: t.value, a: String(t.side1 || "").replace(/<br>/g, " "), b: String(t.side2 || "").replace(/<br>/g, " ") }));
+  const ours = [];
+  if (env.SNAP && sid && /^[\d./]+$/.test(fmt)) {
+    const days = Array.from({ length: 30 }, (_, i) => new Date(Date.now() - i * 864e5).toLocaleDateString("en-CA", { timeZone: "America/New_York" }));
+    const got = await Promise.all(days.map(d => env.SNAP.get("vsnap:" + fmt + ":" + d, "json").catch(() => null)));
+    got.forEach((snap, i) => { const x = snap && snap[sid]; if (x != null) ours.push([days[i], Array.isArray(x) ? x[0] : x]); });
+    ours.reverse();
+  }
+  return json({ market, ours, trades }, 200, 21600);
+}
+
+// How right were the values? Take a saved daily snapshot from at least a week ago and check
+// (1) whether players valued higher went on to score more in the NFL weeks since, against the simple
+//     guess of "same points per game as before", and
+// (2) where Snap Count disagreed with the trade market by 10% or more, whether the price then moved our way.
+function spearman(xs, ys) {
+  const rk = a => { const idx = a.map((v, i) => [v, i]).sort((p, q) => p[0] - q[0]), r = new Array(a.length); idx.forEach(([, i], j) => r[i] = j); return r; };
+  const n = xs.length; if (n < 5) return null; const rx = rk(xs), ry = rk(ys); let d = 0; for (let i = 0; i < n; i++) d += (rx[i] - ry[i]) ** 2; return 1 - 6 * d / (n * (n * n - 1));
+}
+async function accuracy(env, fmt) {
+  const st = await fetch("https://api.sleeper.app/v1/state/nfl", { headers: UA }).then(r => r.json());
+  const season = st.league_season || st.season, start = new Date((st.season_start_date || season + "-09-09") + "T12:00:00Z");
+  const lastDone = st.season_type === "regular" ? (Number(st.week) || 1) - 1 : 18;
+  // Snapshots from 7 to 45 days ago; use the oldest one that has finished NFL weeks after it.
+  const days = Array.from({ length: 39 }, (_, i) => new Date(Date.now() - (45 - i) * 864e5).toLocaleDateString("en-CA", { timeZone: "America/New_York" }));
+  let snapDay = null, snap = null;
+  for (const d of days) { const x = await env.SNAP.get("vsnap:" + fmt + ":" + d, "json").catch(() => null); if (x) { snapDay = d; snap = x; break; } }
+  if (!snap) return json({ ready: false, reason: "no-snapshot", fmt }, 200, 3600);
+  const weekOf = d => Math.floor((new Date(d + "T12:00:00Z") - start) / (7 * 864e5)) + 1;
+  const firstAfter = weekOf(snapDay) + 1, after = []; for (let w = firstAfter; w <= lastDone; w++) after.push(w);
+  if (!after.length) return json({ ready: false, reason: "no-weeks", since: snapDay, firstAfter, fmt }, 200, 3600);
+  const ppr = fmt.split("/")[0], col = ppr === "1" ? "pts_ppr" : ppr === "0.5" ? "pts_half_ppr" : "pts_std";
+  const [seasonSt, ...weekly] = await Promise.all([fetch("https://api.sleeper.app/v1/stats/nfl/regular/" + season, { headers: UA }).then(r => r.json())].concat(after.map(w => fetch("https://api.sleeper.app/v1/stats/nfl/regular/" + season + "/" + w, { headers: UA }).then(r => r.json()).catch(() => ({})))));
+  const pl = await fetch("https://api.sleeper.app/v1/players/nfl", { headers: UA }).then(r => r.json()).catch(() => ({}));
+  const res = {}, groups = { QB: 32, RB: 48, WR: 60, TE: 24 };
+  for (const pos of Object.keys(groups)) {
+    const rows = Object.keys(snap).filter(k => pl[k] && pl[k].position === pos).map(k => {
+      const v = Array.isArray(snap[k]) ? snap[k][0] : snap[k];
+      let pa = 0, ga = 0; weekly.forEach(wk => { const s = wk[k]; if (s && (s.off_snp || 0) >= 5) { pa += s[col] || 0; ga++; } });
+      const s = seasonSt[k] || {}, gT = s.gp || 0, before = gT - ga >= 2 ? ((s[col] || 0) - pa) / (gT - ga) : null;
+      return { k, v, after: ga ? pa / ga : null, before };
+    }).sort((a, b) => b.v - a.v).slice(0, groups[pos]).filter(r => r.after != null && r.before != null);
+    res[pos] = { n: rows.length, ours: spearman(rows.map(r => r.v), rows.map(r => r.after)), naive: spearman(rows.map(r => r.before), rows.map(r => r.after)) };
+  }
+  // Market test (snapshots saved with the market price, from mid-November 2026 on).
+  let market = null;
+  const withMkt = Object.keys(snap).filter(k => Array.isArray(snap[k]) && snap[k][1]);
+  if (withMkt.length) {
+    const [p2, t2, q2, d2] = fmt.split("/"), t = Number(t2), cur = await tradeValues(p2, t <= 11 ? 10 : t <= 13 ? 12 : 14, Number(q2), d2 === "1", t, env).then(r => r.json()).catch(() => ({ values: {} }));
+    let calls = 0, right = 0;
+    withMkt.forEach(k => { const [ours, mk] = snap[k], now = cur.values && cur.values[k] && cur.values[k][8]; if (!now || mk < 800) return; const lean = (ours - mk) / mk; if (Math.abs(lean) < 0.1) return; const moved = now - mk; if (Math.abs(moved) < mk * 0.02) return; calls++; if (Math.sign(moved) === Math.sign(lean)) right++; });
+    market = { calls, right };
+  }
+  return json({ ready: true, since: snapDay, weeks: after, fmt, production: res, market }, 200, 43200);
 }
 
 async function headlines() {
@@ -518,10 +584,11 @@ export async function dailyValues(env, force) {
       const res = await tradeValues(ppr, teams, Number(qbs), dyn === "1", t, env);
       if (res.status !== 200) continue;
       const body = await res.clone().json(), snap = {};
-      for (const k in body.values) if (k[0] !== "f" && !k.startsWith("pick:")) snap[k] = body.values[k][0];
+      // [Snap Count value, trade-market price]: the market half lets the accuracy report check later whether prices moved our way.
+      for (const k in body.values) if (k[0] !== "f" && !k.startsWith("pick:")) snap[k] = [body.values[k][0], body.values[k][8]];
       await env.SNAP.put("vsnap:" + fmt + ":" + day, JSON.stringify(snap), { expirationTtl: 45 * 864e5 / 1000 });
       const copy = new Response(res.body, res); copy.headers.set("cache-control", "public, max-age=10800");
-      await caches.default.put(new Request("https://snapcount.cache/values10/" + fmt), copy);
+      await caches.default.put(new Request("https://snapcount.cache/values11/" + fmt), copy);
       done.push(fmt);
     } catch (e) {}
   }
@@ -589,7 +656,23 @@ export default {
         const dyn = url.searchParams.get("dyn") === "1";
         const real = Math.min(32, Math.max(4, t));
         ctx.waitUntil(noteValueFormat(env, ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0)));
-        return cached(ctx, "values10/" + ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0), 10800, () => tradeValues(ppr, teams, qbs, dyn, real, env));
+        return cached(ctx, "values11/" + ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0), 10800, () => tradeValues(ppr, teams, qbs, dyn, real, env));
+      }
+      if (p === "/api/phist") {
+        const fc = /^\d{1,7}$/.test(url.searchParams.get("fc") || "") ? url.searchParams.get("fc") : null, sid = /^[\w-]{1,20}$/.test(url.searchParams.get("sid") || "") ? url.searchParams.get("sid") : null;
+        const ppr = ["0", "0.5", "1"].includes(url.searchParams.get("ppr")) ? url.searchParams.get("ppr") : "1", t = Math.min(32, Math.max(4, Number(url.searchParams.get("teams")) || 12));
+        const qbs = url.searchParams.get("qbs") === "2" ? 2 : 1, dyn = url.searchParams.get("dyn") === "1", fmt = ppr + "/" + t + "/" + qbs + "/" + (dyn ? 1 : 0);
+        return cached(ctx, "phist1/" + fmt + "/" + fc + "/" + sid, 21600, () => playerHistory(env, fc, fmt, sid, dyn, qbs, t <= 11 ? 10 : t <= 13 ? 12 : 14, ppr));
+      }
+      if (p === "/api/accuracy") {
+        const ppr = ["0", "0.5", "1"].includes(url.searchParams.get("ppr")) ? url.searchParams.get("ppr") : "1", t = Math.min(32, Math.max(4, Number(url.searchParams.get("teams")) || 12));
+        const qbs = url.searchParams.get("qbs") === "2" ? 2 : 1, dyn = url.searchParams.get("dyn") === "1";
+        if (!env.SNAP) return json({ ready: false, reason: "no-storage" }, 200, 0);
+        // Use this exact format's snapshots, or the nearest format that has them (same QBs and dynasty/redraft).
+        let fmt = ppr + "/" + t + "/" + qbs + "/" + (dyn ? 1 : 0);
+        const known = (await env.SNAP.get("vfmts", "json").catch(() => null)) || {};
+        if (!known[fmt]) { const alt = Object.keys(known).filter(f => f.endsWith("/" + qbs + "/" + (dyn ? 1 : 0))).sort((a, b) => Math.abs(+a.split("/")[1] - t) - Math.abs(+b.split("/")[1] - t))[0]; if (alt) fmt = alt; }
+        return cached(ctx, "acc1/" + fmt, 43200, () => accuracy(env, fmt));
       }
       if (p === "/api/idpvalues") {
         const t = Math.min(32, Math.max(4, Number(url.searchParams.get("teams")) || 12)), dyn = url.searchParams.get("dyn") === "1";

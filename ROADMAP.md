@@ -21,6 +21,9 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- [x] Value history chart on every player (FantasyCalc daily trade-market price for ~4 months, plus Snap Count's own saved daily values) and his latest real trades with what he was worth in each
+- [x] Comparable trades in the calculator: recent real deals for the main player on each side, priced in the chosen format
+- [x] Accuracy report (Calc › "How accurate are these values?"): saved daily values vs points scored in the NFL weeks since (rank match by position, against "keeps scoring what he was"), and, from snapshots saved with the market price (Nov 12, 2026 on), how often the market moved toward our number when we disagreed by 10%+
 - [x] Devy leagues (Calc › Custom › "Devy: all college"): college players of every class from a crowd devy ranking, later classes priced against next year's class (fit on players both boards share) and discounted for the extra year
 - [x] Player badges in calculator and rankings (Hurt, Young, Aging, Rising, Falling, Outplaying his price, Priced on potential, Hot in trades, College/Devy), with a show/hide switch
 - [x] Rankings tab (Calc › Rankings): every player, pick and college prospect ranked for the chosen league's rules, with ranges, weekly moves, Rising/Falling, and "Hot" (most traded in real fantasy trades); tap to put in the calculator
