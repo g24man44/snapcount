@@ -16,12 +16,20 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Refresh the devy board (src/prospects.js "devy") with the 2027 board every ~10 days; IDP trade-market data if a public source appears
 - [ ] Every ~10 days refresh src/prospects.js: NFL draft analysts' latest 2027 big boards (Kiper, Jordan Reid, Tankathon, Draft Countdown, B/R, plus Brugler/Jeremiah/PFF when public) and dynasty rookie boards (Dynasty Nerds, DraftSharks SF/1QB). After the NFL draft, switch the rookie mock to drafted rookies with real draft slots and landing spots. Last refreshed 2026-11-10; next due around 2026-11-20 (until then, build a new feature instead).
 
+- [ ] Paid Cloudflare plan ($5/mo Workers Paid) would lift the 1,000 KV writes/day and 10k AI neurons/day caps — owner said not now
+
 ## Blocked (needs the owner)
 - [ ] Save lineups straight to Fleaflicker and Sleeper: neither has a public way for other apps to change lineups. Fleaflicker would need a sample of the request its site sends when you move a player (from the browser's network tab while signed in).
 - [ ] Yahoo leagues: needs a Yahoo developer app (client ID and secret) for sign-in.
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- [x] Nov 13, 2026: daily health check 9:17 AM ET (values, Fleaflicker, Sleeper, ESPN, FantasyCalc, expert CSV, AI, storage) -> alert only on failure to the owner's subscriptions (Fleaflicker 183120 team 1245245); /api/health, "health:last"
+- [x] Trade market push alerts (notifyMarket in worker.src.js): new/changed posts alert leaguemates with alerts on; "Trade fit" when the post offers a position they're shopping or wants one where they have 2+ bench players
+- [x] Private usage counts: /api/ping writes "use:<date>:<dev>" once per device per day (KV metadata: installed, sites; 70-day TTL); owner-only "App health and usage" sheet in Accounts
+- [x] Commissioner tools (/api/comm, KV "comm:<p>:<lid>"): first device to claim runs it; dues tracker, rules page, award voting (one device per team, no self-votes)
+- [x] First-run walkthrough (4 cards, once per device, "snapcount.v1.tour") and iPhone add-to-home-screen hint; invite links + team picker already existed
+- [x] Player news: repeated stories fold together; weekly game stat lines and multi-player roundups each collapse to the newest one with the rest underneath; 6 stories shown, rest behind "Show older"
 - [x] Second DTC calibration (Nov 12, 2026: 26 players + picks in 16-team half-PPR SF TE prem, plus 12-team SF and 12-team 1QB checks): superflex QBs were ~40% low (starters x1.65, top few x1.13 at 12 teams to ~x1.55 at 16, backups x0.95), 1QB elite QBs ~25% high (x0.78); tight ends x0.75 in leagues without TE premium; 2027 Early 1st corrected. Result: median gap to DTC 7%, 19 of 26 within 15%. Known outliers: De'Von Achane and Jordan Addison ~65% above DTC, Kirk Cousins ~50% above, Lamar Jackson ~25% above, elite young RB/WR ~15% below. Re-check monthly in season.
 - [x] Calibrated to DTC (checked in DTC's calculator Nov 12, 2026, 16-team half-PPR superflex TE prem): player values already matched within ~3% (~207 Snap Count points per DTC point); nearest-draft picks rescaled (1st Early ×1.6, Mid ×1.53, Late ×1.38, 2nd ×1.25, 3rd ×0.45, 4th ×0.4); unbalanced trade reduction now DTC-style (whole side cut 26%/31%/35% for 1/2/3+ extra pieces, small pieces half) in calculator, grader, coach and market. Re-check against DTC after the 2027 rookie draft, when pick years roll over.
 - [x] Grades closer to market calculators like DTC: dynasty blend now 70% trade market / 20% experts / 10% this season (was 50/25/25); verdict ladder Fair (≤5%) · Slight win (<15%) · Wins (<30%) · Big win; explicit "Unbalanced trade adjustment" line for uneven piece counts

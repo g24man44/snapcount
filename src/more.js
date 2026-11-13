@@ -534,6 +534,43 @@ export async function marketRoute(request, url, env) {
   await env.SNAP.put(key, JSON.stringify(board), { expirationTtl: 60 * 864e5 / 1000 });
   return out({ ok: true });
 }
+// Commissioner tools: dues, a rules page and season award voting, shared by everyone in the league.
+// The first device to claim the league becomes its commissioner; only that device can change dues or rules,
+// or open and close voting. Each team votes from one device, the same rule pick'em uses.
+export async function commRoute(request, url, env) {
+  if (!env.SNAP) return out({ error: "unavailable" }, 503);
+  const p = url.searchParams.get("p") || "", l = url.searchParams.get("lid") || "";
+  if (!okLid(p, l)) return out({ error: "Bad league" }, 400);
+  const key = "comm:" + p + ":" + l;
+  const c = (await env.SNAP.get(key, "json")) || { owner: null, dues: { amount: 0, paid: {} }, rules: "", awards: { open: false, cats: [], votes: {} } };
+  const pub = (dev) => { const x = JSON.parse(JSON.stringify(c)); x.isComm = !!(c.owner && dev && c.owner.dev === dev); x.ownerTeam = c.owner ? c.owner.team : null; x.ownerName = c.owner ? c.owner.name : null; delete x.owner; for (const t in x.awards.votes) delete x.awards.votes[t].dev; return x; };
+  if (request.method === "GET") return out(pub(url.searchParams.get("dev")));
+  const b = await request.json().catch(() => ({}));
+  const dev = String(b.dev || "").slice(0, 64), team = String(b.team || "").slice(0, 40);
+  if (!/^[a-f0-9]{16,64}$/.test(dev) || !team) return out({ error: "Bad request" }, 400);
+  const isComm = c.owner && c.owner.dev === dev;
+  const a = String(b.action || "");
+  if (a === "claim") { if (c.owner && !isComm) return out({ error: (c.owner.name || "Someone") + " already runs this league here." }, 409); c.owner = { dev, team, name: String(b.name || "").slice(0, 80) }; }
+  else if (a === "vote") {
+    if (!c.awards.open) return out({ error: "Voting is closed." }, 409);
+    const v = c.awards.votes[team];
+    if (v && v.dev !== dev) return out({ error: "Another device already voted for this team." }, 409);
+    const picks = {}; for (const cat of c.awards.cats) if (b.picks && b.picks[cat.id] && String(b.picks[cat.id]) !== team) picks[cat.id] = String(b.picks[cat.id]).slice(0, 40);
+    c.awards.votes[team] = { dev, picks, at: Date.now() };
+  }
+  else if (!isComm) return out({ error: "Only the commissioner can change this." }, 403);
+  else if (a === "dues") { c.dues.amount = Math.max(0, Math.min(100000, Math.round(Number(b.amount) || 0))); c.dues.note = String(b.note || "").slice(0, 200); }
+  else if (a === "paid") { const t = String(b.who || "").slice(0, 40); if (t) { if (b.paid) c.dues.paid[t] = Date.now(); else delete c.dues.paid[t]; } }
+  else if (a === "rules") c.rules = String(b.rules || "").slice(0, 8000);
+  else if (a === "awards") {
+    c.awards.cats = (b.cats || []).slice(0, 8).map((x, i) => ({ id: "c" + i, name: String(x).slice(0, 60) })).filter(x => x.name.trim());
+    if (typeof b.open === "boolean") { if (b.open && !c.awards.open) c.awards.votes = {}; c.awards.open = b.open; }
+  }
+  else if (a === "release") c.owner = null;
+  else return out({ error: "Unknown action" }, 400);
+  await env.SNAP.put(key, JSON.stringify(c), { expirationTtl: 400 * 864e5 / 1000 });
+  return out(pub(dev));
+}
 export async function pickemRoute(request, url, env) {
   if (!env.SNAP) return out({ error: "unavailable" }, 503);
   const p = url.searchParams.get("p") || "", l = url.searchParams.get("lid") || "", season = url.searchParams.get("season") || "";

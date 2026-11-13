@@ -1,10 +1,10 @@
 // Snap Count — one Cloudflare Worker that serves the app and fetches live league data.
 // Paste this whole file into a new Cloudflare Worker and deploy. Free plan is fine.
 
-import { alertsRoute, runMinute, staticRoute, injuriesRoute, readInjuries } from "./src/alerts.js";
+import { alertsRoute, runMinute, staticRoute, injuriesRoute, readInjuries, eachSubscriber } from "./src/alerts.js";
 import { PROSPECTS } from "./src/prospects.js";
 import { gameWeather } from "./src/weather.js";
-import { ttsRoute, marketRoute, pickemRoute, syncRoute, transcribeRoute, espnRoute, mflRoute, scoresRoute, calendarRoute, coachRoute, hookPostRoute, espnLineupRoute, mflLoginRoute, mflLineupRoute } from "./src/more.js";
+import { ttsRoute, marketRoute, pickemRoute, commRoute, syncRoute, transcribeRoute, espnRoute, mflRoute, scoresRoute, calendarRoute, coachRoute, hookPostRoute, espnLineupRoute, mflLoginRoute, mflLineupRoute } from "./src/more.js";
 
 const HTML = __HTML__;
 
@@ -333,6 +333,58 @@ function calibrateQBs(out, t, q) {
     const n = r.slice(); [0, 7, 8, 9, 10].forEach(j => { if (n[j] != null) n[j] = Math.round(n[j] * f); }); fresh.set(r, n);
   });
   for (const k in out) if (fresh.has(out[k])) out[k] = fresh.get(out[k]);
+}
+
+// Daily check, 9:17 AM ET: try every outside service the app depends on, plus storage and AI, and
+// alert the owner (whoever gets alerts for Fleaflicker league 183120, team 1245245) only if something failed.
+// The last result is kept at "health:last" and shown on the owner's usage page.
+const OWNER = { p: "flea", lid: "183120", team: "1245245" };
+async function healthCheck(env) {
+  const t0 = Date.now(), res = [];
+  const check = async (name, fn) => { const s = Date.now(); try { const note = await fn(); res.push({ name, ok: true, ms: Date.now() - s, note: note || "" }); } catch (e) { res.push({ name, ok: false, ms: Date.now() - s, note: String(e && e.message || e).slice(0, 160) }); } };
+  const getJ = async (u, h) => { const r = await fetch(u, { headers: h || UA }); if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); };
+  await check("Trade values", async () => { const j = await tradeValues("0.5", 14, 2, true, 16, env).then(r => r.json()); const n = Object.keys(j.values || {}).length; if (n < 300) throw new Error("only " + n + " values"); if (!j.values["pick:" + (new Date().getUTCFullYear() + 1) + " 1st"] && !Object.keys(j.values).some(k => k.startsWith("pick:"))) throw new Error("no draft picks"); return n + " values"; });
+  await check("Fleaflicker", async () => { const j = await getJ("https://www.fleaflicker.com/api/FetchLeagueStandings?sport=NFL&league_id=" + OWNER.lid); if (!(j.divisions || []).length) throw new Error("no standings"); });
+  await check("Sleeper", async () => { const j = await getJ("https://api.sleeper.app/v1/state/nfl"); if (!j.week && j.week !== 0) throw new Error("no week"); });
+  await check("ESPN scores", async () => { const j = await getJ("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"); if (!(j.events || []).length) throw new Error("no games"); });
+  await check("FantasyCalc trades", async () => { const j = await getJ("https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=2&numTeams=12&ppr=1"); if (!Array.isArray(j) || j.length < 100) throw new Error("short list"); });
+  await check("Expert rankings", async () => { const r = await fetch("https://raw.githubusercontent.com/dynastyprocess/data/master/files/values-players.csv", { headers: UA }); if (!r.ok) throw new Error("HTTP " + r.status); });
+  await check("AI coach", async () => { if (!env.AI) throw new Error("no AI binding"); const r = await env.AI.run("@cf/meta/llama-3.1-8b-instruct", { messages: [{ role: "user", content: "Reply with OK." }], max_tokens: 3 }); if (!r || !(r.response ?? "").toString().length) throw new Error("empty answer"); });
+  await check("Storage", async () => { if (!env.SNAP) throw new Error("no storage"); await env.SNAP.put("health:last", JSON.stringify({ at: t0, res })); const back = await env.SNAP.get("health:last", "json"); if (!back || back.at !== t0) throw new Error("write did not read back (daily limit?)"); });
+  const bad = res.filter(r => !r.ok);
+  try { await env.SNAP.put("health:last", JSON.stringify({ at: t0, res })); } catch (e) {}
+  if (!bad.length) return res;
+  const day = new Date(t0).toISOString().slice(0, 10);
+  await eachSubscriber(env, rec => {
+    const mine = (rec.lineups || []).some(l => l.p === OWNER.p && String(l.id) === OWNER.lid && String(l.t || "") === OWNER.team);
+    return mine ? [{ id: "health:" + day, title: "Snap Count check: " + bad.length + " problem" + (bad.length > 1 ? "s" : ""), body: bad.map(b => b.name + ": " + b.note).join(" · "), tag: "health" }] : null;
+  }).catch(() => {});
+  return res;
+}
+
+// Trade market alerts: when a leaguemate posts or changes who they're shopping, tell everyone else in that
+// league who has alerts on. Deal fits come first: the post offers a position you're shopping for, or wants a
+// position where you have bench depth. Only new or changed posts send anything.
+async function notifyMarket(env, p, lid, before, key) {
+  const after = (await env.SNAP.get(key, "json")) || {};
+  const changed = Object.values(after).filter(x => { const b = before[x.team]; return !b || JSON.stringify(b.give.map(g => g.id).sort()) !== JSON.stringify(x.give.map(g => g.id).sort()) || JSON.stringify(b.want) !== JSON.stringify(x.want); });
+  if (!changed.length) return 0;
+  const post = changed[0];
+  const offerPos = new Set(post.give.map(g => g.pos));
+  const list = (a) => a.length < 3 ? a.join(" and ") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1];
+  const giveTxt = list(post.give.slice(0, 3).map(g => g.name)) + (post.give.length > 3 ? " and more" : "");
+  const wantTxt = (post.want || []).map(w => w === "PICK" ? "picks" : w).join(", ");
+  return eachSubscriber(env, rec => {
+    if (rec.prefs && rec.prefs.league === false) return null;
+    const lu = (rec.lineups || []).find(l => l.p === p && String(l.id) === String(lid));
+    if (!lu || String(lu.t || "") === String(post.team)) return null;
+    const mine = after[lu.t];
+    const bench = {}; (lu.b || []).forEach(k => { const pos = k.split("|")[1]; if (pos) bench[pos] = (bench[pos] || 0) + 1; });
+    const wantsMine = (mine && mine.want || []).filter(w => offerPos.has(w));
+    const depth = (post.want || []).filter(w => bench[w] >= 2);
+    const why = wantsMine.length ? "You're shopping for " + wantsMine.join("/") + " and this is on the table." : depth.length ? "They want " + depth.join("/") + ", where you have bench depth." : "";
+    return [{ id: "mkt:" + p + ":" + lid + ":" + post.team + ":" + post.at, title: (why ? "Trade fit: " : "Trade market: ") + post.name + " is shopping " + giveTxt, body: (why ? why + " " : "") + (depth.length && !wantsMine.length ? "" : wantTxt ? "Wants " + wantTxt + "." : "Open to offers.") + (post.note ? " “" + post.note.slice(0, 90) + "”" : ""), tag: "market", url: "/?go=trade" }];
+  });
 }
 
 // One player's story: daily market price over the season (FantasyCalc), Snap Count's own daily values
@@ -677,7 +729,14 @@ export default {
       if (p.startsWith("/api/push/")) return alertsRoute(request, env, p, url);
       if (p === "/api/coach") return coachRoute(request, env);
       if (p === "/api/tts") return ttsRoute(request, env);
-      if (p === "/api/market") return marketRoute(request, url, env);
+      if (p === "/api/market") {
+        if (request.method !== "POST" || !env.SNAP) return marketRoute(request, url, env);
+        const key = "mkt:" + (url.searchParams.get("p") || "") + ":" + (url.searchParams.get("lid") || "");
+        const before = (await env.SNAP.get(key, "json")) || {};
+        const r = await marketRoute(request, url, env);
+        if (r.status === 200) ctx.waitUntil(notifyMarket(env, url.searchParams.get("p"), url.searchParams.get("lid"), before, key).catch(() => {}));
+        return r;
+      }
       if (p === "/api/pickem") return pickemRoute(request, url, env);
       if (p === "/api/sync") return syncRoute(request, url, env);
       if (p === "/api/prospects") return json(PROSPECTS, 200, 3600);
@@ -727,6 +786,29 @@ export default {
         const real = Math.min(32, Math.max(4, t));
         ctx.waitUntil(noteValueFormat(env, ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0)));
         return cached(ctx, "values15/" + ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0), 10800, () => tradeValues(ppr, teams, qbs, dyn, real, env));
+      }
+      if (p === "/api/comm") return commRoute(request, url, env);
+      if (p === "/api/ping") {
+        // One write per device per day, only when that day's mark isn't there yet. Nothing personal: a random device id,
+        // whether the app is installed, and which league sites it uses.
+        const dev = url.searchParams.get("d") || "";
+        if (!env.SNAP || !/^[a-f0-9]{16,64}$/.test(dev)) return json({ ok: false }, 200, 0);
+        const k = "use:" + new Date().toISOString().slice(0, 10) + ":" + dev;
+        if (!(await env.SNAP.get(k))) await env.SNAP.put(k, "1", { expirationTtl: 70 * 86400, metadata: { i: url.searchParams.get("i") === "1" ? 1 : 0, s: String(url.searchParams.get("s") || "").replace(/[^a-z,]/g, "").slice(0, 40) } });
+        return json({ ok: true }, 200, 0);
+      }
+      if (p === "/api/usage") {
+        if (url.searchParams.get("lid") !== OWNER.lid || url.searchParams.get("team") !== OWNER.team) return json({ error: "Not available" }, 403, 0);
+        const days = {}, firstSeen = {};
+        let cursor;
+        do { const r = await env.SNAP.list({ prefix: "use:", cursor }); for (const k of r.keys) { const [, d, dev] = k.name.split(":"); (days[d] = days[d] || []).push({ dev, m: k.metadata || {} }); if (!firstSeen[dev] || d < firstSeen[dev]) firstSeen[dev] = d; } cursor = r.list_complete ? null : r.cursor; } while (cursor);
+        const rows = Object.keys(days).sort().map(d => ({ d, active: days[d].length, fresh: days[d].filter(x => firstSeen[x.dev] === d).length, installed: days[d].filter(x => x.m.i).length, sites: days[d].reduce((o, x) => { String(x.m.s || "").split(",").filter(Boolean).forEach(k => o[k] = (o[k] || 0) + 1); return o; }, {}) }));
+        const now = Date.now(), within = n => new Set(Object.entries(days).filter(([d]) => now - Date.parse(d) < n * 864e5).flatMap(([, a]) => a.map(x => x.dev))).size;
+        return json({ rows, total: Object.keys(firstSeen).length, wau: within(7), mau: within(30), health: (await env.SNAP.get("health:last", "json")) || null }, 200, 0);
+      }
+      if (p === "/api/health") {
+        if (url.searchParams.get("run") === "1") { const last = env.SNAP && await env.SNAP.get("health:last", "json"); if (last && Date.now() - last.at < 600000) return json(last, 200, 0); const r = await healthCheck(env); return json({ at: Date.now(), res: r }, 200, 0); }
+        return json((env.SNAP && await env.SNAP.get("health:last", "json")) || { at: null, res: [] }, 200, 0);
       }
       if (p === "/api/phist") {
         const fc = /^\d{1,7}$/.test(url.searchParams.get("fc") || "") ? url.searchParams.get("fc") : null, sid = /^[\w-]{1,20}$/.test(url.searchParams.get("sid") || "") ? url.searchParams.get("sid") : null;
@@ -812,6 +894,8 @@ export default {
   },
   async scheduled(event, env, ctx) {
     ctx.waitUntil(runMinute(env));
+    const now = new Date();
+    if (now.getUTCHours() === 14 && now.getUTCMinutes() === 17) ctx.waitUntil(healthCheck(env).catch(() => {}));
     ctx.waitUntil(dailyValues(env).catch(() => {}));
   }
 };

@@ -11,6 +11,7 @@
 <link rel="preload" href="/fonts/archivo-v1.woff" as="font" type="font/woff" crossorigin>
 <style>
 [class^=ic-],[class*=" ic-"]{display:inline-block;width:1.15em;height:1.15em;flex:none;background:currentColor;vertical-align:-.2em;-webkit-mask:var(--m) center/contain no-repeat;mask:var(--m) center/contain no-repeat}
+.ic-home{--m:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M3%2011l9-7%209%207%22/%3E%3Cpath%20d%3D%22M5%2010v10h14V10%22/%3E%3Cpath%20d%3D%22M10%2020v-6h4v6%22/%3E%3C/svg%3E")}.ic-bell{--m:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M6%2016V11a6%206%200%200%201%2012%200v5l2%202H4z%22/%3E%3Cpath%20d%3D%22M10%2021h4%22/%3E%3C/svg%3E")}
 .ic-flame{--m:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M12%203c.5%203.5%205%205.5%205%2010a5%205%200%200%201-10%200c0-2.2%201.2-3.8%202.5-5%20.2%201.8%201%202.8%202%203.2C11%209%2011%206%2012%203z%22%2F%3E%3C%2Fsvg%3E")}
 .ic-calendar{--m:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%223.5%22%20y%3D%225%22%20width%3D%2217%22%20height%3D%2215.5%22%20rx%3D%222.5%22%2F%3E%3Cpath%20d%3D%22M3.5%2010h17M8%203v4M16%203v4%22%2F%3E%3C%2Fsvg%3E")}
 .ic-pencil{--m:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M4%2020h4L19.5%208.5a2.1%202.1%200%200%200-3-3L5%2017v3z%22%2F%3E%3C%2Fsvg%3E")}
@@ -266,6 +267,13 @@ form.add{display:flex;flex-direction:column;gap:10px}
 .injhead .inj{margin-left:0}
 /* install + invite */
 .install{display:flex;align-items:center;gap:12px;margin-top:12px;background:var(--accent-soft);border-color:transparent;box-shadow:none}
+.usestats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0}.usestats div{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px;text-align:center}.usestats b{display:block;font-size:1.35rem}.usestats span{font-size:.75rem;color:var(--muted)}
+.usebars{display:flex;align-items:flex-end;gap:3px;height:140px;padding:10px 10px 22px}.usebars .ub{flex:1;max-width:28px;height:100%;position:relative;display:flex;align-items:flex-end}.usebars .ub i{position:absolute;bottom:0;left:0;right:0;background:var(--accent);border-radius:3px 3px 0 0;opacity:.35}.usebars .ub i.new{opacity:1}.usebars .ub span{position:absolute;bottom:-18px;left:0;right:0;text-align:center;font-size:.6rem;color:var(--muted)}
+.rulestext{white-space:normal;line-height:1.55}
+.tourcard{text-align:center;padding:18px 6px 8px}.tourcard h3{margin:10px 0 6px;font-size:1.25rem}.tourcard p{margin:0 auto;max-width:34ch;color:var(--muted);line-height:1.5}
+.tourico{display:inline-grid;place-items:center;width:64px;height:64px;border-radius:20px;background:var(--accent-soft);color:var(--accent);font-size:30px}.tourico i{width:32px;height:32px}
+.duesrow input[type=checkbox]{width:22px;height:22px;flex:none;padding:0}
+.tourdots{display:flex;justify-content:center;gap:6px;margin:14px 0}.tourdots span{width:7px;height:7px;border-radius:50%;background:var(--line)}.tourdots .on{background:var(--accent);width:18px;border-radius:4px}
 .install img{width:46px;height:46px;border-radius:14px;flex:none}
 .install div{flex:1;min-width:0} .install b{display:block} .install span{font-size:14px;color:var(--muted)}
 /* trades */
@@ -751,6 +759,12 @@ path.vho{stroke:var(--ok);stroke-dasharray:4 3}
 
 .cadj{display:flex;justify-content:space-between;gap:10px;margin-top:14px;padding:10px 12px;border-radius:10px;background:var(--surface2);font-size:13px}
 .cadj b{font-variant-numeric:tabular-nums}
+
+.ngroup>a,.ngroup>.nitem{border-top:0}
+.ngroup+.ngroup{border-top:1px solid var(--line)}
+.nearlier{padding:0 16px 12px;font-size:12.5px;color:var(--muted)}
+.nearlier summary{cursor:pointer;color:var(--accent);font-weight:600}
+.nearlier p{margin:6px 0 0;line-height:1.4}
 </style>
 </head>
 <body>
@@ -1095,6 +1109,8 @@ async function loadAll(){
   await Promise.all(leagues.filter(L => L.meta.platform === "flea" && L.detail).map(L => { const me = L.detail.teams.find(t => t.mine); return me && !me.live ? fleaTeamRoster(L, me) : null; }));
   if (cur.tab === "leagues" || cur.tab === "edge") render();
   syncAlerts().catch(() => {});
+  if (leagues.some(L => L.detail && L.detail.teams.some(t => t.mine))) maybeTour();
+  dailyPing();
   const st = await getState().catch(() => null);
   if (st) $("#wk").textContent = "Week " + (st.display_week || st.week);
 }
@@ -1405,7 +1421,7 @@ function renderLeague(v, L){
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="mktBtn"><i class=ic-swap aria-hidden=true></i>Trade market</button>');
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="cutBtn"><i class=ic-list aria-hidden=true></i>Who to cut</button>');
     if (d.teams.some(t => t.mine) && m.platform === "flea") tiles.push('<button type="button" class="btn ghost" id="rcBtn"><i class=ic-scale aria-hidden=true></i>Your report card</button>');
-    if (d.teams.some(t => t.mine) && d.games.length) tiles.push('<button type="button" class="btn ghost" id="pkBtn"><i class=ic-flame aria-hidden=true></i>Pick’em and roast</button>');
+    if (d.teams.some(t => t.mine) && d.games.length) tiles.push('<button type="button" class="btn ghost" id="pkBtn"><i class=ic-flame aria-hidden=true></i>Pick’em and roast</button>'); if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="commBtn"><i class=ic-trophy aria-hidden=true></i>Dues, rules and awards</button>');
     if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="dcBtn"><i class=ic-pencil aria-hidden=true></i>Draft grades and write-up</button>');
     // Grouped by what you're trying to do, as compact rows instead of a wall of identical tiles.
     const GROUPS = [["This week", ["mrBtn", "pwBtn", "pkBtn", "cutBtn"]], ["Trades", ["lsBtn", "scoutBtn", "mktBtn"]], ["Season", ["picBtn", "ppBtn", "histBtn", "rcBtn", "winBtn", "wrapBtn"]], ["Draft", ["doBtn", "dcBtn"]]];
@@ -1460,6 +1476,7 @@ function renderLeague(v, L){
   const ctb = v.querySelector("#cutBtn"); if (ctb) ctb.addEventListener("click", () => openCuts(L));
   const rcb = v.querySelector("#rcBtn"); if (rcb) rcb.addEventListener("click", () => openReport(L));
   const pkb = v.querySelector("#pkBtn"); if (pkb) pkb.addEventListener("click", () => openPickem(L));
+  const cmb = v.querySelector("#commBtn"); if (cmb) cmb.addEventListener("click", () => openComm(L));
   const dcb = v.querySelector("#dcBtn"); if (dcb) dcb.addEventListener("click", () => openDraftCenter(L));
 }
 
@@ -1556,12 +1573,15 @@ async function openPlayer(pl){
   try {
     const eid = await espnIdFor(pl);
     const r = await api("/api/news?q=" + encodeURIComponent(pl.name) + (eid ? "&espn=" + eid : ""));
-    const items = (r.items || []).slice(0, 12);
+    const groups = groupNews(r.items || []);
     const el = $("#pnews"); if (!el) return;
-    el.innerHTML = items.length ? '<div class="news card" style="padding:0">' + items.map(n => {
+    const item = (g, i) => { const n = g.top;
       const inner = (n.title ? "<b>" + esc(n.title) + "</b>" : "") + (n.body ? '<span class="nbody">' + esc(n.body) + "</span>" : "") + "<small>" + esc(n.source || "") + (n.date ? " · " + ago(n.date) : "") + (n.link ? " · Read more" : "") + "</small>";
-      return n.link ? '<a href="' + esc(n.link) + '" target="_blank" rel="noopener">' + inner + "</a>" : '<div class="nitem">' + inner + "</div>";
-    }).join("") + "</div>" : '<p class="muted">No recent news for this player.</p>';
+      const main = n.link ? '<a href="' + esc(n.link) + '" target="_blank" rel="noopener">' + inner + "</a>" : '<div class="nitem">' + inner + "</div>";
+      const rest = g.rest.length ? '<details class="nearlier"><summary>' + g.rest.length + (g.kind === "game" ? " earlier game line" + (g.rest.length > 1 ? "s" : "") : g.kind === "roundup" ? " more roundup" + (g.rest.length > 1 ? "s" : "") + " that mention him" : " earlier " + (g.kind === "status" ? "practice and injury update" : "report") + (g.rest.length > 1 ? "s" : "") + " on this") + "</summary>" + g.rest.map(x => "<p>" + esc(x.title || x.body.slice(0, 120)) + " <small>" + (x.date ? ago(x.date) : "") + "</small></p>").join("") + "</details>" : "";
+      return '<div class="ngroup"' + (i >= 6 ? " hidden" : "") + ">" + main + rest + "</div>"; };
+    el.innerHTML = groups.length ? '<div class="news card" style="padding:0">' + groups.map(item).join("") + "</div>" + (groups.length > 6 ? '<button type="button" class="linkbtn small" id="nOlder" style="margin:8px 4px 0">Show ' + (groups.length - 6) + " older stor" + (groups.length - 6 > 1 ? "ies" : "y") + "</button>" : "") : '<p class="muted">No recent news for this player.</p>';
+    const ob = $("#nOlder"); if (ob) ob.addEventListener("click", () => { el.querySelectorAll(".ngroup[hidden]").forEach(x => x.hidden = false); ob.remove(); });
   } catch(e){ $("#pnews").innerHTML = '<div class="err">Couldn’t load headlines: ' + esc(e.message) + "</div>"; }
 }
 function closeSheet(){ if (typeof voice !== "undefined" && voice.on) stopVoice(false); $("#sheet").hidden = true; }
@@ -2313,9 +2333,11 @@ function renderAccounts(v){
       return '<div><b>' + esc(leagues.find(L => L.meta.id === x.id && L.meta.platform === x.p) ? leagues.find(L => L.meta.id === x.id && L.meta.platform === x.p).meta.name : x.name) + '</b><p class="small muted" style="margin:2px 0 8px;word-break:break-all">' + esc(link) + '</p><div class="sendrow" style="margin:0"><button type="button" class="btn" data-share="' + esc(link) + '">Share invite</button><button type="button" class="btn ghost" data-copy="' + esc(link) + '">Copy link</button></div></div>';
     }).join("") + '<p class="small muted" style="margin:0">Leaguemates open the link, pick their team, and get the same tools on their own phone. Nobody can see your settings or change anyone’s team.</p></div>';
   }
+  if (isOwnerDevice()) h += '<h3>Owner</h3><div class="card"><button type="button" class="btn ghost" id="usageBtn"><i class=ic-pulse aria-hidden=true></i>App health and usage</button><p class="small muted" style="margin:8px 0 0">Only shows for you.</p></div>';
   h += "<h3>Add another</h3>" + addForm();
   h += '<p class="small muted">Accounts are saved only in this browser. Nothing is sent anywhere except the league sites themselves.</p>';
   v.innerHTML = h;
+  const ub = v.querySelector("#usageBtn"); if (ub) ub.addEventListener("click", openUsage);
   v.querySelectorAll("[data-share]").forEach(b => b.addEventListener("click", async () => {
     const url = b.dataset.share, text = "Free app for our league: live scores, injury alerts and a trade grader. Open this and pick your team:";
     if (navigator.share) { try { await navigator.share({title:"Snap Count", text, url}); return; } catch(e){ if (e && e.name === "AbortError") return; } }
@@ -6152,6 +6174,36 @@ async function openMatchupRecaps(L, wantW){
   } catch(e){ body.innerHTML = '<div class="err">' + esc(e.message) + "</div>"; }
 }
 
+// Player news repeats itself: a fresh blurb for every practice report, and the same story told twice.
+// Group it: practice and injury-status notes from the same week become one (the latest), and stories whose
+// words mostly overlap within a few days become one. Each group shows its newest item, older ones folded.
+const NEWS_STOP = new Set("the a an and or of to in on for at with is was be has had have his her he it as by from that this will after this week sunday monday thursday saturday friday tuesday wednesday game games season fantasy nfl".split(" "));
+function newsWords(n){ return new Set(String((n.title || "") + " " + (n.body || "")).toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(w => w.length > 2 && !NEWS_STOP.has(w))); }
+const isStatus = n => /\b(practice|practiced|limited|full participant|did not participate|dnp|questionable|doubtful|ruled out|injury report|listed as|status|game-time|estimated)\b/i.test((n.title || "") + " " + (n.body || ""));
+const isGameLine = n => /^[A-Z][\w'.-]+ (rushed|completed|caught|carried|brought in|hauled in|recorded|secured|was held|finished with|totaled|had \d|threw for|ran for|played|reeled in|went \d)\b/.test(String(n.title || n.body || ""));
+const isRoundup = n => /winners and losers|pickups|waiver wire|start\/sit|starts and sits|sleepers|rankings|odds,|props|betting|dfs|trade targets|buy low|sell high|overreactions|takeaways|biggest questions|week \d+ (preview|recap|lessons)/i.test(String(n.title || ""));
+function groupNews(items){
+  const list = items.filter(n => n.title || n.body).slice().sort((a, b) => (Date.parse(b.date) || 0) - (Date.parse(a.date) || 0));
+  const groups = [];
+  for (const n of list) {
+    const t = Date.parse(n.date) || 0, w = newsWords(n), st = isStatus(n);
+    // Weekly stat lines ("Robinson rushed 19 times…") and multi-player roundups read the same every week:
+    // keep the newest of each in view and fold the rest underneath it.
+    const kind = st ? "status" : isGameLine(n) ? "game" : isRoundup(n) ? "roundup" : "story";
+    if (kind === "game" || kind === "roundup") { const g0 = groups.find(g => g.kind === kind); if (g0) { g0.rest.push(n); continue; } groups.push({top: n, rest: [], words: w, kind}); continue; }
+    const g = groups.find(g => {
+      if (g.kind === "game" || g.kind === "roundup") return false;
+      const gt = Date.parse(g.top.date) || 0, days = Math.abs(gt - t) / 864e5;
+      if (st && g.kind === "status" && days <= 7) return true;
+      if (days > 4) return false;
+      const gw = g.words; let inter = 0; w.forEach(x => { if (gw.has(x)) inter++; });
+      return inter / Math.max(1, Math.min(w.size, gw.size)) >= 0.55;
+    });
+    if (g) g.rest.push(n); else groups.push({top: n, rest: [], words: w, kind});
+  }
+  return groups;
+}
+
 async function tradeHistory(L){
   const d = L.detail; if (d.trades) return d.trades;
   const out = [];
@@ -6742,15 +6794,130 @@ let installEvt = null;
 const isInstalled = () => { try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; } catch(e){ return false; } };
 window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; if (cur.tab === "leagues" && cur.league == null) render(); });
 window.addEventListener("appinstalled", () => { installEvt = null; render(); });
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 function installCard(){
-  if (isInstalled() || !installEvt) return "";
+  if (isInstalled()) return "";
+  if (!installEvt && isIOS()) { let off = false; try { off = !!localStorage.getItem(KEY + ".iosHint"); } catch(e){}
+    return off ? "" : '<div class="card install"><img src="/icon-192.png" alt=""><div><b>Put Snap Count on your home screen</b><span>Tap the Share button <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px" aria-label="Share"><path d="M12 3v12M7 8l5-5 5 5M5 13v7h14v-7"/></svg> in Safari, then Add to Home Screen. Alerts on iPhone only work from there.</span></div><button class="icon" id="iosHintX" aria-label="Hide this">Hide</button></div>'; }
+  if (!installEvt) return "";
   return '<div class="card install"><img src="/icon-192.png" alt=""><div><b>Get the Snap Count app</b><span>Its own icon, full screen, and alerts.</span></div><button class="btn" id="installBtn">Install</button></div>';
 }
 function wireInstall(v){
+  const x = v.querySelector("#iosHintX"); if (x) x.addEventListener("click", () => { try { localStorage.setItem(KEY + ".iosHint", "1"); } catch(e){} render(); });
   const b = v.querySelector("#installBtn"); if (!b) return;
   b.addEventListener("click", async () => { if (!installEvt) return; installEvt.prompt(); try { await installEvt.userChoice; } catch(e){} installEvt = null; render(); });
 }
 if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+
+/* ---------- private usage: one ping per device per day ---------- */
+const OWNER_L = {p: "flea", id: "183120", team: "1245245"};
+function isOwnerDevice(){ return leagues.some(L => L.meta.platform === OWNER_L.p && String(L.meta.id) === OWNER_L.id && L.detail && L.detail.teams.some(t => t.mine && String(t.id) === OWNER_L.team)); }
+function dailyPing(){
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    if (localStorage.getItem(KEY + ".ping") === today) return;
+    const sites = ["sleeper", "flea", "espn", "mfl"].filter(k => (accts[k] || []).length).join(",");
+    fetch("/api/ping?d=" + devId() + "&i=" + (isInstalled() ? 1 : 0) + "&s=" + sites).then(r => { if (r.ok) localStorage.setItem(KEY + ".ping", today); }).catch(() => {});
+  } catch(e){}
+}
+async function openUsage(){
+  const body = openSheetShell("App health and usage");
+  let j; try { j = await api("/api/usage?lid=" + OWNER_L.id + "&team=" + OWNER_L.team); } catch(e){ body.innerHTML = '<div class="err">' + esc(e.message) + "</div>"; return; }
+  const rows = j.rows.slice(-21), max = Math.max(1, ...rows.map(r => r.active));
+  const hh = j.health;
+  let h = '<div class="usestats"><div><b>' + j.wau + '</b><span>' + (j.wau === 1 ? "person" : "people") + ' this week</span></div><div><b>' + j.mau + '</b><span>this month</span></div><div><b>' + j.total + '</b><span>since tracking began</span></div></div>';
+  h += '<h3>Daily</h3><div class="card usebars" role="img" aria-label="People using the app each day">' + (rows.length ? rows.map(r => '<div class="ub" title="' + esc(r.d + ": " + r.active + " people, " + r.fresh + " new") + '"><i style="height:' + Math.max(4, Math.round(r.active / max * 100)) + '%"></i><i class="new" style="height:' + Math.round(r.fresh / max * 100) + '%"></i><span>' + Number(r.d.slice(8)) + '</span></div>').join("") : '<p class="muted small">No visits counted yet. Counting starts today.</p>') + '</div>';
+  if (rows.length) { const last = rows[rows.length - 1]; h += '<p class="small muted">Today: ' + last.active + (last.active === 1 ? ' person, ' : ' people, ') + last.fresh + ' new, ' + last.installed + ' using the installed app. Sites: ' + (Object.entries(last.sites).map(([k, n]) => ({flea: "Fleaflicker", sleeper: "Sleeper", espn: "ESPN", mfl: "MFL"}[k] || k) + " " + n).join(", ") || "none") + '.</p>'; }
+  h += '<h3>Daily check</h3>';
+  if (!hh || !hh.at) h += '<p class="muted small">The first check runs at 9:17 AM Eastern.</p>';
+  else h += '<div class="card"><p class="small muted" style="margin:0 0 8px">Last run ' + esc(new Date(hh.at).toLocaleString([], {weekday: "short", hour: "numeric", minute: "2-digit"})) + '</p>' + hh.res.map(r => '<div class="acct"><span>' + (r.ok ? "✓ " : "✗ ") + esc(r.name) + (r.note ? ' <span class="small muted">' + esc(r.note) + '</span>' : "") + '</span><span class="small muted">' + (r.ms / 1000).toFixed(1) + 's</span></div>').join("") + '</div>';
+  h += '<button class="btn ghost" id="hcRun" style="margin-top:10px">Run the check now</button>';
+  body.innerHTML = h;
+  body.querySelector("#hcRun").addEventListener("click", async e => { e.target.disabled = true; e.target.textContent = "Checking…"; try { await api("/api/health?run=1"); } catch(x){} openUsage(); });
+}
+
+/* ---------- commissioner: dues, rules, awards ---------- */
+async function openComm(L){
+  const body = openSheetShell("Dues, rules and awards");
+  const d = L.detail, me = d.teams.find(t => t.mine), base = "/api/comm?p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id);
+  const T = id => (d.teams.find(t => String(t.id) === String(id)) || {name: "?"}).name;
+  let c, tab = "dues", msg = "";
+  const load = async () => { c = await api(base + "&dev=" + devId()); };
+  const act = async (action, extra) => { try { c = await post2(base, Object.assign({action, dev: devId(), team: me.id, name: me.name}, extra || {})); msg = ""; } catch(e){ msg = e.message; } draw(); };
+  try { await load(); } catch(e){ body.innerHTML = '<div class="err">' + esc(e.message) + "</div>"; return; }
+  const draw = () => {
+    let h = '<div class="seg">' + [["dues", "Dues"], ["rules", "Rules"], ["awards", "Awards"]].map(([k, l]) => '<button aria-pressed="' + (tab === k) + '" data-ct="' + k + '">' + l + '</button>').join("") + '</div>';
+    if (msg) h += '<div class="err">' + esc(msg) + '</div>';
+    h += '<p class="small muted" style="margin:10px 0">' + (c.isComm ? "You’re the commissioner here." : c.ownerName ? "Commissioner: " + esc(c.ownerName) + "." : "No commissioner yet.") + '</p>';
+    if (tab === "dues") {
+      const paid = d.teams.filter(t => c.dues.paid[t.id]).length;
+      if (!c.dues.amount && !c.isComm) h += '<p class="muted">The commissioner hasn’t set dues yet.</p>';
+      else {
+        h += c.dues.amount ? '<div class="usestats"><div><b>$' + c.dues.amount + '</b><span>per team</span></div><div><b>' + paid + "/" + d.teams.length + '</b><span>paid</span></div><div><b>$' + (paid * c.dues.amount) + '</b><span>collected of $' + (d.teams.length * c.dues.amount) + '</span></div></div>' : "";
+        if (c.dues.note) h += '<p class="small">' + esc(c.dues.note) + '</p>';
+        h += '<div class="card">' + d.teams.map(t => '<label class="acct duesrow"><span>' + esc(t.name) + (t.mine ? ' <span class="badge">You</span>' : "") + '</span>' + (c.isComm ? '<input type="checkbox" data-paid="' + esc(t.id) + '"' + (c.dues.paid[t.id] ? " checked" : "") + '>' : '<span class="small ' + (c.dues.paid[t.id] ? "" : "muted") + '">' + (c.dues.paid[t.id] ? "Paid" : "Not yet") + '</span>') + '</label>').join("") + '</div>';
+      }
+      if (c.isComm) h += '<h3>Set dues</h3><div class="card stackc" style="gap:8px"><input type="number" min="0" inputmode="numeric" id="cmAmt" placeholder="Amount per team" value="' + (c.dues.amount || "") + '"><input id="cmNote" maxlength="200" placeholder="How to pay (Venmo, due date…)" value="' + esc(c.dues.note || "") + '"><button class="btn" id="cmDues">Save dues</button></div>';
+    } else if (tab === "rules") {
+      if (c.isComm) h += '<textarea id="cmRules" rows="14" style="width:100%" placeholder="Payouts, trade rules, tiebreakers, keeper rules, punishments for last place…">' + esc(c.rules || "") + '</textarea><button class="btn" id="cmRulesSave" style="margin-top:8px">Save rules</button>';
+      else h += c.rules ? '<div class="card rulestext">' + esc(c.rules).replace(/\n/g, "<br>") + '</div>' : '<p class="muted">No league rules posted yet.</p>';
+    } else {
+      const A = c.awards, votes = Object.values(A.votes), mine = (A.votes[me.id] || {}).picks || {};
+      if (A.cats.length) {
+        h += '<p class="small muted">' + (A.open ? "Voting is open. " + votes.length + " of " + d.teams.length + " teams have voted. You can’t vote for yourself." : "Voting is closed.") + '</p>';
+        A.cats.forEach(cat => {
+          const tally = {}; votes.forEach(v => { const x = v.picks[cat.id]; if (x) tally[x] = (tally[x] || 0) + 1; });
+          const lead = Object.entries(tally).sort((a, b) => b[1] - a[1]);
+          h += '<div class="card" style="margin-bottom:10px"><b>' + esc(cat.name) + '</b>' + (A.open ? '<select data-vote="' + cat.id + '" style="width:100%;margin-top:8px"><option value="">Pick a team</option>' + d.teams.filter(t => !t.mine).map(t => '<option value="' + esc(t.id) + '"' + (mine[cat.id] === String(t.id) ? " selected" : "") + '>' + esc(t.name) + '</option>').join("") + '</select>' : "")
+            + (lead.length && (!A.open || c.isComm) ? '<p class="small" style="margin:8px 0 0">' + lead.slice(0, 3).map(([t, n], i) => (i ? "" : "🏆 ") + esc(T(t)) + " (" + n + ")").join(" · ") + '</p>' : "") + '</div>';
+        });
+        if (A.open) h += '<button class="btn" id="cmVote">Save my votes</button>';
+      } else if (!c.isComm) h += '<p class="muted">The commissioner hasn’t set up awards yet.</p>';
+      if (c.isComm) h += '<h3>Award categories</h3><textarea id="cmCats" rows="5" style="width:100%" placeholder="One per line: Best trade, Worst trade, Biggest choke, Waiver hero">' + esc(A.cats.map(x => x.name).join("\n")) + '</textarea><div class="sendrow"><button class="btn ghost" id="cmCatsSave">Save categories</button><button class="btn" id="cmOpen">' + (A.open ? "Close voting" : "Open voting") + '</button></div>';
+    }
+    if (!c.ownerName) h += '<div class="card install" style="margin-top:14px"><div><b>Run this league?</b><span>The commissioner sets dues, posts rules and opens award voting. Everyone else can see them and vote.</span></div><button class="btn" id="cmClaim">I’m the commissioner</button></div>';
+    else if (c.isComm) h += '<p style="margin-top:18px"><button class="icon" id="cmRelease">Hand off commissioner</button></p>';
+    body.innerHTML = h;
+    const on = (sel, ev, fn) => { const el = body.querySelector(sel); if (el) el.addEventListener(ev, fn); };
+    body.querySelectorAll("[data-ct]").forEach(b => b.addEventListener("click", () => { tab = b.dataset.ct; msg = ""; draw(); }));
+    body.querySelectorAll("[data-paid]").forEach(b => b.addEventListener("change", () => act("paid", {who: b.dataset.paid, paid: b.checked})));
+    on("#cmDues", "click", () => act("dues", {amount: body.querySelector("#cmAmt").value, note: body.querySelector("#cmNote").value}));
+    on("#cmRulesSave", "click", () => act("rules", {rules: body.querySelector("#cmRules").value}));
+    const cats = () => body.querySelector("#cmCats").value.split("\n").map(x => x.trim()).filter(Boolean);
+    on("#cmCatsSave", "click", () => act("awards", {cats: cats()}));
+    on("#cmOpen", "click", () => act("awards", {cats: cats(), open: !c.awards.open}));
+    on("#cmVote", "click", () => { const picks = {}; body.querySelectorAll("[data-vote]").forEach(s => { if (s.value) picks[s.dataset.vote] = s.value; }); act("vote", {picks}); });
+    on("#cmClaim", "click", () => act("claim"));
+    on("#cmRelease", "click", () => act("release"));
+  };
+  draw();
+}
+
+/* ---------- first-run walkthrough: four short cards, once per device ---------- */
+const TOUR = [
+  ["ic-home", "Your leagues", "Every league on one screen. Tap a league for your lineup, matchups, standings, the draft room and league tools."],
+  ["ic-swap", "Trade", "Build any trade and get a grade with your league’s scoring. Post players to the trade market so leaguemates can see what you’re shopping."],
+  ["ic-spark", "Coach", "Ask anything about your team, a trade or a waiver add, by typing or with the mic. It already knows your roster and league rules."],
+  ["ic-bell", "Alerts", "Turn on alerts for injuries on your team, players you start, trade market posts, and a morning briefing on game days."]
+];
+function maybeTour(){
+  try { if (localStorage.getItem(KEY + ".tour") || !$("#sheet").hidden) return; } catch(e){ return; }
+  openTour();
+}
+function openTour(){
+  const body = openSheetShell("Welcome to Snap Count");
+  let i = 0;
+  const done = () => { try { localStorage.setItem(KEY + ".tour", "1"); } catch(e){} };
+  const draw = () => {
+    const [ic, t, d] = TOUR[i];
+    body.innerHTML = '<div class="tourcard"><span class="tourico" aria-hidden="true"><i class="' + ic + '"></i></span><h3>' + esc(t) + '</h3><p>' + esc(d) + '</p></div>'
+      + '<div class="tourdots" aria-hidden="true">' + TOUR.map((_, k) => '<span' + (k === i ? ' class="on"' : '') + '></span>').join("") + '</div>'
+      + '<div class="sendrow"><button class="btn ghost" id="tourSkip">' + (i ? "Back" : "Skip") + '</button><button class="btn" id="tourNext">' + (i === TOUR.length - 1 ? (pushOK ? "Turn on alerts" : "Start") : "Next") + '</button></div>';
+    body.querySelector("#tourSkip").addEventListener("click", () => { if (i) { i--; draw(); } else { done(); closeSheet(); } });
+    body.querySelector("#tourNext").addEventListener("click", () => { if (i < TOUR.length - 1) { i++; draw(); return; } done(); closeSheet(); if (pushOK) setTab("alerts"); });
+  };
+  draw();
+}
 
 /* ---------- boot ---------- */
 let pendingJoin = null;
@@ -6788,6 +6955,7 @@ if (location.hash === "#alerts") { cur.tab = "alerts"; try { history.replaceStat
 })();
 
 let goCoach = false;
+setTimeout(dailyPing, 4000);
 syncStartup().catch(() => {});
 if (readCalcLink()) cur.tab = "calc";
 try { const go = new URLSearchParams(location.search).get("go"); if (["news", "trade", "edge", "alerts", "calc"].includes(go)) cur.tab = go; if (go === "coach") goCoach = true; if (go) history.replaceState(null, "", location.pathname); } catch(e){}

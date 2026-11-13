@@ -387,7 +387,7 @@ async function readNews() {
 }
 const noteSig = n => (n.date || "") + "|" + norm(n.short).slice(0, 60);
 
-async function eachSubscriber(env, fn) {
+export async function eachSubscriber(env, fn) {
   const list = await env.SNAP.list({ prefix: "sub:" });
   let sent = 0;
   for (const k of list.keys) {
