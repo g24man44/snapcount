@@ -78,9 +78,12 @@ export async function chatRoute(request, url, env) {
   const path = url.pathname;
   if (!env.CHAT || !env.SNAP) return out({ error: "Chat isn’t available on this server yet." }, 503);
 
-  // GroupMe's callback: /api/groupme/<p>/<lid>/<token>
-  if (path.startsWith("/api/groupme/")) {
-    const [, , , p, lid, token] = path.split("/");
+  // GroupMe's callback: short form /g/<code> (GroupMe's form limits how long the address can be), or the
+  // original /api/groupme/<p>/<lid>/<token>.
+  if (path.startsWith("/api/groupme/") || path.startsWith("/g/")) {
+    let p, lid, token;
+    if (path.startsWith("/g/")) { const code = path.slice(3); const m = /^[a-z0-9]{6,12}$/.test(code) ? await env.SNAP.get("gmc:" + code, "json") : null; if (!m) return out({ ok: false }, 404); p = m.p; lid = m.lid; token = m.token; }
+    else [, , , p, lid, token] = path.split("/");
     if (request.method !== "POST" || !okLid(p, lid)) return out({ ok: false }, 400);
     const c = await getCfg(env, p, lid);
     if (!c || !token || c.token !== token) return out({ ok: false }, 403);
@@ -105,7 +108,7 @@ export async function chatRoute(request, url, env) {
   if (path === "/api/chat" && request.method === "GET") {
     const c = await getCfg(env, p, lid);
     const comm = await isComm(env, p, lid, url.searchParams.get("dev"));
-    if (!c || !c.bot) return out({ connected: false, isComm: comm, callback: comm && c ? url.origin + "/api/groupme/" + p + "/" + lid + "/" + c.token : null });
+    if (!c || !c.bot) return out({ connected: false, isComm: comm, callback: comm && c && c.code ? url.origin + "/g/" + c.code : null });
     const r = await room(env, p, lid).fetch("https://chat/list" + (url.searchParams.get("before") ? "?before=" + encodeURIComponent(url.searchParams.get("before")) : ""));
     return out(Object.assign({ connected: true, isComm: comm, group: c.group || "" }, await r.json()));
   }
@@ -130,8 +133,13 @@ export async function chatRoute(request, url, env) {
     if (!(await isComm(env, p, lid, b.dev))) return out({ error: "Only the league’s commissioner in Snap Count can connect GroupMe. Claim it in Dues, rules and awards." }, 403);
     const key = cfgKey(p, lid), c = (await env.SNAP.get(key, "json")) || {};
     if (b.action === "start") {
-      if (!c.token) { const a = new Uint8Array(12); crypto.getRandomValues(a); c.token = [...a].map(x => x.toString(16).padStart(2, "0")).join(""); await env.SNAP.put(key, JSON.stringify(c)); }
-      return out({ callback: url.origin + "/api/groupme/" + p + "/" + lid + "/" + c.token, bot: c.bot || "" });
+      if (!c.token || !c.code) {
+        const a = new Uint8Array(12); crypto.getRandomValues(a); c.token = c.token || [...a].map(x => x.toString(16).padStart(2, "0")).join("");
+        const b2 = new Uint8Array(7); crypto.getRandomValues(b2); c.code = [...b2].map(x => "abcdefghijkmnpqrstuvwxyz23456789"[x % 32]).join("");
+        await env.SNAP.put("gmc:" + c.code, JSON.stringify({ p, lid, token: c.token }));
+        await env.SNAP.put(key, JSON.stringify(c));
+      }
+      return out({ callback: url.origin + "/g/" + c.code, bot: c.bot || "" });
     }
     if (b.action === "bot") {
       const bot = String(b.bot || "").trim();
@@ -143,7 +151,7 @@ export async function chatRoute(request, url, env) {
       catch (e) { return out({ error: "Saved, but GroupMe didn’t take a test message: " + e.message }, 502); }
       return out({ ok: true });
     }
-    if (b.action === "off") { await env.SNAP.delete(key); return out({ ok: true }); }
+    if (b.action === "off") { if (c.code) await env.SNAP.delete("gmc:" + c.code); await env.SNAP.delete(key); return out({ ok: true }); }
     return out({ error: "Unknown action" }, 400);
   }
   return out({ error: "Not found" }, 404);
