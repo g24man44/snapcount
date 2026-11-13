@@ -58,20 +58,21 @@ function parseScript(text) {
 
 // No fallback to a flatter voice: if today's free voice credit runs out, the episode waits and finishes after
 // the daily reset (midnight UTC) in the same voices.
-export async function deepgramSpeak(env, text, voice) {
+// Deepgram Flux TTS: the most animated delivery Deepgram offers (expressivity -2 calm .. 2 animated, plus speed).
+// Aura-2 was too flat and slow for a sports show. Aura-2 stays as the backup if Flux is unavailable.
+export const FLUX = { DEZ: "flux-cole-en", SAM: "flux-brooke-en" }, FLUX_EXPRESSIVITY = 2, FLUX_SPEED = 1.15;
+export async function deepgramSpeak(env, text, voice, host) {
   if (!env.DEEPGRAM_KEY || !text) return null;
-  try {
-    const r = await fetch("https://api.deepgram.com/v1/speak?model=aura-2-" + voice + "-en&encoding=mp3", { method: "POST", headers: { Authorization: "Token " + String(env.DEEPGRAM_KEY).trim(), "Content-Type": "application/json" }, body: JSON.stringify({ text: text.slice(0, 1900) }) });
-    if (!r.ok) return null;
-    const b = new Uint8Array(await r.arrayBuffer());
-    return b.length > 500 ? b : null;
-  } catch (e) { return null; }
+  const key = "Token " + String(env.DEEPGRAM_KEY).trim(), body = JSON.stringify({ text: text.slice(0, 1900) });
+  const get = async u => { try { const r = await fetch(u, { method: "POST", headers: { Authorization: key, "Content-Type": "application/json" }, body }); if (!r.ok) return null; const b = new Uint8Array(await r.arrayBuffer()); return b.length > 500 ? b : null; } catch (e) { return null; } };
+  if (host && FLUX[host]) { const f = await get("https://api.deepgram.com/v2/speak?model=" + FLUX[host] + "&expressivity=" + FLUX_EXPRESSIVITY + "&speed=" + FLUX_SPEED); if (f) return f; }
+  return get("https://api.deepgram.com/v1/speak?model=aura-2-" + voice + "-en&encoding=mp3&speed=1.15");
 }
 async function speak(env, line) {
   const voice = (HOSTS[line.s] || HOSTS.DEZ).voice;
   const text = line.t.replace(/\p{Extended_Pictographic}\uFE0F?/gu, "").replace(/ +/g, " ").trim();
   // Owner's own Deepgram account (free signup credit) first, so the show doesn't use the Cloudflare AI allowance.
-  const dg = await deepgramSpeak(env, text, voice);
+  const dg = await deepgramSpeak(env, text, voice, line.s);
   if (dg) return dg;
   try {
     const r = await env.AI.run("@cf/deepgram/aura-2-en", { text, speaker: voice, encoding: "mp3" }, { returnRawResponse: true });
@@ -93,12 +94,12 @@ const SAMPLE = [
 export async function showRoute(request, url, env) {
   const path = url.pathname;
   if (path === "/api/show/sample") {
-    let bytes = env.SNAP ? await env.SNAP.get("showsample:v1", "arrayBuffer") : null;
+    let bytes = env.SNAP ? await env.SNAP.get("showsample:v2", "arrayBuffer") : null;
     if (!bytes) {
       const parts = [];
-      for (const [h, t] of SAMPLE) { const b = await deepgramSpeak(env, t, HOSTS[h].voice); if (!b) return new Response("The sample needs the Deepgram key to be set.", { status: 503 }); parts.push(b); }
+      for (const [h, t] of SAMPLE) { const b = await deepgramSpeak(env, t, HOSTS[h].voice, h); if (!b) return new Response("The sample needs the Deepgram key to be set.", { status: 503 }); parts.push(b); }
       const all = new Uint8Array(parts.reduce((s, b) => s + b.length, 0)); let o = 0; parts.forEach(b => { all.set(b, o); o += b.length; });
-      if (env.SNAP) await env.SNAP.put("showsample:v1", all);
+      if (env.SNAP) await env.SNAP.put("showsample:v2", all);
       bytes = all.buffer;
     }
     return new Response(bytes, { headers: { "content-type": "audio/mpeg", "cache-control": "public, max-age=3600" } });

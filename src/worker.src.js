@@ -370,7 +370,7 @@ async function healthCheck(env) {
   await check("Show voices (Deepgram)", async () => {
     if (!env.DEEPGRAM_KEY) throw new Error("no DEEPGRAM_KEY secret found");
     const key = String(env.DEEPGRAM_KEY).trim();
-    const r = await fetch("https://api.deepgram.com/v1/speak?model=aura-2-atlas-en&encoding=mp3", { method: "POST", headers: { Authorization: "Token " + key, "Content-Type": "application/json" }, body: JSON.stringify({ text: "Okay." }) });
+    const r = await fetch("https://api.deepgram.com/v2/speak?model=flux-cole-en&expressivity=2&speed=1.15", { method: "POST", headers: { Authorization: "Token " + key, "Content-Type": "application/json" }, body: JSON.stringify({ text: "Okay." }) });
     if (!r.ok) { const t = (await r.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 120); throw new Error("Deepgram said HTTP " + r.status + (r.status === 401 ? " (key not accepted)" : r.status === 402 || r.status === 403 ? " (key lacks permission or credit)" : "") + (t ? ": " + t : "")); }
   });
   await check("Storage", async () => { if (!env.SNAP) throw new Error("no storage"); await env.SNAP.put("health:last", JSON.stringify({ at: t0, res })); const back = await env.SNAP.get("health:last", "json"); if (!back || back.at !== t0) throw new Error("write did not read back (daily limit?)"); });
