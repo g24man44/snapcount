@@ -80,9 +80,30 @@ async function speak(env, line) {
   return null;
 }
 
+// A 25-second taste of the hosts, recorded once with the real week-9 facts and kept.
+const SAMPLE = [
+  ["SAM", "This is The Snap Count Show! Dez. Dez! Did you SEE Lemon Drops this week?!"],
+  ["DEZ", "Did I see it? I can't UNSEE it! They started the Cardinals defense. Negative one point seven!"],
+  ["SAM", "Nooo! Stop it!"],
+  ["DEZ", "And the Bucs defense is just sitting there on the bench with eighteen point three. They would have WON, Sam. They would have won!"],
+  ["SAM", "Hahaha! Oh, that's brutal. Oh-and-nine, baby. Oh-and-nine!"],
+  ["DEZ", "Meanwhile, To Infinity And Bijan drops a hundred seventy-six. Are you kidding me?!"],
+  ["SAM", "Come ON! That team is on fire!"]
+];
 export async function showRoute(request, url, env) {
-  if (!env.SNAP || !env.AI) return out({ error: "The show isn't available on this server." }, 503);
   const path = url.pathname;
+  if (path === "/api/show/sample") {
+    let bytes = env.SNAP ? await env.SNAP.get("showsample:v1", "arrayBuffer") : null;
+    if (!bytes) {
+      const parts = [];
+      for (const [h, t] of SAMPLE) { const b = await deepgramSpeak(env, t, HOSTS[h].voice); if (!b) return new Response("The sample needs the Deepgram key to be set.", { status: 503 }); parts.push(b); }
+      const all = new Uint8Array(parts.reduce((s, b) => s + b.length, 0)); let o = 0; parts.forEach(b => { all.set(b, o); o += b.length; });
+      if (env.SNAP) await env.SNAP.put("showsample:v1", all);
+      bytes = all.buffer;
+    }
+    return new Response(bytes, { headers: { "content-type": "audio/mpeg", "cache-control": "public, max-age=3600" } });
+  }
+  if (!env.SNAP || !env.AI) return out({ error: "The show isn't available on this server." }, 503);
   const p = url.searchParams.get("p") || "", lid = url.searchParams.get("lid") || "", w = String(url.searchParams.get("w") || "");
   if (!okLid(p, lid) || !/^\d{1,2}$/.test(w)) return out({ error: "Bad league or week" }, 400);
   const key = keyOf(p, lid, w);
