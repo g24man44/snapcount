@@ -96,7 +96,8 @@ async function gemWrite(env, sys, user) {
 }
 // One chunk of the conversation, read in one go so the two voices play off each other.
 // Three voice pairs the owner can compare in the app; the pick is stored once ("showvoice").
-export const GEM_PAIRS = { a: { DEZ: "Puck", SAM: "Laomedeia" }, b: { DEZ: "Fenrir", SAM: "Aoede" }, c: { DEZ: "Achird", SAM: "Zephyr" } };
+// As different from each other as Gemini allows: upbeat/young, gravelly/firm, deep/youthful.
+export const GEM_PAIRS = { a: { DEZ: "Puck", SAM: "Laomedeia" }, b: { DEZ: "Algenib", SAM: "Kore" }, c: { DEZ: "Charon", SAM: "Leda" } };
 const DIRECTION = "Two best friends recording their weekly fantasy football podcast. Relaxed and natural like a real conversation: they laugh for real, react, interrupt, speed up when excited and get loud only at the big moments. Never like reading a script or an announcer.";
 async function gemSpeak(env, lines, pairKey) {
   const pair = GEM_PAIRS[pairKey] || GEM_PAIRS[(env.SNAP && await env.SNAP.get("showvoice")) || "a"] || GEM_PAIRS.a;
@@ -161,7 +162,7 @@ export async function showRoute(request, url, env) {
     await env.SNAP.put("showvoice", b.pair); return out({ ok: true });
   }
   if (path === "/api/show/sample" && gemKey(env)) {
-    const pk = GEM_PAIRS[url.searchParams.get("pair")] ? url.searchParams.get("pair") : "a", ck = "showsample:g2:" + pk;
+    const pk = GEM_PAIRS[url.searchParams.get("pair")] ? url.searchParams.get("pair") : "a", ck = "showsample:g3:" + pk;
     let j = env.SNAP ? await env.SNAP.get(ck) : null;
     if (!j) {
       try { j = await gemSpeak(env, NATURAL_SAMPLE.map(([s2, st, t]) => ({ s: s2, st, t })), pk); }

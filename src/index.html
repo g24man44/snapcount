@@ -7048,7 +7048,7 @@ async function openShow(L){
   const NAMES = {DEZ: "Dez", SAM: "Sam"};
   let busy = false, msg = "", show = null, done = 0, sampleUrl = null, sampleBusy = false, sampleErr = "", epUrl = null, epBusy = false, pair = "a", chosen = null, sampleModel = "";
   const draw = () => {
-    const PAIRS = [["a", "Voices A"], ["b", "Voices B"], ["c", "Voices C"]];
+    const PAIRS = [["a", "Upbeat"], ["b", "Gravelly"], ["c", "Deep"]];
     let h = '<div class="card" style="margin-bottom:12px"><b>Pick the hosts’ voices</b><p class="small muted" style="margin:4px 0 8px">Three voice pairs reading the same 20 seconds. Choose the one that sounds most real; every episode after uses it.</p>'
       + '<div class="seg">' + PAIRS.map(([k, l]) => '<button data-pair="' + k + '" aria-pressed="' + (pair === k) + '">' + l + (chosen === k ? " ✓" : "") + '</button>').join("") + '</div>'
       + '<div id="shSample" style="margin-top:8px">' + (sampleUrl ? '<audio controls autoplay style="width:100%" src="' + sampleUrl + '"></audio>' + (sampleModel ? '<p class="small muted" style="margin:4px 0 0">Voice model: ' + esc(sampleModel) + '</p>' : "") + (chosen !== pair ? '<button class="btn" id="shUse" style="margin-top:8px">Use ' + esc(PAIRS.find(x => x[0] === pair)[1]) + ' for the show</button>' : '<p class="small" style="margin:6px 0 0">✓ The show uses these voices.</p>') : '<button class="btn ghost" id="shSampleBtn">' + (sampleBusy ? "Recording the sample…" : "Play " + PAIRS.find(x => x[0] === pair)[1]) + '</button>') + '</div>' + (sampleErr ? '<p class="small" style="color:var(--bad);margin:6px 0 0">' + esc(sampleErr) + '</p>' : "") + '</div>';
@@ -7072,7 +7072,7 @@ async function openShow(L){
   async function playSample(){
     if (sampleBusy) return; sampleBusy = true; sampleErr = ""; draw();
     try {
-      const r = await fetch("/api/show/sample?v=4&pair=" + pair);
+      const r = await fetch("/api/show/sample?v=5&pair=" + pair);
       if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || "Couldn’t make the sample (" + r.status + ")"); }
       if (/json/.test(r.headers.get("content-type") || "")) { const j = await r.json(); chosen = j.chosen || chosen || "a"; sampleModel = j.x || ""; sampleUrl = await wavFromParts([j]); }
       else sampleUrl = URL.createObjectURL(await r.blob());
