@@ -759,6 +759,9 @@ path.vho{stroke:var(--ok);stroke-dasharray:4 3}
 .bug.noproj .bugrow{grid-template-columns:30px minmax(0,1fr) auto auto}
 .bugname{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.1}
 
+.tmodesel{display:flex;align-items:center;gap:10px;margin:10px 0 12px;font-weight:650}.tmodesel select{flex:1;font-weight:650}
+.why{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}.why>summary{cursor:pointer;font-weight:650;font-size:14px;color:var(--accent);padding:6px 0}
+.moretools{margin-top:8px}.moretools>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;border:1px solid var(--line);border-radius:14px;font-weight:650;color:var(--ink)}.moretools>summary::-webkit-details-marker{display:none}.moretools>summary::after{content:"";width:8px;height:8px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg);margin-top:-4px}.moretools[open]>summary::after{transform:rotate(-135deg);margin-top:4px}
 .tgh{margin:22px 4px 8px;font-size:13px;font-weight:700;color:var(--muted);letter-spacing:0}
 .tlist{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .tlist .btn{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:10px;min-height:50px;padding:10px 12px;margin:0!important;width:auto!important;text-align:left;font-size:13.5px;font-weight:650;line-height:1.2;background:var(--surface);border:1px solid var(--line);color:var(--ink);border-radius:12px}
@@ -1448,9 +1451,15 @@ function renderLeague(v, L){
     // Grouped by what you're trying to do, as compact rows instead of a wall of identical tiles.
     const GROUPS = [["This week", ["mrBtn", "pwBtn", "pkBtn", "cutBtn"]], ["Trades", ["lsBtn", "scoutBtn", "mktBtn"]], ["Season", ["picBtn", "ppBtn", "swapBtn", "histBtn", "rcBtn", "winBtn", "wrapBtn"]], ["Draft", ["doBtn", "dcBtn"]]];
     const idOf = t => (t.match(/id="(\w+)"/) || [])[1], used = new Set();
-    const hero = tiles.find(t => idOf(t) === "recapBtn"); if (hero) { used.add(hero); h += '<div style="margin-top:12px">' + hero.replace('class="btn aibtn"', 'class="btn aibtn" style="width:100%"') + "</div>"; }
-    GROUPS.forEach(([title, ids]) => { const list = ids.map(id => tiles.find(t => idOf(t) === id)).filter(Boolean); list.forEach(t => used.add(t)); if (list.length) h += '<h3 class="tgh">' + title + '</h3><div class="tlist">' + list.join("") + "</div>"; });
-    const rest = tiles.filter(t => !used.has(t)); if (rest.length) h += '<h3 class="tgh">More</h3><div class="tlist">' + rest.join("") + "</div>";
+    // Four everyday tools up top; everything else waits behind "More tools", grouped by what you're doing.
+    const TOP = ["mrBtn", "pwBtn", "mktBtn", "showBtn"];
+    const top = TOP.map(id => tiles.find(t => idOf(t) === id)).filter(Boolean); top.forEach(t => used.add(t));
+    if (top.length) h += '<div class="tlist" style="margin-top:12px">' + top.join("") + "</div>";
+    GROUPS[0][1] = ["recapBtn"].concat(GROUPS[0][1]);
+    let more = "";
+    GROUPS.forEach(([title, ids]) => { const list = ids.map(id => tiles.find(t => idOf(t) === id)).filter(t => t && !used.has(t)); list.forEach(t => used.add(t)); if (list.length) more += '<h3 class="tgh">' + title + '</h3><div class="tlist">' + list.map(t => t.replace('class="btn aibtn"', 'class="btn ghost"')).join("") + "</div>"; });
+    const rest = tiles.filter(t => !used.has(t)); if (rest.length) more += '<h3 class="tgh">More</h3><div class="tlist">' + rest.join("") + "</div>";
+    if (more) h += '<details class="moretools"' + (cur.moreTools ? " open" : "") + '><summary>More tools <span class="small muted">' + (tiles.length - top.length) + "</span></summary>" + more + "</details>";
     if (d.games.length) {
       h += "<h3>Matchups" + (d.week ? " · Week " + d.week : "") + '</h3><div class="stack">';
       d.games.forEach(g => {
@@ -1469,6 +1478,7 @@ function renderLeague(v, L){
   v.innerHTML = h;
   wireBack(v);
   v.querySelectorAll("[data-sub]").forEach(b => b.addEventListener("click", () => { cur.sub = b.dataset.sub; render(); }));
+  const mt = v.querySelector(".moretools"); if (mt) mt.addEventListener("toggle", () => { cur.moreTools = mt.open; });
   const onSub = v.querySelector('.seg.sub [aria-pressed="true"]'); if (onSub && onSub.parentNode.scrollWidth > onSub.parentNode.clientWidth) onSub.parentNode.scrollLeft = onSub.offsetLeft - 8;
   const sel = v.querySelector("#teamPick");
   if (sel) sel.addEventListener("change", () => {
@@ -2669,7 +2679,7 @@ function pickRow(p, side, V, sid, selected, prem){
 async function renderTrade(v){
   const ready = leagues.map((L, i) => ({L, i})).filter(x => x.L.detail && x.L.detail.teams.find(t => t.mine));
   if (!tr.mode) tr.mode = "scan";
-  let h = "<h2>Trade</h2>" + tradeSwitch("league") + '<div class="chips tmodes" role="group" aria-label="What do you want to do?">' + [["scan","Buy a player"],["sell","Sell a player"],["find","Price a player"],["grade","Grade a trade"]].map(x => '<button type="button" class="chip' + (tr.mode === x[0] ? " on" : "") + '" data-mode="' + x[0] + '" aria-pressed="' + (tr.mode === x[0]) + '">' + x[1] + "</button>").join("") + "</div>";
+  let h = "<h2>Trade</h2>" + tradeSwitch("league") + '<label class="tmodesel"><span>I want to</span><select id="trMode" aria-label="What do you want to do?">' + [["scan","Buy a player"],["sell","Sell a player"],["find","Price a player"],["grade","Grade a trade"]].map(x => '<option value="' + x[0] + '"' + (tr.mode === x[0] ? " selected" : "") + ">" + x[1].toLowerCase() + "</option>").join("") + "</select></label>";
   h += '<button type="button" class="btn ghost" id="cmpOpen" style="width:100%;margin:-2px 0 12px"><i class=ic-scale aria-hidden=true></i> Compare players side by side' + (cmpList.length ? " (" + cmpList.length + ")" : "") + "</button>";
   if (!ready.length) { v.innerHTML = h + '<div class="card"><p style="margin:0">' + (hasAccts() ? "Your leagues are still loading, or you haven’t picked your team in a league yet. Open the league once and choose your team." : "Add your leagues under the settings button first.") + "</p></div>"; return; }
   if (tr.league == null || !ready.find(x => x.i === tr.league)) { tr.league = ready[0].i; tr.other = null; tr.give.clear(); tr.get.clear(); tr.ppr = null; tr.dyn = null; tr.keep = null; tr.target = null; }
@@ -2690,7 +2700,7 @@ async function renderTrade(v){
     '<div class="seg" role="group" aria-label="Scoring" style="margin-top:8px">' + [["1","PPR"],["0.5","Half PPR"],["0","Standard"]].map(x => '<button type="button" data-ppr="' + x[0] + '" aria-pressed="' + (tr.ppr === x[0]) + '">' + x[1] + "</button>").join("") + "</div></details></div>";
   h += '<div id="trOut"><p class="spin">Loading trade values…</p></div>';
   v.innerHTML = h;
-  v.querySelectorAll("[data-mode]").forEach(b => b.addEventListener("click", () => { tr.mode = b.dataset.mode; render(); }));
+  const tms = v.querySelector("#trMode"); if (tms) tms.addEventListener("change", () => { tr.mode = tms.value; render(); });
   const co = v.querySelector("#cmpOpen"); if (co) co.addEventListener("click", openCompare);
   const sIn = v.querySelector("#trS") || document.createElement("input"), sOut = v.querySelector("#trSR") || document.createElement("ul");
   const pool = others.flatMap(t => t.roster.filter(p => p.name).map(p => ({p, t})));
@@ -2964,14 +2974,17 @@ function drawScan(ctx, allPicks){
       else if (r.t.w > r.t.l) why.push({tone:"", text:"They’re " + r.t.w + "-" + r.t.l + " and contending, so the offer " + (r.best.picks === 0 ? "uses players who score now instead of picks." : "includes picks because no fair players-only package fit.")});
       const [lbl, tone] = GRADE_LABEL(r.g.score);
       const chip = r.onBlock ? '<span class="chip ok">On the trade block</span>' : r.avail >= 0.6 ? '<span class="chip ok">Likely available</span>' : r.avail >= 0.3 ? '<span class="chip warn">Possible</span>' : '<span class="chip">Long shot</span>';
-      out += '<div class="card offer scard" data-ti="' + esc(r.t.id) + '" style="margin-top:12px">' +
+      out += '<div class="card offer scard" data-ti="' + esc(r.t.id) + '" style="margin-top:12px"' + (i > 2 && !tr.scanAll ? " hidden" : "") + '>' +
         '<div class="shead" style="margin:0">' + avatar(r.p) + '<div style="min-width:0;flex:1"><b style="font-size:18px;display:block">' + esc(r.p.name) + "</b><small class='muted'>" + posTag(r.p) + esc(r.t.name) + (r.t.owner ? " · " + esc(r.t.owner) : "") + '</small></div><span class="ograde ' + tone + '">' + r.g.score + "/10</span></div>" +
-        '<div class="chips" style="margin-top:12px"><span class="chip ok">+' + r.gain.toFixed(1) + " pts a week for you</span>" + chip + acceptChip(r.g) + '<span class="chip">Worth ' + fmtV(r.T) + "</span></div>" +
-        '<ul class="reasons">' + why.map(w => '<li class="' + w.tone + '">' + esc(w.text) + "</li>").join("") + "</ul>" +
-        '<h3 style="margin:16px 0 4px">Suggested offer</h3><ul class="offlist">' + r.best.combo.map(a => '<li>' + (a.p.pos === "PICK" ? '<span class="pos" data-pos="PICK">PK</span>' : avatar(a.p)) + "<b>" + esc(a.p.name) + "</b><span class='muted'>" + fmtV(a.v) + "</span></li>").join("") + "</ul>" +
-        '<p class="small" style="margin:10px 0 0">Package value <b>' + fmtV(r.best.eff) + "</b> (" + (r.best.over >= 0 ? "+" : "") + Math.round(r.best.over * 100) + "%). After the trade your lineup " + (Math.abs(r.best.delta) < 0.5 ? "stays about the same" : (r.best.delta > 0 ? "gains " : "loses ") + Math.abs(r.best.delta).toFixed(1) + " points a week") + ".</p>" +
+        // The essentials up front (who, grade, the offer, Send); the reasoning waits behind "Why this offer".
+        '<p class="small" style="margin:8px 0 0"><b style="color:var(--ok)">+' + r.gain.toFixed(1) + " pts a week</b> for you · " + chip.replace(/<[^>]+>/g, "") + (r.g.accept != null ? " · " + r.g.accept + "% they accept" : "") + "</p>" +
+        '<p class="tgh" style="margin:14px 0 4px">You offer</p><ul class="offlist">' + r.best.combo.map(a => '<li>' + (a.p.pos === "PICK" ? '<span class="pos" data-pos="PICK">PK</span>' : avatar(a.p)) + "<b>" + esc(a.p.name) + "</b><span class='muted'>" + fmtV(a.v) + "</span></li>").join("") + "</ul>" +
         sendBlock(L, me, r.t, r.best.combo.map(a => a.p), [r.p]) +
-        '<div class="btnrow" style="margin-top:8px"><button type="button" class="btn ghost" data-sload="' + i + '">Adjust in grader</button><button type="button" class="btn ghost" data-shide="' + esc(r.p.id) + '">Not interested</button></div></div>';
+        '<details class="why"><summary>Why this offer</summary>' +
+        '<ul class="reasons">' + why.map(w => '<li class="' + w.tone + '">' + esc(w.text) + "</li>").join("") + "</ul>" +
+        '<p class="small" style="margin:8px 0 0">He’s worth ' + fmtV(r.T) + '. Your package is worth <b>' + fmtV(r.best.eff) + "</b> (" + (r.best.over >= 0 ? "+" : "") + Math.round(r.best.over * 100) + "%). After the trade your lineup " + (Math.abs(r.best.delta) < 0.5 ? "stays about the same" : (r.best.delta > 0 ? "gains " : "loses ") + Math.abs(r.best.delta).toFixed(1) + " points a week") + ".</p>" +
+        '<div class="btnrow" style="margin-top:8px"><button type="button" class="btn ghost" data-sload="' + i + '">Adjust in grader</button><button type="button" class="btn ghost" data-shide="' + esc(r.p.id) + '">Not interested</button></div></details></div>';
+      if (i === 2 && results.length > 3 && !tr.scanAll) out += '<button type="button" class="btn ghost" id="scMore" style="width:100%;margin-top:12px">Show ' + (results.length - 3) + " more</button>";
     });
     if (tr.hide.size) out += '<p class="small muted" style="margin:14px 4px 0">' + tr.hide.size + ' hidden player' + (tr.hide.size > 1 ? "s" : "") + '. <button type="button" class="back" id="scUnhide" style="padding:0;font-size:14px">Show them again</button></p>';
     const lockable = me.roster.concat(ctx.myPicks).map(p => ({p, v: val(p)})).filter(a => a.v >= 300).sort((a, b) => b.v - a.v).slice(0, 14);
@@ -2979,6 +2992,7 @@ function drawScan(ctx, allPicks){
     el.innerHTML = out;
     wire();
     el.querySelectorAll(".scard").forEach(cardEl => { const t = d.teams.find(x => x.id === cardEl.dataset.ti); if (t) wireSend(cardEl, L, me, t); });
+    const smo = el.querySelector("#scMore"); if (smo) smo.addEventListener("click", () => { tr.scanAll = true; el.querySelectorAll(".scard[hidden]").forEach(c => c.hidden = false); smo.remove(); });
     el.querySelectorAll("[data-sload]").forEach(b => b.addEventListener("click", () => {
       const r = results[+b.dataset.sload];
       tr.mode = "grade"; tr.other = r.t.id; tr.give = new Set(r.best.combo.map(a => a.p.id)); tr.get = new Set([r.p.id]);
