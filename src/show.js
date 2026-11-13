@@ -7,34 +7,41 @@
 const okLid = (p, l) => ["flea", "sleeper", "espn", "mfl"].includes(p) && /^[A-Za-z0-9_-]{1,40}$/.test(l);
 const out = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
 // Deepgram Aura-2: the most expressive voices on Workers AI (pacing, emphasis and filler words follow the text).
-export const HOSTS = { DEZ: { voice: "apollo", name: "Dez" }, SAM: { voice: "thalia", name: "Sam" } };
+// Dez was too flat on "apollo"; "atlas" is Deepgram's enthusiastic male voice.
+export const HOSTS = { DEZ: { voice: "atlas", name: "Dez" }, SAM: { voice: "thalia", name: "Sam" } };
 const SCRIPT_MODELS = ["@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/meta/llama-3.1-8b-instruct-fast"];
 
-const SHOW_SYS = `You write the script for "The Snap Count Show", a weekly fantasy football podcast about ONE private league, hosted by two friends who genuinely love this league:
-- DEZ: numbers guy, dry, deadpan, sarcastic. Gets quietly outraged about bench points left on the table.
-- SAM: big energy, emotional, hot takes, gets fired up, laughs easily, roasts the bad decisions, roots for the underdog.
+const SHOW_SYS = `You write the script for "The Snap Count Show", a weekly fantasy football podcast about ONE private league, hosted by two best friends who are both genuinely, loudly passionate about this league. It must sound like a real, high-energy sports podcast between friends.
 
-It has to sound like two real people talking, with real emotion. The voices read your words literally, so write the emotion INTO the words:
-- Exclamations when excited ("Are you kidding me?!", "No way!", "Oh, that's brutal."), questions, trailing off with "..." when stunned, short punchy fragments.
-- Natural speech: contractions, "I mean", "honestly", "look", "okay okay okay", "wait, wait, wait", an occasional "uh" or "um". Laughter written as "Ha!" or "Hahaha".
-- Hosts react to each other constantly: interrupt, agree, push back, tease each other, call back to earlier jokes.
-- Short turns, mostly one or two sentences. Vary rhythm: some one-word reactions ("Brutal." "Wow." "Nope.").
-- No lists, headings, stage directions, sound effects, asterisks or emojis.
-- Use ONLY the facts in the league data. Never invent players, scores, trades or records. Team names exactly as given.
-- Good-natured roasting only: about fantasy decisions, never about real people's lives.
+The hosts:
+- DEZ: the stats guy, but NOT calm. He gets worked up about numbers: incredulous, exasperated, gleeful when the math backs him up. He rants ("Do you know how many points were sitting on that bench?! Twenty-three! Twenty-three!"), he gloats, he groans. Think excitable analyst, not a robot.
+- SAM: pure emotion. Hypes, screams, mocks, gasps, laughs at everyone, takes everything personally, roots for the underdog, loves drama.
+
+The voices read your words literally, so ALL emotion has to be in the words and punctuation:
+- Use lots of exclamation points, "?!", repeated words for emphasis ("No. No no no."), stretched reactions ("Ohhh!", "Nooo!", "Come ON!"), and "..." for stunned pauses.
+- Reactions are short and constant: "Wow.", "Brutal!", "Stop it!", "You're kidding!", "Hahaha!", "Okay, okay, okay!"
+- Natural speech: contractions, "I mean", "honestly", "look", "dude", an occasional "uh" or "um". Hosts interrupt, finish each other's sentences, tease each other, and argue.
+- Most turns are one or two short sentences. Never a speech.
+- No lists, headings, stage directions, brackets, sound effects, asterisks or emojis.
+
+ACCURACY RULES (most important):
+- Use ONLY the facts in the league data, exactly as written. Every score, player and team name must match the data. Never invent or estimate a number, player, trade or record.
+- Say scores the way they appear in the data (for example "142.5"). Do not add up or compute anything yourself; the HEADLINES section already has the closest game, blowout, high, low and blunder.
+- The episode covers only the week named in the data.
+- Good-natured roasting only, about fantasy decisions, never about real people's lives.
 
 Flow:
-1. SAM opens: "This is The Snap Count Show, an AI-made recap of [league name], week [N]." Then a quick fun exchange.
-2. Results: every matchup quickly, more time and emotion on the closest game, the biggest blowout and the highest score.
-3. Blunder of the week, with Dez outraged and Sam roasting.
-4. Who's rising and who's in trouble in the standings.
-5. One real disagreement about the true contender, both fired up.
-6. Sign off with a laugh.
+1. SAM opens with: "This is The Snap Count Show, an AI-made recap of [league name], week [N]!" then a quick fired-up exchange.
+2. Results: every game briefly, with big reactions for the closest game, the biggest blowout and the highest score.
+3. Blunder of the week: DEZ loses his mind over the bench points, SAM piles on.
+4. Standings: who's rising, who's in trouble.
+5. A heated disagreement about who the real contender is.
+6. Sign off laughing.
 
-Length: 450 to 550 words total (about three and a half minutes).
+Length: 450 to 550 words total.
 Format: every line starts with DEZ: or SAM: and nothing else. No other text before or after.`;
 
-const keyOf = (p, lid, w) => "show2:" + p + ":" + lid + ":" + w;
+const keyOf = (p, lid, w) => "show3:" + p + ":" + lid + ":" + w;
 function parseScript(text) {
   const lines = [];
   for (const raw of String(text || "").split(/\n+/)) {
@@ -53,8 +60,9 @@ function parseScript(text) {
 // the daily reset (midnight UTC) in the same voices.
 async function speak(env, line) {
   const voice = (HOSTS[line.s] || HOSTS.DEZ).voice;
+  const text = line.t.replace(/\p{Extended_Pictographic}\uFE0F?/gu, "").replace(/ +/g, " ").trim();
   try {
-    const r = await env.AI.run("@cf/deepgram/aura-2-en", { text: line.t, speaker: voice, encoding: "mp3" }, { returnRawResponse: true });
+    const r = await env.AI.run("@cf/deepgram/aura-2-en", { text, speaker: voice, encoding: "mp3" }, { returnRawResponse: true });
     if (r && r.ok !== false && r.body) { const b = new Uint8Array(await r.arrayBuffer()); if (b.length > 500) return b; }
   } catch (e) {}
   return null;
@@ -101,11 +109,22 @@ export async function showRoute(request, url, env) {
     if (old && !(old.final === false && b.final === true && !old.remade)) return out({ show: { lines: old.lines, final: old.final, at: old.at, total: old.lines.length } });
     const data = String(b.ctx || "").slice(0, 14000);
     if (data.length < 80) return out({ error: "Not enough league data to make a show." }, 400);
-    let text = "";
-    for (const model of SCRIPT_MODELS) {
-      try { const r = await env.AI.run(model, { messages: [{ role: "system", content: SHOW_SYS }, { role: "user", content: "LEAGUE DATA:\n" + data + "\n\nWrite the script now." }], max_tokens: 1800, temperature: 0.85 }); text = (r && r.response) || ""; if (parseScript(text).length >= 12) break; } catch (e) {}
+    // Fact check: every number spoken must appear in the league data (small counts like weeks and records
+    // aside). A script that invents a number is rewritten, up to three tries; the cleanest one is kept.
+    const allowed = new Set();
+    for (const m of data.matchAll(/\d+(?:\.\d+)?/g)) { const x = Number(m[0]); allowed.add(m[0]); allowed.add(String(Math.round(x))); allowed.add(String(Math.floor(x))); allowed.add(x.toFixed(1)); }
+    const badNums = ls => ls.flatMap(l => (l.t.match(/\d+(?:\.\d+)?/g) || []).filter(n => Number(n) > 20 && !allowed.has(n)));
+    let best = null;
+    for (let tries = 0; tries < 3 && !(best && !best.bad.length); tries++) {
+      const model = SCRIPT_MODELS[tries === 2 ? 1 : 0];
+      const fix = best && best.bad.length ? "\n\nYour last draft used numbers that are NOT in the data: " + [...new Set(best.bad)].slice(0, 8).join(", ") + ". Use only numbers that appear in the data." : "";
+      try {
+        const r = await env.AI.run(model, { messages: [{ role: "system", content: SHOW_SYS }, { role: "user", content: "LEAGUE DATA:\n" + data + "\n\nWrite the script now." + fix }], max_tokens: 1800, temperature: 0.8 });
+        const ls = parseScript((r && r.response) || "");
+        if (ls.length >= 12) { const bad = badNums(ls); if (!best || bad.length < best.bad.length) best = { lines: ls, bad }; }
+      } catch (e) {}
     }
-    const lines = parseScript(text);
+    const lines = best ? best.lines : [];
     if (lines.length < 12) return out({ error: "The script writer came back short. Try again in a minute." }, 502);
     if (old) { for (let i = 0; i < old.lines.length; i++) await env.SNAP.delete(key + ":a" + i); }
     const show = { lines, final: !!b.final, at: Date.now(), league: String(b.league || "").slice(0, 80), remade: !!old };

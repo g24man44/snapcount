@@ -5847,7 +5847,7 @@ async function seasonWeeks(L){
       } else if (L.meta.platform === "sleeper") {
         const r = await api("/api/sleeper/league/" + L.meta.id + "/matchups/" + w); const by = {};
         (r || []).forEach(m => { if (m.matchup_id) (by[m.matchup_id] = by[m.matchup_id] || []).push(m); });
-        const games = Object.values(by).filter(x => x.length === 2).map(([x, y]) => ({a: String(x.roster_id), b: String(y.roster_id), as: x.points || 0, bs: y.points || 0, done: true})).filter(g => g.as || g.bs);
+        const games = Object.values(by).filter(x => x.length === 2).map(([x, y]) => ({a: String(x.roster_id), b: String(y.roster_id), as: x.points || 0, bs: y.points || 0, done: w < (st.week || d.week || 99)})).filter(g => g.as || g.bs);
         if (games.length) weeks.push({w, games});
       }
     } catch(e){}
@@ -6987,15 +6987,50 @@ function wireInstall(v){
 if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
 
 /* ---------- the league show: a weekly two-host audio recap ---------- */
+// The show only ever covers the most recent week where every game is final, and it gets the same checked
+// box-score facts as Matchup recaps, with the headline facts worked out here so the writer can't get them wrong.
+async function showFacts(L){
+  const d = L.detail, T = id => d.teams.find(t => t.id === id) || {name: "Team " + id, w: 0, l: 0};
+  const weeks = (await seasonWeeks(L)).filter(W => W.games.length && W.games.every(g => g.done)).map(W => W.w);
+  if (!weeks.length) return null;
+  const w = weeks[weeks.length - 1], games = await weekBoxes(L, w);
+  if (!games.length) return null;
+  const f = games.map(([x, y]) => { const win = x.act >= y.act ? x : y, lose = win === x ? y : x;
+    const top = s => s.start.slice().sort((a, b) => b.pts - a.pts)[0], dud = s => s.start.filter(p => !["K", "D/ST", "DEF"].includes(p.pos)).sort((a, b) => a.pts - b.pts)[0];
+    return {win, lose, margin: win.act - lose.act, tie: win.act === lose.act, couldWin: lose.opt != null && lose.opt > win.act, wTop: top(win), lTop: top(lose), wDud: dud(win), lDud: dud(lose), bl: blunder(lose), blW: blunder(win)}; });
+  const n = x => String(Math.round((Number(x) || 0) * 100) / 100), nm = s => T(s.tid).name;
+  const lines = ["LEAGUE: " + L.meta.name + ". This episode covers WEEK " + w + " (every game final). " + d.teams.length + " teams.", "", "EVERY GAME, WEEK " + w + " (winner first, exact final scores):"];
+  f.slice().sort((a, b) => a.margin - b.margin).forEach(g => {
+    lines.push("- " + nm(g.win) + " " + n(g.win.act) + " def. " + nm(g.lose) + " " + n(g.lose.act) + " (won by " + n(g.margin) + ")." +
+      (g.wTop ? " " + nm(g.win) + " top scorer: " + g.wTop.name + " " + n(g.wTop.pts) + "." : "") + (g.lTop ? " " + nm(g.lose) + " top scorer: " + g.lTop.name + " " + n(g.lTop.pts) + "." : "") +
+      (g.lDud ? " " + nm(g.lose) + " worst starter: " + g.lDud.name + " " + n(g.lDud.pts) + "." : "") +
+      (g.lose.opt != null ? " " + nm(g.lose) + " left " + n(Math.max(0, g.lose.opt - g.lose.act)) + " points on the bench" + (g.couldWin ? " and WOULD HAVE WON with its best lineup (" + n(g.lose.opt) + ")" : "") + "." : "") +
+      (g.bl ? " " + nm(g.lose) + " started " + g.bl.start.name + " (" + n(g.bl.start.pts) + ") over " + g.bl.bench.name + " (" + n(g.bl.bench.pts) + ") on the bench." : ""));
+  });
+  const all = f.flatMap(g => [g.win, g.lose]), hi = all.slice().sort((a, b) => b.act - a.act)[0], lo = all.slice().sort((a, b) => a.act - b.act)[0];
+  const close = f.slice().sort((a, b) => a.margin - b.margin)[0], blow = f.slice().sort((a, b) => b.margin - a.margin)[0];
+  const bls = f.flatMap(g => [g.bl && {t: nm(g.lose), b: g.bl, lost: g.couldWin}, g.blW && {t: nm(g.win), b: g.blW, lost: false}]).filter(Boolean).sort((a, b) => (b.lost - a.lost) || (b.b.d - a.b.d));
+  lines.push("", "HEADLINES (already worked out, use exactly):",
+    "- Closest game: " + nm(close.win) + " " + n(close.win.act) + " to " + nm(close.lose) + " " + n(close.lose.act) + ", decided by " + n(close.margin) + ".",
+    "- Biggest blowout: " + nm(blow.win) + " " + n(blow.win.act) + " to " + nm(blow.lose) + " " + n(blow.lose.act) + ", by " + n(blow.margin) + ".",
+    "- Highest score of the week: " + nm(hi) + " with " + n(hi.act) + ".", "- Lowest score of the week: " + nm(lo) + " with " + n(lo.act) + ".");
+  if (bls[0]) lines.push("- Blunder of the week: " + bls[0].t + " started " + bls[0].b.start.name + " (" + n(bls[0].b.start.pts) + ") while " + bls[0].b.bench.name + " scored " + n(bls[0].b.bench.pts) + " on the bench, a " + n(bls[0].b.d) + "-point swing" + (bls[0].lost ? ", and it cost them the game" : "") + ".");
+  lines.push("", "STANDINGS NOW (wins-losses, points for):");
+  d.teams.slice().sort((a, b) => b.w - a.w || (b.pf || 0) - (a.pf || 0)).forEach((t, i) => lines.push((i + 1) + ". " + t.name + " " + t.w + "-" + t.l + ", " + n(t.pf || 0) + " points for"));
+  return {w, ctx: lines.join("\n").replace(/\p{Extended_Pictographic}\uFE0F?/gu, "").replace(/ +/g, " ")};
+}
 async function openShow(L){
   const body = openSheetShell("The Snap Count Show");
-  const d = L.detail, w = d.week || 1, q = "p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id) + "&w=" + w;
-  const final = !d.games.some(g => g.live || g.final === false);
+  body.innerHTML = '<p class="spin">Checking the box scores…</p>';
+  let F = null; try { F = await showFacts(L); } catch(e){}
+  if (!F) { body.innerHTML = '<div class="card empty"><p class="muted" style="margin:0">The show covers the most recent week where every game is final. There isn’t one yet.</p></div>'; return; }
+  const d = L.detail, w = F.w, q = "p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id) + "&w=" + w;
+  const final = true;
   const NAMES = {DEZ: "Dez", SAM: "Sam"};
   let busy = false, msg = "", show = null, done = 0;
   const draw = () => {
     let h = '<p class="small muted" style="margin:0 0 12px">A weekly podcast about ' + esc(L.meta.name) + ', made by AI from your league’s real results. Hosts Dez and Sam, week ' + w + '.</p>';
-    if (!show) h += '<div class="card empty"><h3>Week ' + w + ' isn’t recorded yet</h3><p class="muted">' + (final ? "All games are final, so this one covers the whole week." : "Some games aren’t final yet. You can make it now, or wait until Tuesday for the full week.") + '</p><button class="btn" id="shMake"' + (busy ? " disabled" : "") + '>' + (busy ? "Writing the script…" : "Make this week’s show") + '</button></div>';
+    if (!show) h += '<div class="card empty"><h3>Week ' + w + ' isn’t recorded yet</h3><p class="muted">' + "It covers week " + w + ", the latest week with every game final, using the same box scores as Matchup recaps." + '</p><button class="btn" id="shMake"' + (busy ? " disabled" : "") + '>' + (busy ? "Writing the script…" : "Make this week’s show") + '</button></div>';
     else {
       const ready = done >= show.total;
       if (ready) h += '<div class="card"><audio controls preload="metadata" style="width:100%" src="/api/show/mp3?' + q + '&t=' + show.at + '"></audio>' + (!show.final ? '<p class="small muted" style="margin:8px 0 0">Made while games were still being played.' + (final && !show.remade ? ' <button class="linkish" id="shRemake">Remake it with final scores</button>' : "") + "</p>" : "") + "</div>";
@@ -7018,8 +7053,7 @@ async function openShow(L){
   async function make(){
     busy = true; msg = ""; draw();
     try {
-      const ctx = await buildRecapCtx(L);
-      const r = await post("/api/show/script?" + q, {dev: devId(), ctx, final, league: L.meta.name});
+      const r = await post("/api/show/script?" + q, {dev: devId(), ctx: F.ctx, final, league: L.meta.name});
       show = r.show; done = 0; busy = false; draw(); record();
     } catch(e){ busy = false; msg = e.message; draw(); }
   }
