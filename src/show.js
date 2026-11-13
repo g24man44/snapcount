@@ -13,20 +13,19 @@ const out = (data, status = 200) => new Response(JSON.stringify(data), { status,
 export const HOSTS = { DEZ: { voice: "atlas", name: "Dez" }, SAM: { voice: "thalia", name: "Sam" } };
 const SCRIPT_MODELS = ["@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/meta/llama-4-scout-17b-16e-instruct"];
 
-const SHOW_SYS = `You write the script for "The Snap Count Show", a weekly fantasy football podcast about ONE private league, hosted by two best friends who are both genuinely, loudly passionate about this league. It must sound like a real, high-energy sports podcast between friends.
+const SHOW_SYS = `You write the script for "The Snap Count Show", a weekly fantasy football podcast about ONE private league, hosted by two best friends who love this league. It must sound like two real people talking, not a radio ad.
 
 The hosts:
-- DEZ: the stats guy, but NOT calm. He gets worked up about numbers: incredulous, exasperated, gleeful when the math backs him up. He rants ("Do you know how many points were sitting on that bench?! Twenty-three! Twenty-three!"), he gloats, he groans. Think excitable analyst, not a robot.
-- SAM: pure emotion. Hypes, screams, mocks, gasps, laughs at everyone, takes everything personally, roots for the underdog, loves drama.
+- DEZ: the numbers guy. Dry wit, then genuinely worked up when the stats are absurd. Gloats when the math backs him up.
+- SAM: big personality, quick to laugh, roasts bad decisions, roots for the underdog, loves drama.
 
-Each line gets a short acting note in parentheses right after the host's name, saying HOW it's said: "(yelling, outraged)", "(cracking up)", "(fake crying)", "(gleeful, fast)", "(stunned whisper)", "(shouting over him)". Vary them constantly; nobody stays calm for long.
-You may also put these vocal sounds inside a line: <laugh> <gasp> <sigh> <shout> <scream> <short pause>. Use CAPITAL letters on a word to stress it.
-Write the emotion into the words too:
-- Use lots of exclamation points, "?!", repeated words for emphasis ("No. No no no."), stretched reactions ("Ohhh!", "Nooo!", "Come ON!"), and "..." for stunned pauses.
-- Reactions are short and constant: "Wow.", "Brutal!", "Stop it!", "You're kidding!", "Hahaha!", "Okay, okay, okay!"
-- Natural speech: contractions, "I mean", "honestly", "look", "dude", an occasional "uh" or "um". Hosts interrupt, finish each other's sentences, tease each other, and argue.
-- Most turns are one or two short sentences. Never a speech.
-- No lists, headings, square brackets, sound effects (applause, music), asterisks or emojis.
+Make it sound like a REAL podcast, not a performance:
+- Mostly normal conversation. Energy rises and falls: calm, then excited at the big moments, then laughing. Not every line is loud.
+- Real speech: contractions, "I mean", "like", "honestly", "wait", "okay so", trailing off with "...", restarting a sentence, an occasional "uh". Hosts interrupt, agree, push back, tease, and call back to earlier jokes.
+- Quick back-and-forth. Many turns are short reactions ("No way.", "Stop.", "Oh, that's bad.", "Right?!").
+- Laughter as <laugh>, never "Hahaha". Use <gasp> or <sigh> sparingly. Exclamation points only for real peaks. Capitals for one stressed word at most, rarely.
+- Each line gets a short acting note in parentheses after the host's name, saying HOW it's said, e.g. "(amused)", "(can't believe it)", "(laughing)", "(getting fired up)", "(deadpan)", "(groaning)". Vary them.
+- No lists, headings, square brackets, sound effects, asterisks or emojis.
 
 ACCURACY RULES (most important):
 - Use ONLY the facts in the league data, exactly as written. Every score, player and team name must match the data. Never invent or estimate a number, player, trade or record.
@@ -35,17 +34,17 @@ ACCURACY RULES (most important):
 - Good-natured roasting only, about fantasy decisions, never about real people's lives.
 
 Flow:
-1. SAM opens with: "This is The Snap Count Show, an AI-made recap of [league name], week [N]!" then a quick fired-up exchange.
+1. SAM opens with: "This is The Snap Count Show, an AI-made recap of [league name], week [N]!" then a quick, easy back-and-forth.
 2. Results: every game briefly, with big reactions for the closest game, the biggest blowout and the highest score.
-3. Blunder of the week: DEZ loses his mind over the bench points, SAM piles on.
+3. Blunder of the week: DEZ gets worked up over the bench points, SAM can't stop laughing.
 4. Standings: who's rising, who's in trouble.
-5. A heated disagreement about who the real contender is.
+5. A real disagreement about who the true contender is.
 6. Sign off laughing.
 
 Length: 450 to 550 words total.
 Format: every line is DEZ (acting note): text  or  SAM (acting note): text. No other text before or after.`;
 
-const keyOf = (p, lid, w) => "show4:" + p + ":" + lid + ":" + w;
+const keyOf = (p, lid, w) => "show5:" + p + ":" + lid + ":" + w;
 function parseScript(text) {
   const lines = [];
   for (const raw of String(text || "").split(/\n+/)) {
@@ -96,22 +95,25 @@ async function gemWrite(env, sys, user) {
   throw last || new Error("Gemini wrote nothing");
 }
 // One chunk of the conversation, read in one go so the two voices play off each other.
-async function gemSpeak(env, lines) {
-  const cfg = { responseModalities: ["AUDIO"], speechConfig: { multiSpeakerVoiceConfig: { speakerVoiceConfigs: ["DEZ", "SAM"].map(h => ({ speaker: NAME[h], voiceConfig: { prebuiltVoiceConfig: { voiceName: GEM_VOICES[h] } } })) } } };
-  const direction = "A loud, high-energy sports podcast between two best friends, Dez and Sam. Fast pace, big emotion, real laughs, talking over each other.";
+// Three voice pairs the owner can compare in the app; the pick is stored once ("showvoice").
+export const GEM_PAIRS = { a: { DEZ: "Puck", SAM: "Laomedeia" }, b: { DEZ: "Fenrir", SAM: "Aoede" }, c: { DEZ: "Achird", SAM: "Zephyr" } };
+const DIRECTION = "Two best friends recording their weekly fantasy football podcast. Relaxed and natural like a real conversation: they laugh for real, react, interrupt, speed up when excited and get loud only at the big moments. Never like reading a script or an announcer.";
+async function gemSpeak(env, lines, pairKey) {
+  const pair = GEM_PAIRS[pairKey] || GEM_PAIRS[(env.SNAP && await env.SNAP.get("showvoice")) || "a"] || GEM_PAIRS.a;
+  const cfg = { responseModalities: ["AUDIO"], speechConfig: { multiSpeakerVoiceConfig: { speakerVoiceConfigs: ["DEZ", "SAM"].map(h => ({ speaker: NAME[h], voiceConfig: { prebuiltVoiceConfig: { voiceName: pair[h] } } })) } } };
   let last = null;
   for (const model of GEM_TTS) {
     try {
       const contents = model.startsWith("gemini-3.8")
-        ? [{ role: "user", parts: lines.map(l => ({ text: l.t, speech_metadata: { speaker: NAME[l.s], style: (l.st ? l.st + "; " : "") + "high energy, fast, animated sports podcast host" } })) }]
-        : [{ role: "user", parts: [{ text: direction + "\n\n" + lines.map(l => NAME[l.s] + (l.st ? " (" + l.st + ")" : "") + ": " + l.t).join("\n") }] }];
+        ? [{ role: "user", parts: lines.map(l => ({ text: l.t, speech_metadata: { speaker: NAME[l.s], style: l.st || "natural, casual" } })) }]
+        : [{ role: "user", parts: [{ text: DIRECTION + "\n\n" + lines.map(l => NAME[l.s] + (l.st ? " (" + l.st + ")" : "") + ": " + l.t).join("\n") }] }];
       const r = await gemFetch(env, model, { contents, generationConfig: cfg });
       // The answer is a few MB of base64; pull it out with string search instead of parsing the whole thing.
       const txt = await r.text(), mm = txt.match(/"mimeType"\s*:\s*"([^"]+)"/), at = txt.search(/"data"\s*:\s*"/);
       if (at < 0) throw new Error("Gemini sent no audio");
       const start = txt.indexOf('"', txt.indexOf(":", at) + 1) + 1, end = txt.indexOf('"', start);
       if (end - start < 2000) throw new Error("Gemini audio too short");
-      return '{"m":' + JSON.stringify(mm ? mm[1] : "audio/L16;rate=24000") + ',"d":"' + txt.slice(start, end) + '"}';
+      return '{"x":' + JSON.stringify(model) + ',"m":' + JSON.stringify(mm ? mm[1] : "audio/L16;rate=24000") + ',"d":"' + txt.slice(start, end) + '"}';
     } catch (e) { last = e; if (e.status === 429 || e.status === 401 || e.status === 403) break; }
   }
   throw last || new Error("Gemini voices failed");
@@ -142,17 +144,32 @@ const SAMPLE = [
   ["DEZ", "Meanwhile, To Infinity And Bijan drops a hundred seventy-six. Are you kidding me?!"],
   ["SAM", "Come ON! That team is on fire!"]
 ];
+// How real hosts talk: mostly conversational, quick reactions, real laughs, one big moment.
+const NATURAL_SAMPLE = [
+  ["SAM", "warm, amused, easing in", "Alright, we're back. Dez... I have to ask. Did you see Lemon Drops this week?"],
+  ["DEZ", "half laughing, can't believe it", "Did I see it? Sam, I can't stop seeing it. They started the Cardinals defense. Negative one point seven."],
+  ["SAM", "groaning", "Oh no. Oh, no no no."],
+  ["DEZ", "building up, getting louder", "And the Bucs defense is just sitting on their bench with eighteen point three. Which, by the way... would have won them the game."],
+  ["SAM", "cracking up", "<laugh> Stop. That's so bad. They're oh-and-nine, man."],
+  ["DEZ", "dry, then genuinely excited", "Meanwhile, To Infinity And Bijan puts up a hundred seventy-six. Like... come on."],
+  ["SAM", "hyped", "That team is on fire right now. Somebody's gotta stop them."]
+];
 export async function showRoute(request, url, env) {
   const path = url.pathname;
+  if (path === "/api/show/voice" && request.method === "POST" && env.SNAP) {
+    const b = await request.json().catch(() => ({})); if (!GEM_PAIRS[b.pair]) return out({ error: "Unknown voice pair" }, 400);
+    await env.SNAP.put("showvoice", b.pair); return out({ ok: true });
+  }
   if (path === "/api/show/sample" && gemKey(env)) {
-    let j = env.SNAP ? await env.SNAP.get("showsample:g1") : null;
+    const pk = GEM_PAIRS[url.searchParams.get("pair")] ? url.searchParams.get("pair") : "a", ck = "showsample:g2:" + pk;
+    let j = env.SNAP ? await env.SNAP.get(ck) : null;
     if (!j) {
-      const ST = ["fired up, almost yelling", "outraged, ranting fast", "screaming in disbelief", "exasperated, voice rising", "cracking up laughing", "stunned, then shouting", "hyped, yelling"];
-      try { j = await gemSpeak(env, SAMPLE.map(([h, t], i) => ({ s: h, st: ST[i], t: i === 4 ? "<laugh> Oh, that's BRUTAL. Oh-and-nine, baby. Oh-and-nine!" : t }))); }
+      try { j = await gemSpeak(env, NATURAL_SAMPLE.map(([s2, st, t]) => ({ s: s2, st, t })), pk); }
       catch (e) { return out({ error: e.message }, e.status === 429 ? 429 : 502); }
-      if (env.SNAP) await env.SNAP.put("showsample:g1", j);
+      if (env.SNAP) await env.SNAP.put(ck, j);
     }
-    return new Response(j, { headers: { "content-type": "application/json", "cache-control": "no-store" } });
+    const chosen = env.SNAP ? (await env.SNAP.get("showvoice")) || "a" : "a";
+    return new Response(j.replace(/^\{/, '{"chosen":"' + chosen + '",'), { headers: { "content-type": "application/json", "cache-control": "no-store" } });
   }
   if (path === "/api/show/sample") {
     let bytes = env.SNAP ? await env.SNAP.get("showsample:v2", "arrayBuffer") : null;

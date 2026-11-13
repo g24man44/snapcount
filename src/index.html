@@ -7046,9 +7046,12 @@ async function openShow(L){
   const d = L.detail, w = F.w, q = "p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id) + "&w=" + w;
   const final = true;
   const NAMES = {DEZ: "Dez", SAM: "Sam"};
-  let busy = false, msg = "", show = null, done = 0, sampleUrl = null, sampleBusy = false, sampleErr = "", epUrl = null, epBusy = false;
+  let busy = false, msg = "", show = null, done = 0, sampleUrl = null, sampleBusy = false, sampleErr = "", epUrl = null, epBusy = false, pair = "a", chosen = null, sampleModel = "";
   const draw = () => {
-    let h = '<div class="card" style="margin-bottom:12px"><b>Hear the hosts</b><p class="small muted" style="margin:4px 0 8px">A 25-second sample of Dez and Sam.</p><div id="shSample">' + (sampleUrl ? '<audio controls autoplay style="width:100%" src="' + sampleUrl + '"></audio>' : '<button class="btn ghost" id="shSampleBtn">' + (sampleBusy ? "Recording the sample…" : "Play the sample") + '</button>') + '</div>' + (sampleErr ? '<p class="small" style="color:var(--bad);margin:6px 0 0">' + esc(sampleErr) + '</p>' : "") + '</div>';
+    const PAIRS = [["a", "Voices A"], ["b", "Voices B"], ["c", "Voices C"]];
+    let h = '<div class="card" style="margin-bottom:12px"><b>Pick the hosts’ voices</b><p class="small muted" style="margin:4px 0 8px">Three voice pairs reading the same 20 seconds. Choose the one that sounds most real; every episode after uses it.</p>'
+      + '<div class="seg">' + PAIRS.map(([k, l]) => '<button data-pair="' + k + '" aria-pressed="' + (pair === k) + '">' + l + (chosen === k ? " ✓" : "") + '</button>').join("") + '</div>'
+      + '<div id="shSample" style="margin-top:8px">' + (sampleUrl ? '<audio controls autoplay style="width:100%" src="' + sampleUrl + '"></audio>' + (sampleModel ? '<p class="small muted" style="margin:4px 0 0">Voice model: ' + esc(sampleModel) + '</p>' : "") + (chosen !== pair ? '<button class="btn" id="shUse" style="margin-top:8px">Use ' + esc(PAIRS.find(x => x[0] === pair)[1]) + ' for the show</button>' : '<p class="small" style="margin:6px 0 0">✓ The show uses these voices.</p>') : '<button class="btn ghost" id="shSampleBtn">' + (sampleBusy ? "Recording the sample…" : "Play " + PAIRS.find(x => x[0] === pair)[1]) + '</button>') + '</div>' + (sampleErr ? '<p class="small" style="color:var(--bad);margin:6px 0 0">' + esc(sampleErr) + '</p>' : "") + '</div>';
     h += '<p class="small muted" style="margin:0 0 12px">A weekly podcast about ' + esc(L.meta.name) + ', made by AI from your league’s real results. Hosts Dez and Sam, week ' + w + '.</p>';
     if (!show) h += '<div class="card empty"><h3>Week ' + w + ' isn’t recorded yet</h3><p class="muted">' + "It covers week " + w + ", the latest week with every game final, using the same box scores as Matchup recaps." + '</p><button class="btn" id="shMake"' + (busy ? " disabled" : "") + '>' + (busy ? "Writing the script…" : "Make this week’s show") + '</button></div>';
     else {
@@ -7060,6 +7063,8 @@ async function openShow(L){
     if (msg) h += '<p class="small" style="color:var(--bad);margin-top:10px">' + esc(msg) + "</p>";
     body.innerHTML = h;
     const sb = body.querySelector("#shSampleBtn"); if (sb) sb.addEventListener("click", playSample);
+    body.querySelectorAll("[data-pair]").forEach(b => b.addEventListener("click", () => { pair = b.dataset.pair; sampleUrl = null; sampleErr = ""; playSample(); }));
+    const su = body.querySelector("#shUse"); if (su) su.addEventListener("click", async () => { try { await post("/api/show/voice", {pair}); chosen = pair; } catch(e){ sampleErr = e.message; } draw(); });
     if (show && done >= show.total && show.engine === "gemini" && !epUrl && !epBusy) loadEpisode();
     const mk = body.querySelector("#shMake"); if (mk) mk.addEventListener("click", make);
     const rm = body.querySelector("#shRemake"); if (rm) rm.addEventListener("click", make);
@@ -7067,9 +7072,10 @@ async function openShow(L){
   async function playSample(){
     if (sampleBusy) return; sampleBusy = true; sampleErr = ""; draw();
     try {
-      const r = await fetch("/api/show/sample?v=3");
+      const r = await fetch("/api/show/sample?v=4&pair=" + pair);
       if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || "Couldn’t make the sample (" + r.status + ")"); }
-      sampleUrl = /json/.test(r.headers.get("content-type") || "") ? await wavFromParts([await r.json()]) : URL.createObjectURL(await r.blob());
+      if (/json/.test(r.headers.get("content-type") || "")) { const j = await r.json(); chosen = j.chosen || chosen || "a"; sampleModel = j.x || ""; sampleUrl = await wavFromParts([j]); }
+      else sampleUrl = URL.createObjectURL(await r.blob());
     } catch(e){ sampleErr = e.message; }
     sampleBusy = false; draw();
   }
