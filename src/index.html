@@ -7019,6 +7019,25 @@ async function showFacts(L){
   d.teams.slice().sort((a, b) => b.w - a.w || (b.pf || 0) - (a.pf || 0)).forEach((t, i) => lines.push((i + 1) + ". " + t.name + " " + t.w + "-" + t.l + ", " + n(t.pf || 0) + " points for"));
   return {w, ctx: lines.join("\n").replace(/\p{Extended_Pictographic}\uFE0F?/gu, "").replace(/ +/g, " ")};
 }
+// Gemini sends raw 16-bit PCM (or WAV). Stitch the parts into one WAV the phone can play and scrub.
+async function pcmOf(part){
+  const buf = new Uint8Array(await (await fetch("data:application/octet-stream;base64," + part.d)).arrayBuffer());
+  let rate = +((String(part.m).match(/rate=(\d+)/) || [])[1] || 24000), pcm = buf;
+  if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46) {
+    const dv = new DataView(buf.buffer); rate = dv.getUint32(24, true);
+    for (let o = 12; o + 8 <= buf.length;) { const id = String.fromCharCode(buf[o], buf[o + 1], buf[o + 2], buf[o + 3]), sz = dv.getUint32(o + 4, true); if (id === "data") { pcm = buf.subarray(o + 8, Math.min(buf.length, o + 8 + sz)); break; } o += 8 + sz + (sz % 2); }
+  }
+  return {pcm, rate};
+}
+async function wavFromParts(parts){
+  const got = await Promise.all(parts.map(pcmOf)), rate = got[0] ? got[0].rate : 24000;
+  const gap = new Uint8Array(Math.round(rate * 0.15) * 2), len = got.reduce((s, x) => s + x.pcm.length, 0) + gap.length * Math.max(0, got.length - 1);
+  const out = new Uint8Array(44 + len), dv = new DataView(out.buffer), w = (o, t) => [...t].forEach((c, i) => out[o + i] = c.charCodeAt(0));
+  w(0, "RIFF"); dv.setUint32(4, 36 + len, true); w(8, "WAVE"); w(12, "fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+  dv.setUint32(24, rate, true); dv.setUint32(28, rate * 2, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true); w(36, "data"); dv.setUint32(40, len, true);
+  let o = 44; got.forEach((x, i) => { if (i) { out.set(gap, o); o += gap.length; } out.set(x.pcm, o); o += x.pcm.length; });
+  return URL.createObjectURL(new Blob([out], {type: "audio/wav"}));
+}
 async function openShow(L){
   const body = openSheetShell("The Snap Count Show");
   body.innerHTML = '<p class="spin">Checking the box scores…</p>';
@@ -7027,22 +7046,39 @@ async function openShow(L){
   const d = L.detail, w = F.w, q = "p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id) + "&w=" + w;
   const final = true;
   const NAMES = {DEZ: "Dez", SAM: "Sam"};
-  let busy = false, msg = "", show = null, done = 0;
+  let busy = false, msg = "", show = null, done = 0, sampleUrl = null, sampleBusy = false, sampleErr = "", epUrl = null, epBusy = false;
   const draw = () => {
-    let h = '<div class="card" style="margin-bottom:12px"><b>Hear the hosts</b><p class="small muted" style="margin:4px 0 8px">A 25-second sample of Dez and Sam.</p><audio controls preload="none" style="width:100%" src="/api/show/sample?v=2"></audio></div>';
+    let h = '<div class="card" style="margin-bottom:12px"><b>Hear the hosts</b><p class="small muted" style="margin:4px 0 8px">A 25-second sample of Dez and Sam.</p><div id="shSample">' + (sampleUrl ? '<audio controls autoplay style="width:100%" src="' + sampleUrl + '"></audio>' : '<button class="btn ghost" id="shSampleBtn">' + (sampleBusy ? "Recording the sample…" : "Play the sample") + '</button>') + '</div>' + (sampleErr ? '<p class="small" style="color:var(--bad);margin:6px 0 0">' + esc(sampleErr) + '</p>' : "") + '</div>';
     h += '<p class="small muted" style="margin:0 0 12px">A weekly podcast about ' + esc(L.meta.name) + ', made by AI from your league’s real results. Hosts Dez and Sam, week ' + w + '.</p>';
     if (!show) h += '<div class="card empty"><h3>Week ' + w + ' isn’t recorded yet</h3><p class="muted">' + "It covers week " + w + ", the latest week with every game final, using the same box scores as Matchup recaps." + '</p><button class="btn" id="shMake"' + (busy ? " disabled" : "") + '>' + (busy ? "Writing the script…" : "Make this week’s show") + '</button></div>';
     else {
       const ready = done >= show.total;
-      if (ready) h += '<div class="card"><audio controls preload="metadata" style="width:100%" src="/api/show/mp3?' + q + '&t=' + show.at + '"></audio>' + (!show.final ? '<p class="small muted" style="margin:8px 0 0">Made while games were still being played.' + (final && !show.remade ? ' <button class="linkish" id="shRemake">Remake it with final scores</button>' : "") + "</p>" : "") + "</div>";
+      if (ready) h += '<div class="card">' + (show.engine === "gemini" ? (epUrl ? '<audio controls style="width:100%" src="' + epUrl + '"></audio>' : '<p class="spin" style="margin:0">Loading the episode…</p>') : '<audio controls preload="metadata" style="width:100%" src="/api/show/mp3?' + q + '&t=' + show.at + '"></audio>') + (!show.final ? '<p class="small muted" style="margin:8px 0 0">Made while games were still being played.' + (final && !show.remade ? ' <button class="linkish" id="shRemake">Remake it with final scores</button>' : "") + "</p>" : "") + "</div>";
       else h += '<div class="card"><b>Recording…</b><div class="cbar" style="margin:10px 0 6px"><span style="width:' + Math.round(done / show.total * 100) + '%"></span></div><p class="small muted" style="margin:0">' + done + " of " + show.total + ' parts. Keep this open; it takes about a minute. If you leave, it picks up where it stopped next time anyone opens it.</p></div>';
-      h += '<details class="card" style="margin-top:12px"><summary><b>Read the script</b></summary><div class="shscript">' + show.lines.map(l => '<p><b>' + NAMES[l.s] + ':</b> ' + esc(l.t) + "</p>").join("") + "</div></details>";
+      h += '<details class="card" style="margin-top:12px"><summary><b>Read the script</b></summary><div class="shscript">' + show.lines.map(l => '<p><b>' + NAMES[l.s] + ':</b> ' + (l.st ? '<i class="muted">(' + esc(l.st) + ')</i> ' : "") + esc(String(l.t).replace(/<[^>]{1,20}>/g, "").replace(/\|/g, "")) + "</p>").join("") + "</div></details>";
     }
     if (msg) h += '<p class="small" style="color:var(--bad);margin-top:10px">' + esc(msg) + "</p>";
     body.innerHTML = h;
+    const sb = body.querySelector("#shSampleBtn"); if (sb) sb.addEventListener("click", playSample);
+    if (show && done >= show.total && show.engine === "gemini" && !epUrl && !epBusy) loadEpisode();
     const mk = body.querySelector("#shMake"); if (mk) mk.addEventListener("click", make);
     const rm = body.querySelector("#shRemake"); if (rm) rm.addEventListener("click", make);
   };
+  async function playSample(){
+    if (sampleBusy) return; sampleBusy = true; sampleErr = ""; draw();
+    try {
+      const r = await fetch("/api/show/sample?v=3");
+      if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || "Couldn’t make the sample (" + r.status + ")"); }
+      sampleUrl = /json/.test(r.headers.get("content-type") || "") ? await wavFromParts([await r.json()]) : URL.createObjectURL(await r.blob());
+    } catch(e){ sampleErr = e.message; }
+    sampleBusy = false; draw();
+  }
+  async function loadEpisode(){
+    epBusy = true;
+    try { const parts = []; for (let i = 0; i < show.total; i++) parts.push(await api("/api/show/part?" + q + "&i=" + i)); epUrl = await wavFromParts(parts); }
+    catch(e){ msg = "Couldn’t load the episode: " + e.message; }
+    epBusy = false; draw();
+  }
   const record = async () => {
     for (let i = 0; i < show.total; i++) {
       if ($("#sheet").hidden) return;

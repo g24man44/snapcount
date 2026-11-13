@@ -1,9 +1,11 @@
-// The league show: a weekly two-host audio recap of one league, written from the league's real results and
-// read by two free Cloudflare voices (Aura-2). Made once per league per week and shared in the app (not posted anywhere):
-// the script is written in one request, then the phone asks for each spoken line in turn (so no single request
-// runs too long), each line is stored once, and /api/show/mp3 plays the whole episode back as one file.
-// Cost on the free plan: ~400 neurons for the script and ~2.7 per spoken character (~8,000 for an episode).
-
+// The league show: a weekly two-host audio recap of one league, written from the league's real results.
+// Made once per league per week and shared in the app (not posted anywhere).
+// Engines, best first:
+//  - Gemini (owner's GEMINI_KEY, free tier): writes the script and reads it as a real two-person conversation,
+//    with a style note per line ("yelling", "laughing") and vocal tags (<laugh>, <gasp>, <shout>). Recorded in a
+//    few chunks; each chunk is stored as Gemini returned it and the phone stitches them into one WAV.
+//  - Deepgram (owner's DEEPGRAM_KEY): Flux voices at max expressivity, one request per line, stored as MP3.
+//  - Cloudflare Workers AI as the last resort for the script (uses the daily neuron allowance).
 const okLid = (p, l) => ["flea", "sleeper", "espn", "mfl"].includes(p) && /^[A-Za-z0-9_-]{1,40}$/.test(l);
 const out = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
 // Deepgram Aura-2: the most expressive voices on Workers AI (pacing, emphasis and filler words follow the text).
@@ -17,12 +19,14 @@ The hosts:
 - DEZ: the stats guy, but NOT calm. He gets worked up about numbers: incredulous, exasperated, gleeful when the math backs him up. He rants ("Do you know how many points were sitting on that bench?! Twenty-three! Twenty-three!"), he gloats, he groans. Think excitable analyst, not a robot.
 - SAM: pure emotion. Hypes, screams, mocks, gasps, laughs at everyone, takes everything personally, roots for the underdog, loves drama.
 
-The voices read your words literally, so ALL emotion has to be in the words and punctuation:
+Each line gets a short acting note in parentheses right after the host's name, saying HOW it's said: "(yelling, outraged)", "(cracking up)", "(fake crying)", "(gleeful, fast)", "(stunned whisper)", "(shouting over him)". Vary them constantly; nobody stays calm for long.
+You may also put these vocal sounds inside a line: <laugh> <gasp> <sigh> <shout> <scream> <short pause>. Use CAPITAL letters on a word to stress it.
+Write the emotion into the words too:
 - Use lots of exclamation points, "?!", repeated words for emphasis ("No. No no no."), stretched reactions ("Ohhh!", "Nooo!", "Come ON!"), and "..." for stunned pauses.
 - Reactions are short and constant: "Wow.", "Brutal!", "Stop it!", "You're kidding!", "Hahaha!", "Okay, okay, okay!"
 - Natural speech: contractions, "I mean", "honestly", "look", "dude", an occasional "uh" or "um". Hosts interrupt, finish each other's sentences, tease each other, and argue.
 - Most turns are one or two short sentences. Never a speech.
-- No lists, headings, stage directions, brackets, sound effects, asterisks or emojis.
+- No lists, headings, square brackets, sound effects (applause, music), asterisks or emojis.
 
 ACCURACY RULES (most important):
 - Use ONLY the facts in the league data, exactly as written. Every score, player and team name must match the data. Never invent or estimate a number, player, trade or record.
@@ -39,21 +43,18 @@ Flow:
 6. Sign off laughing.
 
 Length: 450 to 550 words total.
-Format: every line starts with DEZ: or SAM: and nothing else. No other text before or after.`;
+Format: every line is DEZ (acting note): text  or  SAM (acting note): text. No other text before or after.`;
 
-const keyOf = (p, lid, w) => "show3:" + p + ":" + lid + ":" + w;
+const keyOf = (p, lid, w) => "show4:" + p + ":" + lid + ":" + w;
 function parseScript(text) {
   const lines = [];
   for (const raw of String(text || "").split(/\n+/)) {
-    const m = raw.replace(/\*\*/g, "").match(/^\s*(DEZ|SAM)\s*:\s*(.+)$/i);
+    const m = raw.replace(/\*\*/g, "").match(/^\s*(DEZ|SAM)\s*(?:\(([^)]{1,80})\))?\s*:\s*(?:\(([^)]{1,80})\)\s*)?(.+)$/i);
     if (!m) { if (lines.length && raw.trim() && !/^\s*[\[(]/.test(raw)) lines[lines.length - 1].t += " " + raw.trim(); continue; }
-    const t = m[2].replace(/\[[^\]]*\]|\([^)]*(laugh|music|sfx|pause)[^)]*\)/gi, "").replace(/[*_#`]/g, "").trim();
-    if (t) lines.push({ s: m[1].toUpperCase(), t: t.slice(0, 600) });
+    const t = m[4].replace(/\[[^\]]*\]/g, "").replace(/[*_#`]/g, "").trim();
+    if (t) lines.push({ s: m[1].toUpperCase(), st: String(m[2] || m[3] || "").trim().slice(0, 80), t: t.slice(0, 600) });
   }
-  // Merge back-to-back turns by the same host so each spoken part sounds continuous.
-  const merged = [];
-  lines.forEach(l => { const last = merged[merged.length - 1]; if (last && last.s === l.s && (last.t + " " + l.t).length < 600) last.t += " " + l.t; else merged.push(l); });
-  return merged.slice(0, 60);
+  return lines.slice(0, 70);
 }
 
 // No fallback to a flatter voice: if today's free voice credit runs out, the episode waits and finishes after
@@ -68,9 +69,59 @@ export async function deepgramSpeak(env, text, voice, host) {
   if (host && FLUX[host]) { const f = await get("https://api.deepgram.com/v2/speak?model=" + FLUX[host] + "&expressivity=" + FLUX_EXPRESSIVITY + "&speed=" + FLUX_SPEED); if (f) return f; }
   return get("https://api.deepgram.com/v1/speak?model=aura-2-" + voice + "-en&encoding=mp3&speed=1.15");
 }
+// Deepgram reads tags literally, so it gets the line without them.
+const plain = t => String(t).replace(/<[^>]{1,20}>/g, "").replace(/\|([^|]{1,60})\|/g, "$1").replace(/\p{Extended_Pictographic}\uFE0F?/gu, "").replace(/ +/g, " ").trim();
+
+/* ---------- Gemini ---------- */
+const GEM = "https://generativelanguage.googleapis.com/v1beta/models/";
+const GEM_TEXT = ["gemini-3.8-flash", "gemini-2.5-flash"];
+const GEM_TTS = ["gemini-3.8-flash-tts", "gemini-3.1-flash-tts-preview", "gemini-2.5-flash-preview-tts"];
+export const GEM_VOICES = { DEZ: "Fenrir", SAM: "Zephyr" }; // Fenrir: "excitable"; Zephyr: "bright"
+const NAME = { DEZ: "Dez", SAM: "Sam" };
+const gemKey = env => String(env.GEMINI_KEY || "").trim();
+async function gemFetch(env, model, body) {
+  const r = await fetch(GEM + model + ":generateContent", { method: "POST", headers: { "x-goog-api-key": gemKey(env), "content-type": "application/json" }, body: JSON.stringify(body) });
+  if (!r.ok) { let m = ""; try { const j = await r.json(); m = (j.error && j.error.message) || ""; } catch (e) {} const err = new Error("Gemini " + r.status + (m ? ": " + m.slice(0, 160) : "")); err.status = r.status; throw err; }
+  return r;
+}
+async function gemWrite(env, sys, user) {
+  let last = null;
+  for (const model of GEM_TEXT) {
+    try {
+      const j = await (await gemFetch(env, model, { systemInstruction: { parts: [{ text: sys }] }, contents: [{ role: "user", parts: [{ text: user }] }], generationConfig: { temperature: 0.9, maxOutputTokens: 6000 } })).json();
+      const t = ((j.candidates || [])[0] || {}).content; const txt = ((t && t.parts) || []).filter(x => !x.thought && x.text).map(x => x.text).join("\n");
+      if (txt) return txt;
+    } catch (e) { last = e; if (e.status && e.status !== 404 && e.status !== 400) break; }
+  }
+  throw last || new Error("Gemini wrote nothing");
+}
+// One chunk of the conversation, read in one go so the two voices play off each other.
+async function gemSpeak(env, lines) {
+  const cfg = { responseModalities: ["AUDIO"], speechConfig: { multiSpeakerVoiceConfig: { speakerVoiceConfigs: ["DEZ", "SAM"].map(h => ({ speaker: NAME[h], voiceConfig: { prebuiltVoiceConfig: { voiceName: GEM_VOICES[h] } } })) } } };
+  const direction = "A loud, high-energy sports podcast between two best friends, Dez and Sam. Fast pace, big emotion, real laughs, talking over each other.";
+  let last = null;
+  for (const model of GEM_TTS) {
+    try {
+      const contents = model.startsWith("gemini-3.8")
+        ? [{ role: "user", parts: lines.map(l => ({ text: l.t, speech_metadata: { speaker: NAME[l.s], style: (l.st ? l.st + "; " : "") + "high energy, fast, animated sports podcast host" } })) }]
+        : [{ role: "user", parts: [{ text: direction + "\n\n" + lines.map(l => NAME[l.s] + (l.st ? " (" + l.st + ")" : "") + ": " + l.t).join("\n") }] }];
+      const r = await gemFetch(env, model, { contents, generationConfig: cfg });
+      // The answer is a few MB of base64; pull it out with string search instead of parsing the whole thing.
+      const txt = await r.text(), mm = txt.match(/"mimeType"\s*:\s*"([^"]+)"/), at = txt.search(/"data"\s*:\s*"/);
+      if (at < 0) throw new Error("Gemini sent no audio");
+      const start = txt.indexOf('"', txt.indexOf(":", at) + 1) + 1, end = txt.indexOf('"', start);
+      if (end - start < 2000) throw new Error("Gemini audio too short");
+      return '{"m":' + JSON.stringify(mm ? mm[1] : "audio/L16;rate=24000") + ',"d":"' + txt.slice(start, end) + '"}';
+    } catch (e) { last = e; if (e.status === 429 || e.status === 401 || e.status === 403) break; }
+  }
+  throw last || new Error("Gemini voices failed");
+}
+// Groups of turns, about 30 seconds each, so every chunk is one natural stretch of conversation.
+function chunk(lines) { const out = []; let cur = [], n = 0; lines.forEach((l, i) => { if (cur.length && (n + l.t.length > 650 || cur.length >= 8)) { out.push(cur); cur = []; n = 0; } cur.push(i); n += l.t.length; }); if (cur.length) out.push(cur); return out; }
+
 async function speak(env, line) {
   const voice = (HOSTS[line.s] || HOSTS.DEZ).voice;
-  const text = line.t.replace(/\p{Extended_Pictographic}\uFE0F?/gu, "").replace(/ +/g, " ").trim();
+  const text = plain(line.t);
   // Owner's own Deepgram account (free signup credit) first, so the show doesn't use the Cloudflare AI allowance.
   const dg = await deepgramSpeak(env, text, voice, line.s);
   if (dg) return dg;
@@ -93,6 +144,16 @@ const SAMPLE = [
 ];
 export async function showRoute(request, url, env) {
   const path = url.pathname;
+  if (path === "/api/show/sample" && gemKey(env)) {
+    let j = env.SNAP ? await env.SNAP.get("showsample:g1") : null;
+    if (!j) {
+      const ST = ["fired up, almost yelling", "outraged, ranting fast", "screaming in disbelief", "exasperated, voice rising", "cracking up laughing", "stunned, then shouting", "hyped, yelling"];
+      try { j = await gemSpeak(env, SAMPLE.map(([h, t], i) => ({ s: h, st: ST[i], t: i === 4 ? "<laugh> Oh, that's BRUTAL. Oh-and-nine, baby. Oh-and-nine!" : t }))); }
+      catch (e) { return out({ error: e.message }, e.status === 429 ? 429 : 502); }
+      if (env.SNAP) await env.SNAP.put("showsample:g1", j);
+    }
+    return new Response(j, { headers: { "content-type": "application/json", "cache-control": "no-store" } });
+  }
   if (path === "/api/show/sample") {
     let bytes = env.SNAP ? await env.SNAP.get("showsample:v2", "arrayBuffer") : null;
     if (!bytes) {
@@ -127,11 +188,17 @@ export async function showRoute(request, url, env) {
     return new Response(all, { headers: Object.assign({}, head, { "content-length": String(total) }) });
   }
 
+  if (path === "/api/show/part") {
+    const i = Number(url.searchParams.get("i")), j = await env.SNAP.get(key + ":g" + i);
+    return j ? new Response(j, { headers: { "content-type": "application/json", "cache-control": "public, max-age=86400" } }) : out({ error: "Not recorded yet" }, 404);
+  }
+  const view = async show => {
+    const gem = show.engine === "gemini", done = (await env.SNAP.list({ prefix: key + (gem ? ":g" : ":a") })).keys.length;
+    return { lines: show.lines, engine: show.engine || "deepgram", final: show.final, at: show.at, done, total: gem ? show.parts.length : show.lines.length, league: show.league, remade: !!show.remade };
+  };
   if (request.method === "GET") {
     const show = await env.SNAP.get(key, "json");
-    if (!show) return out({ show: null });
-    const done = (await env.SNAP.list({ prefix: key + ":a" })).keys.length;
-    return out({ show: { lines: show.lines, final: show.final, at: show.at, done, total: show.lines.length, league: show.league, remade: !!show.remade } });
+    return out({ show: show ? await view(show) : null });
   }
 
   const b = await request.json().catch(() => ({}));
@@ -140,7 +207,7 @@ export async function showRoute(request, url, env) {
   if (path === "/api/show/script") {
     const old = await env.SNAP.get(key, "json");
     // One episode per league per week; it can be remade once if it was made while games were still going.
-    if (old && !(old.final === false && b.final === true && !old.remade)) return out({ show: { lines: old.lines, final: old.final, at: old.at, total: old.lines.length } });
+    if (old && !(old.final === false && b.final === true && !old.remade)) return out({ show: await view(old) });
     const data = String(b.ctx || "").slice(0, 14000);
     if (data.length < 80) return out({ error: "Not enough league data to make a show." }, 400);
     // Fact check: every number spoken must appear in the league data (small counts like weeks and records
@@ -148,13 +215,17 @@ export async function showRoute(request, url, env) {
     const allowed = new Set();
     for (const m of data.matchAll(/\d+(?:\.\d+)?/g)) { const x = Number(m[0]); allowed.add(m[0]); allowed.add(String(Math.round(x))); allowed.add(String(Math.floor(x))); allowed.add(x.toFixed(1)); }
     const badNums = ls => ls.flatMap(l => (l.t.match(/\d+(?:\.\d+)?/g) || []).filter(n => Number(n) > 20 && !allowed.has(n)));
-    let best = null, lastErr = null;
+    let best = null, lastErr = null, useCf = false;
     for (let tries = 0; tries < 3 && !(best && !best.bad.length); tries++) {
       const model = SCRIPT_MODELS[tries === 2 ? 1 : 0];
       const fix = best && best.bad.length ? "\n\nYour last draft used numbers that are NOT in the data: " + [...new Set(best.bad)].slice(0, 8).join(", ") + ". Use only numbers that appear in the data." : "";
       try {
-        const r = await env.AI.run(model, { messages: [{ role: "system", content: SHOW_SYS }, { role: "user", content: "LEAGUE DATA:\n" + data + "\n\nWrite the script now." + fix }], max_tokens: 1800, temperature: 0.8 });
-        const txt = String((r && (r.response ?? (r.choices && r.choices[0] && r.choices[0].message && r.choices[0].message.content))) ?? "");
+        let txt = "";
+        if (gemKey(env) && !useCf) { try { txt = await gemWrite(env, SHOW_SYS, "LEAGUE DATA:\n" + data + "\n\nWrite the script now." + fix); } catch (e) { lastErr = e; useCf = true; } }
+        if (!txt) {
+          const r = await env.AI.run(model, { messages: [{ role: "system", content: SHOW_SYS }, { role: "user", content: "LEAGUE DATA:\n" + data + "\n\nWrite the script now." + fix }], max_tokens: 1800, temperature: 0.8 });
+          txt = String((r && (r.response ?? (r.choices && r.choices[0] && r.choices[0].message && r.choices[0].message.content))) ?? "");
+        }
         const ls = parseScript(txt);
         if (ls.length >= 12) { const bad = badNums(ls); if (!best || bad.length < best.bad.length) best = { lines: ls, bad }; }
         else lastErr = new Error("short script (" + ls.length + " lines)");
@@ -166,16 +237,28 @@ export async function showRoute(request, url, env) {
       if (/4006|neuron|allocation|quota|limit/i.test(m)) return out({ error: "Today’s free AI allowance is used up. Try again after 7 PM Eastern, when it resets.", wait: true }, 503);
       return out({ error: "The script writer came back short. Try again in a minute. (" + m.slice(0, 100) + ")" }, 502);
     }
-    if (old) { for (let i = 0; i < old.lines.length; i++) await env.SNAP.delete(key + ":a" + i); }
-    const show = { lines, final: !!b.final, at: Date.now(), league: String(b.league || "").slice(0, 80), remade: !!old };
+    if (old) { for (let i = 0; i < old.lines.length; i++) { await env.SNAP.delete(key + ":a" + i); await env.SNAP.delete(key + ":g" + i); } }
+    const engine = gemKey(env) ? "gemini" : "deepgram";
+    const show = { lines, engine, parts: engine === "gemini" ? chunk(lines) : null, final: !!b.final, at: Date.now(), league: String(b.league || "").slice(0, 80), remade: !!old };
     await env.SNAP.put(key, JSON.stringify(show), { expirationTtl: 120 * 86400 });
-    return out({ show: { lines, final: show.final, at: show.at, total: lines.length } });
+    return out({ show: Object.assign(await view(show), { done: 0 }) });
   }
 
   if (path === "/api/show/line") {
     const show = await env.SNAP.get(key, "json");
     if (!show) return out({ error: "No script yet" }, 404);
     const i = Number(b.i);
+    if (show.engine === "gemini") {
+      if (!Number.isInteger(i) || i < 0 || i >= show.parts.length) return out({ error: "Bad part" }, 400);
+      const gk = key + ":g" + i;
+      if (!(await env.SNAP.get(gk))) {
+        let j;
+        try { j = await gemSpeak(env, show.parts[i].map(n => show.lines[n])); }
+        catch (e) { return out({ error: e.status === 429 ? "Gemini’s free voice limit for today is used up. Open this again tomorrow and it picks up where it stopped." : "Gemini voices: " + e.message, wait: e.status === 429 }, e.status === 429 ? 429 : 502); }
+        await env.SNAP.put(gk, j, { expirationTtl: 120 * 86400 });
+      }
+      return out({ ok: true });
+    }
     if (!Number.isInteger(i) || i < 0 || i >= show.lines.length) return out({ error: "Bad line" }, 400);
     const ak = key + ":a" + i;
     if (!(await env.SNAP.get(ak, "arrayBuffer"))) {

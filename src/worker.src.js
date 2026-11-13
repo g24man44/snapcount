@@ -373,6 +373,14 @@ async function healthCheck(env) {
     const r = await fetch("https://api.deepgram.com/v2/speak?model=flux-cole-en&expressivity=2&speed=1.15", { method: "POST", headers: { Authorization: "Token " + key, "Content-Type": "application/json" }, body: JSON.stringify({ text: "Okay." }) });
     if (!r.ok) { const t = (await r.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 120); throw new Error("Deepgram said HTTP " + r.status + (r.status === 401 ? " (key not accepted)" : r.status === 402 || r.status === 403 ? " (key lacks permission or credit)" : "") + (t ? ": " + t : "")); }
   });
+  if (env.GEMINI_KEY) await check("Show (Gemini)", async () => {
+    const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", { headers: { "x-goog-api-key": String(env.GEMINI_KEY).trim() } });
+    if (!r.ok) throw new Error("Gemini said HTTP " + r.status + (r.status === 400 || r.status === 403 ? " (key not accepted)" : ""));
+    const names = ((await r.json()).models || []).map(m => m.name);
+    const tts = names.filter(n => /tts/.test(n)).map(n => n.replace("models/", ""));
+    if (!tts.length) throw new Error("key works, but no Gemini voice models are available to it");
+    return tts.slice(0, 3).join(", ");
+  });
   await check("Storage", async () => { if (!env.SNAP) throw new Error("no storage"); await env.SNAP.put("health:last", JSON.stringify({ at: t0, res })); const back = await env.SNAP.get("health:last", "json"); if (!back || back.at !== t0) throw new Error("write did not read back (daily limit?)"); });
   const bad = res.filter(r => !r.ok);
   try { await env.SNAP.put("health:last", JSON.stringify({ at: t0, res })); } catch (e) {}
