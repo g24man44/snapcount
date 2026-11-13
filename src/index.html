@@ -280,6 +280,7 @@ form.add{display:flex;flex-direction:column;gap:10px}
 .chatin{display:flex;gap:8px;align-items:flex-end;padding-top:8px;border-top:1px solid var(--line)}.chatin textarea{flex:1;resize:none;border-radius:18px;padding:9px 14px;min-height:40px;max-height:140px;font:inherit}
 .chatas{margin:6px 2px 0}.linkish{background:none;border:0;padding:0;color:var(--accent);font:inherit;text-decoration:underline;cursor:pointer}.chatname{width:12em;padding:2px 6px;font:inherit}
 .copyrow{display:flex;gap:8px}.copyrow input{flex:1;min-width:0;font-size:.8rem}.gmsteps .card{margin-bottom:10px}.gmsteps p{margin:6px 0 8px}
+.updbar{display:block;width:100%;margin:0 0 10px;padding:10px 14px;border:0;border-radius:12px;background:var(--accent);color:#111;font:inherit;font-weight:650;cursor:pointer}.updbar[hidden]{display:none}
 .usestats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0}.usestats div{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px;text-align:center}.usestats b{display:block;font-size:1.35rem}.usestats span{font-size:.75rem;color:var(--muted)}
 .usebars{display:flex;align-items:flex-end;gap:3px;height:140px;padding:10px 10px 22px}.usebars .ub{flex:1;max-width:28px;height:100%;position:relative;display:flex;align-items:flex-end}.usebars .ub i{position:absolute;bottom:0;left:0;right:0;background:var(--accent);border-radius:3px 3px 0 0;opacity:.35}.usebars .ub i.new{opacity:1}.usebars .ub span{position:absolute;bottom:-18px;left:0;right:0;text-align:center;font-size:.6rem;color:var(--muted)}
 .rulestext{white-space:normal;line-height:1.55}
@@ -786,6 +787,7 @@ path.vho{stroke:var(--ok);stroke-dasharray:4 3}
     <div class="brand"><img class="logo" src="/icon-192.png" alt=""><h1>Snap Count</h1></div>
     <div class="hright"><span class="wk" id="wk"></span><button type="button" class="coachfab" id="coachFab" aria-label="Ask the AI coach"><i class=ic-spark aria-hidden=true></i>Coach</button><button class="iconbtn" id="gearBtn" aria-label="Accounts" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg></button></div>
   </header>
+  <button type="button" id="updBar" class="updbar" hidden onclick="location.reload()">New version of Snap Count ready. Tap to update.</button>
   <main id="view"></main>
   <footer>Live data from Sleeper, Fleaflicker, ESPN and MyFantasyLeague. Trade values blend FantasyCalc trades, FantasyPros expert rankings and this season’s production.</footer>
 </div>
@@ -7202,6 +7204,22 @@ if (readCalcLink()) cur.tab = "calc";
 try { const go = new URLSearchParams(location.search).get("go"); if (["news", "trade", "edge", "alerts", "calc"].includes(go)) cur.tab = go; if (go === "coach") goCoach = true; if (go) history.replaceState(null, "", location.pathname); } catch(e){}
 document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === navTab(cur.tab)));
 document.addEventListener("visibilitychange", () => { if (!document.hidden) try { navigator.clearAppBadge && navigator.clearAppBadge(); } catch(e){} });
+// Installed apps can sit open in the background for days. When you come back to it, check for a new version and
+// reload into it, unless you're in the middle of typing something.
+const BUILD = "__BUILD__";
+let lastVerCheck = Date.now();
+async function checkVersion(){
+  if (Date.now() - lastVerCheck < 60000) return; lastVerCheck = Date.now();
+  try {
+    const j = await (await fetch("/api/version", {cache: "no-store"})).json();
+    if (!j.build || j.build === BUILD) return;
+    const a = document.activeElement, typing = a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.value;
+    if (typing || !$("#sheet").hidden) { const b = $("#updBar"); if (b) b.hidden = false; return; }
+    location.reload();
+  } catch(e){}
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden) checkVersion(); });
+setInterval(() => { if (!document.hidden) checkVersion(); }, 15 * 60000);
 render();
 async function refreshLive(){
   if (document.hidden || !$("#sheet").hidden || document.activeElement && document.activeElement.tagName === "SELECT") return;
