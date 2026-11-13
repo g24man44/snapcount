@@ -1517,7 +1517,7 @@ async function loadFreeAgents(L, pos){
     const list = await faList(L, pos);
     if (token !== cur.faToken || !el()) return;
     if (!list.length) { el().innerHTML = '<p class="muted">No free agents found' + (pos !== "ALL" ? " at " + pos : "") + ".</p>"; return; }
-    list.forEach(p => { p.extra = p.avg != null ? '<small class="muted"> · ' + fmt(p.avg) + " per game</small>" : ""; p.act = p.fl ? extBtn(fleaPlayerUrl(p), "Add in Fleaflicker") : extBtn(waiverUrl(L), "Add in " + siteName(L)); if (p.owned != null) p.extra += '<small class="muted"> · ' + Math.round(p.owned) + "% rostered on ESPN</small>"; });
+    list.forEach(p => { p.extra = p.avg != null ? '<small class="muted"> · ' + fmt(p.avg) + " per game</small>" : ""; p.act = p.fl ? '<button type="button" class="btn" data-ffadd="' + leagues.indexOf(L) + '"><i class=ic-pencil aria-hidden=true></i> Add to my team</button>' + extBtn(fleaPlayerUrl(p), "Open in Fleaflicker", true) : extBtn(waiverUrl(L), "Add in " + siteName(L)); if (p.owned != null) p.extra += '<small class="muted"> · ' + Math.round(p.owned) + "% rostered on ESPN</small>"; });
     el().innerHTML = '<p class="small muted" style="margin:10px 0 6px">Ranked by season points' + (L.meta.platform === "sleeper" || L.meta.platform === "espn" ? " (" + ({ppr:"PPR", half:"half PPR", std:"standard"}[L.detail.scoring] || "PPR") + ")" : L.meta.platform === "mfl" ? " (PPR, from Sleeper stats)" : "") + '</p><ul class="plist">' + list.map(p => playerRow(p, fmt(p.tot))).join("") + "</ul>";
     wireRows(el());
   } catch(e){ if (el()) el().innerHTML = '<div class="err">Couldn’t load free agents: ' + esc(e.message) + "</div>"; }
@@ -1567,6 +1567,7 @@ async function openPlayer(pl){
   p.innerHTML = '<button class="back" id="closeSheet">Close</button><div class="shead">' + avatar(pl).replace('class="av"', 'class="av xl"') + '<div><h2>' + esc(pl.name) + injChip(pl.inj) + '</h2><p class="muted small" style="margin:0">' + posTag(pl) + gameLine(pl.team) + (pl.injPart ? " · " + esc(pl.injPart) : "") + '</p><div class="chips" style="margin-top:6px">' + envChips(pl.team) + "</div></div></div>" + stats + (pl.act || pl.fl ? '<div class="actions">' + (pl.act || "") + (pl.fl && !pl.act ? extBtn(fleaPlayerUrl(pl), "Open in Fleaflicker") : "") + "</div>" : "") + (pl.keeper ? '<p class="small muted" style="margin:8px 2px 0">Marked as a keeper on his Fleaflicker roster.</p>' : "") + fleaNoteCard(pl) + injSection(pl) + '<button type="button" class="btn ghost" id="pCmp" style="width:100%;margin-top:12px"><i class=ic-scale aria-hidden=true></i> Compare with other players</button><h3>Game log</h3><div id="plog"><p class="spin">Loading game log…</p></div><h3>Latest news</h3><div id="pnews"><p class="spin">Loading news…</p></div>';
   sh.hidden = false;
   p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+  const ffa = p.querySelector("[data-ffadd]"); if (ffa) ffa.addEventListener("click", () => openFleaAdd(leagues[+ffa.dataset.ffadd], pl));
   const cb = p.querySelector("#pCmp"); if (cb) cb.addEventListener("click", async () => { cb.disabled = true; const ok = await addToCompare(pl).catch(() => false); if (ok) openCompare(); else { cb.textContent = "Couldn’t find him in the player list"; } });
   const lg = p.querySelector("#plog"); if (lg) drawGameLog(lg, pl).catch(() => { lg.innerHTML = '<p class="muted small">Couldn’t load the game log.</p>'; });
   drawValueCard(p, pl).catch(() => {});
@@ -4444,6 +4445,51 @@ async function openPlanner(){
 
 /* ---------- lineup editor: set your lineup from the app ---------- */
 const ESPN_SLOT_ID = {QB: 0, RB: 2, WR: 4, TE: 6, FLEX: 23, SUPER_FLEX: 7, REC_FLEX: 5, WRRB_FLEX: 3, K: 17, "D/ST": 16, DEF: 16};
+function fleaCookie(){ try { return localStorage.getItem(KEY + ".ffc") || ""; } catch(e){ return ""; } }
+function setFleaCookie(v){ try { if (v) localStorage.setItem(KEY + ".ffc", v); else localStorage.removeItem(KEY + ".ffc"); } catch(e){} }
+const FLEA_SLOT = {FLEX: "RB/WR/TE", SUPER_FLEX: "QB/RB/WR/TE", REC_FLEX: "WR/TE", WRRB_FLEX: "RB/WR"};
+function fleaSignInHTML(why){ return '<div class="card stackc" style="margin-top:12px;gap:8px"><p class="small" style="margin:0"><b>Sign in to Fleaflicker</b> ' + esc(why) + ' Your password goes straight to Fleaflicker once; only the sign-in cookie is kept, on this phone.</p><input id="ffE" type="email" autocomplete="username" placeholder="Fleaflicker email" aria-label="Fleaflicker email"><input id="ffP" type="password" autocomplete="current-password" placeholder="Fleaflicker password" aria-label="Fleaflicker password"><button type="button" class="btn" id="ffIn">Sign in</button></div>'; }
+function wireFleaSignIn(root, done){
+  const b = root.querySelector("#ffIn"); if (!b) return;
+  b.addEventListener("click", async () => { b.disabled = true; b.textContent = "Signing in…";
+    try { const r = await post("/api/flea-login", {email: root.querySelector("#ffE").value.trim(), password: root.querySelector("#ffP").value}); setFleaCookie(r.cookie); done("✓ Signed in to Fleaflicker."); }
+    catch(e){ done(e.message); } });
+}
+async function fleaCall(path, body){
+  const r = await fetch(path, {method: "POST", headers: {"content-type": "application/json", "x-flea-cookie": fleaCookie()}, body: JSON.stringify(body)});
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { if (j.login) setFleaCookie(""); throw new Error(j.error || "Fleaflicker answered " + r.status); }
+  return j;
+}
+async function openFleaAdd(L, pl){
+  const body = openSheetShell("Add " + pl.name);
+  const me = L.detail.teams.find(t => t.mine); if (!me) { body.innerHTML = '<p class="muted">Pick your team in this league first.</p>'; return; }
+  await rosterFor(L, me).catch(() => {});
+  let msg = "", busy = false, drop = "";
+  const roster = me.roster.filter(x => x.name && x.slot !== "ir").slice().sort((a, b) => (a.avg ?? -1) - (b.avg ?? -1));
+  const draw = () => {
+    let h = "";
+    if (!fleaCookie()) h += fleaSignInHTML("to add players from here.");
+    else {
+      h += '<p class="small muted" style="margin:0 0 8px">Drop someone to make room, or keep everyone if you have an open spot. If he’s on waivers, this places a claim instead.</p><div class="card">'
+        + '<label class="acct duesrow"><span>Don’t drop anyone</span><input type="radio" name="ffDrop" value=""' + (drop ? "" : " checked") + '></label>'
+        + roster.map(x => '<label class="acct duesrow"><span>' + esc(x.name) + ' <span class="small muted">' + esc(x.pos) + (x.avg != null ? " · " + fmt(x.avg) + " per game" : "") + (x.slot === "start" ? " · starting" : "") + '</span></span><input type="radio" name="ffDrop" value="' + esc(x.id) + '"' + (drop === x.id ? " checked" : "") + '></label>').join("") + '</div>'
+        + '<button type="button" class="btn" id="ffGo" style="width:100%;margin-top:12px"' + (busy ? " disabled" : "") + '>' + (busy ? "Sending to Fleaflicker…" : drop ? "Add " + esc(pl.name) + " and drop " + esc((roster.find(x => x.id === drop) || {}).name || "") : "Add " + esc(pl.name)) + '</button>'
+        + '<button type="button" class="icon" id="ffOut" style="margin-top:10px">Sign out of Fleaflicker</button>';
+    }
+    if (msg) h += '<p class="small" style="margin:10px 2px 0;' + (/^✓/.test(msg) ? "color:var(--ok)" : "color:var(--bad)") + '">' + esc(msg) + "</p>";
+    body.innerHTML = h;
+    wireFleaSignIn(body, m => { msg = m; draw(); });
+    body.querySelectorAll("[name=ffDrop]").forEach(r => r.addEventListener("change", () => { drop = r.value; draw(); }));
+    const o = body.querySelector("#ffOut"); if (o) o.addEventListener("click", () => { setFleaCookie(""); msg = ""; draw(); });
+    const g = body.querySelector("#ffGo"); if (g) g.addEventListener("click", async () => {
+      busy = true; msg = ""; draw();
+      try { const r = await fleaCall("/api/flea-move", {lid: L.meta.id, add: pl.id, drop}); msg = "✓ " + r.note + (r.claim ? "" : " It’ll show on your roster next time the app refreshes."); }
+      catch(e){ msg = e.message; }
+      busy = false; draw(); });
+  };
+  draw();
+}
 function mflCookie(){ try { return localStorage.getItem(KEY + ".mflc") || ""; } catch(e){ return ""; } }
 function setMflCookie(v){ try { if (v) localStorage.setItem(KEY + ".mflc", v); else localStorage.removeItem(KEY + ".mflc"); } catch(e){} }
 const canWrite = L => L.meta.platform === "espn" ? !!(L.meta.s2 && L.meta.swid) : L.meta.platform === "mfl";
@@ -4495,6 +4541,7 @@ async function openLineup(L){
         (picking === i ? '<ul class="plist lupick">' + roster.filter(y => y !== x && y.slot !== "ir" && slotOk(s, y.pos) && !locked(y) && !(seat.includes(y) && slots[seat.indexOf(y)] === s)).sort((a, b) => pj(b) - pj(a)).map(y => { const where = seat.indexOf(y); return '<li><button type="button" class="prow" data-put="' + i + '" data-pid="' + esc(y.id) + '">' + avatar(y) + '<span class="pname"><b>' + esc(y.name) + injChip(y.inj) + "</b><small>" + posTag(y) + (where >= 0 ? "now at " + esc(lab(slots[where])) : "bench") + " · " + gameLine(y.team) + '</small></span><span class="pts"><span class="avg">' + fmt(pj(y)) + "<small>proj</small></span></span></button></li>"; }).join("") + (x ? '<li><button type="button" class="prow" data-put="' + i + '" data-pid=""><span class="pname"><b>Move ' + esc(x.name) + " to the bench</b></span></button></li>" : "") + "</ul>" : "") + "</li>"; }).join("") + "</ul>";
     if (ch.length) h += '<h3>Your changes</h3><div class="card"><ul class="reasons" style="margin:0">' + ch.map(c => "<li>" + esc(c.p.name) + ": " + esc(c.from === "Bench" ? "bench" : lab(c.from)) + " → <b>" + esc(c.slot === "Bench" ? "bench" : lab(c.slot)) + "</b></li>").join("") + "</ul></div>";
     if (plat === "espn") h += L.meta.s2 && L.meta.swid ? '<button type="button" class="btn" id="luSave" style="width:100%;margin-top:12px"' + (ch.length && !busy ? "" : " disabled") + ">" + (busy ? "Saving to ESPN…" : "Save lineup to ESPN") + "</button>" : '<div class="card" style="margin-top:12px"><p class="small" style="margin:0">To save lineups from here, add your <b>espn_s2</b> and <b>SWID</b> to this league under Accounts (the settings button). They stay on this phone and go only to ESPN.</p></div>';
+    else if (plat === "flea") h += fleaCookie() ? '<button type="button" class="btn" id="luSave" style="width:100%;margin-top:12px"' + (ch.length && !busy ? "" : " disabled") + ">" + (busy ? "Saving to Fleaflicker…" : "Save lineup to Fleaflicker") + '</button><button type="button" class="icon" id="ffOut" style="margin-top:10px">Sign out of Fleaflicker</button>' : fleaSignInHTML("to save lineups from here.");
     else if (plat === "mfl") h += mflCookie() ? '<button type="button" class="btn" id="luSave" style="width:100%;margin-top:12px"' + (ch.length && !busy ? "" : " disabled") + ">" + (busy ? "Saving to MyFantasyLeague…" : "Save lineup to MyFantasyLeague") + '</button><button type="button" class="btn ghost" id="luOut" style="width:100%;margin-top:8px">Sign out of MyFantasyLeague</button>' :
       '<div class="card stackc" style="margin-top:12px;gap:8px"><p class="small" style="margin:0"><b>Sign in to MyFantasyLeague</b> to save lineups from here. Your password goes straight to MFL once; only the sign-in cookie is kept, on this phone.</p><input id="mflU" autocomplete="username" placeholder="MFL username or email" aria-label="MFL username"><input id="mflP" type="password" autocomplete="current-password" placeholder="Password" aria-label="MFL password"><button type="button" class="btn" id="mflIn">Sign in</button></div>';
     else {
@@ -4523,6 +4570,8 @@ async function openLineup(L){
       catch(e){ msg = e.message; }
       draw(); });
     const mo = p.querySelector("#luOut"); if (mo) mo.addEventListener("click", () => { setMflCookie(""); msg = ""; draw(); });
+    wireFleaSignIn(p, m => { msg = m; draw(); });
+    const fo = p.querySelector("#ffOut"); if (fo) fo.addEventListener("click", () => { setFleaCookie(""); msg = ""; draw(); });
     const sv = p.querySelector("#luSave"); if (sv) sv.addEventListener("click", async () => {
       busy = true; msg = ""; draw();
       try {
@@ -4530,6 +4579,8 @@ async function openLineup(L){
           const items = changes().map(c => ({playerId: c.p.id, from: c.p.espnSlot != null ? c.p.espnSlot : (c.from === "Bench" ? 20 : ESPN_SLOT_ID[c.from]), to: c.slot === "Bench" ? 20 : ESPN_SLOT_ID[c.slot]}));
           const r = await fetch("/api/espn-lineup", {method: "POST", headers: Object.assign({"content-type": "application/json"}, espnHeaders(L.meta) || {}), body: JSON.stringify({lid: L.meta.id, season: L.meta.season, teamId: me.id, sp: d.sp || d.week, items})});
           const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "ESPN answered " + r.status);
+        } else if (plat === "flea") {
+          await fleaCall("/api/flea-lineup", {lid: L.meta.id, team: me.id, starters: seat.map((x, i) => x ? {id: x.id, slot: FLEA_SLOT[slots[i]] || slots[i]} : null).filter(Boolean)});
         } else {
           const r = await fetch("/api/mfl-lineup", {method: "POST", headers: {"content-type": "application/json", "x-mfl-cookie": mflCookie()}, body: JSON.stringify({year: L.meta.season, L: L.meta.id, W: d.week, host: (L.meta.host || "https://api.myfantasyleague.com"), starters: seat.filter(Boolean).map(x => x.id)})});
           const j = await r.json().catch(() => ({})); if (!r.ok) { if (j.login) setMflCookie(""); throw new Error(j.error || "MyFantasyLeague answered " + r.status); }

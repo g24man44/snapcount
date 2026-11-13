@@ -406,6 +406,109 @@ export async function espnLineupRoute(request) {
 
 // MyFantasyLeague: sign in once (the password goes to MFL and is never stored), then import the starters list.
 const mflHostOk = h => /^https:\/\/(www\d*|api)\.myfantasyleague\.com$/.test(h);
+/* ---------- Fleaflicker: sign in once, then save lineups and add/drop players from Snap Count ---------- */
+// Fleaflicker has no public write API, but its own pages are plain HTML forms. The password goes to
+// Fleaflicker once; only the sign-in cookie comes back, and it stays on the phone (sent per request).
+const FFW = "https://www.fleaflicker.com";
+const ffHeaders = (cookie, extra) => Object.assign({ "User-Agent": "Mozilla/5.0 (SnapCount fantasy dashboard)", "Accept": "text/html", Cookie: String(cookie || "").replace(/[\r\n]/g, "") }, extra || {});
+const cookiePairs = r => { const list = typeof r.headers.getSetCookie === "function" ? r.headers.getSetCookie() : String(r.headers.get("set-cookie") || "").split(/,(?=\s*[A-Za-z0-9_.-]+=)/); return list.map(c => c.split(";")[0].trim()).filter(c => /^[^=]+=.+/.test(c) && !/=(deleted|)$/.test(c)); };
+const mergeCookies = (a, b) => { const m = new Map(); [...String(a || "").split(/;\s*/), ...b].filter(Boolean).forEach(c => { const i = c.indexOf("="); if (i > 0) m.set(c.slice(0, i), c); }); return [...m.values()].join("; "); };
+const ffSignedOut = html => /name="password"/.test(html) && /name="email"/.test(html);
+const ffError = html => { const m = html.match(/<div[^>]*class="[^"]*alert[^"]*"[^>]*>([\s\S]*?)<\/div>/i); return m ? m[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 200) : ""; };
+const okId = x => /^\d{1,9}$/.test(String(x || ""));
+export async function fleaLoginRoute(request) {
+  if (request.method !== "POST") return out({ error: "POST only" }, 405);
+  const b = await request.json().catch(() => ({}));
+  const email = String(b.email || "").trim().slice(0, 120), pass = String(b.password || "").slice(0, 120);
+  if (!email || !pass) return out({ error: "Enter your Fleaflicker email and password." }, 400);
+  const pre = await fetch(FFW + "/nfl/login", { headers: ffHeaders("") });
+  let cookie = mergeCookies("", cookiePairs(pre));
+  const r = await fetch(FFW + "/nfl/login", { method: "POST", redirect: "manual", headers: ffHeaders(cookie, { "Content-Type": "application/x-www-form-urlencoded", Origin: FFW, Referer: FFW + "/nfl/login" }), body: new URLSearchParams({ email, password: pass, keepMe: "true" }).toString() });
+  cookie = mergeCookies(cookie, cookiePairs(r));
+  const check = await fetch(FFW + "/nfl", { headers: ffHeaders(cookie), redirect: "manual" });
+  cookie = mergeCookies(cookie, cookiePairs(check));
+  const html = check.status === 200 ? await check.text() : "";
+  const signedIn = (r.status >= 300 && r.status < 400) && !/\/login/.test(check.headers.get("location") || "") && (!html || !ffSignedOut(html) || /logout|sign out/i.test(html));
+  if (!signedIn) return out({ error: "Fleaflicker didn’t accept that email and password. If you’ve never set a Fleaflicker password, use “Forgot password” on Fleaflicker to make one." }, 401);
+  return out({ ok: true, cookie });
+}
+async function ffPage(path, cookie) {
+  const r = await fetch(FFW + path, { headers: ffHeaders(cookie), redirect: "manual" });
+  if (r.status >= 300 && r.status < 400) { if (/login/.test(r.headers.get("location") || "")) return { login: true }; }
+  const html = await r.text();
+  if (ffSignedOut(html)) return { login: true };
+  return { html, status: r.status };
+}
+async function ffPost(path, cookie, fields, referer) {
+  const r = await fetch(FFW + path, { method: "POST", redirect: "manual", headers: ffHeaders(cookie, { "Content-Type": "application/x-www-form-urlencoded", Origin: FFW, Referer: FFW + referer }), body: new URLSearchParams(fields).toString() });
+  const loc = r.headers.get("location") || "";
+  if (/login/.test(loc)) return { login: true };
+  const html = r.status === 200 ? await r.text() : "";
+  if (html && ffSignedOut(html)) return { login: true };
+  return { status: r.status, loc, html };
+}
+// Fleaflicker slot codes are position bit masks: RB 1, WR 2, QB 4, TE 8, K 16, D/ST 256 (so FLEX RB/WR/TE = 11).
+const FF_BITS = { RB: 1, WR: 2, QB: 4, TE: 8, K: 16, "D/ST": 256, DST: 256, DEF: 256 };
+const ffCode = label => String(label || "").split("/").reduce((n, t) => n | (FF_BITS[t.trim().toUpperCase()] || 0), 0);
+function ffLineupForm(html, team) {
+  const fm = html.match(new RegExp('<form[^>]*action="/nfl/leagues/\\d+/teams/' + team + '"[^>]*method="post"[^>]*>([\\s\\S]*?)</form>', "i"));
+  if (!fm) return null;
+  const f = fm[1], fields = {}, open = {}, locked = {};
+  for (const m of f.matchAll(/<select[^>]*name="status(\d+)"[^>]*>([\s\S]*?)<\/select>/g)) { const sel = (m[2].match(/<option value="(-?\d+)"[^>]*selected/) || m[2].match(/<option value="(-?\d+)"/) || [])[1]; fields["status" + m[1]] = sel || "0"; open[m[1]] = true; }
+  for (const m of f.matchAll(/<input type="hidden" name="status(\d+)" value="(-?\d+)"/g)) { fields["status" + m[1]] = m[2]; locked[m[1]] = true; }
+  const tid = (f.match(/name="teamId" value="(\d+)"/) || [])[1];
+  fields.teamId = tid || team;
+  return { fields, open, locked };
+}
+export async function fleaLineupRoute(request) {
+  if (request.method !== "POST") return out({ error: "POST only" }, 405);
+  const b = await request.json().catch(() => ({}));
+  const cookie = request.headers.get("x-flea-cookie") || "";
+  const lid = String(b.lid || ""), team = String(b.team || "");
+  if (!okId(lid) || !okId(team)) return out({ error: "Bad lineup request" }, 400);
+  if (!cookie) return out({ error: "Sign in to Fleaflicker first.", login: true }, 401);
+  const want = new Map((Array.isArray(b.starters) ? b.starters : []).slice(0, 40).filter(x => okId(x.id) && ffCode(x.slot)).map(x => [String(x.id), ffCode(x.slot)]));
+  if (!want.size) return out({ error: "No starters to set." }, 400);
+  const path = "/nfl/leagues/" + lid + "/teams/" + team;
+  const pg = await ffPage(path, cookie);
+  if (pg.login) return out({ error: "Fleaflicker needs you to sign in again.", login: true }, 401);
+  const form = ffLineupForm(pg.html, team);
+  if (!form) return out({ error: "Fleaflicker isn’t showing a lineup you can edit right now." }, 409);
+  const stuck = [];
+  for (const [id, code] of want) { if (form.locked[id] && form.fields["status" + id] !== String(code)) stuck.push(id); else if (form.open[id]) form.fields["status" + id] = String(code); }
+  for (const id in form.locked) { const v = Number(form.fields["status" + id]); if (v > 0 && v < 16 && !want.has(id)) stuck.push(id); }
+  for (const id in form.open) { const v = Number(form.fields["status" + id]); if (!want.has(id) && v > 0 && v < 16) form.fields["status" + id] = "0"; }
+  if (stuck.length) return out({ error: "Some of those players’ games have started, so Fleaflicker has locked them.", locked: stuck }, 409);
+  const r = await ffPost(path, cookie, form.fields, path);
+  if (r.login) return out({ error: "Fleaflicker needs you to sign in again.", login: true }, 401);
+  const after = await ffPage(path, cookie);
+  const now = after.html ? ffLineupForm(after.html, team) : null;
+  if (now) { const off = [...want].filter(([id, code]) => now.fields["status" + id] !== String(code)); if (off.length) return out({ error: ffError(r.html || after.html) || "Fleaflicker didn’t take the lineup. Check that every slot is filled with an eligible player.", off: off.map(x => x[0]) }, 409); }
+  return out({ ok: true });
+}
+export async function fleaMoveRoute(request) {
+  if (request.method !== "POST") return out({ error: "POST only" }, 405);
+  const b = await request.json().catch(() => ({}));
+  const cookie = request.headers.get("x-flea-cookie") || "";
+  const lid = String(b.lid || ""), add = String(b.add || ""), drop = String(b.drop || "");
+  if (!okId(lid) || (!okId(add) && !okId(drop))) return out({ error: "Pick a player to add or drop." }, 400);
+  if (!cookie) return out({ error: "Sign in to Fleaflicker first.", login: true }, 401);
+  const q = new URLSearchParams(); if (add) q.set("toAddPlayerId", add); if (drop) q.set("toDropPlayerId", drop);
+  const base = "/nfl/leagues/" + lid + "/players/";
+  const pg = await ffPage(base + (add ? "confirm" : "add") + "?" + q, cookie);
+  if (pg.login) return out({ error: "Fleaflicker needs you to sign in again.", login: true }, 401);
+  const fm = pg.html.match(/<form[^>]*action="(\/nfl\/leagues\/\d+\/players\/(?:add|drop|claim)[^"]*)"[^>]*method="post"[^>]*>([\s\S]*?)<\/form>/i);
+  if (!fm) return out({ error: ffError(pg.html) || "Fleaflicker won’t allow that move right now (roster full, player locked, or not on waivers)." }, 409);
+  const fields = {}; for (const m of fm[2].matchAll(/<input type="hidden"[^>]*name="([^"]+)"[^>]*value="([^"]*)"/g)) fields[m[1]] = m[2];
+  if (add && fields.toAddPlayerId !== add) return out({ error: "Fleaflicker showed a different player than expected, so nothing was changed." }, 409);
+  const claim = /<button[^>]*>\s*Claim/i.test(fm[2]);
+  const r = await ffPost(fm[1].replace(/&amp;/g, "&"), cookie, fields, base + "confirm?" + q);
+  if (r.login) return out({ error: "Fleaflicker needs you to sign in again.", login: true }, 401);
+  if (r.status >= 400 || (r.status === 200 && ffError(r.html) && !/success|claim/i.test(ffError(r.html)))) return out({ error: ffError(r.html) || "Fleaflicker answered " + r.status + "." }, 409);
+  const when = (pg.html.match(/reflected in lineups for ([^.<]+)/) || [])[1];
+  return out({ ok: true, claim, note: claim ? "Waiver claim placed" + (when ? " (counts for " + when + ")" : "") + "." : add ? "Added." : "Dropped." });
+}
+
 export async function mflLoginRoute(request) {
   if (request.method !== "POST") return out({ error: "POST only" }, 405);
   const b = await request.json().catch(() => ({}));

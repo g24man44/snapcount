@@ -19,11 +19,13 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Paid Cloudflare plan ($5/mo Workers Paid) would lift the 1,000 KV writes/day and 10k AI neurons/day caps — owner said not now
 
 ## Blocked (needs the owner)
-- [ ] Save lineups straight to Fleaflicker and Sleeper: neither has a public way for other apps to change lineups. Fleaflicker would need a sample of the request its site sends when you move a player (from the browser's network tab while signed in).
+- [ ] Trades straight to Fleaflicker: the trade builder is a multi-step form (/trades/build/new?playerId= → POST teamId → …); map it once the owner is signed in and OK with a test proposal. Sleeper lineups/moves: no public write API (only its private GraphQL with the user's token).
+- [ ] (old) Save lineups straight to Sleeper: no public way for other apps to change lineups (from the browser's network tab while signed in).
 - [ ] Yahoo leagues: needs a Yahoo developer app (client ID and secret) for sign-in.
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- [x] Nov 13, 2026: Fleaflicker writes: sign in once (/api/flea-login posts to fleaflicker.com/nfl/login, cookie kept on the phone as snapcount.v1.ffc), Save lineup (/api/flea-lineup re-posts the team page form; slot codes are bit masks RB1 WR2 QB4 TE8 K16 D/ST256, IR -32767; locked players come as hidden inputs), Add/drop/claim (/api/flea-move: GET players/confirm then POST its form)
 - [x] Nov 13, 2026: daily health check 9:17 AM ET (values, Fleaflicker, Sleeper, ESPN, FantasyCalc, expert CSV, AI, storage) -> alert only on failure to the owner's subscriptions (Fleaflicker 183120 team 1245245); /api/health, "health:last"
 - [x] Trade market push alerts (notifyMarket in worker.src.js): new/changed posts alert leaguemates with alerts on; "Trade fit" when the post offers a position they're shopping or wants one where they have 2+ bench players
 - [x] Private usage counts: /api/ping writes "use:<date>:<dev>" once per device per day (KV metadata: installed, sites; 70-day TTL); owner-only "App health and usage" sheet in Accounts

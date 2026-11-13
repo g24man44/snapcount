@@ -4,7 +4,7 @@
 import { alertsRoute, runMinute, staticRoute, injuriesRoute, readInjuries, eachSubscriber } from "./src/alerts.js";
 import { PROSPECTS } from "./src/prospects.js";
 import { gameWeather } from "./src/weather.js";
-import { ttsRoute, marketRoute, pickemRoute, commRoute, syncRoute, transcribeRoute, espnRoute, mflRoute, scoresRoute, calendarRoute, coachRoute, hookPostRoute, espnLineupRoute, mflLoginRoute, mflLineupRoute } from "./src/more.js";
+import { ttsRoute, marketRoute, pickemRoute, commRoute, syncRoute, transcribeRoute, espnRoute, mflRoute, scoresRoute, calendarRoute, coachRoute, hookPostRoute, espnLineupRoute, mflLoginRoute, mflLineupRoute, fleaLoginRoute, fleaLineupRoute, fleaMoveRoute } from "./src/more.js";
 
 const HTML = __HTML__;
 
@@ -744,6 +744,9 @@ export default {
       if (p === "/api/hookpost") return hookPostRoute(request);
       if (p === "/api/espn-lineup") return espnLineupRoute(request);
       if (p === "/api/mfl-login") return mflLoginRoute(request);
+      if (p === "/api/flea-login") return fleaLoginRoute(request);
+      if (p === "/api/flea-lineup") return fleaLineupRoute(request);
+      if (p === "/api/flea-move") return fleaMoveRoute(request);
       if (p === "/api/mfl-lineup") return mflLineupRoute(request);
       if (p === "/api/espn") return espnRoute(request, url, ctx);
       if (p === "/api/mfl") return mflRoute(url, ctx);
