@@ -9,7 +9,7 @@ const out = (data, status = 200) => new Response(JSON.stringify(data), { status,
 // Deepgram Aura-2: the most expressive voices on Workers AI (pacing, emphasis and filler words follow the text).
 // Dez was too flat on "apollo"; "atlas" is Deepgram's enthusiastic male voice.
 export const HOSTS = { DEZ: { voice: "atlas", name: "Dez" }, SAM: { voice: "thalia", name: "Sam" } };
-const SCRIPT_MODELS = ["@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/meta/llama-3.1-8b-instruct-fast"];
+const SCRIPT_MODELS = ["@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/meta/llama-4-scout-17b-16e-instruct"];
 
 const SHOW_SYS = `You write the script for "The Snap Count Show", a weekly fantasy football podcast about ONE private league, hosted by two best friends who are both genuinely, loudly passionate about this league. It must sound like a real, high-energy sports podcast between friends.
 

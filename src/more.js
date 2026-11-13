@@ -221,7 +221,7 @@ export async function mflLeagueTaken(L) {
 }
 
 /* ---------- AI coach (Cloudflare Workers AI, free tier) ---------- */
-const COACH_MODELS = ["@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/meta/llama-3.1-8b-instruct-fast", "@cf/meta/llama-3.1-8b-instruct"];
+const COACH_MODELS = ["@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/meta/llama-4-scout-17b-16e-instruct", "@cf/meta/llama-3.1-8b-instruct-fp8"]; // the older 8B ids were retired by Cloudflare on 2026-05-30
 const COACH_SYS = `You are Snap Count Coach, a sharp, confident fantasy football analyst inside the Snap Count app.
 You get a LEAGUE DATA block with the user's real roster, projections, injuries, opponent, standings, free agents and trade values. Treat it as the truth.
 Rules:

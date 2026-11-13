@@ -365,7 +365,7 @@ async function healthCheck(env) {
   await check("ESPN scores", async () => { const j = await getJ("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"); if (!(j.events || []).length) throw new Error("no games"); });
   await check("FantasyCalc trades", async () => { const j = await getJ("https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=2&numTeams=12&ppr=1"); if (!Array.isArray(j) || j.length < 100) throw new Error("short list"); });
   await check("Expert rankings", async () => { const r = await fetch("https://raw.githubusercontent.com/dynastyprocess/data/master/files/values-players.csv", { headers: UA }); if (!r.ok) throw new Error("HTTP " + r.status); });
-  await check("AI coach", async () => { if (!env.AI) throw new Error("no AI binding"); const r = await env.AI.run("@cf/meta/llama-3.1-8b-instruct", { messages: [{ role: "user", content: "Reply with OK." }], max_tokens: 3 }); if (!r || !(r.response ?? "").toString().length) throw new Error("empty answer"); });
+  await check("AI coach", async () => { if (!env.AI) throw new Error("no AI binding"); const r = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", { messages: [{ role: "user", content: "Reply with OK." }], max_tokens: 3 }); const t = r && (r.response ?? (r.choices && r.choices[0] && r.choices[0].message && r.choices[0].message.content)); if (!t || !String(t).length) throw new Error("empty answer"); });
   // Tests exactly what the show does (speak a word with a show voice); costs a tiny fraction of a cent.
   await check("Show voices (Deepgram)", async () => {
     if (!env.DEEPGRAM_KEY) throw new Error("no DEEPGRAM_KEY secret found");
