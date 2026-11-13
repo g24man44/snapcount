@@ -3,7 +3,7 @@
 
 import { chatRoute, groupmeSay, ChatRoom } from "./src/chat.js";
 import { showRoute } from "./src/show.js";
-import { alertsRoute, runMinute, staticRoute, injuriesRoute, readInjuries, eachSubscriber } from "./src/alerts.js";
+import { alertsRoute, runMinute, staticRoute, injuriesRoute, readInjuries, eachSubscriber, norm } from "./src/alerts.js";
 import { PROSPECTS } from "./src/prospects.js";
 import { gameWeather } from "./src/weather.js";
 import { ttsRoute, marketRoute, pickemRoute, commRoute, syncRoute, transcribeRoute, espnRoute, mflRoute, scoresRoute, calendarRoute, coachRoute, hookPostRoute, espnLineupRoute, mflLoginRoute, mflLineupRoute, fleaLoginRoute, fleaLineupRoute, fleaMoveRoute } from "./src/more.js";
@@ -417,6 +417,44 @@ async function notifyMarket(env, p, lid, before, key) {
     const why = wantsMine.length ? "You're shopping for " + wantsMine.join("/") + " and this is on the table." : depth.length ? "They want " + depth.join("/") + ", where you have bench depth." : "";
     return [{ id: "mkt:" + p + ":" + lid + ":" + post.team + ":" + post.at, title: (why ? "Trade fit: " : "Trade market: ") + post.name + " is shopping " + giveTxt, body: (why ? why + " " : "") + (depth.length && !wantsMine.length ? "" : wantTxt ? "Wants " + wantTxt + "." : "Open to offers.") + (post.note ? " “" + post.note.slice(0, 90) + "”" : ""), tag: "market", url: "/?go=trade" }];
   });
+}
+
+// Breaking player news, the RotoBaller-style feed: RotoWire's free NFL player-news RSS (a blurb plus fantasy
+// analysis for each player update, usually within minutes), checked every 2 minutes. New items go into a
+// Durable Object log (no KV writes) and anyone with that player on a roster gets a push right away.
+// RotoWire allows its feeds on personal sites; commercial use needs their permission (see ROADMAP).
+const decodeXml = s => String(s || "").replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#0?39;|&apos;/g, "'").replace(/&#(\d+);/g, (m, n) => String.fromCharCode(+n)).replace(/\s+/g, " ").trim();
+async function readRotowire() {
+  const r = await fetch("https://www.rotowire.com/rss/news.php?sport=NFL", { headers: { "User-Agent": "Mozilla/5.0 (SnapCount fantasy dashboard)", Accept: "application/rss+xml, application/xml, text/xml" } });
+  if (!r.ok) throw new Error("RotoWire answered " + r.status);
+  const xml = await r.text(), out = [];
+  for (const m of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
+    const g = tag => decodeXml((m[1].match(new RegExp("<" + tag + "[^>]*>([\\s\\S]*?)</" + tag + ">")) || [])[1]);
+    const title = g("title"), link = g("link"), guid = g("guid") || link || title, at = Date.parse(g("pubDate")) || Date.now();
+    if (!title) continue;
+    const c = title.indexOf(":"), player = c > 0 && c < 40 ? title.slice(0, c).trim() : "";
+    out.push({ id: "rw" + guid.replace(/[^A-Za-z0-9]/g, "").slice(-40), at, src: "RotoWire", player, title: c > 0 && c < 40 ? title.slice(c + 1).trim() : title, body: g("description").slice(0, 700), link });
+  }
+  return out;
+}
+async function runPlayerNews(env) {
+  if (!env.CHAT || !env.SNAP) return { skipped: "no storage" };
+  let items; try { items = await readRotowire(); } catch (e) { return { error: e.message }; }
+  const log = env.CHAT.get(env.CHAT.idFromName("news:feed"));
+  const had = ((await (await log.fetch("https://chat/list")).json()).list || []).length;
+  const fresh = [];
+  for (const it of items.sort((a, b) => a.at - b.at)) {
+    const r = await (await log.fetch("https://chat/add", { method: "POST", body: JSON.stringify(it) })).json();
+    if (!r.dup) fresh.push(it);
+  }
+  // First run only fills the log; alerts start with the next new item.
+  if (!had || !fresh.length) return { items: items.length, fresh: fresh.length, baseline: !had };
+  const sent = await eachSubscriber(env, rec => {
+    if (rec.prefs && rec.prefs.news === false) return [];
+    const mine = new Set((rec.names || []).map(n => n.split("|")[0]));
+    return fresh.filter(it => it.player && mine.has(norm(it.player))).slice(0, 4).map(it => ({ id: "pn:" + it.id, title: "⚡ " + it.player + ": " + it.title, body: it.body.slice(0, 220), url: it.link }));
+  });
+  return { items: items.length, fresh: fresh.length, sent };
 }
 
 // One player's story: daily market price over the season (FantasyCalc), Snap Count's own daily values
@@ -919,6 +957,12 @@ export default {
         if (!id) return json({ error: "Missing league" }, 400, 0);
         return cached(ctx, "fpo/" + id, 86400, () => fleaPlayoffs(id));
       }
+      if (p === "/api/breaking") {
+        if (!env.CHAT) return json({ items: [] }, 200, 0);
+        const r = await env.CHAT.get(env.CHAT.idFromName("news:feed")).fetch("https://chat/list");
+        const j = await r.json();
+        return json({ items: (j.list || []).reverse().map(m => ({ id: m.id, at: m.at, src: m.src, player: m.player, title: m.title, body: m.body, link: m.link })) }, 200, 60);
+      }
       if (p === "/api/headlines") return cached(ctx, "headlines", 600, headlines);
       if (p === "/api/news") {
         const q = (url.searchParams.get("q") || "").slice(0, 80);
@@ -935,6 +979,7 @@ export default {
     ctx.waitUntil(runMinute(env));
     const now = new Date();
     if (now.getUTCHours() === 14 && now.getUTCMinutes() === 17) ctx.waitUntil(healthCheck(env).catch(() => {}));
+    if (now.getUTCMinutes() % 2 === 0) ctx.waitUntil(runPlayerNews(env).catch(() => {}));
     ctx.waitUntil(dailyValues(env).catch(() => {}));
   }
 };

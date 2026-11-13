@@ -281,6 +281,7 @@ form.add{display:flex;flex-direction:column;gap:10px}
 .chatin{display:flex;gap:8px;align-items:flex-end;padding-top:8px;border-top:1px solid var(--line)}.chatin textarea{flex:1;resize:none;border-radius:18px;padding:9px 14px;min-height:40px;max-height:140px;font:inherit}
 .chatas{margin:6px 2px 0}.linkish{background:none;border:0;padding:0;color:var(--accent);font:inherit;text-decoration:underline;cursor:pointer}.chatname{width:12em;padding:2px 6px;font:inherit}
 .copyrow{display:flex;gap:8px}.copyrow input{flex:1;min-width:0;font-size:.8rem}.gmsteps .card{margin-bottom:10px}.gmsteps p{margin:6px 0 8px}
+.bkmine{box-shadow:inset 3px 0 0 var(--accent)}
 .shscript p{margin:8px 0;line-height:1.5}
 .updbar{display:block;width:100%;margin:0 0 10px;padding:10px 14px;border:0;border-radius:12px;background:var(--accent);color:#111;font:inherit;font-weight:650;cursor:pointer}.updbar[hidden]{display:none}
 .usestats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0}.usestats div{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px;text-align:center}.usestats b{display:block;font-size:1.35rem}.usestats span{font-size:.75rem;color:var(--muted)}
@@ -1596,8 +1597,9 @@ async function openPlayer(pl){
   drawValueCard(p, pl).catch(() => {});
   try {
     const eid = await espnIdFor(pl);
-    const r = await api("/api/news?q=" + encodeURIComponent(pl.name) + (eid ? "&espn=" + eid : ""));
-    const groups = groupNews(r.items || []);
+    const [r, bk] = await Promise.all([api("/api/news?q=" + encodeURIComponent(pl.name) + (eid ? "&espn=" + eid : "")), loadBreaking().catch(() => null)]);
+    const rw = ((bk && bk.items) || []).filter(x => x.player && norm(x.player) === norm(pl.name)).map(x => ({title: x.title, body: x.body, date: new Date(x.at).toISOString(), source: x.src, link: x.link}));
+    const groups = groupNews(rw.concat(r.items || []));
     const el = $("#pnews"); if (!el) return;
     const item = (g, i) => { const n = g.top;
       const inner = (n.title ? "<b>" + esc(n.title) + "</b>" : "") + (n.body ? '<span class="nbody">' + esc(n.body) + "</span>" : "") + "<small>" + esc(n.source || "") + (n.date ? " · " + ago(n.date) : "") + (n.link ? " · Read more" : "") + "</small>";
@@ -2270,11 +2272,27 @@ async function shareCard(o){
 
 /* ---------- headlines ---------- */
 let headlines = null;
+// Breaking player news (RotoWire, checked every 2 minutes on the server).
+let breaking = null;
+async function loadBreaking(){ if (breaking && Date.now() - breaking.at < 90e3) return breaking; const j = await api("/api/breaking"); return (breaking = Object.assign(j, {at: Date.now()})); }
+async function drawBreaking(){
+  const el = $("#bk"); if (!el) return;
+  try {
+    const j = await loadBreaking(), mine = new Set(myPlayers().map(norm));
+    let items = (j.items || []).map(x => Object.assign({me: x.player && mine.has(norm(x.player))}, x));
+    if (cur.newsMine) items = items.filter(x => x.me);
+    const n = cur.bkN || 8;
+    el.innerHTML = items.length ? '<div class="news card" style="padding:0">' + items.slice(0, n).map(x => '<a href="' + esc(x.link || "#") + '" target="_blank" rel="noopener"' + (x.me ? ' class="bkmine"' : "") + '><b>' + (x.player ? esc(x.player) + ": " : "") + esc(x.title) + '</b><span class="small muted" style="display:block;margin-top:3px">' + esc(x.body.length > 260 ? x.body.slice(0, 260) + "…" : x.body) + '</span><small class="muted">' + esc(x.src) + " · " + ago(new Date(x.at).toISOString()) + (x.me ? " · your player" : "") + "</small></a>").join("") + "</div>" + (items.length > n ? '<button class="btn ghost" id="bkMore" style="width:100%;margin-top:8px">Show more</button>' : "")
+      : '<p class="muted small">' + (cur.newsMine ? "No breaking news on your players right now." : "No player news yet. It fills in within a few minutes.") + "</p>";
+    const mb = el.querySelector("#bkMore"); if (mb) mb.addEventListener("click", () => { cur.bkN = n + 15; drawBreaking(); });
+  } catch(e){ el.innerHTML = '<p class="muted small">Couldn’t load player news: ' + esc(e.message) + "</p>"; }
+}
 async function renderNews(v){
   if (cur.newsView !== "news") return renderScores(v);
-  v.innerHTML = newsSeg() + '<h2 style="margin-top:14px">NFL headlines</h2><label class="toggle"><input type="checkbox" id="mineOnly"' + (cur.newsMine ? " checked" : "") + '> Only stories about my players</label><div id="hl"><p class="spin">Loading headlines…</p></div>';
+  v.innerHTML = newsSeg() + '<label class="toggle"><input type="checkbox" id="mineOnly"' + (cur.newsMine ? " checked" : "") + '> Only news about my players</label><h2 style="margin-top:14px">Breaking player news</h2><p class="small muted" style="margin:-6px 0 8px">Every player update as it breaks, with fantasy impact. You get a push when it’s about one of your players.</p><div id="bk"><p class="spin">Loading…</p></div><h2 style="margin-top:18px">NFL headlines</h2><div id="hl"><p class="spin">Loading headlines…</p></div>';
   wireNewsSeg(v);
-  v.querySelector("#mineOnly").addEventListener("change", e => { cur.newsMine = e.target.checked; drawNews(); });
+  v.querySelector("#mineOnly").addEventListener("change", e => { cur.newsMine = e.target.checked; drawNews(); drawBreaking(); });
+  drawBreaking();
   try { if (!headlines) headlines = await api("/api/headlines"); drawNews(); }
   catch(e){ $("#hl").innerHTML = '<div class="err">Couldn’t load headlines: ' + esc(e.message) + "</div>"; }
 }
