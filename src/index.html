@@ -68,6 +68,7 @@ header.top{display:flex;align-items:center;justify-content:space-between;gap:12p
 @media (max-width:430px){#wk{display:none}}
 .wk{white-space:nowrap;font:700 12.5px/1 var(--body);color:var(--muted);background:var(--surface);border:1px solid var(--line);padding:8px 11px;border-radius:999px}
 .iconbtn{background:var(--surface);border:1px solid var(--line);border-radius:14px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;color:var(--ink)}
+.chatb{position:relative}.udot{position:absolute;top:6px;right:6px;width:9px;height:9px;border-radius:50%;background:var(--bad);border:2px solid var(--surface)}.udot[hidden]{display:none}
 .iconbtn[aria-pressed=true]{background:var(--accent);color:var(--accent-ink);border-color:transparent}
 /* floating tab bar */
 nav.tabbar{position:fixed;z-index:15;left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));max-width:520px;margin:0 auto;
@@ -267,7 +268,7 @@ form.add{display:flex;flex-direction:column;gap:10px}
 .injhead .inj{margin-left:0}
 /* install + invite */
 .install{display:flex;align-items:center;gap:12px;margin-top:12px;background:var(--accent-soft);border-color:transparent;box-shadow:none}
-.chatwrap{display:flex;flex-direction:column;height:calc(100dvh - 410px);min-height:320px}
+.chatwrap{display:flex;flex-direction:column;height:calc(100dvh - 290px);min-height:320px}
 .chatlog{flex:1;overflow-y:auto;padding:4px 2px 8px;display:flex;flex-direction:column;gap:10px;overscroll-behavior:contain}
 .cmsg{display:flex;gap:8px;align-items:flex-end;max-width:88%}.cmsg.me{align-self:flex-end;flex-direction:row-reverse}
 .cav{width:30px;height:30px;border-radius:50%;flex:none;object-fit:cover;background:var(--line);display:grid;place-items:center;font-size:.8rem;font-weight:700;color:var(--muted)}
@@ -785,7 +786,7 @@ path.vho{stroke:var(--ok);stroke-dasharray:4 3}
 <div class="wrap">
   <header class="top">
     <div class="brand"><img class="logo" src="/icon-192.png" alt=""><h1>Snap Count</h1></div>
-    <div class="hright"><span class="wk" id="wk"></span><button type="button" class="coachfab" id="coachFab" aria-label="Ask the AI coach"><i class=ic-spark aria-hidden=true></i>Coach</button><button class="iconbtn" id="gearBtn" aria-label="Accounts" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg></button></div>
+    <div class="hright"><span class="wk" id="wk"></span><button type="button" class="coachfab" id="coachFab" aria-label="Ask the AI coach"><i class=ic-spark aria-hidden=true></i>Coach</button><button class="iconbtn chatb" id="chatBtn" aria-label="League chat" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg><span class="udot" id="chatDot" hidden></span></button><button class="iconbtn" id="gearBtn" aria-label="Accounts" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg></button></div>
   </header>
   <button type="button" id="updBar" class="updbar" hidden onclick="location.reload()">New version of Snap Count ready. Tap to update.</button>
   <main id="view"></main>
@@ -1126,6 +1127,7 @@ async function loadAll(){
   syncAlerts().catch(() => {});
   if (leagues.some(L => L.detail && L.detail.teams.some(t => t.mine))) maybeTour();
   dailyPing();
+  checkUnread();
   const st = await getState().catch(() => null);
   if (st) $("#wk").textContent = "Week " + (st.display_week || st.week);
 }
@@ -1136,15 +1138,18 @@ const cur = {tab:"leagues", league:null, newsMine:false};
 const navTab = t => t === "calc" ? "trade" : t;
 function setTab(t){ cur.tab = t; cur.league = null; document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === navTab(t))); render(); window.scrollTo(0,0); }
 $("#gearBtn").addEventListener("click", () => setTab(cur.tab === "accounts" ? "leagues" : "accounts"));
+$("#chatBtn").addEventListener("click", () => setTab(cur.tab === "chat" ? "leagues" : "chat"));
 $("#tabs").addEventListener("click", e => { const b = e.target.closest("button[data-tab]"); if (b) setTab(b.dataset.tab); });
 
 let lastView = "";
 function render(){
   const v = $("#view");
-  if (chat && !(cur.tab === "leagues" && cur.sub === "chat")) closeChat();
+  if (chat && cur.tab !== "chat") closeChat();
   const vk = cur.tab + "/" + cur.league + "/" + (cur.sub || "") + "/" + (tr.mode || "");
   if (vk !== lastView) { lastView = vk; v.classList.remove("swap"); void v.offsetWidth; v.classList.add("swap"); if (navigator.vibrate && matchMedia("(pointer:coarse)").matches) try { navigator.vibrate(6); } catch(e){} }
   $("#gearBtn").setAttribute("aria-pressed", cur.tab === "accounts");
+  $("#chatBtn").setAttribute("aria-pressed", cur.tab === "chat");
+  if (cur.tab === "chat") return renderChatTab(v);
   if (cur.tab === "trade") return renderTrade(v);
   if (cur.tab === "calc") return renderCalc(v);
   if (cur.tab === "alerts") return renderAlerts(v);
@@ -1382,7 +1387,7 @@ function renderLeague(v, L){
   if (L.error) { v.innerHTML = h + '<div class="err">' + esc(L.error) + "</div>"; return wireBack(v); }
   if (!d) { v.innerHTML = h + '<p class="spin">Loading…</p>'; return wireBack(v); }
   const sub = cur.sub || "team";
-  h += '<div class="seg sub" role="group" aria-label="League sections">' + [["team","My team"],["chat","Chat"],["fa","Free agents"],["league","League"]].concat(m.platform === "flea" ? [["act","Activity"]] : []).concat(["flea", "sleeper"].includes(m.platform) ? [["trades","Trades"]] : []).map(x => '<button type="button" data-sub="' + x[0] + '" aria-pressed="' + (sub === x[0]) + '">' + x[1] + "</button>").join("") + "</div>";
+  h += '<div class="seg sub" role="group" aria-label="League sections">' + [["team","My team"],["fa","Free agents"],["league","League"]].concat(m.platform === "flea" ? [["act","Activity"]] : []).concat(["flea", "sleeper"].includes(m.platform) ? [["trades","Trades"]] : []).map(x => '<button type="button" data-sub="' + x[0] + '" aria-pressed="' + (sub === x[0]) + '">' + x[1] + "</button>").join("") + "</div>";
   let me = cur.team ? d.teams.find(t => t.id === cur.team) : d.teams.find(t => t.mine);
   if (sub === "team") {
     if (!me) h += '<div class="card install" style="margin-top:12px"><img src="/icon-192.png" alt=""><div><b>' + (cur.joined ? "Welcome to Snap Count" : "Which team is yours?") + '</b><span>Pick your team below. Your scores, alerts and trade tools all follow it.</span></div></div>';
@@ -1418,8 +1423,6 @@ function renderLeague(v, L){
     const pos = cur.faPos || "ALL";
     h += '<div class="actions">' + extBtn(waiverUrl(L), "Add players in " + siteName(L)) + "</div>";
     h += '<div class="chips posf">' + ["ALL","QB","RB","WR","TE","K","DEF"].map(x => '<button type="button" class="chip' + (pos === x ? " on" : "") + '" data-pos="' + x + '">' + x + "</button>").join("") + '</div><div id="fa"><p class="spin">Loading free agents…</p></div>';
-  } else if (sub === "chat") {
-    h += '<div id="chatBox"><p class="spin">Loading chat…</p></div>';
   } else if (sub === "act") {
     h += '<div id="actBox"><p class="spin">Loading league activity…</p></div>';
   } else if (sub === "trades") {
@@ -1476,7 +1479,6 @@ function renderLeague(v, L){
   wireRows(v);
   if (sub === "fa") loadFreeAgents(L, cur.faPos || "ALL");
   if (sub === "trades") renderLeagueTrades(L, $("#ltBox")).catch(e => { const b = $("#ltBox"); if (b) b.innerHTML = '<div class="err">Couldn’t grade trades: ' + esc(e.message) + "</div>"; });
-  if (sub === "chat") openChat(L, $("#chatBox"));
   if (sub === "act") renderActivity(L, $("#actBox"), me).catch(e => { const b = $("#actBox"); if (b) b.innerHTML = '<div class="err">Couldn’t load activity: ' + esc(e.message) + "</div>"; });
   v.querySelectorAll("[data-game]").forEach(b => b.addEventListener("click", () => openMatchup(L, b.dataset.game)));
   const rb = v.querySelector("#recapBtn"); if (rb) rb.addEventListener("click", () => openRecap(L));
@@ -6988,6 +6990,31 @@ function chatMsgHTML(m, mine){
   if (m.sys) return '<div class="cmsys">' + linked + "</div>";
   return '<div class="cmsg' + (me ? " me" : "") + (m.bot && !via ? " botmsg" : "") + '">' + (me ? "" : (m.av ? '<img class="cav" src="' + esc(m.av) + '.avatar" alt="" loading="lazy">' : '<span class="cav">' + esc((name || "?").slice(0, 1)) + "</span>")) + '<div class="cbody"><div class="cmeta">' + (me ? "" : "<b>" + esc(name) + "</b> ") + '<span>' + esc(chatTime(m.at)) + esc(via) + '</span></div>' + (text ? '<div class="ctext">' + linked + "</div>" : "") + (m.img ? '<a href="' + esc(m.img) + '" target="_blank" rel="noopener"><img class="cimg" src="' + esc(m.img) + '.600x600" alt="Photo" loading="lazy"></a>' : "") + "</div></div>";
 }
+// The chat button (top right) opens one league's chat; with several leagues there's a picker on top.
+function chatLeagues(){ return leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine)); }
+async function renderChatTab(v){
+  const list = chatLeagues();
+  if (!list.length) { v.innerHTML = '<h2>Chat</h2><div class="card empty"><p class="muted">Add your league first, then your league’s GroupMe can show up here.</p></div>'; return; }
+  let pick = null; try { pick = localStorage.getItem(KEY + ".chatL"); } catch(e){}
+  if (!list.some(L => L.meta.platform + ":" + L.meta.id === pick)) { await Promise.all(list.map(gmConnected)); const on = list.find(L => gmState[L.meta.platform + ":" + L.meta.id]); pick = (on || list[0]).meta.platform + ":" + (on || list[0]).meta.id; }
+  if (cur.tab !== "chat") return;
+  const L = list.find(x => x.meta.platform + ":" + x.meta.id === pick);
+  v.innerHTML = '<h2>Chat</h2>' + (list.length > 1 ? '<select id="chatPick" aria-label="League" style="width:100%;margin-bottom:10px">' + list.map(x => { const k = x.meta.platform + ":" + x.meta.id; return '<option value="' + esc(k) + '"' + (k === pick ? " selected" : "") + '>' + esc(x.meta.name) + '</option>'; }).join("") + '</select>' : '<p class="small muted" style="margin:-6px 0 10px">' + esc(L.meta.name) + '</p>') + '<div id="chatBox"><p class="spin">Loading chat…</p></div>';
+  const sel = v.querySelector("#chatPick"); if (sel) sel.addEventListener("change", () => { try { localStorage.setItem(KEY + ".chatL", sel.value); } catch(e){} renderChatTab(v); });
+  openChat(L, v.querySelector("#chatBox"));
+}
+function chatSeen(k, key){ try { const m = JSON.parse(localStorage.getItem(KEY + ".chatSeen") || "{}"); if (key) { m[k] = key; localStorage.setItem(KEY + ".chatSeen", JSON.stringify(m)); } return m[k] || ""; } catch(e){ return ""; } }
+async function checkUnread(){
+  if (cur.tab === "chat") return;
+  let any = false;
+  for (const L of chatLeagues()) {
+    const k = L.meta.platform + ":" + L.meta.id;
+    if (gmState[k] === false) continue;
+    try { const j = await api("/api/chat?p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id) + "&dev=" + devId()); gmState[k] = !!j.connected; const last = (j.list || []).slice(-1)[0]; if (last && last.k > chatSeen(k) && !(last.bot && last.text.startsWith(chatName(L) + ": "))) any = true; } catch(e){}
+  }
+  const d = $("#chatDot"); if (d) d.hidden = !any;
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden) checkUnread(); });
 async function openChat(L, box){
   closeChat();
   const q = "p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id);
@@ -7004,7 +7031,8 @@ async function openChat(L, box){
   const log = box.querySelector("#chatLog");
   const mine = n => n === chatName(L);
   const atBottom = () => log.scrollHeight - log.scrollTop - log.clientHeight < 80;
-  const draw = (stick) => { const keep = stick || atBottom(); log.innerHTML = (st.more ? '<button type="button" class="btn ghost" id="chatMore" style="width:100%;margin-bottom:8px">Earlier messages</button>' : "") + (st.list.length ? st.list.map(m => chatMsgHTML(m, mine)).join("") : '<p class="muted small" style="text-align:center">No messages since Snap Count joined the group. New ones will show up here.</p>'); if (keep) log.scrollTop = log.scrollHeight; const mb = log.querySelector("#chatMore"); if (mb) mb.addEventListener("click", older); };
+  const ck = L.meta.platform + ":" + L.meta.id;
+  const draw = (stick) => { const last = st.list[st.list.length - 1]; if (last && cur.tab === "chat") { chatSeen(ck, last.k); const dd = $("#chatDot"); if (dd) dd.hidden = true; } const keep = stick || atBottom(); log.innerHTML = (st.more ? '<button type="button" class="btn ghost" id="chatMore" style="width:100%;margin-bottom:8px">Earlier messages</button>' : "") + (st.list.length ? st.list.map(m => chatMsgHTML(m, mine)).join("") : '<p class="muted small" style="text-align:center">No messages since Snap Count joined the group. New ones will show up here.</p>'); if (keep) log.scrollTop = log.scrollHeight; const mb = log.querySelector("#chatMore"); if (mb) mb.addEventListener("click", older); };
   const add = (arr, front) => { const fresh = arr.filter(m => { const k = m.k || ("m:" + String(m.at).padStart(15, "0") + ":" + m.id); if (st.keys.has(k)) return false; st.keys.add(k); m.k = k; return true; }); st.list = front ? fresh.concat(st.list) : st.list.concat(fresh); st.list.sort((a, b) => a.k < b.k ? -1 : 1); return fresh.length; };
   const older = async () => { const first = st.list[0]; if (!first) return; const h0 = log.scrollHeight; try { const r = await api("/api/chat?" + q + "&before=" + encodeURIComponent(first.k)); st.more = r.more; add(r.list, true); draw(false); log.scrollTop = log.scrollHeight - h0; } catch(e){} };
   st.more = j.more; add(j.list); draw(true);
