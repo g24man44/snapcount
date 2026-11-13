@@ -122,6 +122,43 @@ async function gemSpeak(env, lines, pairKey) {
 // Groups of turns, about 30 seconds each, so every chunk is one natural stretch of conversation.
 function chunk(lines) { const out = []; let cur = [], n = 0; lines.forEach((l, i) => { if (cur.length && (n + l.t.length > 650 || cur.length >= 8)) { out.push(cur); cur = []; n = 0; } cur.push(i); n += l.t.length; }); if (cur.length) out.push(cur); return out; }
 
+/* ---------- ElevenLabs (owner's free account: 10,000 characters a month, must credit elevenlabs.io) ---------- */
+const EL = "https://api.elevenlabs.io";
+const elKey = env => String(env.ELEVENLABS_KEY || "").trim();
+async function elGet(env, path) { const r = await fetch(EL + path, { headers: { "xi-api-key": elKey(env) } }); if (!r.ok) { const e = new Error("ElevenLabs " + r.status + ": " + (await r.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 140)); e.status = r.status; throw e; } return r.json(); }
+// Best model the account can use, and two voices: an easygoing guy for Dez, a bright, playful voice for Sam.
+const EL_DEZ = ["Chris", "Liam", "Will", "Charlie", "Brian", "Eric", "Adam"], EL_SAM = ["Jessica", "Laura", "Sarah", "Alice", "Matilda", "Rachel"];
+export async function elSetup(env) {
+  const c = env.SNAP && await env.SNAP.get("el:setup", "json"); if (c && Date.now() - c.at < 7 * 864e5) return c;
+  const models = await elGet(env, "/v1/models").catch(() => []), ids = (models || []).filter(m => m.can_do_text_to_speech !== false).map(m => m.model_id);
+  const model = ["eleven_v4", "eleven_v3", "eleven_multilingual_v2", "eleven_turbo_v2_5"].find(m => ids.includes(m)) || "eleven_multilingual_v2";
+  const voices = ((await elGet(env, "/v1/voices")).voices || []);
+  const by = list => list.map(n => voices.find(v => String(v.name || "").split(/[ -]/)[0].toLowerCase() === n.toLowerCase())).find(Boolean);
+  const dez = by(EL_DEZ) || voices.find(v => (v.labels || {}).gender === "male") || voices[0], sam = by(EL_SAM) || voices.find(v => (v.labels || {}).gender === "female" && v !== dez) || voices[1];
+  if (!dez || !sam) throw new Error("No ElevenLabs voices found on this account");
+  const setup = { at: Date.now(), model, DEZ: dez.voice_id, SAM: sam.voice_id, names: [dez.name, sam.name] };
+  if (env.SNAP) await env.SNAP.put("el:setup", JSON.stringify(setup));
+  return setup;
+}
+// Eleven v3/v4 act out bracketed audio tags ([excited], [laughs]); older models get plain text.
+function elText(line, model) {
+  const tags = /v3|v4/.test(model);
+  let t = String(line.t).replace(/\|([^|]{1,60})\|/g, "$1").replace(/\p{Extended_Pictographic}\uFE0F?/gu, "");
+  const map = { laugh: "[laughs]", gasp: "[gasps]", sigh: "[sighs]", shout: "[shouting]", scream: "[screams]", whisper: "[whispers]", breath: "", "short pause": "...", "long pause": "... ..." };
+  t = t.replace(/<([a-z ]{1,20})>/gi, (m, k) => tags ? (map[k.toLowerCase()] ?? "") : (/pause/.test(k) ? "..." : ""));
+  if (tags && line.st) t = "[" + line.st.replace(/[\[\]]/g, "").slice(0, 40) + "] " + t;
+  return t.replace(/ +/g, " ").trim();
+}
+async function elSpeak(env, line) {
+  const set = await elSetup(env), v3 = /v3|v4/.test(set.model);
+  const call = settings => fetch(EL + "/v1/text-to-speech/" + set[line.s] + "?output_format=mp3_44100_128", { method: "POST", headers: { "xi-api-key": elKey(env), "content-type": "application/json" }, body: JSON.stringify(Object.assign({ text: elText(line, set.model), model_id: set.model }, settings ? { voice_settings: settings } : {})) });
+  let r = await call(v3 ? { stability: 0.0, similarity_boost: 0.75 } : { stability: 0.3, similarity_boost: 0.75, style: 0.6, use_speaker_boost: true });
+  if (r.status === 400 || r.status === 422) r = await call(null);
+  if (!r.ok) { const e = new Error("ElevenLabs " + r.status + ": " + (await r.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 160)); e.status = r.status; throw e; }
+  return new Uint8Array(await r.arrayBuffer());
+}
+export async function elUsage(env) { const s = await elGet(env, "/v1/user/subscription"); return { used: s.character_count, limit: s.character_limit, resets: s.next_character_count_reset_unix }; }
+
 async function speak(env, line) {
   const voice = (HOSTS[line.s] || HOSTS.DEZ).voice;
   const text = plain(line.t);
@@ -160,6 +197,18 @@ export async function showRoute(request, url, env) {
   if (path === "/api/show/voice" && request.method === "POST" && env.SNAP) {
     const b = await request.json().catch(() => ({})); if (!GEM_PAIRS[b.pair]) return out({ error: "Unknown voice pair" }, 400);
     await env.SNAP.put("showvoice", b.pair); return out({ ok: true });
+  }
+  if (path === "/api/show/sample" && elKey(env)) {
+    let bytes = env.SNAP ? await env.SNAP.get("showsample:el1", "arrayBuffer") : null;
+    if (!bytes) {
+      const parts = [];
+      try { for (const [h, st, t] of NATURAL_SAMPLE) parts.push(await elSpeak(env, { s: h, st, t })); }
+      catch (e) { return out({ error: e.message }, 502); }
+      const all = new Uint8Array(parts.reduce((a, b) => a + b.length, 0)); let o = 0; parts.forEach(b => { all.set(b, o); o += b.length; });
+      if (env.SNAP) await env.SNAP.put("showsample:el1", all);
+      bytes = all.buffer;
+    }
+    return new Response(bytes, { headers: { "content-type": "audio/mpeg", "x-engine": "eleven", "cache-control": "no-store" } });
   }
   if (path === "/api/show/sample" && gemKey(env)) {
     const pk = GEM_PAIRS[url.searchParams.get("pair")] ? url.searchParams.get("pair") : "a", ck = "showsample:g3:" + pk;
@@ -239,9 +288,10 @@ export async function showRoute(request, url, env) {
       const fix = best && best.bad.length ? "\n\nYour last draft used numbers that are NOT in the data: " + [...new Set(best.bad)].slice(0, 8).join(", ") + ". Use only numbers that appear in the data." : "";
       try {
         let txt = "";
-        if (gemKey(env) && !useCf) { try { txt = await gemWrite(env, SHOW_SYS, "LEAGUE DATA:\n" + data + "\n\nWrite the script now." + fix); } catch (e) { lastErr = e; useCf = true; } }
+        const len = elKey(env) ? "\n\nKeep it SHORT this time: 330 to 400 words total (the voice budget is tight). Fewer games in detail; still mention the closest game, the blowout, the high score and the blunder." : "";
+        if (gemKey(env) && !useCf) { try { txt = await gemWrite(env, SHOW_SYS, "LEAGUE DATA:\n" + data + "\n\nWrite the script now." + len + fix); } catch (e) { lastErr = e; useCf = true; } }
         if (!txt) {
-          const r = await env.AI.run(model, { messages: [{ role: "system", content: SHOW_SYS }, { role: "user", content: "LEAGUE DATA:\n" + data + "\n\nWrite the script now." + fix }], max_tokens: 1800, temperature: 0.8 });
+          const r = await env.AI.run(model, { messages: [{ role: "system", content: SHOW_SYS }, { role: "user", content: "LEAGUE DATA:\n" + data + "\n\nWrite the script now." + len + fix }], max_tokens: 1800, temperature: 0.8 });
           txt = String((r && (r.response ?? (r.choices && r.choices[0] && r.choices[0].message && r.choices[0].message.content))) ?? "");
         }
         const ls = parseScript(txt);
@@ -255,8 +305,9 @@ export async function showRoute(request, url, env) {
       if (/4006|neuron|allocation|quota|limit/i.test(m)) return out({ error: "Today’s free AI allowance is used up. Try again after 7 PM Eastern, when it resets.", wait: true }, 503);
       return out({ error: "The script writer came back short. Try again in a minute. (" + m.slice(0, 100) + ")" }, 502);
     }
+    if (elKey(env) && lines[0]) lines[0].t = lines[0].t.replace(/(an AI-made recap)/i, "$1, with voices by ElevenLabs dot io,");
     if (old) { for (let i = 0; i < old.lines.length; i++) { await env.SNAP.delete(key + ":a" + i); await env.SNAP.delete(key + ":g" + i); } }
-    const engine = gemKey(env) ? "gemini" : "deepgram";
+    const engine = elKey(env) ? "eleven" : gemKey(env) ? "gemini" : "deepgram";
     const show = { lines, engine, parts: engine === "gemini" ? chunk(lines) : null, final: !!b.final, at: Date.now(), league: String(b.league || "").slice(0, 80), remade: !!old };
     await env.SNAP.put(key, JSON.stringify(show), { expirationTtl: 120 * 86400 });
     return out({ show: Object.assign(await view(show), { done: 0 }) });
@@ -279,6 +330,12 @@ export async function showRoute(request, url, env) {
     }
     if (!Number.isInteger(i) || i < 0 || i >= show.lines.length) return out({ error: "Bad line" }, 400);
     const ak = key + ":a" + i;
+    if (!(await env.SNAP.get(ak, "arrayBuffer")) && show.engine === "eleven") {
+      let audio;
+      try { audio = await elSpeak(env, show.lines[i]); }
+      catch (e) { return out({ error: /quota|credits|limit/i.test(e.message) || e.status === 401 && /quota/i.test(e.message) ? "This month’s free ElevenLabs characters are used up. The rest records after your monthly reset." : e.message, wait: true }, 503); }
+      await env.SNAP.put(ak, audio, { expirationTtl: 120 * 86400 });
+    }
     if (!(await env.SNAP.get(ak, "arrayBuffer"))) {
       const audio = await speak(env, show.lines[i]);
       if (!audio) return out({ error: "Today’s free voice time is used up. Open this again after 7 PM Eastern and it picks up right where it stopped.", wait: true }, 503);

@@ -2,7 +2,7 @@
 // Paste this whole file into a new Cloudflare Worker and deploy. Free plan is fine.
 
 import { chatRoute, groupmeSay, ChatRoom } from "./src/chat.js";
-import { showRoute } from "./src/show.js";
+import { showRoute, elUsage, elSetup } from "./src/show.js";
 import { alertsRoute, runMinute, staticRoute, injuriesRoute, readInjuries, eachSubscriber, norm } from "./src/alerts.js";
 import { PROSPECTS } from "./src/prospects.js";
 import { gameWeather } from "./src/weather.js";
@@ -380,6 +380,10 @@ async function healthCheck(env) {
     const tts = names.filter(n => /tts/.test(n)).map(n => n.replace("models/", ""));
     if (!tts.length) throw new Error("key works, but no Gemini voice models are available to it");
     return tts.slice(0, 3).join(", ");
+  });
+  if (env.ELEVENLABS_KEY) await check("Show voices (ElevenLabs)", async () => {
+    const u = await elUsage(env), set = await elSetup(env);
+    return (set.names || []).join(" & ") + " on " + set.model + " · " + (u.used || 0).toLocaleString() + " of " + (u.limit || 0).toLocaleString() + " characters used this month";
   });
   await check("Storage", async () => { if (!env.SNAP) throw new Error("no storage"); await env.SNAP.put("health:last", JSON.stringify({ at: t0, res })); const back = await env.SNAP.get("health:last", "json"); if (!back || back.at !== t0) throw new Error("write did not read back (daily limit?)"); });
   const bad = res.filter(r => !r.ok);
