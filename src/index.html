@@ -281,6 +281,7 @@ form.add{display:flex;flex-direction:column;gap:10px}
 .chatin{display:flex;gap:8px;align-items:flex-end;padding-top:8px;border-top:1px solid var(--line)}.chatin textarea{flex:1;resize:none;border-radius:18px;padding:9px 14px;min-height:40px;max-height:140px;font:inherit}
 .chatas{margin:6px 2px 0}.linkish{background:none;border:0;padding:0;color:var(--accent);font:inherit;text-decoration:underline;cursor:pointer}.chatname{width:12em;padding:2px 6px;font:inherit}
 .copyrow{display:flex;gap:8px}.copyrow input{flex:1;min-width:0;font-size:.8rem}.gmsteps .card{margin-bottom:10px}.gmsteps p{margin:6px 0 8px}
+.shscript p{margin:8px 0;line-height:1.5}
 .updbar{display:block;width:100%;margin:0 0 10px;padding:10px 14px;border:0;border-radius:12px;background:var(--accent);color:#111;font:inherit;font-weight:650;cursor:pointer}.updbar[hidden]{display:none}
 .usestats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0}.usestats div{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px;text-align:center}.usestats b{display:block;font-size:1.35rem}.usestats span{font-size:.75rem;color:var(--muted)}
 .usebars{display:flex;align-items:flex-end;gap:3px;height:140px;padding:10px 10px 22px}.usebars .ub{flex:1;max-width:28px;height:100%;position:relative;display:flex;align-items:flex-end}.usebars .ub i{position:absolute;bottom:0;left:0;right:0;background:var(--accent);border-radius:3px 3px 0 0;opacity:.35}.usebars .ub i.new{opacity:1}.usebars .ub span{position:absolute;bottom:-18px;left:0;right:0;text-align:center;font-size:.6rem;color:var(--muted)}
@@ -1442,7 +1443,7 @@ function renderLeague(v, L){
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="mktBtn"><i class=ic-swap aria-hidden=true></i>Trade market</button>');
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="cutBtn"><i class=ic-list aria-hidden=true></i>Who to cut</button>');
     if (d.teams.some(t => t.mine) && m.platform === "flea") tiles.push('<button type="button" class="btn ghost" id="rcBtn"><i class=ic-scale aria-hidden=true></i>Your report card</button>');
-    if (d.teams.some(t => t.mine) && d.games.length) tiles.push('<button type="button" class="btn ghost" id="pkBtn"><i class=ic-flame aria-hidden=true></i>Pick’em and roast</button>'); if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="commBtn"><i class=ic-trophy aria-hidden=true></i>Dues, rules and awards</button>');
+    if (d.teams.some(t => t.mine) && d.games.length) tiles.push('<button type="button" class="btn ghost" id="pkBtn"><i class=ic-flame aria-hidden=true></i>Pick’em and roast</button>'); tiles.push('<button type="button" class="btn ghost" id="showBtn"><i class=ic-speaker aria-hidden=true></i>The league show</button>'); if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="commBtn"><i class=ic-trophy aria-hidden=true></i>Dues, rules and awards</button>');
     if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="dcBtn"><i class=ic-pencil aria-hidden=true></i>Draft grades and write-up</button>');
     // Grouped by what you're trying to do, as compact rows instead of a wall of identical tiles.
     const GROUPS = [["This week", ["mrBtn", "pwBtn", "pkBtn", "cutBtn"]], ["Trades", ["lsBtn", "scoutBtn", "mktBtn"]], ["Season", ["picBtn", "ppBtn", "swapBtn", "histBtn", "rcBtn", "winBtn", "wrapBtn"]], ["Draft", ["doBtn", "dcBtn"]]];
@@ -1498,6 +1499,7 @@ function renderLeague(v, L){
   const ctb = v.querySelector("#cutBtn"); if (ctb) ctb.addEventListener("click", () => openCuts(L));
   const rcb = v.querySelector("#rcBtn"); if (rcb) rcb.addEventListener("click", () => openReport(L));
   const pkb = v.querySelector("#pkBtn"); if (pkb) pkb.addEventListener("click", () => openPickem(L));
+  const shb = v.querySelector("#showBtn"); if (shb) shb.addEventListener("click", () => openShow(L));
   const cmb = v.querySelector("#commBtn"); if (cmb) cmb.addEventListener("click", () => openComm(L));
   const dcb = v.querySelector("#dcBtn"); if (dcb) dcb.addEventListener("click", () => openDraftCenter(L));
 }
@@ -6983,6 +6985,49 @@ function wireInstall(v){
   b.addEventListener("click", async () => { if (!installEvt) return; installEvt.prompt(); try { await installEvt.userChoice; } catch(e){} installEvt = null; render(); });
 }
 if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+
+/* ---------- the league show: a weekly two-host audio recap ---------- */
+async function openShow(L){
+  const body = openSheetShell("The Snap Count Show");
+  const d = L.detail, w = d.week || 1, q = "p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id) + "&w=" + w;
+  const final = !d.games.some(g => g.live || g.final === false);
+  const NAMES = {DEZ: "Dez", SAM: "Sam"};
+  let busy = false, msg = "", show = null, done = 0;
+  const draw = () => {
+    let h = '<p class="small muted" style="margin:0 0 12px">A weekly podcast about ' + esc(L.meta.name) + ', made by AI from your league’s real results. Hosts Dez and Sam, week ' + w + '.</p>';
+    if (!show) h += '<div class="card empty"><h3>Week ' + w + ' isn’t recorded yet</h3><p class="muted">' + (final ? "All games are final, so this one covers the whole week." : "Some games aren’t final yet. You can make it now, or wait until Tuesday for the full week.") + '</p><button class="btn" id="shMake"' + (busy ? " disabled" : "") + '>' + (busy ? "Writing the script…" : "Make this week’s show") + '</button></div>';
+    else {
+      const ready = done >= show.total;
+      if (ready) h += '<div class="card"><audio controls preload="metadata" style="width:100%" src="/api/show/mp3?' + q + '&t=' + show.at + '"></audio>' + (!show.final ? '<p class="small muted" style="margin:8px 0 0">Made while games were still being played.' + (final && !show.remade ? ' <button class="linkish" id="shRemake">Remake it with final scores</button>' : "") + "</p>" : "") + "</div>";
+      else h += '<div class="card"><b>Recording…</b><div class="cbar" style="margin:10px 0 6px"><span style="width:' + Math.round(done / show.total * 100) + '%"></span></div><p class="small muted" style="margin:0">' + done + " of " + show.total + ' parts. Keep this open; it takes about a minute. If you leave, the next person to open it picks up where it stopped.</p></div>';
+      h += '<details class="card" style="margin-top:12px"><summary><b>Read the script</b></summary><div class="shscript">' + show.lines.map(l => '<p><b>' + NAMES[l.s] + ':</b> ' + esc(l.t) + "</p>").join("") + "</div></details>";
+    }
+    if (msg) h += '<p class="small" style="color:var(--bad);margin-top:10px">' + esc(msg) + "</p>";
+    body.innerHTML = h;
+    const mk = body.querySelector("#shMake"); if (mk) mk.addEventListener("click", make);
+    const rm = body.querySelector("#shRemake"); if (rm) rm.addEventListener("click", make);
+  };
+  const record = async () => {
+    for (let i = 0; i < show.total; i++) {
+      if ($("#sheet").hidden) return;
+      try { await post("/api/show/line?" + q, {dev: devId(), i}); done = Math.max(done, i + 1); draw(); }
+      catch(e){ msg = e.message; draw(); return; }
+    }
+    done = show.total; draw();
+  };
+  async function make(){
+    busy = true; msg = ""; draw();
+    try {
+      const ctx = await buildRecapCtx(L);
+      const r = await post("/api/show/script?" + q, {dev: devId(), ctx, final, league: L.meta.name});
+      show = r.show; done = 0; busy = false; draw(); record();
+    } catch(e){ busy = false; msg = e.message; draw(); }
+  }
+  body.innerHTML = '<p class="spin">Checking for this week’s episode…</p>';
+  try { const r = await api("/api/show?" + q); show = r.show; done = show ? show.done : 0; } catch(e){ msg = e.message; }
+  draw();
+  if (show && done < show.total) record();
+}
 
 /* ---------- league chat, bridged to the league's GroupMe ---------- */
 let chat = null;

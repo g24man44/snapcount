@@ -850,7 +850,7 @@ const SHELL = "snapcount-shell-v9", DATA = "snapcount-data-v1";
 self.addEventListener("install", e => { self.skipWaiting(); e.waitUntil(caches.open(SHELL).then(c => c.addAll(["/", "/icon-192.png"])).catch(() => {})); });
 self.addEventListener("fetch", e => {
   const u = new URL(e.request.url);
-  if (e.request.method === "GET" && u.origin === location.origin && u.pathname.startsWith("/api/") && !u.pathname.startsWith("/api/push/")) {
+  if (e.request.method === "GET" && u.origin === location.origin && u.pathname.startsWith("/api/") && !u.pathname.startsWith("/api/push/") && !u.pathname.startsWith("/api/show/mp3") && !e.request.headers.has("range")) {
     // Network first; if you're offline (stadium wifi, subway), show the last data you saw.
     e.respondWith(fetch(e.request).then(r => { if (r.ok) { const c = r.clone(); caches.open(DATA).then(x => x.put(e.request, c)); } return r; })
       .catch(() => caches.open(DATA).then(x => x.match(e.request)).then(r => { if (!r) throw new Error("offline"); const h = new Headers(r.headers); h.set("x-sc-offline", "1"); return r.blob().then(b => new Response(b, { status: 200, headers: h })); })));
