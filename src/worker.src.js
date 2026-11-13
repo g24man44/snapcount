@@ -230,6 +230,7 @@ async function tradeValues(ppr, teams, qbs, dyn, realTeams, env) {
   smoothPicks(out);
   calibratePicks(out);
   calibrateQBs(out, realTeams || teams, qbs);
+  rerank(out);
   // Day-over-day and week-over-week change, from the daily snapshots.
   if (snap1 || snap7) uniq.forEach(row => {
     const id = rows.find(x => (out[x.sid] || out["f" + x.fid]) === row); if (!id) return;
@@ -313,6 +314,19 @@ function calibratePicks(out) {
     if (!f) continue;
     const r = out[k].slice(); r[0] = r[7] = Math.round(r[0] * f); out[k] = r;
   }
+  // A pick a year further out is never worth more than the same pick a year sooner (at least 10% less).
+  for (let i = 1; i < years.length; i++) for (const k of Object.keys(out)) {
+    if (!k.startsWith("pick:" + years[i] + " ")) continue;
+    const prev = out["pick:" + years[i - 1] + k.slice(9)];
+    if (prev && out[k][0] > prev[0] * 0.9) { const r = out[k].slice(); r[0] = r[7] = Math.round(prev[0] * 0.9); out[k] = r; }
+  }
+}
+// Overall and position ranks follow the final values (calibration can swap neighbors).
+function rerank(out) {
+  const rows = [...new Set(Object.keys(out).filter(k => !k.startsWith("pick:")).map(k => out[k]))].filter(r => Array.isArray(r)).sort((a, b) => (b[0] || 0) - (a[0] || 0));
+  const pos = {}, copy = new Map();
+  rows.forEach((r, i) => { const n = r.slice(); n[1] = i + 1; pos[r[5]] = (pos[r[5]] || 0) + 1; n[2] = pos[r[5]]; copy.set(r, n); });
+  for (const k in out) if (copy.has(out[k])) out[k] = copy.get(out[k]);
 }
 
 // Quarterback calibration to DTC (checked Nov 12, 2026 against 12 QBs in 16-team superflex, plus 12-team
@@ -711,7 +725,7 @@ export async function dailyValues(env, force) {
       for (const k in body.values) if (k[0] !== "f" && !k.startsWith("pick:")) snap[k] = [body.values[k][0], body.values[k][8]];
       await env.SNAP.put("vsnap:" + fmt + ":" + day, JSON.stringify(snap), { expirationTtl: 45 * 864e5 / 1000 });
       const copy = new Response(res.body, res); copy.headers.set("cache-control", "public, max-age=10800");
-      await caches.default.put(new Request("https://snapcount.cache/values15/" + fmt), copy);
+      await caches.default.put(new Request("https://snapcount.cache/values16/" + fmt), copy);
       done.push(fmt);
     } catch (e) {}
   }
@@ -791,7 +805,7 @@ export default {
         const dyn = url.searchParams.get("dyn") === "1";
         const real = Math.min(32, Math.max(4, t));
         ctx.waitUntil(noteValueFormat(env, ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0)));
-        return cached(ctx, "values15/" + ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0), 10800, () => tradeValues(ppr, teams, qbs, dyn, real, env));
+        return cached(ctx, "values16/" + ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0), 10800, () => tradeValues(ppr, teams, qbs, dyn, real, env));
       }
       if (p === "/api/version") return json({ build: "__BUILDID__" }, 200, 0);
       if (p === "/api/comm") return commRoute(request, url, env);
