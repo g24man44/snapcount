@@ -107,8 +107,9 @@ export async function chatRoute(request, url, env) {
 
   if (path === "/api/chat" && request.method === "GET") {
     const c = await getCfg(env, p, lid);
-    const comm = await isComm(env, p, lid, url.searchParams.get("dev"));
-    if (!c || !c.bot) return out({ connected: false, isComm: comm, callback: comm && c && c.code ? url.origin + "/g/" + c.code : null });
+    const dev = url.searchParams.get("dev"), comm = await isComm(env, p, lid, dev);
+    const canSet = !c || !c.dev || c.dev === dev || comm;
+    if (!c || !c.bot) return out({ connected: false, isComm: canSet, callback: canSet && c && c.code ? url.origin + "/g/" + c.code : null });
     const r = await room(env, p, lid).fetch("https://chat/list" + (url.searchParams.get("before") ? "?before=" + encodeURIComponent(url.searchParams.get("before")) : ""));
     return out(Object.assign({ connected: true, isComm: comm, group: c.group || "" }, await r.json()));
   }
@@ -130,10 +131,13 @@ export async function chatRoute(request, url, env) {
   }
 
   if (path === "/api/chat/setup") {
-    if (!(await isComm(env, p, lid, b.dev))) return out({ error: "Only the league’s commissioner in Snap Count can connect GroupMe. Claim it in Dues, rules and awards." }, 403);
     const key = cfgKey(p, lid), c = (await env.SNAP.get(key, "json")) || {};
+    // Whoever starts the setup can finish it (or the league's Snap Count commissioner). Once a bot is connected,
+    // only that person or the commissioner can change it.
+    if (c.dev && c.dev !== b.dev && !(await isComm(env, p, lid, b.dev))) return out({ error: "Someone else in your league already set up GroupMe. They (or your commissioner) can change it." }, 403);
+    if (!c.dev) c.dev = b.dev;
     if (b.action === "start") {
-      if (!c.token || !c.code) {
+      if (!c.token || !c.code || !c.saved) { c.saved = 1;
         const a = new Uint8Array(12); crypto.getRandomValues(a); c.token = c.token || [...a].map(x => x.toString(16).padStart(2, "0")).join("");
         const b2 = new Uint8Array(7); crypto.getRandomValues(b2); c.code = [...b2].map(x => "abcdefghijkmnpqrstuvwxyz23456789"[x % 32]).join("");
         await env.SNAP.put("gmc:" + c.code, JSON.stringify({ p, lid, token: c.token }));

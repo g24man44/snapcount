@@ -7023,8 +7023,19 @@ async function openChat(L, box){
   if (st.dead) return;
   gmState[L.meta.platform + ":" + L.meta.id] = !!j.connected;
   if (!j.connected) {
-    box.innerHTML = '<div class="card empty"><h3>Bring your GroupMe in here</h3><p class="muted">Once it’s connected, your league’s GroupMe shows up live in this tab, you can post to it from here, and Snap Count drops trade grades, recaps and trade market posts into the group.</p>' + (j.isComm ? '<button type="button" class="btn" id="gmSetup">Connect GroupMe</button>' : '<p class="small muted">Your commissioner sets it up once, under League → Dues, rules and awards → GroupMe.</p>') + "</div>";
-    const g = box.querySelector("#gmSetup"); if (g) g.addEventListener("click", () => openComm(L, "groupme"));
+    if (!j.isComm) { box.innerHTML = '<div class="card empty"><h3>GroupMe isn’t connected yet</h3><p class="muted">Someone in your league has started connecting it. Once they finish, the group’s messages show up here.</p></div>'; return; }
+    const gq = "/api/chat/setup?" + q;
+    let cb = j.callback;
+    if (!cb) { try { cb = (await post(gq, {dev: devId(), action: "start"})).callback; } catch(e){ box.innerHTML = '<div class="err">' + esc(e.message) + "</div>"; return; } }
+    if (st.dead) return;
+    box.innerHTML = '<div class="gmsteps"><p class="muted" style="margin:0 0 12px">Connect your league’s GroupMe once and its messages show up here. Three steps:</p>'
+      + '<div class="card"><b>1. Copy this address</b><div class="copyrow" style="margin-top:8px"><input readonly id="gmCb" value="' + esc(cb) + '" aria-label="Callback address"><button class="btn" id="gmCopy">Copy</button></div></div>'
+      + '<div class="card"><b>2. Make the bot on GroupMe</b><p class="small">Open <a href="https://dev.groupme.com/bots/new" target="_blank" rel="noopener">dev.groupme.com/bots/new</a> and sign in. Pick your league’s group, type <b>Snap Count</b> for the name, and paste the address into <b>Callback URL</b>. Leave everything else blank and press Submit.</p></div>'
+      + '<div class="card stackc" style="gap:8px"><b>3. Paste the Bot ID here</b><p class="small muted" style="margin:0">GroupMe shows it next to your new bot.</p><input id="gmBot" placeholder="Bot ID" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn" id="gmSave">Connect</button><p class="small" id="gmMsg" style="margin:0;color:var(--bad)"></p></div></div>';
+    box.querySelector("#gmCopy").addEventListener("click", async () => { const i = box.querySelector("#gmCb"); try { await navigator.clipboard.writeText(i.value); box.querySelector("#gmCopy").textContent = "Copied"; } catch(e){ i.select(); } });
+    box.querySelector("#gmSave").addEventListener("click", async () => { const b = box.querySelector("#gmSave"); b.disabled = true; b.textContent = "Connecting…";
+      try { await post(gq, {dev: devId(), action: "bot", bot: box.querySelector("#gmBot").value.trim()}); gmState[L.meta.platform + ":" + L.meta.id] = true; openChat(L, box); }
+      catch(e){ b.disabled = false; b.textContent = "Connect"; box.querySelector("#gmMsg").textContent = e.message; } });
     return;
   }
   box.innerHTML = '<div class="chatwrap"><div class="chatlog" id="chatLog" aria-live="polite"></div><form class="chatin" id="chatForm"><textarea id="chatText" rows="1" maxlength="900" placeholder="Message the league" aria-label="Message"></textarea><button class="btn" id="chatSend" aria-label="Send">Send</button></form><p class="small muted chatas">Posting as <button type="button" class="linkish" id="chatAs">' + esc(chatName(L)) + '</button> through the Snap Count bot.</p></div>';
