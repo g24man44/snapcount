@@ -1409,7 +1409,7 @@ function renderLeague(v, L){
   } else {
     const tiles = [];
     if (d.games.length) tiles.push('<button type="button" class="btn aibtn" id="recapBtn"><i class=ic-spark aria-hidden=true></i>Write this week’s recap</button>');
-    if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="pwBtn"><i class=ic-bars aria-hidden=true></i>Power rankings</button>', '<button type="button" class="btn ghost" id="histBtn"><i class=ic-trophy aria-hidden=true></i>History and rivalries</button>');
+    if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="pwBtn"><i class=ic-bars aria-hidden=true></i>Power rankings</button>', '<button type="button" class="btn ghost" id="histBtn"><i class=ic-trophy aria-hidden=true></i>History and rivalries</button>', '<button type="button" class="btn ghost" id="swapBtn"><i class=ic-swap aria-hidden=true></i>Schedule swap</button>');
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="lsBtn"><i class=ic-compass aria-hidden=true></i>Landscape and trade partners</button>');
     if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="picBtn"><i class=ic-bracket aria-hidden=true></i>Playoff picture</button>');
     if (d.teams.some(t => t.mine) && ["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="ppBtn"><i class=ic-target aria-hidden=true></i>Playoff path</button>');
@@ -1424,7 +1424,7 @@ function renderLeague(v, L){
     if (d.teams.some(t => t.mine) && d.games.length) tiles.push('<button type="button" class="btn ghost" id="pkBtn"><i class=ic-flame aria-hidden=true></i>Pick’em and roast</button>'); if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="commBtn"><i class=ic-trophy aria-hidden=true></i>Dues, rules and awards</button>');
     if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="dcBtn"><i class=ic-pencil aria-hidden=true></i>Draft grades and write-up</button>');
     // Grouped by what you're trying to do, as compact rows instead of a wall of identical tiles.
-    const GROUPS = [["This week", ["mrBtn", "pwBtn", "pkBtn", "cutBtn"]], ["Trades", ["lsBtn", "scoutBtn", "mktBtn"]], ["Season", ["picBtn", "ppBtn", "histBtn", "rcBtn", "winBtn", "wrapBtn"]], ["Draft", ["doBtn", "dcBtn"]]];
+    const GROUPS = [["This week", ["mrBtn", "pwBtn", "pkBtn", "cutBtn"]], ["Trades", ["lsBtn", "scoutBtn", "mktBtn"]], ["Season", ["picBtn", "ppBtn", "swapBtn", "histBtn", "rcBtn", "winBtn", "wrapBtn"]], ["Draft", ["doBtn", "dcBtn"]]];
     const idOf = t => (t.match(/id="(\w+)"/) || [])[1], used = new Set();
     const hero = tiles.find(t => idOf(t) === "recapBtn"); if (hero) { used.add(hero); h += '<div style="margin-top:12px">' + hero.replace('class="btn aibtn"', 'class="btn aibtn" style="width:100%"') + "</div>"; }
     GROUPS.forEach(([title, ids]) => { const list = ids.map(id => tiles.find(t => idOf(t) === id)).filter(Boolean); list.forEach(t => used.add(t)); if (list.length) h += '<h3 class="tgh">' + title + '</h3><div class="tlist">' + list.join("") + "</div>"; });
@@ -1464,6 +1464,7 @@ function renderLeague(v, L){
   const hb = v.querySelector("#histBtn"); if (hb) hb.addEventListener("click", () => openHistory(L));
   v.querySelectorAll("[data-luopen]").forEach(b => b.addEventListener("click", () => openLineup(L)));
   const pw = v.querySelector("#pwBtn"); if (pw) pw.addEventListener("click", () => openPower(L));
+  const swb = v.querySelector("#swapBtn"); if (swb) swb.addEventListener("click", () => openSwap(L));
   const lsb = v.querySelector("#lsBtn"); if (lsb) lsb.addEventListener("click", () => openLandscape(L));
   const ppb = v.querySelector("#ppBtn"); if (ppb) ppb.addEventListener("click", () => openPlayoffPath(L));
   const scb = v.querySelector("#scoutBtn"); if (scb) scb.addEventListener("click", () => openScouting(L));
@@ -4104,6 +4105,90 @@ async function openPower(L){
   });
   const pb = p.querySelector("#pwPost");
   if (pb) pb.addEventListener("click", async () => { pb.disabled = true; try { await post("/api/hookpost", {hooks: loadHooks(), title: L.meta.name + " · power rankings after week " + last, body: text.split("\n").slice(1).join("\n")}); $("#pwMsg").textContent = "Posted."; } catch(e){ $("#pwMsg").textContent = e.message; pb.disabled = false; } });
+}
+
+/* ---------- schedule swap: your record with every other team's schedule ---------- */
+function swapTable(games){
+  const sc = {}, op = {}, info = {}, weeks = new Set();
+  games.filter(g => !g.po && !g.cons && g.as != null && g.hs != null).forEach(g => {
+    weeks.add(g.wk); (sc[g.wk] = sc[g.wk] || {}); (op[g.wk] = op[g.wk] || {});
+    sc[g.wk][g.a.id] = g.as; sc[g.wk][g.h.id] = g.hs; op[g.wk][g.a.id] = g.h.id; op[g.wk][g.h.id] = g.a.id;
+    [g.a, g.h].forEach(t => { if (!info[t.id]) info[t.id] = {id: t.id, name: t.name, logo: t.logo}; });
+  });
+  const ids = Object.keys(info), wks = [...weeks].sort((a, b) => a - b);
+  // A plays whoever B played that week; if that was A itself, A plays B instead (the usual schedule-swap rule).
+  const rec = (a, b) => { const r = {w: 0, l: 0, t: 0, pa: 0}; wks.forEach(wk => { const S = sc[wk]; if (S[a] == null || S[b] == null) return; let o = op[wk][b]; if (o === a) o = b; if (S[o] == null) return; r.pa += S[o]; if (S[a] > S[o]) r.w++; else if (S[a] < S[o]) r.l++; else r.t++; }); return r; };
+  const M = {}; ids.forEach(a => { M[a] = {}; ids.forEach(b => M[a][b] = rec(a, b)); });
+  const wins = r => r.w + r.t / 2;
+  const teams = ids.map(a => {
+    const own = M[a][a], all = ids.map(b => ({b, r: M[a][b]})), avg = all.reduce((s, x) => s + wins(x.r), 0) / all.length;
+    const best = all.slice().sort((x, y) => wins(y.r) - wins(x.r) || x.r.pa - y.r.pa)[0], worst = all.slice().sort((x, y) => wins(x.r) - wins(y.r) || y.r.pa - x.r.pa)[0];
+    const beats = all.filter(x => x.b !== a && wins(x.r) > wins(own)).length;
+    return Object.assign({}, info[a], {own, avg, best, worst, luck: wins(own) - avg, beats});
+  });
+  // How hard each schedule is: average wins the whole league would get with it.
+  const scheds = ids.map(b => Object.assign({}, info[b], {avg: ids.reduce((s, a) => s + wins(M[a][b]), 0) / ids.length, pa: M[b][b].pa}));
+  return {M, ids, info, teams, scheds, weeks: wks.length, last: wks[wks.length - 1] || 0, wins};
+}
+async function openSwap(L){
+  const sh = $("#sheet"), p = $("#sheetPanel"), d = L.detail, head = '<button class="back" id="closeSheet">Close</button><h2>Schedule swap</h2>';
+  const fail = msg => { p.innerHTML = head + '<div class="card"><p class="small" style="margin:0">' + esc(msg) + "</p></div>"; p.querySelector("#closeSheet").addEventListener("click", closeSheet); };
+  p.innerHTML = head + '<p class="spin">Replaying the season with every schedule…</p>';
+  sh.hidden = false; p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+  let games = [];
+  try {
+    if (L.meta.platform === "flea") { const now = new Date(), cy = now.getMonth() < 2 ? now.getFullYear() - 1 : now.getFullYear(); const r = await api("/api/flea-history?league_id=" + L.meta.id + "&season=" + cy); games = r.games || []; }
+    else { const all = await histSeasons(L); games = (all[0] || {}).games || []; }
+  } catch(e){ return fail("Couldn’t load this season’s scores: " + e.message); }
+  if (sh.hidden) return;
+  const X = swapTable(games);
+  if (X.ids.length < 3 || !X.weeks) return fail("No finished games yet this season. Check back after week 1.");
+  const nm = id => { const t = d.teams.find(x => x.id === id); return (t && t.name) || (X.info[id] || {}).name || "Team"; };
+  const meT = d.teams.find(t => t.mine);
+  let meId = meT && X.info[meT.id] ? meT.id : null;
+  if (!meId && L.uid && X.info["o:" + L.uid]) meId = "o:" + L.uid;
+  if (!meId && meT) meId = X.ids.find(id => X.info[id].name === meT.name) || null;
+  let sel = meId || X.teams.slice().sort((a, b) => a.luck - b.luck)[0].id;
+  const recS = r => r.w + "-" + r.l + (r.t ? "-" + r.t : ""), sgn = v => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(1);
+  const lucky = X.teams.slice().sort((a, b) => b.luck - a.luck)[0], unlucky = X.teams.slice().sort((a, b) => a.luck - b.luck)[0];
+  const hard = X.scheds.slice().sort((a, b) => a.avg - b.avg)[0], easy = X.scheds.slice().sort((a, b) => b.avg - a.avg)[0];
+  const draw = () => {
+    const T = X.teams.find(t => t.id === sel), you = sel === meId, who = you ? "You" : nm(sel), whose = you ? "your" : "their";
+    const own = X.wins(T.own);
+    let h = head + '<p class="small muted" style="margin:-4px 0 12px">After week ' + X.last + " · " + (you ? "your" : esc(nm(sel)) + "’s") + " record if " + (you ? "you’d" : "they’d") + " played another team’s schedule, same weekly scores</p>";
+    h += '<label class="small muted" for="swapPick" style="display:block;margin:0 2px 4px">Team</label><select id="swapPick" style="width:100%;margin-bottom:12px">' + X.teams.slice().sort((a, b) => (b.id === meId) - (a.id === meId) || nm(a.id).localeCompare(nm(b.id))).map(t => '<option value="' + esc(t.id) + '"' + (t.id === sel ? " selected" : "") + ">" + esc(nm(t.id)) + (t.id === meId ? " (you)" : "") + "</option>").join("") + "</select>";
+    const verdict = T.luck >= 0.75 ? (you ? "Your" : "Their") + " schedule has been kind: " + sgn(T.luck) + " wins over the average schedule." : T.luck <= -0.75 ? (you ? "Your" : "Their") + " schedule has been rough: " + sgn(T.luck) + " wins against the average schedule." : (you ? "Your" : "Their") + " schedule has been about average (" + sgn(T.luck) + " wins).";
+    h += '<div class="card"><ul class="reasons" style="margin:0">' +
+      "<li><b>Real record:</b> " + recS(T.own) + " with " + fmt(T.own.pa) + " points against.</li>" +
+      '<li class="good"><b>Best schedule:</b> ' + esc(nm(T.best.b)) + "’s, " + recS(T.best.r) + ".</li>" +
+      '<li class="bad"><b>Worst schedule:</b> ' + esc(nm(T.worst.b)) + "’s, " + recS(T.worst.r) + ".</li>" +
+      '<li class="' + (T.luck >= 0.75 ? "good" : T.luck <= -0.75 ? "bad" : "") + '"><b>' + esc(verdict) + "</b> " + who + " would have a better record with " + T.beats + " of the other " + (X.ids.length - 1) + " schedules.</li></ul></div>";
+    const rows = X.ids.map(b => ({b, r: X.M[sel][b]})).sort((x, y) => X.wins(y.r) - X.wins(x.r) || x.r.pa - y.r.pa);
+    h += "<h3>" + (you ? "Your" : esc(nm(sel)) + "’s") + " record with each schedule</h3>";
+    h += '<div class="card" style="padding:6px 0"><table class="otable"><tbody>' + rows.map(x => { const dv = X.wins(x.r) - own; return '<tr class="' + (x.b === sel ? "me" : "") + '"><td>' + teamLogo(X.info[x.b]) + "</td><td><b>" + esc(nm(x.b)) + (x.b === sel ? " <small style='display:inline'>(" + whose + " own)</small>" : "") + "</b><small>" + fmt(x.r.pa) + ' points against</small></td><td style="text-align:right;white-space:nowrap"><b style="font-variant-numeric:tabular-nums">' + recS(x.r) + "</b><small style='display:block;color:" + (dv > 0 ? "var(--ok)" : dv < 0 ? "var(--bad)" : "var(--muted)") + "'>" + (x.b === sel ? "real" : dv > 0 ? "+" + dv + " W" : dv < 0 ? "−" + (-dv) + " W" : "same") + "</small></td></tr>"; }).join("") + "</tbody></table></div>";
+    h += "<h3>Whole league</h3>";
+    h += '<div class="card"><ul class="reasons" style="margin:0">' +
+      '<li class="good"><b>Luckiest schedule:</b> ' + esc(nm(lucky.id)) + " is " + recS(lucky.own) + " but averages " + lucky.avg.toFixed(1) + " wins across every schedule (" + sgn(lucky.luck) + ").</li>" +
+      '<li class="bad"><b>Unluckiest:</b> ' + esc(nm(unlucky.id)) + " is " + recS(unlucky.own) + " but averages " + unlucky.avg.toFixed(1) + " wins (" + sgn(unlucky.luck) + ").</li>" +
+      "<li><b>Toughest schedule:</b> " + esc(nm(hard.id)) + "’s. Teams average " + hard.avg.toFixed(1) + " wins with it. <b>Easiest:</b> " + esc(nm(easy.id)) + "’s, " + easy.avg.toFixed(1) + " wins.</li></ul></div>";
+    const lt = X.teams.slice().sort((a, b) => b.luck - a.luck);
+    h += '<div class="card" style="padding:6px 0;margin-top:12px"><table class="otable"><tbody>' + lt.map(t => '<tr class="' + (t.id === meId ? "me" : "") + '" data-swap="' + esc(t.id) + '" style="cursor:pointer"><td>' + teamLogo(X.info[t.id]) + "</td><td><b>" + esc(nm(t.id)) + "</b><small>Real " + recS(t.own) + " · " + t.avg.toFixed(1) + " wins on an average schedule · best " + recS(t.best.r) + ", worst " + recS(t.worst.r) + '</small></td><td style="text-align:right"><span class="chip ' + (t.luck >= 1 ? "warn" : t.luck <= -1 ? "ok" : "") + '" style="padding:3px 8px" title="Wins above or below the average schedule">' + sgn(t.luck) + "</span></td></tr>").join("") + "</tbody></table></div>";
+    h += '<p class="small muted" style="margin:8px 4px 0">Each team keeps its own weekly scores and plays whoever the other team played that week (if that was itself, it plays that team instead). The chip is wins above (+) or below (−) the average of all ' + X.ids.length + " schedules. Tap a team to see its swaps.</p>";
+    const hooks = loadHooks();
+    h += '<div class="sendrow"><button type="button" class="btn" id="swShare">Share</button>' + (hooks.length ? '<button type="button" class="btn ghost" id="swPost">Post to ' + esc([...new Set(hooks.map(hookName))].join(" & ")) + "</button>" : "") + '</div><p class="small" id="swMsg"></p>';
+    p.innerHTML = h;
+    p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+    p.querySelector("#swapPick").addEventListener("change", e => { sel = e.target.value; draw(); });
+    p.querySelectorAll("[data-swap]").forEach(r => r.addEventListener("click", () => { sel = r.dataset.swap; draw(); p.scrollTop = 0; }));
+    const text = L.meta.name + " schedule swap, after week " + X.last + "\n" + lt.map(t => nm(t.id) + ": " + recS(t.own) + " real, " + t.avg.toFixed(1) + " wins on an average schedule (" + sgn(t.luck) + "), best " + recS(t.best.r) + " with " + nm(t.best.b) + "’s").join("\n") + "\nToughest schedule: " + nm(hard.id) + "’s. Easiest: " + nm(easy.id) + "’s.";
+    p.querySelector("#swShare").addEventListener("click", async () => {
+      if (navigator.share) { try { await navigator.share({title: L.meta.name + " schedule swap", text}); return; } catch(e){ if (e.name === "AbortError") return; } }
+      try { await navigator.clipboard.writeText(text); $("#swMsg").textContent = "Copied. Paste it in your league chat."; } catch(e){ $("#swMsg").textContent = "Couldn’t copy."; }
+    });
+    const pb = p.querySelector("#swPost");
+    if (pb) pb.addEventListener("click", async () => { pb.disabled = true; try { await post("/api/hookpost", {hooks: loadHooks(), title: L.meta.name + " · schedule swap after week " + X.last, body: text.split("\n").slice(1).join("\n")}); $("#swMsg").textContent = "Posted."; } catch(e){ $("#swMsg").textContent = e.message; pb.disabled = false; } });
+  };
+  draw();
 }
 
 /* ---------- game-day sweat board: every starter in every league, live ---------- */

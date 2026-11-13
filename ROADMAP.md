@@ -25,6 +25,7 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- [x] Nov 13, 2026: Schedule swap (Leagues › League › Season › Schedule swap): your record with every other team's schedule (same weekly scores, play whoever they played; if that was you, play them), best/worst schedule, wins above or below the average schedule for every team, toughest/easiest schedule, pick any team, share or post to Discord/Slack. Flea + Sleeper.
 - [x] Nov 13, 2026: Fleaflicker writes: sign in once (/api/flea-login posts to fleaflicker.com/nfl/login, cookie kept on the phone as snapcount.v1.ffc), Save lineup (/api/flea-lineup re-posts the team page form; slot codes are bit masks RB1 WR2 QB4 TE8 K16 D/ST256, IR -32767; locked players come as hidden inputs), Add/drop/claim (/api/flea-move: GET players/confirm then POST its form)
 - [x] Nov 13, 2026: daily health check 9:17 AM ET (values, Fleaflicker, Sleeper, ESPN, FantasyCalc, expert CSV, AI, storage) -> alert only on failure to the owner's subscriptions (Fleaflicker 183120 team 1245245); /api/health, "health:last"
 - [x] Trade market push alerts (notifyMarket in worker.src.js): new/changed posts alert leaguemates with alerts on; "Trade fit" when the post offers a position they're shopping or wants one where they have 2+ bench players
