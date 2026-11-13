@@ -366,6 +366,7 @@ async function healthCheck(env) {
   await check("FantasyCalc trades", async () => { const j = await getJ("https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=2&numTeams=12&ppr=1"); if (!Array.isArray(j) || j.length < 100) throw new Error("short list"); });
   await check("Expert rankings", async () => { const r = await fetch("https://raw.githubusercontent.com/dynastyprocess/data/master/files/values-players.csv", { headers: UA }); if (!r.ok) throw new Error("HTTP " + r.status); });
   await check("AI coach", async () => { if (!env.AI) throw new Error("no AI binding"); const r = await env.AI.run("@cf/meta/llama-3.1-8b-instruct", { messages: [{ role: "user", content: "Reply with OK." }], max_tokens: 3 }); if (!r || !(r.response ?? "").toString().length) throw new Error("empty answer"); });
+  if (env.DEEPGRAM_KEY) await check("Show voices (Deepgram)", async () => { const r = await fetch("https://api.deepgram.com/v1/projects", { headers: { Authorization: "Token " + env.DEEPGRAM_KEY } }); if (!r.ok) throw new Error("key rejected (HTTP " + r.status + ")"); });
   await check("Storage", async () => { if (!env.SNAP) throw new Error("no storage"); await env.SNAP.put("health:last", JSON.stringify({ at: t0, res })); const back = await env.SNAP.get("health:last", "json"); if (!back || back.at !== t0) throw new Error("write did not read back (daily limit?)"); });
   const bad = res.filter(r => !r.ok);
   try { await env.SNAP.put("health:last", JSON.stringify({ at: t0, res })); } catch (e) {}

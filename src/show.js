@@ -58,9 +58,21 @@ function parseScript(text) {
 
 // No fallback to a flatter voice: if today's free voice credit runs out, the episode waits and finishes after
 // the daily reset (midnight UTC) in the same voices.
+export async function deepgramSpeak(env, text, voice) {
+  if (!env.DEEPGRAM_KEY || !text) return null;
+  try {
+    const r = await fetch("https://api.deepgram.com/v1/speak?model=aura-2-" + voice + "-en&encoding=mp3", { method: "POST", headers: { Authorization: "Token " + env.DEEPGRAM_KEY, "Content-Type": "application/json" }, body: JSON.stringify({ text: text.slice(0, 1900) }) });
+    if (!r.ok) return null;
+    const b = new Uint8Array(await r.arrayBuffer());
+    return b.length > 500 ? b : null;
+  } catch (e) { return null; }
+}
 async function speak(env, line) {
   const voice = (HOSTS[line.s] || HOSTS.DEZ).voice;
   const text = line.t.replace(/\p{Extended_Pictographic}\uFE0F?/gu, "").replace(/ +/g, " ").trim();
+  // Owner's own Deepgram account (free signup credit) first, so the show doesn't use the Cloudflare AI allowance.
+  const dg = await deepgramSpeak(env, text, voice);
+  if (dg) return dg;
   try {
     const r = await env.AI.run("@cf/deepgram/aura-2-en", { text, speaker: voice, encoding: "mp3" }, { returnRawResponse: true });
     if (r && r.ok !== false && r.body) { const b = new Uint8Array(await r.arrayBuffer()); if (b.length > 500) return b; }
