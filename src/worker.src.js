@@ -366,7 +366,13 @@ async function healthCheck(env) {
   await check("FantasyCalc trades", async () => { const j = await getJ("https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=2&numTeams=12&ppr=1"); if (!Array.isArray(j) || j.length < 100) throw new Error("short list"); });
   await check("Expert rankings", async () => { const r = await fetch("https://raw.githubusercontent.com/dynastyprocess/data/master/files/values-players.csv", { headers: UA }); if (!r.ok) throw new Error("HTTP " + r.status); });
   await check("AI coach", async () => { if (!env.AI) throw new Error("no AI binding"); const r = await env.AI.run("@cf/meta/llama-3.1-8b-instruct", { messages: [{ role: "user", content: "Reply with OK." }], max_tokens: 3 }); if (!r || !(r.response ?? "").toString().length) throw new Error("empty answer"); });
-  if (env.DEEPGRAM_KEY) await check("Show voices (Deepgram)", async () => { const r = await fetch("https://api.deepgram.com/v1/projects", { headers: { Authorization: "Token " + env.DEEPGRAM_KEY } }); if (!r.ok) throw new Error("key rejected (HTTP " + r.status + ")"); });
+  // Tests exactly what the show does (speak a word with a show voice); costs a tiny fraction of a cent.
+  await check("Show voices (Deepgram)", async () => {
+    if (!env.DEEPGRAM_KEY) throw new Error("no DEEPGRAM_KEY secret found");
+    const key = String(env.DEEPGRAM_KEY).trim();
+    const r = await fetch("https://api.deepgram.com/v1/speak?model=aura-2-atlas-en&encoding=mp3", { method: "POST", headers: { Authorization: "Token " + key, "Content-Type": "application/json" }, body: JSON.stringify({ text: "Okay." }) });
+    if (!r.ok) { const t = (await r.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 120); throw new Error("Deepgram said HTTP " + r.status + (r.status === 401 ? " (key not accepted)" : r.status === 402 || r.status === 403 ? " (key lacks permission or credit)" : "") + (t ? ": " + t : "")); }
+  });
   await check("Storage", async () => { if (!env.SNAP) throw new Error("no storage"); await env.SNAP.put("health:last", JSON.stringify({ at: t0, res })); const back = await env.SNAP.get("health:last", "json"); if (!back || back.at !== t0) throw new Error("write did not read back (daily limit?)"); });
   const bad = res.filter(r => !r.ok);
   try { await env.SNAP.put("health:last", JSON.stringify({ at: t0, res })); } catch (e) {}
@@ -832,7 +838,7 @@ export default {
         return json({ rows, total: Object.keys(firstSeen).length, wau: within(7), mau: within(30), health: (await env.SNAP.get("health:last", "json")) || null }, 200, 0);
       }
       if (p === "/api/health") {
-        if (url.searchParams.get("run") === "1") { const last = env.SNAP && await env.SNAP.get("health:last", "json"); if (last && Date.now() - last.at < 600000) return json(last, 200, 0); const r = await healthCheck(env); return json({ at: Date.now(), res: r }, 200, 0); }
+        if (url.searchParams.get("run") === "1") { const last = env.SNAP && await env.SNAP.get("health:last", "json"); if (last && Date.now() - last.at < 60000) return json(last, 200, 0); const r = await healthCheck(env); return json({ at: Date.now(), res: r }, 200, 0); }
         return json((env.SNAP && await env.SNAP.get("health:last", "json")) || { at: null, res: [] }, 200, 0);
       }
       if (p === "/api/phist") {

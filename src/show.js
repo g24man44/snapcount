@@ -61,7 +61,7 @@ function parseScript(text) {
 export async function deepgramSpeak(env, text, voice) {
   if (!env.DEEPGRAM_KEY || !text) return null;
   try {
-    const r = await fetch("https://api.deepgram.com/v1/speak?model=aura-2-" + voice + "-en&encoding=mp3", { method: "POST", headers: { Authorization: "Token " + env.DEEPGRAM_KEY, "Content-Type": "application/json" }, body: JSON.stringify({ text: text.slice(0, 1900) }) });
+    const r = await fetch("https://api.deepgram.com/v1/speak?model=aura-2-" + voice + "-en&encoding=mp3", { method: "POST", headers: { Authorization: "Token " + String(env.DEEPGRAM_KEY).trim(), "Content-Type": "application/json" }, body: JSON.stringify({ text: text.slice(0, 1900) }) });
     if (!r.ok) return null;
     const b = new Uint8Array(await r.arrayBuffer());
     return b.length > 500 ? b : null;
