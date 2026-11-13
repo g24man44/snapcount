@@ -2863,14 +2863,17 @@ function drawFind(ctx){
 /* ---------- send an offer: Fleaflicker's trade builder link, filled in ---------- */
 function pbVarint(n){ const out = []; n = Number(n); while (n > 127) { out.push((n & 127) | 128); n = Math.floor(n / 128); } out.push(n); return out; }
 function pbField(field, wire, payload){ return pbVarint(field * 8 + wire).concat(wire === 2 ? pbVarint(payload.length).concat(payload) : pbVarint(payload)); }
-function tradeBuilderBytes(myId, theirId, giveIds, getIds){
-  const side = (owner, to, ids) => pbField(1, 0, owner).concat(...ids.map(id => pbField(3, 2, pbField(1, 0, to).concat(pbField(2, 0, id)))));
-  return pbField(1, 2, side(myId, theirId, giveIds)).concat(pbField(1, 2, side(theirId, myId, getIds)), pbField(4, 0, 1));
+// Fleaflicker's trade builder state, decoded from a link the owner built by hand (Nov 13, 2026):
+// one block per team {1: team id, 2: pick {1: to team, 2: season, 3: round, 4: original owner}, 3: player {1: to team, 2: player id}}, then 4: 1.
+function tradeBuilderBytes(myId, theirId, giveIds, getIds, givePk, getPk){
+  const pick = (to, pk) => { const [, season, round, orig] = String(pk).split(":"); return pbField(2, 2, pbField(1, 0, to).concat(pbField(2, 0, season), pbField(3, 0, round), pbField(4, 0, orig))); };
+  const side = (owner, to, ids, pks) => pbField(1, 0, owner).concat(...(pks || []).map(pk => pick(to, pk)), ...ids.map(id => pbField(3, 2, pbField(1, 0, to).concat(pbField(2, 0, id)))));
+  return pbField(1, 2, side(myId, theirId, giveIds, givePk)).concat(pbField(1, 2, side(theirId, myId, getIds, getPk)), pbField(4, 0, 1));
 }
-async function fleaTradeUrl(L, myId, theirId, giveIds, getIds){
+async function fleaTradeUrl(L, myId, theirId, giveIds, getIds, givePk, getPk){
   const base = "https://www.fleaflicker.com/nfl/leagues/" + L.meta.id + "/trades";
   try {
-    const bytes = new Uint8Array(tradeBuilderBytes(myId, theirId, giveIds, getIds));
+    const bytes = new Uint8Array(tradeBuilderBytes(myId, theirId, giveIds, getIds, givePk, getPk));
     const z = new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream("deflate"))).arrayBuffer());
     let bin = ""; z.forEach(c => bin += String.fromCharCode(c));
     return base + "/build?TradeBuilder=" + btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -2883,15 +2886,15 @@ function offerText(give, get, themName){
 function sendBlock(L, me, them, give, get){
   const picks = give.concat(get).filter(p => p.pos === "PICK");
   const text = offerText(give, get, them.name);
-  return '<div class="sendrow"><a class="btn send" href="' + esc(tradeUrl(L)) + '" target="_blank" rel="noopener" data-send=\'' + esc(JSON.stringify({give: give.filter(p => p.pos !== "PICK").map(p => p.id), get: get.filter(p => p.pos !== "PICK").map(p => p.id)})) + "'>" + (L.meta.platform === "flea" ? "Send in Fleaflicker" : "Open " + siteName(L)) + EXT + '</a><button type="button" class="btn ghost" data-copy="' + esc(text) + '">Copy offer</button></div>' +
-    (picks.length && L.meta.platform === "flea" ? '<p class="small muted" style="margin:8px 0 0">Add ' + esc(picks.map(p => p.name).join(" and ")) + " with “Add a Draft Pick” before you tap Propose.</p>" : "") +
+  return '<div class="sendrow"><a class="btn send" href="' + esc(tradeUrl(L)) + '" target="_blank" rel="noopener" data-send=\'' + esc(JSON.stringify({give: give.filter(p => p.pos !== "PICK").map(p => p.id), get: get.filter(p => p.pos !== "PICK").map(p => p.id), givePk: give.filter(p => p.pos === "PICK").map(p => p.id), getPk: get.filter(p => p.pos === "PICK").map(p => p.id)})) + "'>" + (L.meta.platform === "flea" ? "Send in Fleaflicker" : "Open " + siteName(L)) + EXT + '</a><button type="button" class="btn ghost" data-copy="' + esc(text) + '">Copy offer</button></div>' +
+    (picks.length && L.meta.platform === "flea" ? '<p class="small muted" style="margin:8px 0 0">Players and picks come pre-filled. Check it over in Fleaflicker and tap Propose.</p>' : "") +
     (L.meta.platform !== "flea" ? '<p class="small muted" style="margin:8px 0 0">' + siteName(L) + ' doesn’t allow pre-filled trades. Open the trade there and pick the same players.</p>' : "");
 }
 async function wireSend(root, L, me, them){
   root.querySelectorAll("a[data-send]").forEach(async a => {
     if (L.meta.platform !== "flea") return;
     const s = JSON.parse(a.dataset.send);
-    a.href = await fleaTradeUrl(L, me.id, them.id, s.give, s.get);
+    a.href = await fleaTradeUrl(L, me.id, them.id, s.give, s.get, s.givePk, s.getPk);
   });
   root.querySelectorAll("[data-copy]").forEach(b => b.addEventListener("click", async () => {
     try { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = "Copied"; }
