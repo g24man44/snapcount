@@ -114,18 +114,24 @@ export async function showRoute(request, url, env) {
     const allowed = new Set();
     for (const m of data.matchAll(/\d+(?:\.\d+)?/g)) { const x = Number(m[0]); allowed.add(m[0]); allowed.add(String(Math.round(x))); allowed.add(String(Math.floor(x))); allowed.add(x.toFixed(1)); }
     const badNums = ls => ls.flatMap(l => (l.t.match(/\d+(?:\.\d+)?/g) || []).filter(n => Number(n) > 20 && !allowed.has(n)));
-    let best = null;
+    let best = null, lastErr = null;
     for (let tries = 0; tries < 3 && !(best && !best.bad.length); tries++) {
       const model = SCRIPT_MODELS[tries === 2 ? 1 : 0];
       const fix = best && best.bad.length ? "\n\nYour last draft used numbers that are NOT in the data: " + [...new Set(best.bad)].slice(0, 8).join(", ") + ". Use only numbers that appear in the data." : "";
       try {
         const r = await env.AI.run(model, { messages: [{ role: "system", content: SHOW_SYS }, { role: "user", content: "LEAGUE DATA:\n" + data + "\n\nWrite the script now." + fix }], max_tokens: 1800, temperature: 0.8 });
-        const ls = parseScript((r && r.response) || "");
+        const txt = String((r && (r.response ?? (r.choices && r.choices[0] && r.choices[0].message && r.choices[0].message.content))) ?? "");
+        const ls = parseScript(txt);
         if (ls.length >= 12) { const bad = badNums(ls); if (!best || bad.length < best.bad.length) best = { lines: ls, bad }; }
-      } catch (e) {}
+        else lastErr = new Error("short script (" + ls.length + " lines)");
+      } catch (e) { lastErr = e; if (/4006|neuron|allocation|quota|limit/i.test(String(e && e.message))) break; }
     }
     const lines = best ? best.lines : [];
-    if (lines.length < 12) return out({ error: "The script writer came back short. Try again in a minute." }, 502);
+    if (lines.length < 12) {
+      const m = String(lastErr && lastErr.message || "");
+      if (/4006|neuron|allocation|quota|limit/i.test(m)) return out({ error: "Today’s free AI allowance is used up. Try again after 7 PM Eastern, when it resets.", wait: true }, 503);
+      return out({ error: "The script writer came back short. Try again in a minute. (" + m.slice(0, 100) + ")" }, 502);
+    }
     if (old) { for (let i = 0; i < old.lines.length; i++) await env.SNAP.delete(key + ":a" + i); }
     const show = { lines, final: !!b.final, at: Date.now(), league: String(b.league || "").slice(0, 80), remade: !!old };
     await env.SNAP.put(key, JSON.stringify(show), { expirationTtl: 120 * 86400 });
