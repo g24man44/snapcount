@@ -6999,7 +6999,7 @@ async function openShow(L){
     else {
       const ready = done >= show.total;
       if (ready) h += '<div class="card"><audio controls preload="metadata" style="width:100%" src="/api/show/mp3?' + q + '&t=' + show.at + '"></audio>' + (!show.final ? '<p class="small muted" style="margin:8px 0 0">Made while games were still being played.' + (final && !show.remade ? ' <button class="linkish" id="shRemake">Remake it with final scores</button>' : "") + "</p>" : "") + "</div>";
-      else h += '<div class="card"><b>Recording…</b><div class="cbar" style="margin:10px 0 6px"><span style="width:' + Math.round(done / show.total * 100) + '%"></span></div><p class="small muted" style="margin:0">' + done + " of " + show.total + ' parts. Keep this open; it takes about a minute. If you leave, the next person to open it picks up where it stopped.</p></div>';
+      else h += '<div class="card"><b>Recording…</b><div class="cbar" style="margin:10px 0 6px"><span style="width:' + Math.round(done / show.total * 100) + '%"></span></div><p class="small muted" style="margin:0">' + done + " of " + show.total + ' parts. Keep this open; it takes about a minute. If you leave, it picks up where it stopped next time anyone opens it.</p></div>';
       h += '<details class="card" style="margin-top:12px"><summary><b>Read the script</b></summary><div class="shscript">' + show.lines.map(l => '<p><b>' + NAMES[l.s] + ':</b> ' + esc(l.t) + "</p>").join("") + "</div></details>";
     }
     if (msg) h += '<p class="small" style="color:var(--bad);margin-top:10px">' + esc(msg) + "</p>";

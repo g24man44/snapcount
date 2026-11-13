@@ -808,7 +808,7 @@ export default {
         ctx.waitUntil(noteValueFormat(env, ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0)));
         return cached(ctx, "values16/" + ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0), 10800, () => tradeValues(ppr, teams, qbs, dyn, real, env));
       }
-      if (p.startsWith("/api/show")) return showRoute(request, url, env, ctx, groupmeSay);
+      if (p.startsWith("/api/show")) return showRoute(request, url, env);
       if (p === "/api/version") return json({ build: "__BUILDID__" }, 200, 0);
       if (p === "/api/comm") return commRoute(request, url, env);
       if (p === "/api/chat" || p.startsWith("/api/chat/") || p.startsWith("/api/groupme/") || p.startsWith("/g/")) return chatRoute(request, url, env);
