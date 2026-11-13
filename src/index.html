@@ -267,6 +267,19 @@ form.add{display:flex;flex-direction:column;gap:10px}
 .injhead .inj{margin-left:0}
 /* install + invite */
 .install{display:flex;align-items:center;gap:12px;margin-top:12px;background:var(--accent-soft);border-color:transparent;box-shadow:none}
+.chatwrap{display:flex;flex-direction:column;height:calc(100dvh - 410px);min-height:320px}
+.chatlog{flex:1;overflow-y:auto;padding:4px 2px 8px;display:flex;flex-direction:column;gap:10px;overscroll-behavior:contain}
+.cmsg{display:flex;gap:8px;align-items:flex-end;max-width:88%}.cmsg.me{align-self:flex-end;flex-direction:row-reverse}
+.cav{width:30px;height:30px;border-radius:50%;flex:none;object-fit:cover;background:var(--line);display:grid;place-items:center;font-size:.8rem;font-weight:700;color:var(--muted)}
+.cbody{background:var(--surface);border:1px solid var(--line);border-radius:16px 16px 16px 4px;padding:7px 11px;min-width:0}.cmsg.me .cbody{background:var(--accent-soft);border-color:transparent;border-radius:16px 16px 4px 16px}
+.botmsg .cbody{border-style:dashed}
+.cmeta{font-size:.72rem;color:var(--muted);margin-bottom:2px}.cmeta b{color:var(--ink);font-weight:650;margin-right:2px}
+.ctext{line-height:1.42;overflow-wrap:anywhere}.ctext a{color:var(--accent)}
+.cimg{display:block;max-width:220px;max-height:260px;border-radius:10px;margin-top:6px}
+.cmsys{align-self:center;font-size:.75rem;color:var(--muted);text-align:center;max-width:90%}
+.chatin{display:flex;gap:8px;align-items:flex-end;padding-top:8px;border-top:1px solid var(--line)}.chatin textarea{flex:1;resize:none;border-radius:18px;padding:9px 14px;min-height:40px;max-height:140px;font:inherit}
+.chatas{margin:6px 2px 0}.linkish{background:none;border:0;padding:0;color:var(--accent);font:inherit;text-decoration:underline;cursor:pointer}.chatname{width:12em;padding:2px 6px;font:inherit}
+.copyrow{display:flex;gap:8px}.copyrow input{flex:1;min-width:0;font-size:.8rem}.gmsteps .card{margin-bottom:10px}.gmsteps p{margin:6px 0 8px}
 .usestats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0}.usestats div{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px;text-align:center}.usestats b{display:block;font-size:1.35rem}.usestats span{font-size:.75rem;color:var(--muted)}
 .usebars{display:flex;align-items:flex-end;gap:3px;height:140px;padding:10px 10px 22px}.usebars .ub{flex:1;max-width:28px;height:100%;position:relative;display:flex;align-items:flex-end}.usebars .ub i{position:absolute;bottom:0;left:0;right:0;background:var(--accent);border-radius:3px 3px 0 0;opacity:.35}.usebars .ub i.new{opacity:1}.usebars .ub span{position:absolute;bottom:-18px;left:0;right:0;text-align:center;font-size:.6rem;color:var(--muted)}
 .rulestext{white-space:normal;line-height:1.55}
@@ -1126,6 +1139,7 @@ $("#tabs").addEventListener("click", e => { const b = e.target.closest("button[d
 let lastView = "";
 function render(){
   const v = $("#view");
+  if (chat && !(cur.tab === "leagues" && cur.sub === "chat")) closeChat();
   const vk = cur.tab + "/" + cur.league + "/" + (cur.sub || "") + "/" + (tr.mode || "");
   if (vk !== lastView) { lastView = vk; v.classList.remove("swap"); void v.offsetWidth; v.classList.add("swap"); if (navigator.vibrate && matchMedia("(pointer:coarse)").matches) try { navigator.vibrate(6); } catch(e){} }
   $("#gearBtn").setAttribute("aria-pressed", cur.tab === "accounts");
@@ -1366,7 +1380,7 @@ function renderLeague(v, L){
   if (L.error) { v.innerHTML = h + '<div class="err">' + esc(L.error) + "</div>"; return wireBack(v); }
   if (!d) { v.innerHTML = h + '<p class="spin">Loading…</p>'; return wireBack(v); }
   const sub = cur.sub || "team";
-  h += '<div class="seg sub" role="group" aria-label="League sections">' + [["team","My team"],["fa","Free agents"],["league","League"]].concat(m.platform === "flea" ? [["act","Activity"]] : []).concat(["flea", "sleeper"].includes(m.platform) ? [["trades","Trades"]] : []).map(x => '<button type="button" data-sub="' + x[0] + '" aria-pressed="' + (sub === x[0]) + '">' + x[1] + "</button>").join("") + "</div>";
+  h += '<div class="seg sub" role="group" aria-label="League sections">' + [["team","My team"],["chat","Chat"],["fa","Free agents"],["league","League"]].concat(m.platform === "flea" ? [["act","Activity"]] : []).concat(["flea", "sleeper"].includes(m.platform) ? [["trades","Trades"]] : []).map(x => '<button type="button" data-sub="' + x[0] + '" aria-pressed="' + (sub === x[0]) + '">' + x[1] + "</button>").join("") + "</div>";
   let me = cur.team ? d.teams.find(t => t.id === cur.team) : d.teams.find(t => t.mine);
   if (sub === "team") {
     if (!me) h += '<div class="card install" style="margin-top:12px"><img src="/icon-192.png" alt=""><div><b>' + (cur.joined ? "Welcome to Snap Count" : "Which team is yours?") + '</b><span>Pick your team below. Your scores, alerts and trade tools all follow it.</span></div></div>';
@@ -1402,6 +1416,8 @@ function renderLeague(v, L){
     const pos = cur.faPos || "ALL";
     h += '<div class="actions">' + extBtn(waiverUrl(L), "Add players in " + siteName(L)) + "</div>";
     h += '<div class="chips posf">' + ["ALL","QB","RB","WR","TE","K","DEF"].map(x => '<button type="button" class="chip' + (pos === x ? " on" : "") + '" data-pos="' + x + '">' + x + "</button>").join("") + '</div><div id="fa"><p class="spin">Loading free agents…</p></div>';
+  } else if (sub === "chat") {
+    h += '<div id="chatBox"><p class="spin">Loading chat…</p></div>';
   } else if (sub === "act") {
     h += '<div id="actBox"><p class="spin">Loading league activity…</p></div>';
   } else if (sub === "trades") {
@@ -1458,6 +1474,7 @@ function renderLeague(v, L){
   wireRows(v);
   if (sub === "fa") loadFreeAgents(L, cur.faPos || "ALL");
   if (sub === "trades") renderLeagueTrades(L, $("#ltBox")).catch(e => { const b = $("#ltBox"); if (b) b.innerHTML = '<div class="err">Couldn’t grade trades: ' + esc(e.message) + "</div>"; });
+  if (sub === "chat") openChat(L, $("#chatBox"));
   if (sub === "act") renderActivity(L, $("#actBox"), me).catch(e => { const b = $("#actBox"); if (b) b.innerHTML = '<div class="err">Couldn’t load activity: ' + esc(e.message) + "</div>"; });
   v.querySelectorAll("[data-game]").forEach(b => b.addEventListener("click", () => openMatchup(L, b.dataset.game)));
   const rb = v.querySelector("#recapBtn"); if (rb) rb.addEventListener("click", () => openRecap(L));
@@ -2208,6 +2225,7 @@ async function openRecap(L){
   };
   await run();
   p.querySelector("#rcAgain").addEventListener("click", run);
+  gmPostBtn(p.querySelector("#rcShare"), L, () => "📰 " + L.meta.name + " · week " + L.detail.week + " recap\n\n" + text);
   p.querySelector("#rcShare").addEventListener("click", async () => {
     const t = text.replace(/\*\*/g, "");
     if (navigator.share) { try { await navigator.share({title: L.meta.name + " week " + L.detail.week + " recap", text: t}); return; } catch(e){ if (e.name === "AbortError") return; } }
@@ -6257,6 +6275,7 @@ async function roastLeague(L, body){
     } else lines = [(await buildRecapCtx(L))];
     const text = await streamAI({mode: "roast", ctx: lines.join("\n")}, t => { el.innerHTML = mdLite(t); });
     act.hidden = false;
+    gmPostBtn(body.querySelector("#roastShare"), L, () => "🔥 Roast of the week\n\n" + text);
     body.querySelector("#roastShare").onclick = async () => { const t = text.replace(/\*\*/g, ""); if (navigator.share) { try { await navigator.share({text: t}); return; } catch(e){ if (e.name === "AbortError") return; } } try { await navigator.clipboard.writeText(t); } catch(e){} };
     const rp = body.querySelector("#roastPost"); if (rp) rp.onclick = async () => { try { await post("/api/hookpost", {hooks: loadHooks(), title: L.meta.name + " · Roast of the week", body: text.replace(/\*\*/g, "")}); rp.textContent = "Posted"; rp.disabled = true; } catch(e){ rp.textContent = e.message; } };
   } catch(e){ el.innerHTML = '<div class="err">' + esc(e.message) + "</div>"; }
@@ -6945,6 +6964,78 @@ function wireInstall(v){
 }
 if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
 
+/* ---------- league chat, bridged to the league's GroupMe ---------- */
+let chat = null;
+function closeChat(){ if (!chat) return; chat.dead = true; clearInterval(chat.poll); clearInterval(chat.ping); try { chat.ws && chat.ws.close(); } catch(e){} chat = null; }
+function chatName(L){ let n = ""; try { n = localStorage.getItem(KEY + ".chatName") || ""; } catch(e){} const me = L.detail.teams.find(t => t.mine); return n || (me ? me.name : "Snap Count user"); }
+const gmState = {};
+async function gmConnected(L){ const k = L.meta.platform + ":" + L.meta.id; if (gmState[k] == null) { try { gmState[k] = !!(await api("/api/chat?p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id) + "&dev=" + devId())).connected; } catch(e){ gmState[k] = false; } } return gmState[k]; }
+async function gmPostBtn(after, L, textFn){
+  if (!after || !(await gmConnected(L))) return;
+  const b = document.createElement("button"); b.type = "button"; b.className = after.className || "btn ghost"; b.textContent = "Post to GroupMe";
+  after.after(b);
+  b.addEventListener("click", async () => { b.disabled = true; b.textContent = "Posting…"; try { await post("/api/chat/share?p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id), {dev: devId(), text: textFn()}); b.textContent = "Posted to GroupMe"; } catch(e){ b.disabled = false; b.textContent = "Post to GroupMe"; alertMsg(after, e.message); } });
+}
+function alertMsg(near, m){ const p = document.createElement("p"); p.className = "small"; p.style.color = "var(--bad)"; p.textContent = m; near.parentNode.appendChild(p); }
+function chatTime(t){ const d = new Date(t), now = new Date(); return d.toDateString() === now.toDateString() ? d.toLocaleTimeString([], {hour: "numeric", minute: "2-digit"}) : d.toLocaleDateString([], {weekday: "short", month: "short", day: "numeric"}) + " " + d.toLocaleTimeString([], {hour: "numeric", minute: "2-digit"}); }
+function chatMsgHTML(m, mine){
+  let name = m.name, text = m.text || "", via = "";
+  if (m.bot) { const x = text.match(/^([^:\n]{1,40}): ([\s\S]*)$/); if (x && !/^(📣|🏈|📰|🔥)/.test(text)) { name = x[1]; text = x[2]; via = " · via Snap Count"; } else via = ""; }
+  const me = mine(name);
+  const linked = esc(text).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>').replace(/\n/g, "<br>");
+  if (m.sys) return '<div class="cmsys">' + linked + "</div>";
+  return '<div class="cmsg' + (me ? " me" : "") + (m.bot && !via ? " botmsg" : "") + '">' + (me ? "" : (m.av ? '<img class="cav" src="' + esc(m.av) + '.avatar" alt="" loading="lazy">' : '<span class="cav">' + esc((name || "?").slice(0, 1)) + "</span>")) + '<div class="cbody"><div class="cmeta">' + (me ? "" : "<b>" + esc(name) + "</b> ") + '<span>' + esc(chatTime(m.at)) + esc(via) + '</span></div>' + (text ? '<div class="ctext">' + linked + "</div>" : "") + (m.img ? '<a href="' + esc(m.img) + '" target="_blank" rel="noopener"><img class="cimg" src="' + esc(m.img) + '.600x600" alt="Photo" loading="lazy"></a>' : "") + "</div></div>";
+}
+async function openChat(L, box){
+  closeChat();
+  const q = "p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id);
+  const st = chat = {L, list: [], keys: new Set(), dead: false};
+  let j; try { j = await api("/api/chat?" + q + "&dev=" + devId()); } catch(e){ box.innerHTML = '<div class="err">' + esc(e.message) + "</div>"; return; }
+  if (st.dead) return;
+  gmState[L.meta.platform + ":" + L.meta.id] = !!j.connected;
+  if (!j.connected) {
+    box.innerHTML = '<div class="card empty"><h3>Bring your GroupMe in here</h3><p class="muted">Once it’s connected, your league’s GroupMe shows up live in this tab, you can post to it from here, and Snap Count drops trade grades, recaps and trade market posts into the group.</p>' + (j.isComm ? '<button type="button" class="btn" id="gmSetup">Connect GroupMe</button>' : '<p class="small muted">Your commissioner sets it up once, under League → Dues, rules and awards → GroupMe.</p>') + "</div>";
+    const g = box.querySelector("#gmSetup"); if (g) g.addEventListener("click", () => openComm(L, "groupme"));
+    return;
+  }
+  box.innerHTML = '<div class="chatwrap"><div class="chatlog" id="chatLog" aria-live="polite"></div><form class="chatin" id="chatForm"><textarea id="chatText" rows="1" maxlength="900" placeholder="Message the league" aria-label="Message"></textarea><button class="btn" id="chatSend" aria-label="Send">Send</button></form><p class="small muted chatas">Posting as <button type="button" class="linkish" id="chatAs">' + esc(chatName(L)) + '</button> through the Snap Count bot.</p></div>';
+  const log = box.querySelector("#chatLog");
+  const mine = n => n === chatName(L);
+  const atBottom = () => log.scrollHeight - log.scrollTop - log.clientHeight < 80;
+  const draw = (stick) => { const keep = stick || atBottom(); log.innerHTML = (st.more ? '<button type="button" class="btn ghost" id="chatMore" style="width:100%;margin-bottom:8px">Earlier messages</button>' : "") + (st.list.length ? st.list.map(m => chatMsgHTML(m, mine)).join("") : '<p class="muted small" style="text-align:center">No messages since Snap Count joined the group. New ones will show up here.</p>'); if (keep) log.scrollTop = log.scrollHeight; const mb = log.querySelector("#chatMore"); if (mb) mb.addEventListener("click", older); };
+  const add = (arr, front) => { const fresh = arr.filter(m => { const k = m.k || ("m:" + String(m.at).padStart(15, "0") + ":" + m.id); if (st.keys.has(k)) return false; st.keys.add(k); m.k = k; return true; }); st.list = front ? fresh.concat(st.list) : st.list.concat(fresh); st.list.sort((a, b) => a.k < b.k ? -1 : 1); return fresh.length; };
+  const older = async () => { const first = st.list[0]; if (!first) return; const h0 = log.scrollHeight; try { const r = await api("/api/chat?" + q + "&before=" + encodeURIComponent(first.k)); st.more = r.more; add(r.list, true); draw(false); log.scrollTop = log.scrollHeight - h0; } catch(e){} };
+  st.more = j.more; add(j.list); draw(true);
+  const refresh = async () => { try { const r = await api("/api/chat?" + q); if (st.dead) return; if (add(r.list)) draw(false); } catch(e){} };
+  const connect = () => {
+    if (st.dead) return;
+    try {
+      const ws = st.ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/api/chat/ws?" + q);
+      ws.onmessage = e => { if (e.data === "pong") return; try { const d = JSON.parse(e.data); if (d.type === "msg" && add([d.m])) draw(false); } catch(x){} };
+      ws.onopen = () => { clearInterval(st.poll); st.poll = null; refresh(); };
+      ws.onclose = () => { if (st.dead) return; if (!st.poll) st.poll = setInterval(refresh, 20000); setTimeout(connect, 8000); };
+    } catch(e){ if (!st.poll) st.poll = setInterval(refresh, 20000); }
+  };
+  connect();
+  st.ping = setInterval(() => { try { st.ws && st.ws.readyState === 1 && st.ws.send("ping"); } catch(e){} }, 45000);
+  const ta = box.querySelector("#chatText");
+  ta.addEventListener("input", () => { ta.style.height = "auto"; ta.style.height = Math.min(140, ta.scrollHeight) + "px"; });
+  ta.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && matchMedia("(pointer:fine)").matches) { e.preventDefault(); box.querySelector("#chatForm").requestSubmit(); } });
+  box.querySelector("#chatForm").addEventListener("submit", async e => {
+    e.preventDefault(); const t = ta.value.trim(); if (!t) return;
+    const btn = box.querySelector("#chatSend"); btn.disabled = true;
+    try { await post("/api/chat/post?" + q, {dev: devId(), name: chatName(L), text: t}); ta.value = ""; ta.style.height = "auto"; setTimeout(refresh, 2500); }
+    catch(x){ alertMsg(ta.parentNode, x.message); }
+    btn.disabled = false; ta.focus();
+  });
+  box.querySelector("#chatAs").addEventListener("click", () => {
+    const b = box.querySelector("#chatAs"), i = document.createElement("input");
+    i.value = chatName(L); i.maxLength = 40; i.className = "chatname"; i.setAttribute("aria-label", "Name to post as"); b.replaceWith(i); i.focus(); i.select();
+    const done = () => { const n = i.value.trim(); try { if (n) localStorage.setItem(KEY + ".chatName", n); else localStorage.removeItem(KEY + ".chatName"); } catch(e){} const nb = document.createElement("button"); nb.type = "button"; nb.className = "linkish"; nb.id = "chatAs"; nb.textContent = chatName(L); i.replaceWith(nb); nb.addEventListener("click", () => box.querySelector("#chatAs") && openChat(L, box)); draw(false); };
+    i.addEventListener("blur", done); i.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); i.blur(); } });
+  });
+}
+
 /* ---------- private usage: one ping per device per day ---------- */
 const OWNER_L = {p: "flea", id: "183120", team: "1245245"};
 function isOwnerDevice(){ return leagues.some(L => L.meta.platform === OWNER_L.p && String(L.meta.id) === OWNER_L.id && L.detail && L.detail.teams.some(t => t.mine && String(t.id) === OWNER_L.team)); }
@@ -6973,16 +7064,16 @@ async function openUsage(){
 }
 
 /* ---------- commissioner: dues, rules, awards ---------- */
-async function openComm(L){
+async function openComm(L, startTab){
   const body = openSheetShell("Dues, rules and awards");
   const d = L.detail, me = d.teams.find(t => t.mine), base = "/api/comm?p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id);
   const T = id => (d.teams.find(t => String(t.id) === String(id)) || {name: "?"}).name;
-  let c, tab = "dues", msg = "";
+  let c, tab = startTab || "dues", msg = "", gm = null;
   const load = async () => { c = await api(base + "&dev=" + devId()); };
   const act = async (action, extra) => { try { c = await post2(base, Object.assign({action, dev: devId(), team: me.id, name: me.name}, extra || {})); msg = ""; } catch(e){ msg = e.message; } draw(); };
   try { await load(); } catch(e){ body.innerHTML = '<div class="err">' + esc(e.message) + "</div>"; return; }
   const draw = () => {
-    let h = '<div class="seg">' + [["dues", "Dues"], ["rules", "Rules"], ["awards", "Awards"]].map(([k, l]) => '<button aria-pressed="' + (tab === k) + '" data-ct="' + k + '">' + l + '</button>').join("") + '</div>';
+    let h = '<div class="seg">' + [["dues", "Dues"], ["rules", "Rules"], ["awards", "Awards"], ["groupme", "GroupMe"]].map(([k, l]) => '<button aria-pressed="' + (tab === k) + '" data-ct="' + k + '">' + l + '</button>').join("") + '</div>';
     if (msg) h += '<div class="err">' + esc(msg) + '</div>';
     h += '<p class="small muted" style="margin:10px 0">' + (c.isComm ? "You’re the commissioner here." : c.ownerName ? "Commissioner: " + esc(c.ownerName) + "." : "No commissioner yet.") + '</p>';
     if (tab === "dues") {
@@ -6997,6 +7088,13 @@ async function openComm(L){
     } else if (tab === "rules") {
       if (c.isComm) h += '<textarea id="cmRules" rows="14" style="width:100%" placeholder="Payouts, trade rules, tiebreakers, keeper rules, punishments for last place…">' + esc(c.rules || "") + '</textarea><button class="btn" id="cmRulesSave" style="margin-top:8px">Save rules</button>';
       else h += c.rules ? '<div class="card rulestext">' + esc(c.rules).replace(/\n/g, "<br>") + '</div>' : '<p class="muted">No league rules posted yet.</p>';
+    } else if (tab === "groupme") {
+      if (!c.isComm) h += '<p class="muted">The commissioner connects the league’s GroupMe here. Once it’s on, the Chat tab shows the group live.</p>';
+      else if (!gm) h += '<p class="spin">Checking GroupMe…</p>';
+      else if (gm.connected) h += '<div class="card"><p style="margin:0 0 8px"><b>✓ GroupMe is connected.</b></p><p class="small muted" style="margin:0">Messages show up in the Chat tab, and the Snap Count bot posts trade market updates there. To switch groups, disconnect and set it up again.</p></div><button class="icon" id="gmOff" style="margin-top:12px">Disconnect GroupMe</button>';
+      else h += '<div class="gmsteps"><div class="card"><b>1. Copy this address</b><p class="small muted">GroupMe sends the group’s messages here.</p>' + (gm.callback ? '<div class="copyrow"><input readonly id="gmCb" value="' + esc(gm.callback) + '" aria-label="Callback address"><button class="btn ghost" id="gmCopy">Copy</button></div>' : '<button class="btn" id="gmStart">Make my address</button>') + '</div>'
+        + '<div class="card"><b>2. Create the bot on GroupMe</b><p class="small">Open <a href="https://dev.groupme.com/bots/new" target="_blank" rel="noopener">dev.groupme.com/bots/new</a> and sign in with your GroupMe account. Pick your league’s group, name it <b>Snap Count</b>, paste the address into <b>Callback URL</b>, and for Avatar URL you can use <span class="small muted">' + esc(location.origin) + '/icon-192.png</span>. Press Submit.</p></div>'
+        + '<div class="card stackc" style="gap:8px"><b>3. Paste the Bot ID</b><p class="small muted" style="margin:0">It’s on the bot list right after you create it.</p><input id="gmBot" placeholder="Bot ID" autocomplete="off" autocapitalize="off" spellcheck="false"' + (gm.callback ? "" : " disabled") + '><button class="btn" id="gmSave"' + (gm.callback ? "" : " disabled") + '>Connect and say hello</button></div></div>';
     } else {
       const A = c.awards, votes = Object.values(A.votes), mine = (A.votes[me.id] || {}).picks || {};
       if (A.cats.length) {
@@ -7024,6 +7122,13 @@ async function openComm(L){
     on("#cmOpen", "click", () => act("awards", {cats: cats(), open: !c.awards.open}));
     on("#cmVote", "click", () => { const picks = {}; body.querySelectorAll("[data-vote]").forEach(s => { if (s.value) picks[s.dataset.vote] = s.value; }); act("vote", {picks}); });
     on("#cmClaim", "click", () => act("claim"));
+    const gq = "/api/chat/setup?p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id);
+    const gmCall = async (action, extra) => { try { const r = await post(gq, Object.assign({dev: devId(), action}, extra || {})); msg = ""; return r; } catch(e){ msg = e.message; draw(); return null; } };
+    on("#gmStart", "click", async () => { const r = await gmCall("start"); if (r) { gm.callback = r.callback; draw(); } });
+    on("#gmCopy", "click", async () => { const i = body.querySelector("#gmCb"); try { await navigator.clipboard.writeText(i.value); body.querySelector("#gmCopy").textContent = "Copied"; } catch(e){ i.select(); } });
+    on("#gmSave", "click", async () => { const b = body.querySelector("#gmSave"); b.disabled = true; b.textContent = "Connecting…"; const r = await gmCall("bot", {bot: body.querySelector("#gmBot").value.trim()}); if (r) { gm = {connected: true}; gmState[L.meta.platform + ":" + L.meta.id] = true; draw(); } });
+    on("#gmOff", "click", async () => { const r = await gmCall("off"); if (r) { gm = {connected: false}; gmState[L.meta.platform + ":" + L.meta.id] = false; const r2 = await gmCall("start"); gm.callback = r2 && r2.callback; draw(); } });
+    if (tab === "groupme" && c.isComm && !gm) api("/api/chat?p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id) + "&dev=" + devId()).then(r => { gm = {connected: r.connected, callback: r.callback}; draw(); }).catch(e => { msg = e.message; gm = {connected: false}; draw(); });
     on("#cmRelease", "click", () => act("release"));
   };
   draw();

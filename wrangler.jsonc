@@ -4,5 +4,7 @@
   "compatibility_date": "2026-10-01",
   "kv_namespaces": [{ "binding": "SNAP" }],
   "ai": { "binding": "AI" },
+  "durable_objects": { "bindings": [{ "name": "CHAT", "class_name": "ChatRoom" }] },
+  "migrations": [{ "tag": "chat-v1", "new_sqlite_classes": ["ChatRoom"] }],
   "triggers": { "crons": ["* * * * *"] }
 }

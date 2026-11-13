@@ -1,6 +1,7 @@
 // Snap Count — one Cloudflare Worker that serves the app and fetches live league data.
 // Paste this whole file into a new Cloudflare Worker and deploy. Free plan is fine.
 
+import { chatRoute, groupmeSay, ChatRoom } from "./src/chat.js";
 import { alertsRoute, runMinute, staticRoute, injuriesRoute, readInjuries, eachSubscriber } from "./src/alerts.js";
 import { PROSPECTS } from "./src/prospects.js";
 import { gameWeather } from "./src/weather.js";
@@ -374,6 +375,7 @@ async function notifyMarket(env, p, lid, before, key) {
   const list = (a) => a.length < 3 ? a.join(" and ") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1];
   const giveTxt = list(post.give.slice(0, 3).map(g => g.name)) + (post.give.length > 3 ? " and more" : "");
   const wantTxt = (post.want || []).map(w => w === "PICK" ? "picks" : w).join(", ");
+  groupmeSay(env, p, lid, "📣 Trade market: " + post.name + " is shopping " + giveTxt + ". " + (wantTxt ? "Wants " + wantTxt + "." : "Open to offers.") + (post.note ? " “" + post.note.slice(0, 140) + "”" : "")).catch(() => {});
   return eachSubscriber(env, rec => {
     if (rec.prefs && rec.prefs.league === false) return null;
     const lu = (rec.lineups || []).find(l => l.p === p && String(l.id) === String(lid));
@@ -716,6 +718,7 @@ export async function dailyValues(env, force) {
   return { day, done };
 }
 
+export { ChatRoom };
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -791,6 +794,7 @@ export default {
         return cached(ctx, "values15/" + ppr + "/" + real + "/" + qbs + "/" + (dyn ? 1 : 0), 10800, () => tradeValues(ppr, teams, qbs, dyn, real, env));
       }
       if (p === "/api/comm") return commRoute(request, url, env);
+      if (p === "/api/chat" || p.startsWith("/api/chat/") || p.startsWith("/api/groupme/")) return chatRoute(request, url, env);
       if (p === "/api/ping") {
         // One write per device per day, only when that day's mark isn't there yet. Nothing personal: a random device id,
         // whether the app is installed, and which league sites it uses.
