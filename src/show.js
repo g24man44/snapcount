@@ -102,6 +102,28 @@ export const GEM_VOICES = { DEZ: "Fenrir", SAM: "Zephyr" }; // Fenrir: "excitabl
 const NAME = { DEZ: "Dez", SAM: "Sam" };
 const gemKey = env => String(env.GEMINI_KEY || "").trim();
 const gemDead = new Set();
+// Models that ran out of free quota (429) or didn't answer are skipped for a while; ones that just answered go first.
+let gemCool = null, gemGood = [];
+async function gemState(env) {
+  if (gemCool) return;
+  gemCool = {}; try { const j = env.SNAP && await env.SNAP.get("gem:state", "json"); if (j) { gemCool = j.cool || {}; gemGood = j.good || []; } } catch (e) {}
+}
+function gemSave(env) { if (env.SNAP) env.SNAP.put("gem:state", JSON.stringify({ cool: gemCool, good: gemGood }), { expirationTtl: 86400 }).catch(() => {}); }
+function gemMark(env, model, ok, status) {
+  if (!gemCool) gemCool = {};
+  const was = JSON.stringify([gemCool[model], gemGood[0]]);
+  if (ok) { delete gemCool[model]; gemGood = [model].concat(gemGood.filter(m => m !== model)).slice(0, 4); }
+  else if (status === 429) gemCool[model] = Date.now() + 3 * 3600e3;
+  else if (status === 504 || status === 503) gemCool[model] = Date.now() + 20 * 60e3;
+  if (JSON.stringify([gemCool[model], gemGood[0]]) !== was) gemSave(env);
+}
+async function gemOrder(env, list) {
+  await gemState(env); const now = Date.now();
+  const cool = m => (gemCool[m] || 0) > now, good = m => gemGood.indexOf(m);
+  const ready = list.filter(m => !cool(m)), rank = m => good(m) < 0 ? 99 : good(m);
+  ready.sort((a, b) => rank(a) - rank(b) || list.indexOf(a) - list.indexOf(b));
+  return ready.concat(list.filter(cool));
+}
 async function gemFetch(env, model, body, ms, tries) {
   tries = tries || 2;
   if (gemDead.has(model)) { const e = new Error(model + " is retired"); e.status = 404; throw e; }
@@ -109,17 +131,18 @@ async function gemFetch(env, model, body, ms, tries) {
   // "503 model overloaded" is often momentary: one quick retry, then move on to the next model (lite ones are rarely busy).
   for (let attempt = 0; attempt < tries; attempt++) {
     try { r = await fetch(GEM + model + ":generateContent", { method: "POST", headers: { "x-goog-api-key": gemKey(env), "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(ms || 45000) }); }
-    catch (e) { const err = new Error(model + " didn’t answer in " + Math.round((ms || 45000) / 1000) + " s"); err.status = 504; throw err; }
+    catch (e) { const err = new Error(model + " didn’t answer in " + Math.round((ms || 45000) / 1000) + " s"); err.status = 504; gemMark(env, model, false, 504); throw err; }
     if (r.status !== 503 || attempt === tries - 1) break;
     await new Promise(x => setTimeout(x, 1000));
   }
   if (r.status === 404) gemDead.add(model);
+  if (r.ok) gemMark(env, model, true); else gemMark(env, model, false, r.status);
   if (!r.ok) { let m = ""; try { const j = await r.json(); m = (j.error && j.error.message) || ""; } catch (e) {} const err = new Error("Gemini " + r.status + (m ? ": " + m.slice(0, 160) : "")); err.status = r.status; throw err; }
   return r;
 }
 async function gemWrite(env, sys, user) {
   let last = null;
-  for (const model of (await gemModels(env)).text) {
+  for (const model of await gemOrder(env, (await gemModels(env)).text)) {
     try {
       let res;
       try { res = await gemFetch(env, model, { systemInstruction: { parts: [{ text: sys }] }, contents: [{ role: "user", parts: [{ text: user }] }], generationConfig: Object.assign({ temperature: 0.9, maxOutputTokens: 3000 }, thinkOff(model)) }); }
@@ -143,7 +166,7 @@ export async function gemChat(env, messages, maxTokens, temperature) {
   if (!gemKey(env)) return "";
   const sys = messages.filter(m => m.role === "system").map(m => m.content).join("\n\n");
   const contents = messages.filter(m => m.role !== "system").map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: String(m.content || "") }] }));
-  let models = []; try { models = (await gemModels(env)).text; } catch (e) { return ""; }
+  let models = []; try { models = await gemOrder(env, (await gemModels(env)).text); } catch (e) { return ""; }
   for (const model of models) {
     try {
       const gc = Object.assign({ temperature: temperature ?? 0.5, maxOutputTokens: Math.max(400, (maxTokens || 600) + 200) }, thinkOff(model));
@@ -166,7 +189,7 @@ async function gemSpeak(env, lines, pairKey) {
   const pair = GEM_PAIRS[pairKey] || GEM_PAIRS[(env.SNAP && await env.SNAP.get("showvoice")) || "a"] || GEM_PAIRS.a;
   const cfg = { responseModalities: ["AUDIO"], speechConfig: { multiSpeakerVoiceConfig: { speakerVoiceConfigs: ["DEZ", "SAM"].map(h => ({ speaker: NAME[h], voiceConfig: { prebuiltVoiceConfig: { voiceName: pair[h] } } })) } } };
   let last = null;
-  for (const model of (await gemModels(env)).tts) {
+  for (const model of await gemOrder(env, (await gemModels(env)).tts)) {
     try {
       const contents = model.startsWith("gemini-3.8")
         ? [{ role: "user", parts: lines.map(l => ({ text: l.t, speech_metadata: { speaker: NAME[l.s], style: l.st || "natural, casual" } })) }]
