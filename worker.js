@@ -359,8 +359,8 @@ async function healthCheck(env) {
   const t0 = Date.now(), res = [];
   // Every check runs at the same time with a 15-second cap, so one slow service can't hold up the rest.
   const jobs = [];
-  const check = (name, fn) => { const job = run(name, fn); jobs.push(job); return job; };
-  const run = async (name, fn) => { const s = Date.now(); try { const note = await Promise.race([fn(), new Promise((_, rej) => setTimeout(() => rej(new Error("timed out after 15 s")), 15000))]); res.push({ name, ok: true, ms: Date.now() - s, note: note || "" }); } catch (e) { res.push({ name, ok: false, ms: Date.now() - s, note: String(e && e.message || e).slice(0, 160) }); } };
+  const check = (name, fn, cap) => { const job = run(name, fn, cap || 15000); jobs.push(job); return job; };
+  const run = async (name, fn, cap) => { const s = Date.now(); try { const note = await Promise.race([fn(), new Promise((_, rej) => setTimeout(() => rej(new Error("timed out after " + cap / 1000 + " s")), cap))]); res.push({ name, ok: true, ms: Date.now() - s, note: note || "" }); } catch (e) { res.push({ name, ok: false, ms: Date.now() - s, note: String(e && e.message || e).slice(0, 160) }); } };
   const getJ = async (u, h) => { const r = await fetch(u, { headers: h || UA }); if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); };
   check("Trade values", async () => { const j = await tradeValues("0.5", 14, 2, true, 16, env).then(r => r.json()); const n = Object.keys(j.values || {}).length; if (n < 300) throw new Error("only " + n + " values"); if (!j.values["pick:" + (new Date().getUTCFullYear() + 1) + " 1st"] && !Object.keys(j.values).some(k => k.startsWith("pick:"))) throw new Error("no draft picks"); return n + " values"; });
   check("Fleaflicker", async () => { const j = await getJ("https://www.fleaflicker.com/api/FetchLeagueStandings?sport=NFL&league_id=" + OWNER.lid); if (!(j.divisions || []).length) throw new Error("no standings"); });
@@ -368,7 +368,16 @@ async function healthCheck(env) {
   check("ESPN scores", async () => { const j = await getJ("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"); if (!(j.events || []).length) throw new Error("no games"); });
   check("FantasyCalc trades", async () => { const j = await getJ("https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=2&numTeams=12&ppr=1"); if (!Array.isArray(j) || j.length < 100) throw new Error("short list"); });
   check("Expert rankings", async () => { const r = await fetch("https://raw.githubusercontent.com/dynastyprocess/data/master/files/values-players.csv", { headers: UA }); if (!r.ok) throw new Error("HTTP " + r.status); });
-  check("AI coach", async () => { if (!env.AI) throw new Error("no AI binding"); const r = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", { messages: [{ role: "user", content: "Reply with OK." }], max_tokens: 3 }); const t = r && (r.response ?? (r.choices && r.choices[0] && r.choices[0].message && r.choices[0].message.content)); if (!t || !String(t).length) throw new Error("empty answer"); });
+  // Coach and briefings ask Gemini first; Cloudflare's own AI is the backup (its free allowance resets 7 PM ET).
+  const gemP = env.GEMINI_KEY ? gemProbe(env).catch(e => ({ models: { text: [] }, results: [], err: e })) : null;
+  check("AI coach", async () => {
+    let cfErr = null;
+    if (env.AI) { try { const r = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", { messages: [{ role: "user", content: "Reply with OK." }], max_tokens: 3 }); const t = r && (r.response ?? (r.choices && r.choices[0] && r.choices[0].message && r.choices[0].message.content)); if (!t) cfErr = "empty answer"; } catch (e) { cfErr = String(e.message || e); } }
+    const g = gemP ? await gemP : null, gOk = g && g.results.find(r => r.ok);
+    if (gOk) return "Gemini (" + gOk.model.replace("gemini-", "") + ")" + (cfErr ? " · Cloudflare backup: " + (/4006/.test(cfErr) ? "used up until 7 PM ET" : cfErr.slice(0, 60)) : " · Cloudflare backup OK");
+    if (!cfErr && env.AI) return g ? "Cloudflare (Gemini not answering)" : "";
+    throw new Error((g ? "Gemini not answering · " : "") + (cfErr || "no AI binding"));
+  }, 22000);
   // Tests exactly what the show does (speak a word with a show voice); costs a tiny fraction of a cent.
   check("Show voices (Deepgram)", async () => {
     if (!env.DEEPGRAM_KEY) throw new Error("no DEEPGRAM_KEY secret found");
@@ -379,12 +388,12 @@ async function healthCheck(env) {
   if (env.GEMINI_KEY) await check("Show (Gemini)", async () => {
     const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", { headers: { "x-goog-api-key": String(env.GEMINI_KEY).trim() } });
     if (!r.ok) throw new Error("Gemini said HTTP " + r.status + (r.status === 400 || r.status === 403 ? " (key not accepted)" : ""));
-    const p = await gemProbe(env);
+    const p = await gemP; if (p.err) throw p.err;
     if (!p.models.text.length) throw new Error("key works, but no Gemini writing models are available to it");
     const line = p.results.map(r => r.model.replace("gemini-", "") + ": " + (r.ok ? "OK " + (r.ms / 1000).toFixed(1) + "s" : r.note)).join(" · ");
     if (!p.results.some(r => r.ok)) throw new Error(line);
     return line;
-  });
+  }, 22000);
   if (env.ELEVENLABS_KEY) await check("Show voices (ElevenLabs)", async () => {
     const u = await elUsage(env), set = await elSetup(env);
     return (set.names || []).join(" & ") + " on " + set.model + " · " + (u.used || 0).toLocaleString() + " of " + (u.limit || 0).toLocaleString() + " characters used this month";

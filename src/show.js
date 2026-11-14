@@ -79,20 +79,21 @@ const GEM = "https://generativelanguage.googleapis.com/v1beta/models/";
 let gemModelsMem = null;
 export async function gemModels(env) {
   if (gemModelsMem && Date.now() - gemModelsMem.at < 6 * 3600e3) return gemModelsMem;
-  let c = env.SNAP ? await env.SNAP.get("gem:models3", "json").catch(() => null) : null;
+  let c = env.SNAP ? await env.SNAP.get("gem:models4", "json").catch(() => null) : null;
   if (!c || Date.now() - c.at > 86400e3) {
     const r = await fetch(GEM.replace(/\/$/, "") + "?pageSize=300", { headers: { "x-goog-api-key": gemKey(env) } });
     if (!r.ok) { const e = new Error("Gemini model list " + r.status); e.status = r.status; throw e; }
     const ms = ((await r.json()).models || []).filter(m => (m.supportedGenerationMethods || []).includes("generateContent")).map(m => m.name.replace("models/", ""));
     const ver = n => Number((n.match(/gemini-(\d+(?:\.\d+)?)/) || [])[1] || 0);
     const rank = (a, b) => (ver(b) - ver(a)) || (/preview|exp/.test(a) - /preview|exp/.test(b)) || (a.length - b.length);
-    const text = ms.filter(n => /^gemini-[\d.]+-flash(-preview[-\d]*)?$/.test(n) || /^gemini-flash-latest$/.test(n)).sort(rank);
+    const text = ms.filter(n => /^gemini-[\d.]+-flash(-preview[-\d]*)?$/.test(n)).sort(rank);
     const lite = ms.filter(n => /^gemini-[\d.]+-flash-lite(-preview[-\d]*)?$/.test(n)).sort(rank);
+    const alias = ms.filter(n => /^gemini-flash(-lite)?-latest$/.test(n)).sort();
     const tts = ms.filter(n => /tts/.test(n)).sort((a, b) => (/pro/.test(b) - /pro/.test(a)) || rank(a, b));
     // Newest first. Google retired 2.5 Flash for new keys (404 "no longer available to new users"), so it goes last.
     const old = n => /gemini-2\.|gemini-1\./.test(n);
-    c = { at: Date.now(), text: text.filter(n => !old(n)).concat(lite.filter(n => !old(n)), text.filter(old)).slice(0, 5), tts: tts.filter(n => !old(n)).concat(tts.filter(old)).slice(0, 4) };
-    if (env.SNAP && c.text.length) await env.SNAP.put("gem:models3", JSON.stringify(c)).catch(() => {});
+    c = { at: Date.now(), text: [...new Set(text.filter(n => !old(n)).slice(0, 2).concat(lite.filter(n => !old(n)).slice(0, 1), alias, text.filter(n => !old(n)), lite.filter(n => !old(n)), text.filter(old)))].slice(0, 6), tts: tts.filter(n => !old(n)).concat(tts.filter(old)).slice(0, 4) };
+    if (env.SNAP && c.text.length) await env.SNAP.put("gem:models4", JSON.stringify(c)).catch(() => {});
   }
   return (gemModelsMem = c);
 }
@@ -101,15 +102,16 @@ export const GEM_VOICES = { DEZ: "Fenrir", SAM: "Zephyr" }; // Fenrir: "excitabl
 const NAME = { DEZ: "Dez", SAM: "Sam" };
 const gemKey = env => String(env.GEMINI_KEY || "").trim();
 const gemDead = new Set();
-async function gemFetch(env, model, body, ms) {
+async function gemFetch(env, model, body, ms, tries) {
+  tries = tries || 2;
   if (gemDead.has(model)) { const e = new Error(model + " is retired"); e.status = 404; throw e; }
   let r;
-  // "503 model overloaded" is usually momentary: two quick retries before moving on to the next model.
-  for (let attempt = 0; attempt < 3; attempt++) {
+  // "503 model overloaded" is often momentary: one quick retry, then move on to the next model (lite ones are rarely busy).
+  for (let attempt = 0; attempt < tries; attempt++) {
     try { r = await fetch(GEM + model + ":generateContent", { method: "POST", headers: { "x-goog-api-key": gemKey(env), "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(ms || 45000) }); }
     catch (e) { const err = new Error(model + " didn’t answer in " + Math.round((ms || 45000) / 1000) + " s"); err.status = 504; throw err; }
-    if (r.status !== 503 || attempt === 2) break;
-    await new Promise(x => setTimeout(x, 1200 * (attempt + 1)));
+    if (r.status !== 503 || attempt === tries - 1) break;
+    await new Promise(x => setTimeout(x, 1000));
   }
   if (r.status === 404) gemDead.add(model);
   if (!r.ok) { let m = ""; try { const j = await r.json(); m = (j.error && j.error.message) || ""; } catch (e) {} const err = new Error("Gemini " + r.status + (m ? ": " + m.slice(0, 160) : "")); err.status = r.status; throw err; }
@@ -134,8 +136,8 @@ async function gemWrite(env, sys, user) {
 // For the health check: try each writing model separately and report exactly what happened.
 export async function gemProbe(env) {
   const m = await gemModels(env);
-  const one = async model => { const t = Date.now(); try { const j = await (await gemFetch(env, model, { contents: [{ role: "user", parts: [{ text: "Reply with OK." }] }], generationConfig: Object.assign({ maxOutputTokens: 20 }, thinkOff(model)) }, 12000)).json(); const ok = (((j.candidates || [])[0] || {}).content || {}).parts; return { model, ok: !!ok, ms: Date.now() - t, note: ok ? "" : "empty answer" }; } catch (e) { return { model, ok: false, ms: Date.now() - t, note: String(e.message).slice(0, 110) }; } };
-  return { models: m, results: await Promise.all(m.text.slice(0, 3).map(one)) };
+  const one = async model => { const t = Date.now(); try { const ask = gc => gemFetch(env, model, { contents: [{ role: "user", parts: [{ text: "Reply with OK." }] }], generationConfig: gc }, 9000, 1); let res; try { res = await ask(Object.assign({ maxOutputTokens: 300 }, thinkOff(model))); } catch (e) { if (e.status !== 400) throw e; res = await ask({ maxOutputTokens: 600 }); } const j = await res.json(); const ok = (((j.candidates || [])[0] || {}).content || {}).parts; return { model, ok: !!ok, ms: Date.now() - t, note: ok ? "" : "empty answer" }; } catch (e) { return { model, ok: false, ms: Date.now() - t, note: String(e.message).slice(0, 110) }; } };
+  return { models: m, results: await Promise.all(m.text.slice(0, 5).map(one)) };
 }
 export async function gemChat(env, messages, maxTokens, temperature) {
   if (!gemKey(env)) return "";
