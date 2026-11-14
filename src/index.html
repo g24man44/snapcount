@@ -276,6 +276,9 @@ form.add{display:flex;flex-direction:column;gap:10px}
 .botmsg .cbody{border-style:dashed}
 .cmeta{font-size:.72rem;color:var(--muted);margin-bottom:2px}.cmeta b{color:var(--ink);font-weight:650;margin-right:2px}
 .ctext{line-height:1.42;overflow-wrap:anywhere}.ctext a{color:var(--accent)}
+.showcard{display:flex;align-items:center;gap:12px;width:100%;text-align:left;cursor:pointer;background:linear-gradient(100deg,var(--surface2),var(--surface));border:1px solid var(--line)}
+.showic{display:grid;place-items:center;width:44px;height:44px;flex:none;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:20px}
+.showtx{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}.showgo{font-weight:700;color:var(--accent);white-space:nowrap}
 .cimg{display:block;max-width:220px;max-height:260px;border-radius:10px;margin-top:6px}
 .chatphoto{display:grid;place-items:center;width:40px;height:40px;flex:none;border-radius:50%;color:var(--muted);cursor:pointer}.chatphoto:hover,.chatphoto:focus-within{color:var(--ink);background:var(--line)}
 .chatpv{position:relative;align-self:flex-start;margin:8px 0 0}.chatpv img{display:block;max-height:120px;max-width:160px;border-radius:10px}.chatpvx{position:absolute;top:-8px;right:-8px;width:26px;height:26px;border-radius:50%;border:0;background:var(--bad);color:#fff;font-size:13px;line-height:26px;padding:0;cursor:pointer}
@@ -1198,8 +1201,10 @@ function renderLeagues(v){
       }
     }
     h += "</button>";
+    if (d && d.teams.some(t => t.mine)) h += '<button type="button" class="card showcard" data-show="' + i + '"><span class="showic" aria-hidden="true"><i class=ic-speaker></i></span><span class="showtx"><b>The Snap Count Show</b><span class="small muted">This week’s podcast about ' + esc(m.name) + '</span></span><span class="showgo">Listen</span></button>';
   });
   v.innerHTML = h + "</div>" + tools;
+  v.querySelectorAll("[data-show]").forEach(b => b.addEventListener("click", () => openShow(leagues[+b.dataset.show])));
   v.querySelectorAll("[data-l]").forEach(b => b.addEventListener("click", () => { cur.league = +b.dataset.l; cur.team = null; render(); window.scrollTo(0,0); }));
   const sw = v.querySelector("#sweatBtn"); if (sw) sw.addEventListener("click", openSweat);
   const pb = v.querySelector("#planBtn"); if (pb) pb.addEventListener("click", openPlanner);

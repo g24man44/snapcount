@@ -25,6 +25,7 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- The league show has its own card on the Leagues home screen, right under each league.
 - Chat photos: camera button in Chat; photos shrink on the phone, are stored in the league's chat room (Durable Object, not KV) and posted to GroupMe as a link that previews as the picture; GroupMe photos already show in the app.
 - [x] Nov 13, 2026: All AI text (coach, briefing, recaps, roast, draft, matchups, pitch, negotiate, pregame/preview automations) goes to the owner's free Gemini key first (gemChat: gemini-2.5-flash thinking off → 3.8-flash), Cloudflare neurons only as backup — the 10k/day allowance ran out 36 min after reset from real use. AI uses counted per feature/day in DO "stats" (/bump, /counts) and shown on the owner usage page. Breaking-news DO calls batched (/addMany: 1 per check, was ~50).
 - [x] Nov 13, 2026: "Send in Fleaflicker" pre-fills draft picks too. TradeBuilder token = base64url(zlib(protobuf)): per team block {1 team, 2 pick {1 to, 2 season, 3 round, 4 original owner}, 3 player {1 to, 2 player id}}, then top-level 4:1. Encoder reproduces the owner's hand-built link byte for byte.
