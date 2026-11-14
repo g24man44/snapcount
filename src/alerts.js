@@ -847,7 +847,7 @@ export async function runMinute(env) {
 /* ---------- files the phone needs ---------- */
 export const SW_JS = `
 const SHELL = "snapcount-shell-v9", DATA = "snapcount-data-v1";
-self.addEventListener("install", e => { self.skipWaiting(); e.waitUntil(caches.open(SHELL).then(c => c.addAll(["/", "/icon-192.png"])).catch(() => {})); });
+self.addEventListener("install", e => { self.skipWaiting(); e.waitUntil(caches.open(SHELL).then(c => c.addAll(["/", "/icon-192.png?v=3"])).catch(() => {})); });
 self.addEventListener("fetch", e => {
   const u = new URL(e.request.url);
   if (e.request.method === "GET" && u.origin === location.origin && u.pathname.startsWith("/api/") && !u.pathname.startsWith("/api/push/") && !u.pathname.startsWith("/api/show/mp3") && !e.request.headers.has("range")) {
@@ -871,7 +871,7 @@ self.addEventListener("push", e => e.waitUntil((async () => {
   if (!items.length) items = [{ id: "update", title: "Snap Count", body: "There's news about your players." }];
   try { if (self.navigator.setAppBadge) await self.navigator.setAppBadge(items.length); } catch (err) {}
   for (const a of items.slice(0, 4)) {
-    await self.registration.showNotification(a.title, { body: a.body, tag: a.id, icon: "/icon-192.png", data: { url: a.url || "/#alerts" } });
+    await self.registration.showNotification(a.title, { body: a.body, tag: a.id, icon: "/icon-192.png?v=3", data: { url: a.url || "/#alerts" } });
   }
 })()));
 self.addEventListener("notificationclick", e => {
@@ -889,13 +889,13 @@ export const MANIFEST = JSON.stringify({
   id: "/", name: "Snap Count", short_name: "Snap Count", start_url: "/", scope: "/", display: "standalone", orientation: "portrait",
   description: "Live fantasy football for Sleeper, Fleaflicker, ESPN and MyFantasyLeague: AI coach, trade grader, live scores and instant alerts.",
   shortcuts: [
-    { name: "Ask the AI coach", short_name: "Coach", url: "/?go=coach", icons: [{ src: "/icon-192.png", sizes: "192x192" }] },
-    { name: "Live scores", short_name: "Scores", url: "/?go=news", icons: [{ src: "/icon-192.png", sizes: "192x192" }] },
-    { name: "Grade a trade", short_name: "Trade", url: "/?go=trade", icons: [{ src: "/icon-192.png", sizes: "192x192" }] },
-    { name: "Alerts", short_name: "Alerts", url: "/#alerts", icons: [{ src: "/icon-192.png", sizes: "192x192" }] }
+    { name: "Ask the AI coach", short_name: "Coach", url: "/?go=coach", icons: [{ src: "/icon-192.png?v=3", sizes: "192x192" }] },
+    { name: "Live scores", short_name: "Scores", url: "/?go=news", icons: [{ src: "/icon-192.png?v=3", sizes: "192x192" }] },
+    { name: "Grade a trade", short_name: "Trade", url: "/?go=trade", icons: [{ src: "/icon-192.png?v=3", sizes: "192x192" }] },
+    { name: "Alerts", short_name: "Alerts", url: "/#alerts", icons: [{ src: "/icon-192.png?v=3", sizes: "192x192" }] }
   ],
   background_color: "#0d1730", theme_color: "#0d1730",
-  icons: [{ src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" }, { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" }]
+  icons: [{ src: "/icon-192.png?v=3", sizes: "192x192", type: "image/png", purpose: "any" }, { src: "/icon-512.png?v=3", sizes: "512x512", type: "image/png", purpose: "any" }, { src: "/icon-512.png?v=3", sizes: "512x512", type: "image/png", purpose: "maskable" }]
 });
 
 export function staticRoute(p) {

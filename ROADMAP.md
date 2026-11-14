@@ -25,6 +25,7 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- New app icon: a navy football on gold whose laces are a tally mark (the “count”); also used as the browser tab icon and as a maskable icon for Android.
 - UI pass: five tabs (Alerts moved to a bell at the top; Edge renamed Advice); a home card that changes with the day (games on → Sweat board, lineup check when a starter is out or on bye, waiver day Tue/Wed, otherwise all set); tools trimmed to three plus More tools; league view leads with “Needs your attention”; team picker moved to the bottom; header fits small phones.
 - The league show has its own card on the Leagues home screen, right under each league.
 - Chat photos: camera button in Chat; photos shrink on the phone, are stored in the league's chat room (Durable Object, not KV) and posted to GroupMe as a link that previews as the picture; GroupMe photos already show in the app.
