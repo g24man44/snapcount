@@ -54,6 +54,116 @@ export async function sendPush(env, sub, contact) {
   return r.status;
 }
 
+
+/* ---------- push with the message inside (RFC 8291, aes128gcm): nothing has to be stored for the phone to fetch ---------- */
+const ub64 = s => { s = String(s || "").replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; const b = atob(s), a = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; };
+const cat = (...xs) => { const n = xs.reduce((s, x) => s + x.length, 0), o = new Uint8Array(n); let i = 0; for (const x of xs) { o.set(x, i); i += x.length; } return o; };
+async function hmac(key, data) { const k = await crypto.subtle.importKey("raw", key, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]); return new Uint8Array(await crypto.subtle.sign("HMAC", k, data)); }
+export async function encryptPush(keys, text) {
+  const uaPub = ub64(keys.p256dh), auth = ub64(keys.auth);
+  const eph = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+  const asPub = new Uint8Array(await crypto.subtle.exportKey("raw", eph.publicKey));
+  const uaKey = await crypto.subtle.importKey("raw", uaPub, { name: "ECDH", namedCurve: "P-256" }, false, []);
+  const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: "ECDH", public: uaKey }, eph.privateKey, 256));
+  const prkKey = await hmac(auth, shared);
+  const ikm = (await hmac(prkKey, cat(te.encode("WebPush: info\0"), uaPub, asPub, new Uint8Array([1])))).slice(0, 32);
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const prk = await hmac(salt, ikm);
+  const cek = (await hmac(prk, cat(te.encode("Content-Encoding: aes128gcm\0"), new Uint8Array([1])))).slice(0, 16);
+  const nonce = (await hmac(prk, cat(te.encode("Content-Encoding: nonce\0"), new Uint8Array([1])))).slice(0, 12);
+  const k = await crypto.subtle.importKey("raw", cek, { name: "AES-GCM" }, false, ["encrypt"]);
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, k, cat(te.encode(text), new Uint8Array([2]))));
+  const head = new Uint8Array(21); head.set(salt, 0); new DataView(head.buffer).setUint32(16, 4096); head[20] = asPub.length;
+  return cat(head, asPub, ct);
+}
+export async function sendPushData(env, sub, contact, data, ttl) {
+  if (!sub || !sub.keys || !sub.keys.p256dh || !sub.keys.auth) return 0;
+  const v = await vapid(env);
+  const key = await crypto.subtle.importKey("jwk", v.jwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+  const head = b64u(te.encode(JSON.stringify({ typ: "JWT", alg: "ES256" })));
+  const claims = b64u(te.encode(JSON.stringify({ aud: new URL(sub.endpoint).origin, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: contact || "https://workers.dev" })));
+  const sig = b64u(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, te.encode(head + "." + claims)));
+  const body = await encryptPush(sub.keys, JSON.stringify(data));
+  const r = await fetch(sub.endpoint, { method: "POST", body, headers: { TTL: String(ttl || 600), Urgency: "normal", "Content-Encoding": "aes128gcm", "Content-Type": "application/octet-stream", Authorization: "vapid t=" + head + "." + claims + "." + sig + ", k=" + v.pub } });
+  return r.status;
+}
+
+/* ---------- live matchup score in the notification bar ---------- */
+// Android: one notification per league that quietly replaces itself every few minutes while NFL games are on.
+// iPhone can't replace a web app's notification, so it gets one update when each game window ends (early, late, night).
+const isApple = sub => /push\.apple\.com/.test(String((sub || {}).endpoint || ""));
+const numv = x => x == null ? null : typeof x === "object" ? Number(x.value ?? x.formatted) : Number(x);
+async function liveState(env, k, v) {
+  if (!env.CHAT) return null;
+  const stub = env.CHAT.get(env.CHAT.idFromName("live"));
+  if (v === undefined) return stub.fetch("https://chat/state?k=" + k).then(r => r.json()).catch(() => null);
+  return stub.fetch("https://chat/state?k=" + k, { method: "POST", body: JSON.stringify(v) }).catch(() => {});
+}
+async function subscriberIds(env) {
+  const idx = await env.SNAP.get("subs:idx", "json");
+  if (Array.isArray(idx)) return idx;
+  const list = await env.SNAP.list({ prefix: "sub:" }), ids = list.keys.map(k => k.name.slice(4));
+  await env.SNAP.put("subs:idx", JSON.stringify(ids));
+  return ids;
+}
+export async function addSubscriberId(env, id) {
+  const idx = await env.SNAP.get("subs:idx", "json");
+  if (Array.isArray(idx) && !idx.includes(id)) { idx.push(id); await env.SNAP.put("subs:idx", JSON.stringify(idx)); }
+}
+async function leagueMatchups(L, cache) {
+  const key = L.p + ":" + L.id;
+  if (cache.has(key)) return cache.get(key);
+  let res = null;
+  try {
+    if (L.p === "flea") {
+      const b = await fetch("https://www.fleaflicker.com/api/FetchLeagueScoreboard?sport=NFL&league_id=" + encodeURIComponent(L.id), { headers: UA }).then(r => r.json());
+      const week = (b.schedulePeriod && (b.schedulePeriod.ordinal || b.schedulePeriod.value)) || "";
+      res = { week, games: (b.games || []).map(g => ({ a: { id: String((g.away || {}).id), name: (g.away || {}).name || "Away", pts: numv((g.awayScore || {}).score) || 0, proj: numv((g.awayScore || {}).projected) },
+        b: { id: String((g.home || {}).id), name: (g.home || {}).name || "Home", pts: numv((g.homeScore || {}).score) || 0, proj: numv((g.homeScore || {}).projected) } })) };
+    } else if (L.p === "sleeper") {
+      const st = cache.get("sleeper:state") || await fetch("https://api.sleeper.app/v1/state/nfl", { headers: UA }).then(r => r.json()); cache.set("sleeper:state", st);
+      const week = st.week;
+      const [m, ros, users] = await Promise.all(["/matchups/" + week, "/rosters", "/users"].map(x => fetch("https://api.sleeper.app/v1/league/" + encodeURIComponent(L.id) + x, { headers: UA }).then(r => r.json())));
+      const owner = {}; (ros || []).forEach(r => { owner[r.roster_id] = r.owner_id; });
+      const uname = {}; (users || []).forEach(u => { uname[u.user_id] = (u.metadata && u.metadata.team_name) || u.display_name; });
+      const by = {}; (m || []).forEach(x => { if (x.matchup_id) (by[x.matchup_id] = by[x.matchup_id] || []).push(x); });
+      res = { week, games: Object.values(by).filter(p => p.length === 2).map(([x, y]) => ({ a: { id: String(x.roster_id), name: uname[owner[x.roster_id]] || "Team " + x.roster_id, pts: x.points || 0 }, b: { id: String(y.roster_id), name: uname[owner[y.roster_id]] || "Team " + y.roster_id, pts: y.points || 0 } })) };
+    }
+  } catch (e) { res = null; }
+  cache.set(key, res);
+  return res;
+}
+const f1 = n => (Math.round((Number(n) || 0) * 10) / 10).toFixed(1);
+export async function liveScores(env) {
+  let live = 0, total = 0;
+  try {
+    const sb = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard", { headers: UA }).then(r => r.json());
+    for (const e of sb.events || []) { total++; const st = ((((e.competitions || [])[0] || {}).status || {}).type || {}).state; if (st === "in") live++; }
+  } catch (e) { return { error: "scoreboard" }; }
+  const prev = (await liveState(env, "nfl")) || { live: 0 };
+  const windowEnded = prev.live > 0 && live === 0;
+  if (prev.live !== live) await liveState(env, "nfl", { live, at: Date.now() });
+  if (!live && !windowEnded) return { live, sent: 0 };
+  const ids = await subscriberIds(env), cache = new Map(), tm = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" });
+  let sent = 0;
+  for (const id of ids) {
+    const rec = await env.SNAP.get("sub:" + id, "json");
+    if (!rec || !rec.sub || (rec.prefs || {}).livescore === false) continue;
+    if (String(rec.sub.endpoint).startsWith("https://snapcount.hooks/")) continue;
+    if (isApple(rec.sub) && !windowEnded) continue;
+    for (const L of (rec.leagues || []).filter(x => x.team && (x.p === "flea" || x.p === "sleeper")).slice(0, 3)) {
+      const m = await leagueMatchups(L, cache); if (!m) continue;
+      const g = m.games.find(x => x.a.id === L.team || x.b.id === L.team); if (!g) continue;
+      const me = g.a.id === L.team ? g.a : g.b, op = g.a.id === L.team ? g.b : g.a, d = me.pts - op.pts;
+      const lead = Math.abs(d) < 0.05 ? "Tied" : d > 0 ? "You lead by " + f1(d) : "You trail by " + f1(-d);
+      const title = me.name + " " + f1(me.pts) + " – " + f1(op.pts) + " " + op.name;
+      const body = lead + (me.proj != null && op.proj != null ? " · Projected " + f1(me.proj) + "–" + f1(op.proj) : "") + " · " + (windowEnded ? "End of this game window" : "Live, " + tm) + "\n" + (L.name || "Your league") + (m.week ? " · Week " + m.week : "");
+      try { const s = await sendPushData(env, rec.sub, rec.origin, { live: 1, tag: "live:" + L.p + ":" + L.id, title, body, url: "/" }, windowEnded ? 43200 : 300); if (s >= 200 && s < 300) sent++; if (s === 404 || s === 410) { await env.SNAP.delete("sub:" + id); break; } } catch (e) {}
+    }
+  }
+  return { live, windowEnded, sent };
+}
+
 async function addAlerts(env, id, items) {
   const key = "al:" + id;
   const list = (await env.SNAP.get(key, "json")) || [];
@@ -92,17 +202,18 @@ export async function alertsRoute(request, env, p, url) {
           names: (body.names || []).slice(0, 400).map(String),
           starters: (body.starters || []).slice(0, 80).map(String),
           bench: (body.bench || []).slice(0, 120).map(String),
-          leagues: (body.leagues || []).slice(0, 30).map(l => ({ p: ["flea", "espn", "mfl"].includes(l.p) ? l.p : "sleeper", id: String(l.id), name: String(l.name || "").slice(0, 80), season: /^\d{4}$/.test(String(l.season || "")) ? String(l.season) : undefined })),
+          leagues: (body.leagues || []).slice(0, 30).map(l => ({ p: ["flea", "espn", "mfl"].includes(l.p) ? l.p : "sleeper", id: String(l.id), name: String(l.name || "").slice(0, 80), season: /^\d{4}$/.test(String(l.season || "")) ? String(l.season) : undefined, team: l.team ? String(l.team).slice(0, 40) : undefined })),
           oppStarters: (body.oppStarters || []).slice(0, 80).map(String),
           watch: (body.watch || []).slice(0, 60).map(String),
           lineups: (Array.isArray(body.lineups) ? body.lineups : []).slice(0, 30).map(l => ({ p: ["flea", "espn", "mfl", "sleeper"].includes(l.p) ? l.p : null, id: String(l.id || ""), name: String(l.name || "").slice(0, 80), season: /^\d{4}$/.test(String(l.season || "")) ? String(l.season) : undefined, s: (l.s || []).slice(0, 30).map(String), b: (l.b || []).slice(0, 40).map(String), t: l.t ? String(l.t).slice(0, 40) : undefined })),
           hooks: (body.hooks || []).map(String).filter(u => hookKind(u)).slice(0, 5),
-          prefs: { mine: body.prefs?.mine !== false, fa: body.prefs?.fa !== false, news: body.prefs?.news !== false, league: body.prefs?.league !== false, recap: body.prefs?.recap !== false, brief: body.prefs?.brief !== false, preview: body.prefs?.preview !== false, plays: body.prefs?.plays !== false, watch: body.prefs?.watch !== false, faPos: body.prefs?.faPos === "QB" ? "QB" : "ALL" },
+          prefs: { mine: body.prefs?.mine !== false, fa: body.prefs?.fa !== false, news: body.prefs?.news !== false, league: body.prefs?.league !== false, recap: body.prefs?.recap !== false, brief: body.prefs?.brief !== false, preview: body.prefs?.preview !== false, plays: body.prefs?.plays !== false, livescore: body.prefs?.livescore !== false, watch: body.prefs?.watch !== false, faPos: body.prefs?.faPos === "QB" ? "QB" : "ALL" },
           origin: url.origin
         };
         const prev = await env.SNAP.get("sub:" + id);
         const s = JSON.stringify(rec);
         if (prev !== s) await env.SNAP.put("sub:" + id, s);
+        if (!prev) await addSubscriberId(env, id);
         const fl = rec.leagues.filter(x => x.p === "flea");
         if (fl.length) {
           const idx = (await env.SNAP.get("fleaLeagues", "json")) || {};
@@ -857,6 +968,7 @@ export async function runMinute(env) {
   const m = new Date().getUTCMinutes();
   // Every 2 minutes is plenty: scoring plays come from the full game summary, so no touchdown is missed.
   if (m % 2 === 0) await playAlerts(env).catch(() => {});
+  if (m % 3 === 1) await liveScores(env).catch(() => {});
   await leagueWatch(env).catch(() => {});
   await pregameBriefings(env).catch(() => {});
   await matchupPreviews(env, deliver).catch(() => {});
@@ -871,7 +983,7 @@ export async function runMinute(env) {
 
 /* ---------- files the phone needs ---------- */
 export const SW_JS = `
-const SHELL = "snapcount-shell-v9", DATA = "snapcount-data-v1";
+const SHELL = "snapcount-shell-v10", DATA = "snapcount-data-v1";
 self.addEventListener("install", e => { self.skipWaiting(); e.waitUntil(caches.open(SHELL).then(c => c.addAll(["/", "/icon-192.png?v=6"])).catch(() => {})); });
 self.addEventListener("fetch", e => {
   const u = new URL(e.request.url);
@@ -887,6 +999,8 @@ self.addEventListener("fetch", e => {
 });
 self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
 self.addEventListener("push", e => e.waitUntil((async () => {
+  let d = null; try { d = e.data ? e.data.json() : null; } catch (err) {}
+  if (d && d.live) { await self.registration.showNotification(d.title, { body: d.body, tag: d.tag, renotify: false, silent: true, icon: "/icon-192.png?v=6", badge: "/icon-192.png?v=6", data: { url: d.url || "/" } }); return; }
   let items = [];
   try {
     const sub = await self.registration.pushManager.getSubscription();

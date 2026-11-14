@@ -50,6 +50,12 @@ export class ChatRoom {
       if (!v) return new Response("Not found", { status: 404 });
       return new Response(v.b, { headers: { "content-type": v.t, "cache-control": "public, max-age=31536000, immutable" } });
     }
+    if (u.pathname === "/state") {
+      // Small bits of server state that change often (live-score bookkeeping), kept here instead of KV's daily write limit.
+      const k = "s:" + (u.searchParams.get("k") || "");
+      if (request.method === "POST") { await st.put(k, await request.json()); return out({ ok: true }); }
+      return out((await st.get(k)) || null);
+    }
     if (u.pathname === "/bump") {
       const k = "c:" + (u.searchParams.get("k") || "").slice(0, 80); await st.put(k, ((await st.get(k)) || 0) + 1); return out({ ok: true });
     }
