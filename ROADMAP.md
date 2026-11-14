@@ -25,6 +25,7 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- Editorial restyle (The Athletic / ESPN direction): black/white with one red, condensed uppercase headlines, square buttons and hairline cards, underlined section tabs, flush bottom tab bar with a red marker; new italic “SC” icon with a red bar.
 - New app icon: a navy football on gold whose laces are a tally mark (the “count”); also used as the browser tab icon and as a maskable icon for Android.
 - UI pass: five tabs (Alerts moved to a bell at the top; Edge renamed Advice); a home card that changes with the day (games on → Sweat board, lineup check when a starter is out or on bye, waiver day Tue/Wed, otherwise all set); tools trimmed to three plus More tools; league view leads with “Needs your attention”; team picker moved to the bottom; header fits small phones.
 - The league show has its own card on the Leagues home screen, right under each league.
