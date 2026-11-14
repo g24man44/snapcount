@@ -228,7 +228,7 @@ export async function tauntRoute(request, env) {
     if (g && g.status === 429) return out({ error: "One taunt at a time." }, 429);
   }
   const from = String(b.fromName || "Your opponent").slice(0, 60), player = String(b.player || "").slice(0, 60);
-  const data = { show: 1, taunt: { kind: b.kind, e: t[0], text: t[1], from, player }, tag: "taunt:" + lid, title: t[0] + " " + from + ": " + t[1], body: player ? "After " + player + "’s touchdown." : "They just scored.", url: "/" };
+  const data = { show: 1, taunt: { kind: b.kind, e: t[0], text: t[1], from, player }, tag: "taunt:" + lid, title: t[0] + " " + from + ": " + t[1], body: player ? "After " + player + "’s touchdown." : "From your matchup this week.", url: "/" };
   let sent = 0;
   for (const id of await subscriberIds(env)) {
     const rec = await env.SNAP.get("sub:" + id, "json");

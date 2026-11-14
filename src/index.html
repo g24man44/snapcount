@@ -996,6 +996,7 @@ nav.tabbar button[aria-selected=true]::before{display:none}
 @media (prefers-reduced-motion:reduce){#tauntFx,#tauntFx .te,#tauntFx>i{animation:none}#tauntFx>i{display:none}}
 .gdt summary{list-style:none;cursor:pointer;display:flex;flex-direction:column;gap:2px}.gdt summary::-webkit-details-marker{display:none}.gdt summary b{font:800 17px/1.2 var(--display);font-stretch:88%}
 .gdh{margin:14px 0 6px;font-weight:700;font-size:13.5px;color:var(--muted)}.gdb{display:grid;grid-template-columns:1fr 1fr;gap:8px}.gdb .btn{font-size:14px;padding:11px 8px}
+.tauntrow{display:flex;flex-direction:column;gap:8px;padding:12px 16px!important}.tauntrow .trl{font-weight:700;font-size:14px;color:var(--muted)}.tauntrow .taunts{margin-top:0;justify-content:space-between}
 @media (max-width:400px){h2{font-size:28px}.brand h1{font-size:21px}.coachfab{padding:8px 10px!important}}
 @media (max-width:350px){.brand h1{font-size:21px}.coachfab{font-size:0!important;gap:0;padding:9px!important}.coachfab i{font-size:16px}}
 </style>
@@ -1597,6 +1598,27 @@ async function playWatch(){
 document.addEventListener("visibilitychange", () => { if (!document.hidden) playWatch(); else clearTimeout(plTimer); });
 setTimeout(playWatch, 6000);
 
+
+// Taunt your opponent any time, from the matchup (not just after a touchdown).
+function tauntRow(L){
+  const d = L.detail, me = d && d.teams.find(t => t.mine); if (!me) return "";
+  const g = (d.games || []).find(x => x.a.id === me.id || x.b.id === me.id), opp = g && d.teams.find(t => t.id === (g.a.id === me.id ? g.b.id : g.a.id));
+  if (!opp) return "";
+  return '<div class="card tauntrow" data-tl="' + leagues.indexOf(L) + '" data-to="' + esc(opp.id) + '"><span class="trl">Taunt ' + esc(opp.name) + '</span><span class="taunts">' + Object.entries(TAUNT_LIST).map(([k, t]) => '<button type="button" data-tk="' + k + '" title="' + esc(t[1]) + '" aria-label="' + esc(t[1]) + '">' + t[0] + "</button>").join("") + "</span></div>";
+}
+document.addEventListener("click", async e => {
+  const b = e.target.closest && e.target.closest("[data-tk]"); if (!b) return;
+  const row = b.closest(".tauntrow"), L = leagues[+row.dataset.tl], me = L && L.detail.teams.find(t => t.mine), opp = L && L.detail.teams.find(t => t.id === row.dataset.to);
+  if (!me || !opp) return;
+  const lab = row.querySelector(".trl"), was = lab.textContent;
+  lab.textContent = "Sending " + TAUNT_LIST[b.dataset.tk][0] + "…";
+  try {
+    const r = await fetch("/api/taunt", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({kind: b.dataset.tk, p: L.meta.platform, lid: L.meta.id, to: opp.id, fromName: me.name, dev: devId()})});
+    const j = await r.json().catch(() => ({}));
+    lab.textContent = r.ok ? (j.sent ? TAUNT_LIST[b.dataset.tk][0] + " Sent to " + opp.name : opp.name + " doesn’t have alerts on yet") : (j.error || "Couldn’t send");
+  } catch(x){ lab.textContent = "Couldn’t send"; }
+  setTimeout(() => { lab.textContent = was; }, 4000);
+});
 /* ---------- try the game-day features any time (on this phone only) ---------- */
 function gdTestCard(){
   return '<details class="card gdt"><summary><b>Try the game-day features</b><span class="small muted">See them now instead of waiting for Sunday. Only you see these.</span></summary>' +
@@ -1731,6 +1753,7 @@ function renderLeagues(v){
       }
     }
     h += "</button>";
+    if (d && d.teams.some(t => t.mine)) h += tauntRow(L);
     if (d && d.teams.some(t => t.mine)) h += '<button type="button" class="card showcard" data-show="' + i + '"><span class="showic" aria-hidden="true"><i class=ic-speaker></i></span><span class="showtx"><b>The Snap Count Show</b><span class="small muted">This week’s podcast about ' + esc(m.name) + '</span></span><span class="showgo">Listen</span></button>';
   });
   v.innerHTML = h + "</div>" + homeHeadlines() + tools;
@@ -1956,6 +1979,7 @@ function renderLeague(v, L){
         const mine = g.a.id === me.id ? g.a : g.b, opp = g.a.id === me.id ? g.b : g.a;
         const ot = d.teams.find(t => t.id === opp.id) || {name:"Opponent"};
         h += '<div class="card heroCard' + (m.platform === "flea" && g.id ? ' tapable" data-game="' + esc(g.id) : "") + '">' + matchupHero(d, me, g, false) + (m.platform === "flea" && g.id ? '<p class="small" style="text-align:center;margin:10px 0 0;color:var(--accent);font-weight:700">See the full box score ›</p>' : "") + "</div>";
+        if (me.mine) h += tauntRow(L);
       }
       const right = p => {
         if (p.pts != null) return fmt(p.pts);
