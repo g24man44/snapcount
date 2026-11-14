@@ -547,7 +547,8 @@ async function headlines() {
     desc: a.description || "",
     link: (a.links && a.links.web && a.links.web.href) || "",
     date: a.published,
-    athletes: (a.categories || []).filter(c => c.type === "athlete").map(c => c.description)
+    athletes: (a.categories || []).filter(c => c.type === "athlete").map(c => c.description),
+    img: ((a.images || []).find(i => i.url) || {}).url || ""
   })).filter(a => a.title && /^https?:\/\//.test(a.link));
   return json({ items }, 200, 600);
 }
@@ -564,6 +565,7 @@ async function scoreboard() {
     const odds = (c.odds || [])[0] || {}, w = e.weather || c.weather || null;
     return {
       away: (side("away").team || {}).abbreviation, home: (side("home").team || {}).abbreviation,
+      awayLogo: (side("away").team || {}).logo || "", homeLogo: (side("home").team || {}).logo || "",
       awayScore: side("away").score || "0", homeScore: side("home").score || "0",
       state: st.state || "pre", detail: st.shortDetail || st.detail || "",
       ou: odds.overUnder != null ? Number(odds.overUnder) : null, line: odds.details || "",
