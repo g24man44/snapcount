@@ -276,6 +276,11 @@ form.add{display:flex;flex-direction:column;gap:10px}
 .botmsg .cbody{border-style:dashed}
 .cmeta{font-size:.72rem;color:var(--muted);margin-bottom:2px}.cmeta b{color:var(--ink);font-weight:650;margin-right:2px}
 .ctext{line-height:1.42;overflow-wrap:anywhere}.ctext a{color:var(--accent)}
+.attn{border-color:var(--warn);margin:12px 0}.attn ul{margin:8px 0 12px;padding-left:18px}.attn li{margin:3px 0}.attn .btn{width:100%}
+.nowcard{display:flex;flex-direction:column;gap:12px;border-color:var(--accent);margin-bottom:12px}
+.nowtop{display:flex;gap:12px;align-items:flex-start}.nowtop b{font-size:17px}.nowtop p{margin:3px 0 0}
+.nowic{display:grid;place-items:center;width:40px;height:40px;flex:none;border-radius:12px;background:var(--accent-soft);color:var(--accent);font-size:19px}
+.nowbtns{display:flex;gap:8px}.nowbtns .btn{flex:1}.nowbtns .btn.ghost{border:1px solid var(--line);background:var(--surface2)}
 .showcard{display:flex;align-items:center;gap:12px;width:100%;text-align:left;cursor:pointer;background:linear-gradient(100deg,var(--surface2),var(--surface));border:1px solid var(--line)}
 .showic{display:grid;place-items:center;width:44px;height:44px;flex:none;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:20px}
 .showtx{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}.showgo{font-weight:700;color:var(--accent);white-space:nowrap}
@@ -790,13 +795,16 @@ path.vho{stroke:var(--ok);stroke-dasharray:4 3}
 .nearlier{padding:0 16px 12px;font-size:12.5px;color:var(--muted)}
 .nearlier summary{cursor:pointer;color:var(--accent);font-weight:600}
 .nearlier p{margin:6px 0 0;line-height:1.4}
+.brand h1{white-space:nowrap}
+@media (max-width:400px){header.top{gap:8px}.hright{gap:6px}.brand{gap:8px}.brand h1{font-size:22px}.brand .logo{width:32px;height:32px}.coachfab{padding:9px 11px!important}.iconbtn{width:38px;height:38px}}
+@media (max-width:350px){.brand h1{font-size:19px}.coachfab{font-size:0!important;gap:0;padding:10px!important}.coachfab i{font-size:16px}}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header class="top">
     <div class="brand"><img class="logo" src="/icon-192.png" alt=""><h1>Snap Count</h1></div>
-    <div class="hright"><span class="wk" id="wk"></span><button type="button" class="coachfab" id="coachFab" aria-label="Ask the AI coach"><i class=ic-spark aria-hidden=true></i>Coach</button><button class="iconbtn" id="gearBtn" aria-label="Accounts" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg></button></div>
+    <div class="hright"><span class="wk" id="wk"></span><button type="button" class="coachfab" id="coachFab" aria-label="Ask the AI coach"><i class=ic-spark aria-hidden=true></i>Coach</button><button type="button" class="iconbtn" id="bellBtn" aria-label="Alerts" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15Z"/><path d="M10 21h4"/></svg></button><button class="iconbtn" id="gearBtn" aria-label="Accounts" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg></button></div>
   </header>
   <button type="button" id="updBar" class="updbar" hidden onclick="location.reload()">New version of Snap Count ready. Tap to update.</button>
   <main id="view"></main>
@@ -807,8 +815,7 @@ path.vho{stroke:var(--ok);stroke-dasharray:4 3}
   <button role="tab" data-tab="trade" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4 3 8l4 4"/><path d="M3 8h13"/><path d="m17 20 4-4-4-4"/><path d="M21 16H8"/></svg>Trade</button>
   <button role="tab" data-tab="chat" aria-selected="false" class="chattab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg><span class="udot" id="chatDot" hidden></span>Chat</button>
   <button role="tab" data-tab="news" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h4M7 13h4M15 9v6"/></svg>Scores</button>
-  <button role="tab" data-tab="edge" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/></svg>Edge</button>
-  <button role="tab" data-tab="alerts" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15Z"/><path d="M10 21h4"/></svg>Alerts</button>
+  <button role="tab" data-tab="edge" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/></svg>Advice</button>
 </nav>
 <div id="sheet" class="sheet" hidden><div class="panel" id="sheetPanel" role="dialog" aria-modal="true"></div></div>
 
@@ -1149,6 +1156,7 @@ const cur = {tab:"leagues", league:null, newsMine:false};
 const navTab = t => t === "calc" ? "trade" : t;
 function setTab(t){ cur.tab = t; cur.league = null; document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === navTab(t))); render(); window.scrollTo(0,0); }
 $("#gearBtn").addEventListener("click", () => setTab(cur.tab === "accounts" ? "leagues" : "accounts"));
+$("#bellBtn").addEventListener("click", () => setTab(cur.tab === "alerts" ? "leagues" : "alerts"));
 $("#tabs").addEventListener("click", e => { const b = e.target.closest("button[data-tab]"); if (b) setTab(b.dataset.tab); });
 
 let lastView = "";
@@ -1157,7 +1165,7 @@ function render(){
   if (chat && cur.tab !== "chat") closeChat();
   const vk = cur.tab + "/" + cur.league + "/" + (cur.sub || "") + "/" + (tr.mode || "");
   if (vk !== lastView) { lastView = vk; v.classList.remove("swap"); void v.offsetWidth; v.classList.add("swap"); if (navigator.vibrate && matchMedia("(pointer:coarse)").matches) try { navigator.vibrate(6); } catch(e){} }
-  $("#gearBtn").setAttribute("aria-pressed", cur.tab === "accounts");
+  $("#gearBtn").setAttribute("aria-pressed", cur.tab === "accounts"); $("#bellBtn").setAttribute("aria-pressed", cur.tab === "alerts");
   if (cur.tab === "chat") return renderChatTab(v);
   if (cur.tab === "trade") return renderTrade(v);
   if (cur.tab === "calc") return renderCalc(v);
@@ -1175,13 +1183,67 @@ function emptyState(v){
   v.innerHTML = installCard() + '<h2>Your leagues, one screen</h2><p class="muted">Works with Sleeper, Fleaflicker, ESPN and MyFantasyLeague. Add your account or league ID below. Rosters, scores and injury flags load straight from the league sites.</p>' + addForm();
   wireAdd(v);
 }
+/* ---------- Home: one card that changes with the day (game time, lineup check, waivers, all set) ---------- */
+function etNow(){ return new Date(new Date().toLocaleString("en-US", {timeZone: "America/New_York"})); }
+function myTeams(){ return leagues.map((L, i) => ({L, i, me: L.detail && L.detail.teams.find(t => t.mine)})).filter(x => x.me); }
+function lineupFlags(){
+  const out = [];
+  myTeams().forEach(({L, i, me}) => (me.roster || []).forEach(p => {
+    if (p.slot !== "start" || !p.team || isLocked(p)) return;
+    const why = OUTISH_C.test(String(p.inj || "")) || /^ir/i.test(String(p.inj || "")) ? String(p.inj).toLowerCase() === "o" ? "out" : String(p.inj).toLowerCase() : gamesAt && gameState(p.team) === "bye" ? "on bye" : "";
+    if (why) out.push({L, i, p, why: /^(d|doubtful)$/i.test(why) ? "doubtful" : /^(ir|injured reserve)/i.test(why) ? "on IR" : why === "on bye" ? why : /sus/i.test(why) ? "suspended" : "out"});
+  }));
+  return out;
+}
+let nowAsked = false;
+function nowCard(){
+  const mine = myTeams(); if (!mine.length) return "";
+  if (!gamesAt && !nowAsked) { nowAsked = true; loadScoreboard().then(() => { if (cur.tab === "leagues" && cur.league == null) render(); }).catch(() => {}); }
+  const et = etNow(), day = et.getDay(), flags = lineupFlags();
+  const playing = gamesAt ? mine.reduce((n, x) => n + (x.me.roster || []).filter(p => p.slot === "start" && gameState(p.team) === "in").length, 0) : 0;
+  let icon, title, sub, btns;
+  if (gamesAt && anyLive()) {
+    icon = "ic-flame"; title = "Games are on";
+    sub = playing ? playing + " of your starters " + (playing === 1 ? "is" : "are") + " playing right now." : "None of your starters are playing in this window.";
+    btns = [["sweat", "Sweat board", 1], ["scores", "Live scores"]];
+  } else if (flags.length && day !== 2 && day !== 3) {
+    icon = "ic-medic"; title = "Lineup check";
+    const names = flags.slice(0, 3).map(f => f.p.name + " is " + f.why);
+    sub = names.join(", ") + (flags.length > 3 ? ", and " + (flags.length - 3) + " more" : "") + (mine.length > 1 ? " (" + flags[0].L.meta.name + ")" : "") + ".";
+    btns = [["fix:" + flags[0].i, "Fix lineup", 1], ["best", "Best lineup"]];
+  } else if (day === 2 || day === 3) {
+    icon = "ic-pulse"; title = "Waiver day";
+    sub = "Who to claim and what to bid, from your league’s free agents.";
+    btns = [["waivers", "Waiver advice", 1], ["fa:" + mine[0].i, "Free agents"]];
+  } else {
+    icon = "ic-spark"; title = "Lineups look set";
+    sub = "No starters out or on bye" + (day === 0 || day === 1 || day === 4 ? ". Kickoff is today." : ".");
+    btns = [["best", "Best lineup", 1], ["fa:" + mine[0].i, "Free agents"]];
+  }
+  return '<div class="card nowcard"><div class="nowtop"><span class="nowic" aria-hidden="true"><i class=' + icon + '></i></span><div><b>' + esc(title) + '</b><p class="small muted">' + esc(sub) + '</p></div></div><div class="nowbtns">' + btns.map(b => '<button type="button" class="btn' + (b[2] ? "" : " ghost") + '" data-now="' + b[0] + '">' + esc(b[1]) + "</button>").join("") + "</div></div>";
+}
+function wireNow(v){
+  v.querySelectorAll("[data-now]").forEach(b => b.addEventListener("click", () => {
+    const [k, n] = b.dataset.now.split(":");
+    if (k === "sweat") openSweat();
+    else if (k === "scores") setTab("news");
+    else if (k === "fix") openLineup(leagues[+n]);
+    else if (k === "best") { ed.sub = "week"; setTab("edge"); }
+    else if (k === "waivers") { ed.sub = "waivers"; setTab("edge"); }
+    else if (k === "fa") { cur.league = +n; cur.team = null; cur.sub = "fa"; render(); window.scrollTo(0, 0); }
+    else if (k === "brief") openMorning();
+  }));
+}
 function renderLeagues(v){
   if (!hasAccts()) return emptyState(v);
   let h = installCard();
   leaguesErr.forEach(e => h += '<div class="err">' + esc(e) + "</div>");
   if (!leaguesLoaded) { v.innerHTML = h + '<p class="spin">Loading your leagues…</p>'; return; }
   if (!leagues.length) { v.innerHTML = h + '<p class="muted">No leagues found for this season.</p>'; return; }
-  const tools = leagues.some(L => L.detail && L.detail.teams.some(t => t.mine)) ? '<h3 class="tgh">Tools</h3><div class="tlist"><button type="button" class="btn ghost" id="sweatBtn"><i class=ic-flame aria-hidden=true></i>Sweat board</button><button type="button" class="btn ghost" id="planBtn"><i class=ic-calendar aria-hidden=true></i>Byes and injuries, next 4 weeks</button><button type="button" class="btn ghost" id="brkBtn"><i class=ic-pulse aria-hidden=true></i>Breakouts</button><button type="button" class="btn ghost" id="expBtn"><i class=ic-list aria-hidden=true></i>All my leagues</button><button type="button" class="btn ghost" id="briefBtn"><i class=ic-speaker aria-hidden=true></i>Morning briefing</button><button type="button" class="btn ghost" id="injBtn"><i class=ic-medic aria-hidden=true></i>Injury center</button><button type="button" class="btn ghost" id="wxBtn"><i class=ic-wind aria-hidden=true></i>Game weather</button></div>' : "";
+  const TL = {sweatBtn: ["ic-flame", "Sweat board"], briefBtn: ["ic-speaker", "Morning briefing"], injBtn: ["ic-medic", "Injury center"], planBtn: ["ic-calendar", "Byes and injuries, next 4 weeks"], brkBtn: ["ic-pulse", "Breakouts"], expBtn: ["ic-list", "All my leagues"], wxBtn: ["ic-wind", "Game weather"]};
+  const tb = id => '<button type="button" class="btn ghost" id="' + id + '"><i class=' + TL[id][0] + ' aria-hidden=true></i>' + TL[id][1] + "</button>";
+  const tools = leagues.some(L => L.detail && L.detail.teams.some(t => t.mine)) ? '<h3 class="tgh">Tools</h3><div class="tlist">' + ["sweatBtn", "briefBtn", "injBtn"].map(tb).join("") + '</div><details class="moretools"' + (cur.homeMore ? " open" : "") + '><summary>More tools <span class="small muted">4</span></summary><div class="tlist" style="margin-top:8px">' + ["planBtn", "brkBtn", "expBtn", "wxBtn"].map(tb).join("") + "</div></details>" : "";
+  h += nowCard();
   h += '<div class="stack">';
   leagues.forEach((L, i) => {
     const m = L.meta, d = L.detail;
@@ -1197,13 +1259,15 @@ function renderLeagues(v){
         if (g) h += matchupHero(d, me, g, true);
         else h += '<span class="small muted">' + esc(me.name) + " · " + me.w + "-" + me.l + "</span>";
         const hurt = me.roster.filter(p => p.inj && p.slot !== "ir");
-        h += '<div class="lfoot"><span class="chip">Week ' + (d.week || "–") + "</span>" + (hurt.length ? '<span class="chip warn">' + hurt.length + " on injury report</span>" : '<span class="chip ok">Healthy</span>') + '<span class="go">Open ›</span></div>';
+        h += '<div class="lfoot">' + (hurt.length ? '<span class="chip warn">' + hurt.length + " on injury report</span>" : '<span class="chip ok">Healthy</span>') + '<span class="go">Open ›</span></div>';
       }
     }
     h += "</button>";
     if (d && d.teams.some(t => t.mine)) h += '<button type="button" class="card showcard" data-show="' + i + '"><span class="showic" aria-hidden="true"><i class=ic-speaker></i></span><span class="showtx"><b>The Snap Count Show</b><span class="small muted">This week’s podcast about ' + esc(m.name) + '</span></span><span class="showgo">Listen</span></button>';
   });
   v.innerHTML = h + "</div>" + tools;
+  wireNow(v);
+  const hm = v.querySelector(".moretools"); if (hm) hm.addEventListener("toggle", () => { cur.homeMore = hm.open; });
   v.querySelectorAll("[data-show]").forEach(b => b.addEventListener("click", () => openShow(leagues[+b.dataset.show])));
   v.querySelectorAll("[data-l]").forEach(b => b.addEventListener("click", () => { cur.league = +b.dataset.l; cur.team = null; render(); window.scrollTo(0,0); }));
   const sw = v.querySelector("#sweatBtn"); if (sw) sw.addEventListener("click", openSweat);
@@ -1402,10 +1466,14 @@ function renderLeague(v, L){
   let me = cur.team ? d.teams.find(t => t.id === cur.team) : d.teams.find(t => t.mine);
   if (sub === "team") {
     if (!me) h += '<div class="card install" style="margin-top:12px"><img src="/icon-192.png" alt=""><div><b>' + (cur.joined ? "Welcome to Snap Count" : "Which team is yours?") + '</b><span>Pick your team below. Your scores, alerts and trade tools all follow it.</span></div></div>';
-    h += '<label for="teamPick" style="display:block;margin-top:12px">Team</label><select id="teamPick">' + (me ? "" : '<option value="">Pick your team…</option>') +
+    const picker = (lab) => '<label for="teamPick" style="display:block;margin-top:' + (me ? "20px" : "12px") + '">' + lab + '</label><select id="teamPick">' + (me ? "" : '<option value="">Pick your team…</option>') +
       d.teams.map(t => '<option value="' + esc(t.id) + '"' + (me && me.id === t.id ? " selected" : "") + ">" + esc(t.name) + (t.owner ? " (" + esc(t.owner) + ")" : "") + "</option>").join("") + "</select>";
+    if (!me) h += picker("Team");
+    else if (!me.mine) h += picker("Viewing");
     if (me) {
-      h += '<div class="actions">' + (me.mine ? '<button type="button" class="btn" data-luopen="1"><i class=ic-pencil aria-hidden=true></i> Set lineup</button>' : extBtn(lineupUrl(L, me), "Set lineup")) + extBtn(waiverUrl(L), "Waivers", true) + "</div>";
+      const fl = me.mine ? lineupFlags().filter(f => f.L === L) : [];
+      if (fl.length) h += '<div class="card attn"><b>Needs your attention</b><ul>' + fl.map(f => "<li>" + esc(f.p.name) + " (" + esc(f.p.pos) + ") is " + esc(f.why) + " and still in your lineup</li>").join("") + '</ul><button type="button" class="btn" data-luopen="1"><i class=ic-pencil aria-hidden=true></i> Fix lineup</button></div>';
+      else h += '<div class="actions">' + (me.mine ? '<button type="button" class="btn" data-luopen="1"><i class=ic-pencil aria-hidden=true></i> Set lineup</button>' : extBtn(lineupUrl(L, me), "Set lineup")) + extBtn(waiverUrl(L), "Waivers", true) + "</div>";
       if (m.platform === "flea" && !me.live && !me.liveLoading && !me.liveErr) { me.liveLoading = true; fleaTeamRoster(L, me).then(() => { me.liveLoading = false; if (cur.league === leagues.indexOf(L)) render(); }); }
       const g = d.games.find(g => g.a.id === me.id || g.b.id === me.id);
       if (g) {
@@ -1429,6 +1497,7 @@ function renderLeague(v, L){
         h += "<h3>Roster" + (me.liveLoading ? " · loading live points…" : "") + '</h3><ul class="plist">' + me.roster.slice().sort(byPos).map(p => playerRow(p, right(p))).join("") + "</ul>";
       }
       h += '<p class="small muted">' + (anyLive() ? "Games in progress · updates every minute" : "Updated " + new Date().toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})) + "</p>";
+      if (me.mine) h += picker("See another team");
     }
   } else if (sub === "fa") {
     const pos = cur.faPos || "ALL";
@@ -6775,12 +6844,12 @@ async function edgeKeepers(L, el){
 async function renderEdge(v){
   reg = [];
   const ready = edgeReady();
-  let h = "<h2>Edge</h2>";
+  let h = "<h2>Advice</h2>";
   if (!ready.length) { v.innerHTML = h + '<div class="card"><p style="margin:0">' + (hasAccts() ? "Your leagues are still loading, or you haven’t picked your team yet. Open your league once and choose your team." : "Add your league first: tap the settings button.") + "</p></div>"; return; }
   if (ed.league == null || !ready.find(x => x.i === ed.league)) ed.league = ready[0].i;
   const L = leagues[ed.league];
   if (ready.length > 1) h += '<select id="edL" style="margin-bottom:10px">' + ready.map(x => '<option value="' + x.i + '"' + (x.i === ed.league ? " selected" : "") + ">" + esc(x.L.meta.name) + "</option>").join("") + "</select>";
-  h += '<div class="seg" role="group" aria-label="Edge sections" style="margin-bottom:6px">' + [["week", "Week"], ["waivers", "Waivers"], ["league", "League"], ["dynasty", "Dynasty"], ["keepers", "Keepers"]].map(x => '<button type="button" data-esub="' + x[0] + '" aria-pressed="' + (ed.sub === x[0]) + '">' + x[1] + "</button>").join("") + "</div>";
+  h += '<div class="seg" role="group" aria-label="Advice sections" style="margin-bottom:6px">' + [["week", "Week"], ["waivers", "Waivers"], ["league", "League"], ["dynasty", "Dynasty"], ["keepers", "Keepers"]].map(x => '<button type="button" data-esub="' + x[0] + '" aria-pressed="' + (ed.sub === x[0]) + '">' + x[1] + "</button>").join("") + "</div>";
   h += '<div id="edOut"><p class="spin">Crunching the numbers…</p></div>';
   v.innerHTML = h;
   v.querySelectorAll("[data-esub]").forEach(b => b.addEventListener("click", () => { ed.sub = b.dataset.esub; render(); }));
@@ -7401,7 +7470,7 @@ const TOUR = [
   ["ic-home", "Your leagues", "Every league on one screen. Tap a league for your lineup, matchups, standings, the draft room and league tools."],
   ["ic-swap", "Trade", "Build any trade and get a grade with your league’s scoring. Post players to the trade market so leaguemates can see what you’re shopping."],
   ["ic-spark", "Coach", "Ask anything about your team, a trade or a waiver add, by typing or with the mic. It already knows your roster and league rules."],
-  ["ic-bell", "Alerts", "Turn on alerts for injuries on your team, players you start, trade market posts, and a morning briefing on game days."]
+  ["ic-bell", "Alerts", "The bell at the top. Turn on alerts for injuries on your team, players you start, trade market posts, and a morning briefing on game days."]
 ];
 function maybeTour(){
   try { if (localStorage.getItem(KEY + ".tour") || !$("#sheet").hidden) return; } catch(e){ return; }
