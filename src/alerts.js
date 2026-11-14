@@ -7,7 +7,7 @@ import { ICON_192, ICON_512 } from "./icons.js";
 import { ARCHIVO_WOFF } from "./font.js";
 import { matchupPreviews, weeklyPower } from "./weekly.js";
 import { gameWeather } from "./weather.js";
-import { hookKind, sendHook, espnLeagueTaken, mflLeagueTaken, weeklyRecaps, aiComplete } from "./more.js";
+import { hookKind, sendHook, espnLeagueTaken, mflLeagueTaken, weeklyRecaps, aiComplete, scoresRoute } from "./more.js";
 
 const UA = { "User-Agent": "SnapCount/1.0 (fantasy dashboard)", "Accept": "application/json" };
 const te = new TextEncoder();
@@ -164,6 +164,48 @@ export async function liveScores(env) {
   return { live, windowEnded, sent };
 }
 
+
+/* ---------- upset watch and big swings: win-chance alerts during NFL games and ranked college games ---------- */
+// Pure information: what just happened to a team's chance of winning. No bets, no picks.
+export async function swingAlerts(env) {
+  const boards = [];
+  for (const sp of ["nfl", "cfb"]) { try { boards.push([sp, await (await scoresRoute(new URL("https://x/api/scores?sport=" + sp))).json()]); } catch (e) {} }
+  const state = (await liveState(env, "swings")) || {}, events = [], seen = {};
+  for (const [sp, b] of boards) for (const g of b.games || []) {
+    if (!g.away || !g.home) continue;
+    if (sp === "cfb" && !(g.away.rank || g.home.rank)) continue;
+    const k = sp + ":" + g.id, r = Object.assign({ sent: {} }, state[k] || {}); seen[k] = 1;
+    if (g.state === "pre" && g.wp) r.pre = g.wp.home;
+    if (g.state === "in" && g.wp && g.wp.src === "live") {
+      const h = g.wp.home, nm = t => (t.rank ? "No. " + t.rank + " " : "") + (t.name || t.abbr);
+      const score = (g.away.abbr || g.away.name) + " " + g.away.score + ", " + (g.home.abbr || g.home.name) + " " + g.home.score + " · " + g.detail;
+      if (r.pre != null && !r.sent.upset) {
+        const dogHome = r.pre < 50, preDog = dogHome ? r.pre : 100 - r.pre, nowDog = dogHome ? h : 100 - h, dog = dogHome ? g.home : g.away, fav = dogHome ? g.away : g.home;
+        if (preDog <= 35 && nowDog >= 70) { r.sent.upset = 1; events.push({ id: k + ":upset", title: "Upset watch: " + nm(dog) + " " + nowDog + "% to win", body: "They started as a " + preDog + "% underdog against " + nm(fav) + ". " + score }); }
+      }
+      if (r.last != null && Math.abs(h - r.last) >= 35 && (r.sent.swing || 0) < 2) {
+        r.sent.swing = (r.sent.swing || 0) + 1;
+        const up = h > r.last ? g.home : g.away, from = h > r.last ? r.last : 100 - r.last, to = h > r.last ? h : 100 - h;
+        events.push({ id: k + ":swing" + r.sent.swing, title: "Big swing: " + nm(up) + " " + from + "% → " + to + "%", body: ((g.sit && g.sit.last) ? g.sit.last.slice(0, 120) + " " : "") + score });
+      }
+      r.last = h;
+    }
+    if (g.state === "post") { delete state[k]; continue; }
+    state[k] = r;
+  }
+  for (const k in state) if (!seen[k]) delete state[k];
+  await liveState(env, "swings", state);
+  if (!events.length) return { events: 0 };
+  const ids = await subscriberIds(env);
+  let sent = 0;
+  for (const id of ids) {
+    const rec = await env.SNAP.get("sub:" + id, "json");
+    if (!rec || !rec.sub || (rec.prefs || {}).swings === false || String(rec.sub.endpoint).startsWith("https://snapcount.hooks/")) continue;
+    for (const ev of events.slice(0, 3)) { try { const st = await sendPushData(env, rec.sub, rec.origin, { show: 1, tag: ev.id, title: ev.title, body: ev.body, url: "/?go=news" }, 900); if (st >= 200 && st < 300) sent++; } catch (e) {} }
+  }
+  return { events: events.length, sent };
+}
+
 async function addAlerts(env, id, items) {
   const key = "al:" + id;
   const list = (await env.SNAP.get(key, "json")) || [];
@@ -207,7 +249,7 @@ export async function alertsRoute(request, env, p, url) {
           watch: (body.watch || []).slice(0, 60).map(String),
           lineups: (Array.isArray(body.lineups) ? body.lineups : []).slice(0, 30).map(l => ({ p: ["flea", "espn", "mfl", "sleeper"].includes(l.p) ? l.p : null, id: String(l.id || ""), name: String(l.name || "").slice(0, 80), season: /^\d{4}$/.test(String(l.season || "")) ? String(l.season) : undefined, s: (l.s || []).slice(0, 30).map(String), b: (l.b || []).slice(0, 40).map(String), t: l.t ? String(l.t).slice(0, 40) : undefined })),
           hooks: (body.hooks || []).map(String).filter(u => hookKind(u)).slice(0, 5),
-          prefs: { mine: body.prefs?.mine !== false, fa: body.prefs?.fa !== false, news: body.prefs?.news !== false, league: body.prefs?.league !== false, recap: body.prefs?.recap !== false, brief: body.prefs?.brief !== false, preview: body.prefs?.preview !== false, plays: body.prefs?.plays !== false, livescore: body.prefs?.livescore !== false, watch: body.prefs?.watch !== false, faPos: body.prefs?.faPos === "QB" ? "QB" : "ALL" },
+          prefs: { mine: body.prefs?.mine !== false, fa: body.prefs?.fa !== false, news: body.prefs?.news !== false, league: body.prefs?.league !== false, recap: body.prefs?.recap !== false, brief: body.prefs?.brief !== false, preview: body.prefs?.preview !== false, plays: body.prefs?.plays !== false, livescore: body.prefs?.livescore !== false, swings: body.prefs?.swings !== false, watch: body.prefs?.watch !== false, faPos: body.prefs?.faPos === "QB" ? "QB" : "ALL" },
           origin: url.origin
         };
         const prev = await env.SNAP.get("sub:" + id);
@@ -969,6 +1011,7 @@ export async function runMinute(env) {
   // Every 2 minutes is plenty: scoring plays come from the full game summary, so no touchdown is missed.
   if (m % 2 === 0) await playAlerts(env).catch(() => {});
   if (m % 3 === 1) await liveScores(env).catch(() => {});
+  if (m % 3 === 2) await swingAlerts(env).catch(() => {});
   await leagueWatch(env).catch(() => {});
   await pregameBriefings(env).catch(() => {});
   await matchupPreviews(env, deliver).catch(() => {});
@@ -983,7 +1026,7 @@ export async function runMinute(env) {
 
 /* ---------- files the phone needs ---------- */
 export const SW_JS = `
-const SHELL = "snapcount-shell-v10", DATA = "snapcount-data-v1";
+const SHELL = "snapcount-shell-v11", DATA = "snapcount-data-v1";
 self.addEventListener("install", e => { self.skipWaiting(); e.waitUntil(caches.open(SHELL).then(c => c.addAll(["/", "/icon-192.png?v=6"])).catch(() => {})); });
 self.addEventListener("fetch", e => {
   const u = new URL(e.request.url);
@@ -1001,6 +1044,7 @@ self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
 self.addEventListener("push", e => e.waitUntil((async () => {
   let d = null; try { d = e.data ? e.data.json() : null; } catch (err) {}
   if (d && d.live) { await self.registration.showNotification(d.title, { body: d.body, tag: d.tag, renotify: false, silent: true, icon: "/icon-192.png?v=6", badge: "/icon-192.png?v=6", data: { url: d.url || "/" } }); return; }
+  if (d && d.show) { await self.registration.showNotification(d.title, { body: d.body, tag: d.tag, icon: "/icon-192.png?v=6", badge: "/icon-192.png?v=6", data: { url: d.url || "/" } }); return; }
   let items = [];
   try {
     const sub = await self.registration.pushManager.getSubscription();

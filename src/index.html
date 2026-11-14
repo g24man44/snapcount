@@ -7371,7 +7371,7 @@ async function post(path, body){
   if (!r.ok) throw new Error(j.error || ("Request failed (" + r.status + ")"));
   return j;
 }
-function alertPrefs(){ try { return Object.assign({mine:true, fa:true, news:true, league:true, brief:true, preview:true, plays:true, livescore:true, watch:true, faPos:"ALL"}, JSON.parse(localStorage.getItem(KEY + ".alerts") || "{}")); } catch(e){ return {mine:true, fa:true, news:true, league:true, brief:true, preview:true, faPos:"ALL"}; } }
+function alertPrefs(){ try { return Object.assign({mine:true, fa:true, news:true, league:true, brief:true, preview:true, plays:true, livescore:true, swings:true, watch:true, faPos:"ALL"}, JSON.parse(localStorage.getItem(KEY + ".alerts") || "{}")); } catch(e){ return {mine:true, fa:true, news:true, league:true, brief:true, preview:true, faPos:"ALL"}; } }
 function saveAlertPrefs(p){ try { localStorage.setItem(KEY + ".alerts", JSON.stringify(p)); } catch(e){} }
 function b64uBytes(s){ s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; const b = atob(s), a = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; }
 async function getSub(){
@@ -7536,6 +7536,7 @@ async function renderAlerts(v){
     '<label class="toggle"><input type="checkbox" id="alFa"' + (prefs.fa ? " checked" : "") + "> Free agents: new starters and projection jumps</label>" +
     '<label class="toggle"><input type="checkbox" id="alNews"' + (prefs.news ? " checked" : "") + "> News: injury report notes and headlines about my players</label>" +
     '<label class="toggle"><input type="checkbox" id="alPlays"' + (prefs.plays !== false ? " checked" : "") + "> Live plays: touchdowns, long gains and in-game injuries for your starters and your opponent’s</label>" +
+    '<label class="toggle"><input type="checkbox" id="alSwing"' + (prefs.swings !== false ? " checked" : "") + "> Upset watch and big swings: when an underdog takes over a game, or a team’s chance of winning jumps (NFL and ranked college games)</label>" +
     '<label class="toggle"><input type="checkbox" id="alLive"' + (prefs.livescore !== false ? " checked" : "") + "> Live matchup score in your notifications during games (Android updates it every few minutes; iPhone gets it when each game window ends)</label>" +
     '<label class="toggle"><input type="checkbox" id="alLeague"' + (prefs.league ? " checked" : "") + "> League activity: trades, trade-block posts and QB pickups (Fleaflicker)</label>" +
     '<label class="toggle"><input type="checkbox" id="alPreview"' + (prefs.preview ? " checked" : "") + "> Friday matchup preview at noon ET: your win odds, their threats, who to watch</label>" +
@@ -7554,6 +7555,7 @@ async function renderAlerts(v){
   v.querySelector("#alLeague").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {league:e.target.checked})));
   v.querySelector("#alPlays").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {plays:e.target.checked})));
   v.querySelector("#alLive").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {livescore:e.target.checked})));
+  v.querySelector("#alSwing").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {swings:e.target.checked})));
   v.querySelector("#alNews").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {news:e.target.checked})));
   v.querySelector("#alBrief").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {brief:e.target.checked})));
   v.querySelector("#alPreview").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {preview:e.target.checked})));
