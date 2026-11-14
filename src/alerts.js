@@ -641,6 +641,50 @@ export async function lineupCheck(env, force) {
   return { sent };
 }
 
+
+/* ---------- before each kickoff: a starter who won't play, or a bench player projected well above a starter ---------- */
+// Runs every 5 minutes. Looks at games kicking off in the next 50–95 minutes (inactives come out 90 minutes before),
+// so it covers Thursday, Sunday early/late/night and Monday games, not just the Sunday-morning check.
+export async function kickoffLineupAlerts(env) {
+  let soon = new Set(), started = new Set(), windowKey = "";
+  try {
+    const sb = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard", { headers: UA }).then(r => r.json());
+    const now = Date.now();
+    for (const e of sb.events || []) {
+      const c = (e.competitions || [])[0] || {}, st = ((c.status || e.status || {}).type || {}).state, t = Date.parse(c.date || e.date);
+      const abbrs = (c.competitors || []).map(x => (x.team || {}).abbreviation).filter(Boolean).map(a => a === "WSH" ? "WAS" : a === "LAR" ? "LA" : a);
+      if (st && st !== "pre") abbrs.forEach(a => started.add(a));
+      else if (t - now > 50 * 60e3 && t - now < 95 * 60e3) { abbrs.forEach(a => soon.add(a)); windowKey = windowKey || new Date(t).toISOString().slice(0, 13); }
+    }
+  } catch (e) { return { error: "scoreboard" }; }
+  if (!soon.size) return { skipped: true };
+  const slate = await briefSlate(env), nmOf = k => (slate.byName[k] || {}).name || k.split("|")[0];
+  const sent = await eachSubscriber(env, rec => {
+    if ((rec.prefs || {}).mine === false) return [];
+    const out = [];
+    for (const lu of lineupsOf(rec)) {
+      const info = k => slate.byName[k] ? Object.assign({ key: k }, slate.byName[k]) : null;
+      const bench = (lu.b || []).map(info).filter(x => x && x.team && !started.has(x.team) && !OUTISH.has(norm(x.status)) && x.proj > 0);
+      const used = new Set();
+      const bestFor = (pos, min) => bench.filter(x => x.pos === pos && !used.has(x.key) && x.proj > min).sort((a, b) => b.proj - a.proj)[0];
+      const where = lineupsOf(rec).length > 1 ? " (" + (lu.name || "your league") + ")" : "";
+      for (const k of lu.s || []) {
+        const p = info(k); if (!p || !soon.has(p.team)) continue;
+        const outish = OUTISH.has(norm(p.status));
+        if (outish || (!p.proj && !p.status)) {
+          const sub = bestFor(p.pos, 0); if (sub) used.add(sub.key);
+          out.push({ id: "ko:" + windowKey + ":" + lu.id + ":" + k, title: "Starter not playing: " + p.name + where, body: p.name + (outish ? " is " + (p.status || "out") : " is projected for 0") + " and still in your lineup. " + (sub ? "Start " + sub.name + " (" + fmtPts(sub.proj) + " projected) instead." : "No healthy bench " + p.pos + " — check free agents.") + " Kickoff is in about an hour." });
+          continue;
+        }
+        const up = bestFor(p.pos, p.proj + 3);
+        if (up) { used.add(up.key); out.push({ id: "ko:" + windowKey + ":" + lu.id + ":" + k + ":up", title: "Bench upgrade: " + up.name + " over " + p.name + where, body: up.name + " is projected " + fmtPts(up.proj) + ", " + p.name + " " + fmtPts(p.proj) + ". " + (RISKY.has(norm(p.status)) ? p.name + " is " + p.status + ". " : "") + "Swap before " + p.team + " kicks off." }); }
+      }
+    }
+    return out.slice(0, 4);
+  });
+  return { soon: soon.size, sent };
+}
+
 /* ---------- Sunday pregame briefing (11:00 AM Eastern): start/sit calls, risky starters, best pickup ---------- */
 const BRIEF_SYS = `You are Snap Count Coach writing a Sunday-morning pregame briefing for one fantasy football manager, read on a phone about two hours before kickoff.
 Use ONLY the facts in BRIEFING DATA (projections, injury and practice notes, suggested moves, free agents). Never invent players, stats or news.
@@ -1019,6 +1063,7 @@ export async function runMinute(env) {
   await matchupPreviews(env, deliver).catch(() => {});
   await weeklyPower(env).catch(() => {});
   await lineupCheck(env).catch(() => {});
+  if (m % 5 === 3) await kickoffLineupAlerts(env).catch(() => {});
   await runChecks(env, "QB").catch(() => {});
   await runChecks(env, OTHERS[m % OTHERS.length]).catch(() => {});
   if (m % 2 === 1) await runInjuryNotes(env).catch(() => {});
