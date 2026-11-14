@@ -774,6 +774,25 @@ path.vho{stroke:var(--ok);stroke-dasharray:4 3}
 .why{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}.why>summary{cursor:pointer;font-weight:650;font-size:14px;color:var(--accent);padding:6px 0}
 .moretools{margin-top:8px}.moretools>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;border:1px solid var(--line);border-radius:14px;font-weight:650;color:var(--ink)}.moretools>summary::-webkit-details-marker{display:none}.moretools>summary::after{content:"";width:8px;height:8px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg);margin-top:-4px}.moretools[open]>summary::after{transform:rotate(-135deg);margin-top:4px}
 .tgh{margin:22px 4px 8px;font-size:13px;font-weight:700;color:var(--muted);letter-spacing:0}
+.ic-star{--m:url("data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22black%22%20stroke-width=%222%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22M12%203.2l2.7%205.5%206%20.9-4.35%204.25%201.03%206L12%2017l-5.38%202.85%201.03-6L3.3%209.6l6-.9z%22/%3E%3C/svg%3E")}.ic-starf{--m:url("data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2024%2024%22%20fill=%22black%22%20stroke=%22black%22%20stroke-width=%222%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22M12%203.2l2.7%205.5%206%20.9-4.35%204.25%201.03%206L12%2017l-5.38%202.85%201.03-6L3.3%209.6l6-.9z%22/%3E%3C/svg%3E")}
+.wlbtns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.wlbtns .btn{width:100%;margin:0}
+.wlbtns .btn[aria-pressed=true] [class^=ic-]{color:var(--accent)}
+.wlcard{margin-bottom:10px;padding:0}
+.wlcard .prow{border-bottom:1px solid var(--line)}
+.wlval{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.wlval b{font-variant-numeric:tabular-nums}
+.wlst{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 14px;font-size:13px;border-top:1px solid var(--line)}
+.wlst:first-of-type{border-top:0}
+.wlst span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wlst em{font-style:normal;font-weight:650;white-space:nowrap}
+.wlst em.free{color:var(--ok)}
+.wlst .btn{width:auto;margin:0;padding:7px 12px;min-height:0;font-size:12.5px;background:var(--act);color:var(--act-ink)}
+.wlfoot .linkbtn{color:var(--muted)}
+.wlfoot{display:flex;justify-content:space-between;align-items:center;padding:6px 14px 10px;border-top:1px solid var(--line)}
+.wlhome{display:flex;align-items:center;gap:12px;width:100%;text-align:left;margin-top:10px}
+.wlhome>[class^=ic-]{width:22px;height:22px;color:var(--accent)}
+.wlhome span{flex:1;min-width:0}
 .tlist{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .tlist .btn{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:10px;min-height:50px;padding:10px 12px;margin:0!important;width:auto!important;text-align:left;font-size:13.5px;font-weight:650;line-height:1.2;background:var(--surface);border:1px solid var(--line);color:var(--ink);border-radius:12px}
 .tlist .btn [class^=ic-]{width:18px;height:18px;flex:none;color:var(--accent)}
@@ -1324,10 +1343,10 @@ function renderLeagues(v){
   leaguesErr.forEach(e => h += '<div class="err">' + esc(e) + "</div>");
   if (!leaguesLoaded) { v.innerHTML = h + '<p class="spin">Loading your leagues…</p>'; return; }
   if (!leagues.length) { v.innerHTML = h + '<p class="muted">No leagues found for this season.</p>'; return; }
-  const TL = {sweatBtn: ["ic-flame", "Sweat board"], briefBtn: ["ic-speaker", "Morning briefing"], injBtn: ["ic-medic", "Injury center"], planBtn: ["ic-calendar", "Byes and injuries, next 4 weeks"], brkBtn: ["ic-pulse", "Breakouts"], expBtn: ["ic-list", "All my leagues"], wxBtn: ["ic-wind", "Game weather"]};
+  const TL = {sweatBtn: ["ic-flame", "Sweat board"], briefBtn: ["ic-speaker", "Morning briefing"], injBtn: ["ic-medic", "Injury center"], planBtn: ["ic-calendar", "Byes and injuries, next 4 weeks"], brkBtn: ["ic-pulse", "Breakouts"], expBtn: ["ic-list", "All my leagues"], wlBtn: ["ic-star", "Watchlist"], wxBtn: ["ic-wind", "Game weather"]};
   const tb = id => '<button type="button" class="btn ghost" id="' + id + '"><i class=' + TL[id][0] + ' aria-hidden=true></i>' + TL[id][1] + "</button>";
-  const tools = leagues.some(L => L.detail && L.detail.teams.some(t => t.mine)) ? '<h3 class="tgh">Tools</h3><div class="tlist">' + ["sweatBtn", "briefBtn", "injBtn"].map(tb).join("") + '</div><details class="moretools"' + (cur.homeMore ? " open" : "") + '><summary>More tools <span class="small muted">4</span></summary><div class="tlist" style="margin-top:8px">' + ["planBtn", "brkBtn", "expBtn", "wxBtn"].map(tb).join("") + "</div></details>" : "";
-  h += nowCard();
+  const tools = leagues.some(L => L.detail && L.detail.teams.some(t => t.mine)) ? '<h3 class="tgh">Tools</h3><div class="tlist">' + ["sweatBtn", "briefBtn", "injBtn"].map(tb).join("") + '</div><details class="moretools"' + (cur.homeMore ? " open" : "") + '><summary>More tools <span class="small muted">5</span></summary><div class="tlist" style="margin-top:8px">' + ["wlBtn", "planBtn", "brkBtn", "expBtn", "wxBtn"].map(tb).join("") + "</div></details>" : "";
+  h += nowCard() + wlHomeCard();
   h += '<div class="stack">';
   leagues.forEach((L, i) => {
     const m = L.meta, d = L.detail;
@@ -1361,6 +1380,7 @@ function renderLeagues(v){
   const bf = v.querySelector("#briefBtn"); if (bf) bf.addEventListener("click", openMorning);
   const ij = v.querySelector("#injBtn"); if (ij) ij.addEventListener("click", openInjuryCenter);
   const wb = v.querySelector("#wxBtn"); if (wb) wb.addEventListener("click", openWeather);
+  v.querySelectorAll("#wlBtn,[data-wlopen]").forEach(b => b.addEventListener("click", openWatchlist));
 }
 
 /* ---------- NFL games (live status for every player) ---------- */
@@ -1758,10 +1778,11 @@ async function openPlayer(pl){
   if (pl.frank) cells.push(["Rank", esc(pl.frank)]);
   if (pl.avg != null) cells.push(["Per game", fmt(pl.avg)]);
   if (cells.length) stats = '<div class="statrow">' + cells.map(c => '<div><small>' + c[0] + "</small><b>" + c[1] + "</b></div>").join("") + "</div>";
-  p.innerHTML = '<button class="back" id="closeSheet">Close</button><div class="shead">' + avatar(pl).replace('class="av"', 'class="av xl"') + '<div><h2>' + esc(pl.name) + injChip(pl.inj) + '</h2><p class="muted small" style="margin:0">' + posTag(pl) + gameLine(pl.team) + (pl.injPart ? " · " + esc(pl.injPart) : "") + '</p><div class="chips" style="margin-top:6px">' + envChips(pl.team) + "</div></div></div>" + stats + (pl.act || pl.fl ? '<div class="actions">' + (pl.act || "") + (pl.fl && !pl.act ? extBtn(fleaPlayerUrl(pl), "Open in Fleaflicker") : "") + "</div>" : "") + (pl.keeper ? '<p class="small muted" style="margin:8px 2px 0">Marked as a keeper on his Fleaflicker roster.</p>' : "") + fleaNoteCard(pl) + injSection(pl) + '<button type="button" class="btn ghost" id="pCmp" style="width:100%;margin-top:12px"><i class=ic-scale aria-hidden=true></i> Compare with other players</button><h3>Game log</h3><div id="plog"><p class="spin">Loading game log…</p></div><h3>Latest news</h3><div id="pnews"><p class="spin">Loading news…</p></div>';
+  p.innerHTML = '<button class="back" id="closeSheet">Close</button><div class="shead">' + avatar(pl).replace('class="av"', 'class="av xl"') + '<div><h2>' + esc(pl.name) + injChip(pl.inj) + '</h2><p class="muted small" style="margin:0">' + posTag(pl) + gameLine(pl.team) + (pl.injPart ? " · " + esc(pl.injPart) : "") + '</p><div class="chips" style="margin-top:6px">' + envChips(pl.team) + "</div></div></div>" + stats + (pl.act || pl.fl ? '<div class="actions">' + (pl.act || "") + (pl.fl && !pl.act ? extBtn(fleaPlayerUrl(pl), "Open in Fleaflicker") : "") + "</div>" : "") + (pl.keeper ? '<p class="small muted" style="margin:8px 2px 0">Marked as a keeper on his Fleaflicker roster.</p>' : "") + fleaNoteCard(pl) + injSection(pl) + '<div class="wlbtns">' + (pl.name ? wlBtnHTML(pl) : "") + '<button type="button" class="btn ghost" id="pCmp"' + (pl.name ? "" : ' style="grid-column:1/-1"') + '><i class=ic-scale aria-hidden=true></i> Compare</button></div><h3>Game log</h3><div id="plog"><p class="spin">Loading game log…</p></div><h3>Latest news</h3><div id="pnews"><p class="spin">Loading news…</p></div>';
   sh.hidden = false;
   p.querySelector("#closeSheet").addEventListener("click", closeSheet);
   const ffa = p.querySelector("[data-ffadd]"); if (ffa) ffa.addEventListener("click", () => openFleaAdd(leagues[+ffa.dataset.ffadd], pl));
+  const wb = p.querySelector("#pWatch"); if (wb) wb.addEventListener("click", () => toggleWatch(pl, wb));
   const cb = p.querySelector("#pCmp"); if (cb) cb.addEventListener("click", async () => { cb.disabled = true; const ok = await addToCompare(pl).catch(() => false); if (ok) openCompare(); else { cb.textContent = "Couldn’t find him in the player list"; } });
   const lg = p.querySelector("#plog"); if (lg) drawGameLog(lg, pl).catch(() => { lg.innerHTML = '<p class="muted small">Couldn’t load the game log.</p>'; });
   drawValueCard(p, pl).catch(() => {});
@@ -6353,6 +6374,106 @@ function injuryCardHTML(p){
     (o.note ? '<p class="small muted" style="margin:8px 0 0">' + esc(o.note.length > 220 ? o.note.slice(0, 218) + "…" : o.note) + "</p>" : "") +
     '<p class="small" style="margin:8px 0 0"><b>What to do:</b> ' + esc(o.advice) + '</p><p class="small muted" style="margin:6px 0 0">Estimates come from typical recovery times for this injury type and how long he’s already been out, adjusted when the team reports a return date.</p></div>';
 }
+/* ===================== Watchlist: players you're keeping an eye on ===================== */
+// Saved on the phone (KEY.watch, carried by device sync) and sent with alert settings so the
+// server can push injuries, trades, role changes and news for these players too.
+const WL_MAX = 40;
+const wlKey = p => norm(p.name) + "|" + (p.pos === "D/ST" ? "DEF" : p.pos || "");
+function loadWatch(){ try { const a = JSON.parse(localStorage.getItem(KEY + ".watch") || "[]"); return Array.isArray(a) ? a.filter(x => x && x.name) : []; } catch(e){ return []; } }
+function saveWatch(a){ try { localStorage.setItem(KEY + ".watch", JSON.stringify(a.slice(0, WL_MAX))); } catch(e){} syncAlerts().catch(() => {}); }
+const isWatched = p => { const k = wlKey(p); return loadWatch().some(x => wlKey(x) === k); };
+function wlBtnHTML(pl){ const on = isWatched(pl); return '<button type="button" class="btn ghost" id="pWatch" aria-pressed="' + on + '"><i class=' + (on ? "ic-starf" : "ic-star") + ' aria-hidden=true></i> ' + (on ? "Watching" : "Watch") + "</button>"; }
+// The league whose format prices the watchlist: your first league with a team picked.
+const wlBase = () => (myTeams()[0] || {}).L || null;
+function wlRow(VV, L, p){
+  if (!VV) return null;
+  let r = p.plat === L.meta.platform || (!p.plat && L.meta.platform === "sleeper") ? VV.row(p) : null;
+  if (!r) { const sid = p.sid || sidOf(p); r = sid ? VV.V[sid] || null : null; }
+  return r;
+}
+const wlVal = (VV, L, p) => { const r = wlRow(VV, L, p); return r ? (r[0] || 0) * (p.pos === "QB" ? VV.prem : 1) : null; };
+// Who has him in each of your leagues: you, a leaguemate, or nobody (free agent).
+function wlWhere(p){
+  const k = wlKey(p);
+  return myTeams().map(({L, i}) => {
+    const t = L.detail.teams.find(t => (t.roster || []).some(x => x.name && wlKey(x) === k));
+    return {L, i, t, free: !t};
+  });
+}
+// Freshest copy of the player: a roster entry (injury, team, Fleaflicker id), else the Sleeper player list.
+function wlLive(w){
+  const k = wlKey(w);
+  for (const L of leagues) { const d = L.detail; if (!d) continue; for (const t of d.teams) { const x = (t.roster || []).find(x => x.name && wlKey(x) === k); if (x) return x; } }
+  const q = w.sid && players && players[w.sid];
+  if (q) return {id: w.sid, name: q[0], pos: q[1], team: q[2], inj: q[3], injPart: q[4]};
+  return {id: w.id, name: w.name, pos: w.pos, team: w.team, img: w.img};
+}
+async function toggleWatch(pl, btn){
+  const k = wlKey(pl), list = loadWatch(), at = list.findIndex(x => wlKey(x) === k);
+  if (at >= 0) list.splice(at, 1);
+  else {
+    if (list.length >= WL_MAX) { btn.textContent = "Watchlist is full (" + WL_MAX + ")"; return; }
+    const L0 = leagues.find(L => L.detail && L.detail.teams.some(t => (t.roster || []).includes(pl))) || (cur.tab === "leagues" && cur.league != null ? leagues[cur.league] : null);
+    const plat = L0 ? L0.meta.platform : players && players[pl.id] && norm(players[pl.id][0]) === norm(pl.name) ? "sleeper" : null;
+    const w = {name: pl.name, pos: pl.pos === "D/ST" ? "DEF" : pl.pos || "", team: pl.team || "", id: pl.id != null ? String(pl.id) : "", plat, img: headshot(pl) || "", at: Date.now()};
+    list.unshift(w);
+    saveWatch(list);
+    // Remember what he was worth today, so the list can show how his value has moved since.
+    (async () => { await getPlayers(); ensureSidIndex(); w.sid = sidOf(pl) || (plat === "sleeper" ? w.id : null); const B = wlBase(); if (!B) return; const VV = await leagueVals(B); const v = wlVal(VV, B, w);
+      const cur2 = loadWatch(), x = cur2.find(y => wlKey(y) === k); if (x) { x.sid = w.sid; if (v != null) { x.v0 = Math.round(v); x.lid = B.meta.id; } saveWatch(cur2); } })().catch(() => {});
+  }
+  if (at >= 0) saveWatch(list);
+  const on = at < 0;
+  btn.setAttribute("aria-pressed", on); btn.innerHTML = '<i class=' + (on ? "ic-starf" : "ic-star") + ' aria-hidden=true></i> ' + (on ? "Watching" : "Watch");
+  if (cur.tab === "leagues" && cur.league == null) { const y = window.scrollY; render(); window.scrollTo(0, y); }
+}
+// Home: a nudge when someone you're watching is sitting in free agency in one of your leagues.
+function wlHomeCard(){
+  const list = loadWatch(); if (!list.length || !myTeams().length) return "";
+  const hits = [];
+  list.forEach(w => { const f = wlWhere(w).filter(x => x.free); if (f.length) hits.push({w, f}); });
+  if (!hits.length) return "";
+  const h0 = hits[0], lg = h0.f.length > 1 ? h0.f.length + " of your leagues" : h0.f[0].L.meta.name;
+  const txt = hits.length === 1 ? h0.w.name + " is a free agent in " + lg + "." : h0.w.name + " and " + (hits.length - 1) + " more watched player" + (hits.length > 2 ? "s are" : " is") + " free to pick up.";
+  return '<button type="button" class="card wlhome" data-wlopen="1"><i class=ic-star aria-hidden=true></i><span><b>Watchlist</b><span class="small muted" style="display:block">' + esc(txt) + '</span></span><span class="go">Open ›</span></button>';
+}
+async function openWatchlist(){
+  const body = openSheetShell("Watchlist");
+  const draw = async () => {
+    const list = loadWatch();
+    if (!list.length) { body.innerHTML = '<p class="muted" style="margin:-6px 2px 12px">Players you’re keeping an eye on: a waiver stash, a trade target, a rookie who could take over.</p><div class="card"><p style="margin:0">Your watchlist is empty.</p><p class="small muted" style="margin:6px 0 0">Open any player and tap <b>Watch</b>. He’ll show up here with his trade value since you added him and who has him in each of your leagues, and you’ll get alerts about him when alerts are on.</p></div>'; return; }
+    await Promise.all([getPlayers(), gamesAt ? null : loadScoreboard()]); ensureSidIndex();
+    const B = wlBase(), VV = B ? await leagueVals(B).catch(() => null) : null;
+    const rows = list.map(w => {
+      const p = wlLive(w), where = wlWhere(w), now = VV ? wlVal(VV, B, Object.assign({}, w, {sid: w.sid || sidOf(p)})) : null;
+      const ch = now != null && w.v0 != null && B && String(w.lid) === String(B.meta.id) ? now - w.v0 : null;
+      return {w, p, where, now, ch, free: where.filter(x => x.free).length};
+    });
+    rows.sort((a, b) => (b.free > 0) - (a.free > 0) || (b.now || 0) - (a.now || 0));
+    let h = '<p class="muted" style="margin:-6px 2px 12px">' + list.length + " player" + (list.length === 1 ? "" : "s") + ". Free agents first. Values are " + (B ? "for " + esc(B.meta.name) + "’s format" : "shown once a league loads") + ".</p>";
+    rows.forEach((r, n) => {
+      const i = reg.push(r.p) - 1, since = new Date(r.w.at || Date.now()).toLocaleDateString([], {month: "short", day: "numeric"});
+      const chg = r.ch == null || (!Math.round(r.ch) && Date.now() - (r.w.at || 0) < 864e5) ? "" : '<span class="vchg ' + (r.ch > 0 ? "up" : r.ch < 0 ? "down" : "") + '">' + (r.ch > 0 ? "▲ " : r.ch < 0 ? "▼ " : "") + (Math.round(r.ch) ? fmtV(Math.abs(r.ch)) : "No change") + "</span>";
+      h += '<div class="card wlcard"><button class="prow" data-i="' + i + '">' + avatar(r.p) + '<span class="pname"><b>' + esc(r.p.name) + injChip(r.p.inj) + "</b><small>" + posTag(r.p) + gameLine(r.p.team) + '</small></span><span class="wlval">' + (r.now ? "<b>" + fmtV(r.now) + "</b>" : "") + chg + "</span></button>" +
+        r.where.map(x => '<div class="wlst"><span>' + esc(x.L.meta.name) + "</span>" + (x.free ? '<span style="display:flex;gap:8px;align-items:center;overflow:visible"><em class="free">Free agent</em><button type="button" class="btn sm" data-wladd="' + n + ":" + x.i + '">' + (x.L.meta.platform === "flea" ? "Add" : "See free agents") + "</button></span>" : "<em>" + (x.t.mine ? "Yours" : esc(x.t.name)) + "</em>") + "</div>").join("") +
+        '<div class="wlfoot"><small class="muted">Watching since ' + esc(since) + (r.ch != null && r.w.v0 ? " · was " + fmtV(r.w.v0) : "") + '</small><button type="button" class="linkbtn small" data-wlrm="' + n + '" aria-label="Stop watching ' + esc(r.p.name) + '">Remove</button></div></div>';
+    });
+    body.innerHTML = h;
+    wireRows(body);
+    body.querySelectorAll("[data-wlrm]").forEach(b => b.addEventListener("click", () => { const k = wlKey(rows[+b.dataset.wlrm].w); saveWatch(loadWatch().filter(x => wlKey(x) !== k)); draw(); }));
+    body.querySelectorAll("[data-wladd]").forEach(b => b.addEventListener("click", async () => {
+      const [n, li] = b.dataset.wladd.split(":").map(Number), r = rows[n], L = leagues[li];
+      const goFA = () => { closeSheet(); if (cur.tab !== "leagues") setTab("leagues"); cur.league = li; cur.team = null; cur.sub = "fa"; cur.faPos = ["QB", "RB", "WR", "TE", "K", "DEF"].includes(r.p.pos) ? r.p.pos : "ALL"; render(); window.scrollTo(0, 0); };
+      if (L.meta.platform !== "flea") return goFA();
+      b.disabled = true; b.textContent = "Finding him…";
+      let fp = r.w.plat === "flea" && r.w.id ? Object.assign({}, r.p, {id: r.w.id}) : null;
+      if (!fp) { const pool = await faPool(L, r.p.pos).catch(() => []); fp = pool.find(x => norm(x.name) === norm(r.p.name)) || null; }
+      if (fp) openFleaAdd(L, fp); else goFA();
+    }));
+  };
+  await draw().catch(e => { body.innerHTML = '<div class="err">' + esc(e.message) + "</div>"; });
+}
+
 async function openInjuryCenter(){
   const body = openSheetShell("Injury center");
   await loadInjuries().catch(() => {});
@@ -6959,7 +7080,7 @@ async function post(path, body){
   if (!r.ok) throw new Error(j.error || ("Request failed (" + r.status + ")"));
   return j;
 }
-function alertPrefs(){ try { return Object.assign({mine:true, fa:true, news:true, league:true, brief:true, preview:true, plays:true, faPos:"ALL"}, JSON.parse(localStorage.getItem(KEY + ".alerts") || "{}")); } catch(e){ return {mine:true, fa:true, news:true, league:true, brief:true, preview:true, faPos:"ALL"}; } }
+function alertPrefs(){ try { return Object.assign({mine:true, fa:true, news:true, league:true, brief:true, preview:true, plays:true, watch:true, faPos:"ALL"}, JSON.parse(localStorage.getItem(KEY + ".alerts") || "{}")); } catch(e){ return {mine:true, fa:true, news:true, league:true, brief:true, preview:true, faPos:"ALL"}; } }
 function saveAlertPrefs(p){ try { localStorage.setItem(KEY + ".alerts", JSON.stringify(p)); } catch(e){} }
 function b64uBytes(s){ s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; const b = atob(s), a = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; }
 async function getSub(){
@@ -6981,7 +7102,8 @@ function watchList(){
   const oppStarters = [];
   leagues.forEach(L => { const d = L.detail, me = d && d.teams.find(t => t.mine); if (!me) return; const g = d.games.find(x => x.a.id === me.id || x.b.id === me.id); if (!g) return;
     const ot = d.teams.find(t => t.id === (g.a.id === me.id ? g.b.id : g.a.id)); if (ot) ot.roster.filter(p => p.slot === "start" && p.name).forEach(p => oppStarters.push(norm(p.name) + "|" + (p.pos || ""))); });
-  return {ids:[...ids], names:[...names], starters, bench, lineups, oppStarters, leagues: leagues.map(L => ({p:L.meta.platform, id:L.meta.id, name:L.meta.name, season:L.meta.season}))};
+  const watch = loadWatch().map(wlKey).filter(k => !names.has(k));
+  return {ids:[...ids], names:[...names], watch, starters, bench, lineups, oppStarters, leagues: leagues.map(L => ({p:L.meta.platform, id:L.meta.id, name:L.meta.name, season:L.meta.season}))};
 }
 let alertState = {sub:null, watching:null, msg:"", busy:false, list:null};
 function loadHooks(){ try { return JSON.parse(localStorage.getItem(KEY + ".hooks") || "[]"); } catch(e){ return []; } }
@@ -7119,6 +7241,7 @@ async function renderAlerts(v){
     " QBs are checked every minute, other positions every 3 minutes, the injury report every 2 minutes and headlines every 5.</p></div>";
   h += "<h3>What to send</h3>" + '<div class="card stackc">' +
     '<label class="toggle"><input type="checkbox" id="alMine"' + (prefs.mine ? " checked" : "") + "> My players: injuries, status changes and trades</label>" +
+    '<label class="toggle"><input type="checkbox" id="alWatch"' + (prefs.watch !== false ? " checked" : "") + "> Watchlist: injuries, trades, role changes and news for players you’re watching" + (loadWatch().length ? " (" + loadWatch().length + ")" : "") + "</label>" +
     '<label class="toggle"><input type="checkbox" id="alFa"' + (prefs.fa ? " checked" : "") + "> Free agents: new starters and projection jumps</label>" +
     '<label class="toggle"><input type="checkbox" id="alNews"' + (prefs.news ? " checked" : "") + "> News: injury report notes and headlines about my players</label>" +
     '<label class="toggle"><input type="checkbox" id="alPlays"' + (prefs.plays !== false ? " checked" : "") + "> Live plays: touchdowns, long gains and in-game injuries for your starters and your opponent’s</label>" +
@@ -7135,6 +7258,7 @@ async function renderAlerts(v){
   const savePrefs = async p => { saveAlertPrefs(p); alertState.msg = ""; try { await syncAlerts(sub); } catch(e){ alertState.msg = e.message; } render(); };
   v.querySelector("#alMine").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {mine:e.target.checked})));
   v.querySelector("#alFa").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {fa:e.target.checked})));
+  v.querySelector("#alWatch").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {watch:e.target.checked})));
   v.querySelector("#alLeague").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {league:e.target.checked})));
   v.querySelector("#alPlays").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {plays:e.target.checked})));
   v.querySelector("#alNews").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {news:e.target.checked})));

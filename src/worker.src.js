@@ -3,7 +3,7 @@
 
 import { chatRoute, groupmeSay, ChatRoom } from "./src/chat.js";
 import { showRoute, elUsage, elSetup, gemModels, gemChat, gemProbe } from "./src/show.js";
-import { alertsRoute, runMinute, staticRoute, injuriesRoute, readInjuries, eachSubscriber, norm } from "./src/alerts.js";
+import { alertsRoute, runMinute, staticRoute, injuriesRoute, readInjuries, eachSubscriber, norm, alertNames } from "./src/alerts.js";
 import { PROSPECTS } from "./src/prospects.js";
 import { gameWeather } from "./src/weather.js";
 import { ttsRoute, marketRoute, pickemRoute, commRoute, syncRoute, transcribeRoute, espnRoute, mflRoute, scoresRoute, calendarRoute, coachRoute, hookPostRoute, espnLineupRoute, mflLoginRoute, mflLineupRoute, fleaLoginRoute, fleaLineupRoute, fleaMoveRoute } from "./src/more.js";
@@ -468,7 +468,7 @@ async function runPlayerNews(env) {
   if (!had || !fresh.length) return { items: items.length, fresh: fresh.length, baseline: !had };
   const sent = await eachSubscriber(env, rec => {
     if (rec.prefs && rec.prefs.news === false) return [];
-    const mine = new Set((rec.names || []).map(n => n.split("|")[0]));
+    const mine = new Set(alertNames(rec).map(n => n.split("|")[0]));
     return fresh.filter(it => it.player && mine.has(norm(it.player))).slice(0, 4).map(it => ({ id: "pn:" + it.id, title: "⚡ " + it.player + ": " + it.title, body: it.body.slice(0, 220), url: it.link }));
   });
   return { items: items.length, fresh: fresh.length, sent };

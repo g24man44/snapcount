@@ -94,9 +94,10 @@ export async function alertsRoute(request, env, p, url) {
           bench: (body.bench || []).slice(0, 120).map(String),
           leagues: (body.leagues || []).slice(0, 30).map(l => ({ p: ["flea", "espn", "mfl"].includes(l.p) ? l.p : "sleeper", id: String(l.id), name: String(l.name || "").slice(0, 80), season: /^\d{4}$/.test(String(l.season || "")) ? String(l.season) : undefined })),
           oppStarters: (body.oppStarters || []).slice(0, 80).map(String),
+          watch: (body.watch || []).slice(0, 60).map(String),
           lineups: (Array.isArray(body.lineups) ? body.lineups : []).slice(0, 30).map(l => ({ p: ["flea", "espn", "mfl", "sleeper"].includes(l.p) ? l.p : null, id: String(l.id || ""), name: String(l.name || "").slice(0, 80), season: /^\d{4}$/.test(String(l.season || "")) ? String(l.season) : undefined, s: (l.s || []).slice(0, 30).map(String), b: (l.b || []).slice(0, 40).map(String), t: l.t ? String(l.t).slice(0, 40) : undefined })),
           hooks: (body.hooks || []).map(String).filter(u => hookKind(u)).slice(0, 5),
-          prefs: { mine: body.prefs?.mine !== false, fa: body.prefs?.fa !== false, news: body.prefs?.news !== false, league: body.prefs?.league !== false, recap: body.prefs?.recap !== false, brief: body.prefs?.brief !== false, preview: body.prefs?.preview !== false, plays: body.prefs?.plays !== false, faPos: body.prefs?.faPos === "QB" ? "QB" : "ALL" },
+          prefs: { mine: body.prefs?.mine !== false, fa: body.prefs?.fa !== false, news: body.prefs?.news !== false, league: body.prefs?.league !== false, recap: body.prefs?.recap !== false, brief: body.prefs?.brief !== false, preview: body.prefs?.preview !== false, plays: body.prefs?.plays !== false, watch: body.prefs?.watch !== false, faPos: body.prefs?.faPos === "QB" ? "QB" : "ALL" },
           origin: url.origin
         };
         const prev = await env.SNAP.get("sub:" + id);
@@ -249,7 +250,9 @@ async function leagueRostered(L, cache) {
 export function messagesFor(rec, events, week, now) {
   const ids = new Set(rec.ids), names = new Set(rec.names);
   const mine = e => ids.has(e.id) || names.has(norm(e.name) + "|" + e.pos);
-  const minePush = [], faCandidates = [];
+  // Watchlist: players you don't own but asked to follow (older records have no list).
+  const watch = new Set(rec.prefs && rec.prefs.watch === false ? [] : (rec.watch || []));
+  const minePush = [], faCandidates = [], watchCandidates = [];
   for (const e of events) {
     const tag = e.kind + ":" + e.id + ":" + week + ":" + norm(String(e.to ?? e.starter ?? ""));
     if (mine(e)) {
@@ -264,6 +267,10 @@ export function messagesFor(rec, events, week, now) {
       else if (e.kind === "status") minePush.push({ id: tag, title: e.name + " " + labelFor(e.to), body: e.pos + " · " + e.team + (e.part ? " · " + e.part : "") + ". He's on your roster." });
       else if (e.kind === "team") minePush.push({ id: tag, title: e.name + " traded to " + e.to, body: e.pos + ", formerly " + e.from + ". He's on your roster." });
       else if (e.kind === "nextup") minePush.push({ id: tag, title: e.name + " is in line to start", body: e.starter + " " + labelFor(e.starterStatus).replace(/^is |^has been |^was /, "") + ". Projected " + fmtPts(e.proj) + " pts this week." });
+    } else if (watch.has(norm(e.name) + "|" + e.pos)) {
+      if (e.kind === "status") minePush.push({ id: tag, title: e.name + " " + labelFor(e.to), body: e.pos + " · " + e.team + (e.part ? " · " + e.part : "") + ". On your watchlist." });
+      else if (e.kind === "team") minePush.push({ id: tag, title: e.name + " traded to " + e.to, body: e.pos + ", formerly " + e.from + ". On your watchlist." });
+      else if (e.kind === "nextup" || e.kind === "jump") watchCandidates.push(Object.assign({ tag }, e));
     } else if (rec.prefs.fa && (e.kind === "jump" || e.kind === "nextup") && (rec.prefs.faPos === "ALL" || rec.prefs.faPos === e.pos)) {
       faCandidates.push(Object.assign({ tag }, e));
     }
@@ -271,7 +278,7 @@ export function messagesFor(rec, events, week, now) {
   const nextIds = new Set(faCandidates.filter(e => e.kind === "nextup").map(e => e.id));
   const fa = faCandidates.filter(e => e.kind === "nextup" || !nextIds.has(e.id));
   fa.sort((a, b) => (b.kind === "nextup") - (a.kind === "nextup") || (b.to ?? b.proj) - (a.to ?? a.proj));
-  return { minePush, faCandidates: fa.slice(0, 3) };
+  return { minePush, faCandidates: fa.slice(0, 3), watchCandidates: watchCandidates.slice(0, 3) };
 }
 
 
@@ -300,8 +307,20 @@ export async function runChecks(env, forcePos) {
     for (const k of list.keys) {
       const rec = await env.SNAP.get(k.name, "json");
       if (!rec) continue;
-      const { minePush, faCandidates } = messagesFor(rec, events, week, now);
+      const { minePush, faCandidates, watchCandidates } = messagesFor(rec, events, week, now);
       const items = minePush.slice();
+      for (const e of watchCandidates || []) {
+        const free = [];
+        for (const L of rec.leagues) {
+          const set = await leagueRostered(L, cache);
+          if (!set) continue;
+          const taken = L.p === "sleeper" ? set.has("id:" + e.id) : set.has("nm:" + norm(e.name) + "|" + e.pos);
+          if (!taken) free.push(L.name);
+        }
+        const where = free.length ? "Free in " + free.slice(0, 3).join(", ") + (free.length > 3 ? " and " + (free.length - 3) + " more" : "") + "." : "On your watchlist.";
+        if (e.kind === "nextup") items.push({ id: e.tag, title: "Watchlist: " + e.name + " is in line to start", body: e.starter + " " + labelFor(e.starterStatus).replace(/^is |^has been |^was /, "") + ". Projected " + fmtPts(e.proj) + " pts. " + where });
+        else items.push({ id: e.tag, title: "Watchlist: " + e.name + " projected " + fmtPts(e.to) + " pts", body: "Up from " + fmtPts(e.from) + " (" + e.pos + ", " + e.team + "). " + where });
+      }
       for (const e of faCandidates) {
         const free = [];
         for (const L of rec.leagues) {
@@ -398,7 +417,9 @@ export async function eachSubscriber(env, fn) {
   }
   return sent;
 }
-const nameSet = rec => new Set((rec.names || []).map(n => n.split("|")[0]));
+// Your players plus your watchlist (unless watchlist alerts are off).
+export const alertNames = rec => (rec.names || []).concat(rec.prefs && rec.prefs.watch === false ? [] : (rec.watch || []));
+const nameSet = rec => new Set(alertNames(rec).map(n => n.split("|")[0]));
 
 export async function runInjuryNotes(env) {
   let now;
@@ -411,7 +432,7 @@ export async function runInjuryNotes(env) {
   if (fresh.length) {
     sent = await eachSubscriber(env, rec => {
       if (rec.prefs.news === false && rec.prefs.mine === false) return [];
-      const mine = new Set(rec.names || []);
+      const mine = new Set(alertNames(rec));
       return fresh.filter(n => mine.has(n.key)).slice(0, 5).map(n => ({
         id: "note:" + n.key + ":" + sigs[n.key],
         title: n.name + (n.status && !/^active$/i.test(n.status) ? " (" + n.status + ")" : "") + (n.prac ? " · " + n.prac : ""),
