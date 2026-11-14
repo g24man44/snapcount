@@ -249,7 +249,7 @@ export async function alertsRoute(request, env, p, url) {
           leagues: (body.leagues || []).slice(0, 30).map(l => ({ p: ["flea", "espn", "mfl"].includes(l.p) ? l.p : "sleeper", id: String(l.id), name: String(l.name || "").slice(0, 80), season: /^\d{4}$/.test(String(l.season || "")) ? String(l.season) : undefined, team: l.team ? String(l.team).slice(0, 40) : undefined })),
           oppStarters: (body.oppStarters || []).slice(0, 80).map(String),
           watch: (body.watch || []).slice(0, 60).map(String),
-          lineups: (Array.isArray(body.lineups) ? body.lineups : []).slice(0, 30).map(l => ({ p: ["flea", "espn", "mfl", "sleeper"].includes(l.p) ? l.p : null, id: String(l.id || ""), name: String(l.name || "").slice(0, 80), season: /^\d{4}$/.test(String(l.season || "")) ? String(l.season) : undefined, s: (l.s || []).slice(0, 30).map(String), b: (l.b || []).slice(0, 40).map(String), t: l.t ? String(l.t).slice(0, 40) : undefined })),
+          lineups: (Array.isArray(body.lineups) ? body.lineups : []).slice(0, 30).map(l => ({ p: ["flea", "espn", "mfl", "sleeper"].includes(l.p) ? l.p : null, id: String(l.id || ""), name: String(l.name || "").slice(0, 80), season: /^\d{4}$/.test(String(l.season || "")) ? String(l.season) : undefined, s: (l.s || []).slice(0, 30).map(String), b: (l.b || []).slice(0, 40).map(String), t: l.t ? String(l.t).slice(0, 40) : undefined, slots: Array.isArray(l.slots) ? l.slots.slice(0, 20).map(x => String(x).slice(0, 12)) : undefined })),
           hooks: (body.hooks || []).map(String).filter(u => hookKind(u)).slice(0, 5),
           prefs: { mine: body.prefs?.mine !== false, fa: body.prefs?.fa !== false, news: body.prefs?.news !== false, league: body.prefs?.league !== false, recap: body.prefs?.recap !== false, brief: body.prefs?.brief !== false, preview: body.prefs?.preview !== false, plays: body.prefs?.plays !== false, livescore: body.prefs?.livescore !== false, swings: body.prefs?.swings !== false, watch: body.prefs?.watch !== false, faPos: body.prefs?.faPos === "QB" ? "QB" : "ALL" },
           origin: url.origin
@@ -642,6 +642,33 @@ export async function lineupCheck(env, force) {
 }
 
 
+
+// Can these positions fill the league's lineup slots? Fixed slots first, then flex slots by matching (tries every option, so REC/WRRB/FLEX/SUPER_FLEX mixes work).
+const FLEX_OK = { FLEX: ["RB", "WR", "TE"], SUPER_FLEX: ["QB", "RB", "WR", "TE"], REC_FLEX: ["WR", "TE"], WRRB_FLEX: ["RB", "WR"], OP: ["QB", "RB", "WR", "TE"] };
+function canFill(positions, slots) {
+  const cnt = {}; positions.forEach(p => { cnt[p] = (cnt[p] || 0) + 1; });
+  const flex = [];
+  for (const sl of slots) {
+    if (FLEX_OK[sl]) { flex.push(FLEX_OK[sl]); continue; }
+    if (!["QB", "RB", "WR", "TE"].includes(sl)) continue; // K, D/ST and IDP slots aren't in this check
+    if (!cnt[sl]) return false; cnt[sl]--;
+  }
+  const left = []; for (const p in cnt) for (let i = 0; i < cnt[p]; i++) left.push(p);
+  if (left.length > flex.length) return false;
+  const used = new Array(flex.length).fill(false);
+  const go = i => { if (i === left.length) return true; for (let j = 0; j < flex.length; j++) if (!used[j] && flex[j].includes(left[i])) { used[j] = true; if (go(i + 1)) return true; used[j] = false; } return false; };
+  return go(0);
+}
+// Best legal swap for one starter: same position always works; with the league's slots we also allow any flex-eligible bench player when the lineup still fills.
+function swapsFor(lineupPos, starterIdx, starter, bench, slots, min) {
+  const ok = x => {
+    if (x.pos === starter.pos) return true;
+    if (!slots || !slots.length) return false;
+    const next = lineupPos.slice(); next[starterIdx] = x.pos;
+    return canFill(next, slots);
+  };
+  return bench.filter(x => x.proj > min && ok(x)).sort((a, b) => b.proj - a.proj)[0];
+}
 /* ---------- before each kickoff: a starter who won't play, or a bench player projected well above a starter ---------- */
 // Runs every 5 minutes. Looks at games kicking off in the next 50–95 minutes (inactives come out 90 minutes before),
 // so it covers Thursday, Sunday early/late/night and Monday games, not just the Sunday-morning check.
@@ -666,18 +693,36 @@ export async function kickoffLineupAlerts(env) {
       const info = k => slate.byName[k] ? Object.assign({ key: k }, slate.byName[k]) : null;
       const bench = (lu.b || []).map(info).filter(x => x && x.team && !started.has(x.team) && !OUTISH.has(norm(x.status)) && x.proj > 0);
       const used = new Set();
-      const bestFor = (pos, min) => bench.filter(x => x.pos === pos && !used.has(x.key) && x.proj > min).sort((a, b) => b.proj - a.proj)[0];
+      // Only QB/RB/WR/TE are checked; a lineup of just those positions is compared to the league's QB/RB/WR/TE/flex slots.
+      const sKeys = (lu.s || []).filter(k => /\|(QB|RB|WR|TE)$/.test(k)), lineupPos = sKeys.map(k => k.split("|")[1]);
+      const slots = (lu.slots || []).filter(x => ["QB", "RB", "WR", "TE"].includes(x) || FLEX_OK[x]);
+      const fills = slots.length && canFill(lineupPos, slots);
+      const bestFor = (k, p, min) => swapsFor(lineupPos, sKeys.indexOf(k), p, bench.filter(x => !used.has(x.key)), fills ? slots : null, min);
       const where = lineupsOf(rec).length > 1 ? " (" + (lu.name || "your league") + ")" : "";
+      const ups = [];
       for (const k of lu.s || []) {
         const p = info(k); if (!p || !soon.has(p.team)) continue;
         const outish = OUTISH.has(norm(p.status));
         if (outish || (!p.proj && !p.status)) {
-          const sub = bestFor(p.pos, 0); if (sub) used.add(sub.key);
-          out.push({ id: "ko:" + windowKey + ":" + lu.id + ":" + k, title: "Starter not playing: " + p.name + where, body: p.name + (outish ? " is " + (p.status || "out") : " is projected for 0") + " and still in your lineup. " + (sub ? "Start " + sub.name + " (" + fmtPts(sub.proj) + " projected) instead." : "No healthy bench " + p.pos + " — check free agents.") + " Kickoff is in about an hour." });
+          const sub = bestFor(k, p, 0); if (sub) used.add(sub.key);
+          out.push({ id: "ko:" + windowKey + ":" + lu.id + ":" + k, title: "Starter not playing: " + p.name + where, body: p.name + (outish ? " is " + (p.status || "out") : " is projected for 0") + " and still in your lineup. " + (sub ? "Start " + sub.name + " (" + fmtPts(sub.proj) + " projected) instead." : "No healthy bench player can fill that spot. Check free agents.") + " Kickoff is in about an hour." });
           continue;
         }
-        const up = bestFor(p.pos, p.proj + 3);
-        if (up) { used.add(up.key); out.push({ id: "ko:" + windowKey + ":" + lu.id + ":" + k + ":up", title: "Bench upgrade: " + up.name + " over " + p.name + where, body: up.name + " is projected " + fmtPts(up.proj) + ", " + p.name + " " + fmtPts(p.proj) + ". " + (RISKY.has(norm(p.status)) ? p.name + " is " + p.status + ". " : "") + "Swap before " + p.team + " kicks off." }); }
+        ups.push([k, p]);
+      }
+      // Upgrades: try every bench player against every starter in this window and keep the biggest gains first,
+      // so a strong bench RB goes into the flex over a weak flex WR rather than over a solid RB.
+      const pairs = [];
+      for (const [k, p] of ups) for (const x of bench) {
+        if (used.has(x.key) || x.proj < p.proj + 3) continue;
+        if (swapsFor(lineupPos, sKeys.indexOf(k), p, [x], fills ? slots : null, p.proj + 3)) pairs.push({ k, p, x, gain: x.proj - p.proj });
+      }
+      pairs.sort((a, b) => b.gain - a.gain);
+      const took = new Set();
+      for (const { k, p, x: up } of pairs) {
+        if (took.has(k) || used.has(up.key)) continue;
+        took.add(k); used.add(up.key);
+        out.push({ id: "ko:" + windowKey + ":" + lu.id + ":" + k + ":up", title: "Bench upgrade: " + up.name + " over " + p.name + where, body: (up.pos !== p.pos ? "Use your flex: " : "") + up.name + " (" + up.pos + ") is projected " + fmtPts(up.proj) + ", " + p.name + " (" + p.pos + ") " + fmtPts(p.proj) + ". " + (RISKY.has(norm(p.status)) ? p.name + " is " + p.status + ". " : "") + "Swap before " + p.team + " kicks off." });
       }
     }
     return out.slice(0, 4);

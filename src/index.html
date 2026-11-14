@@ -7400,7 +7400,7 @@ function watchList(){
   });
   const starters = [], bench = [], lineups = [];
   leagues.forEach(L => { const me = L.detail && L.detail.teams.find(t => t.mine); if (!me) return;
-    const lu = {p:L.meta.platform, id:L.meta.id, name:L.meta.name, season:L.meta.season, s:[], b:[], t:me.id};
+    const lu = {p:L.meta.platform, id:L.meta.id, name:L.meta.name, season:L.meta.season, s:[], b:[], t:me.id, slots:(L.detail.slots || []).slice(0, 20)};
     me.roster.forEach(p => { if (!p.name) return; const k = norm(p.name) + "|" + (p.pos || ""); if (p.slot === "start") { starters.push(k); lu.s.push(k); } else if (p.slot === "bench") { bench.push(k); lu.b.push(k); } });
     if (lu.s.length) lineups.push(lu); });
   const oppStarters = [];
