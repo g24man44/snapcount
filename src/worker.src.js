@@ -881,7 +881,7 @@ export default {
       if (p.startsWith("/api/show")) return showRoute(request, url, env);
       if (p === "/api/version") return json({ build: "__BUILDID__" }, 200, 0);
       if (p === "/api/comm") return commRoute(request, url, env);
-      if (p === "/api/chat" || p.startsWith("/api/chat/") || p.startsWith("/api/groupme/") || p.startsWith("/g/")) return chatRoute(request, url, env);
+      if (p === "/api/chat" || p.startsWith("/api/chat/") || p.startsWith("/api/groupme/") || p.startsWith("/g/") || p.startsWith("/p/")) return chatRoute(request, url, env);
       if (p === "/api/ping") {
         // One write per device per day, only when that day's mark isn't there yet. Nothing personal: a random device id,
         // whether the app is installed, and which league sites it uses.
