@@ -984,6 +984,16 @@ nav.tabbar button[aria-selected=true]::before{display:none}
 .wpt{display:flex;height:6px;border-radius:3px;overflow:hidden;margin-top:5px;gap:2px;background:var(--surface2)}.wpt i{display:block;height:100%;min-width:3px}
 .gbet{margin-top:6px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
 .mwp{grid-column:1/-1;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;margin-top:8px;font-size:12.5px}.mwp b{font-variant-numeric:tabular-nums}.mwp .wpt{margin:0}
+.taunts{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}.taunts button{border:0;background:var(--surface2);border-radius:999px;width:38px;height:38px;font-size:20px;line-height:38px;padding:0;cursor:pointer}.taunts button:active{transform:scale(.9)}.taunts small{color:var(--accent);font-weight:700;font-size:13px}
+#tauntFx{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);overflow:hidden;cursor:pointer;animation:tdin .25s ease-out}
+#tauntFx .tin{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding:24px;position:relative;z-index:2}
+#tauntFx .te{font-size:120px;line-height:1;animation:tbob 1s ease-in-out infinite}
+@keyframes tbob{0%,100%{transform:rotate(-8deg) scale(1)}50%{transform:rotate(8deg) scale(1.08)}}
+#tauntFx b{font:900 44px/1 var(--display);font-stretch:70%;text-transform:uppercase}
+#tauntFx .tin>span:not(.te){font-size:16px;color:var(--muted);max-width:300px}
+#tauntFx em{font-style:normal;font-size:13px;color:var(--muted);margin-top:14px}
+#tauntFx>i{position:absolute;top:-40px;font-style:normal;font-size:30px;animation:tdfall 3s linear infinite}
+@media (prefers-reduced-motion:reduce){#tauntFx,#tauntFx .te,#tauntFx>i{animation:none}#tauntFx>i{display:none}}
 @media (max-width:400px){h2{font-size:28px}.brand h1{font-size:21px}.coachfab{padding:8px 10px!important}}
 @media (max-width:350px){.brand h1{font-size:21px}.coachfab{font-size:0!important;gap:0;padding:9px!important}.coachfab i{font-size:16px}}
 </style>
@@ -1517,18 +1527,49 @@ function myStarterSets(){
   });
   return {mine, opp};
 }
-function playBanner(ev, hit, theirs){
+// One banner at a time: later ones wait their turn instead of covering the first.
+const plQueue = [];
+function playBanner(ev, hit, theirs){ plQueue.push([ev, hit, theirs]); if (!document.querySelector(".plban")) plNext(); }
+function plNext(){ const n = plQueue.shift(); if (n) showPlayBanner(...n); }
+function showPlayBanner(ev, hit, theirs){
   const box = document.createElement("div"); box.className = "plban" + (theirs ? " opp" : ""); box.setAttribute("role", "status");
   const title = ev.kind === "td" ? (theirs ? "Opponent touchdown" : "Touchdown for you") : ev.kind === "big" ? (theirs ? "Big play against you" : "Big play for you") : (theirs ? "Opponent scores" : "Points for you");
   const img = hit.p.img ? '<img src="' + esc(hit.p.img) + '" alt="" onerror="this.remove()">' : '<i>' + esc(initials(hit.p.name)) + "</i>";
-  box.innerHTML = img + '<span><b>' + esc(title) + '</b><span>' + esc(ev.text) + '</span><small>' + esc(hit.me.name) + (myTeams().length > 1 ? " · " + esc(hit.L.meta.name) : "") + "</small></span>";
-  box.addEventListener("click", () => box.remove());
-  document.querySelectorAll(".plban").forEach((b, i) => { b.style.transform = "translateY(" + ((i + 1) * 8) + "px) scale(.97)"; });
+  const g = !theirs && ev.kind === "td" && (hit.L.detail.games || []).find(x => x.a.id === hit.me.id || x.b.id === hit.me.id), opp = g && hit.L.detail.teams.find(t => t.id === (g.a.id === hit.me.id ? g.b.id : g.a.id));
+  box.innerHTML = img + '<span><b>' + esc(title) + '</b><span>' + esc(ev.text) + '</span><small>' + esc(hit.me.name) + (myTeams().length > 1 ? " · " + esc(hit.L.meta.name) : "") + "</small>" +
+    (opp ? '<span class="taunts" aria-label="Taunt ' + esc(opp.name) + '">' + Object.entries(TAUNT_LIST).map(([k, t]) => '<button type="button" data-taunt="' + k + '" title="' + esc(t[1]) + '" aria-label="' + esc(t[1]) + '">' + t[0] + "</button>").join("") + "</span>" : "") + "</span>";
+  box.addEventListener("click", async e => {
+    const tb = e.target.closest && e.target.closest("[data-taunt]");
+    if (!tb) { box.remove(); setTimeout(plNext, 200); return; }
+    e.stopPropagation(); clearTimeout(box._t1); clearTimeout(box._t2);
+    const sp = box.querySelector(".taunts"); sp.innerHTML = "<small>Sending…</small>";
+    try {
+      const r = await fetch("/api/taunt", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({kind: tb.dataset.taunt, p: hit.L.meta.platform, lid: hit.L.meta.id, to: opp.id, fromName: hit.me.name, player: hit.p.name, dev: devId()})});
+      const j = await r.json().catch(() => ({}));
+      sp.innerHTML = "<small>" + (r.ok ? TAUNT_LIST[tb.dataset.taunt][0] + " Sent to " + esc(opp.name) + (j.sent ? "" : " (they’ll see it if they have alerts on)") : esc(j.error || "Couldn’t send")) + "</small>";
+    } catch(x){ sp.innerHTML = "<small>Couldn’t send</small>"; }
+    setTimeout(() => box.classList.add("out"), 2500); setTimeout(() => { box.remove(); plNext(); }, 3100);
+  });
   document.body.appendChild(box);
   try { navigator.vibrate && navigator.vibrate(theirs ? [80] : [120, 60, 120]); } catch(e){}
   if (ev.kind === "td" && !theirs && tdPrefs().sound !== "off") tdHorn(true);
-  setTimeout(() => box.classList.add("out"), 7000); setTimeout(() => box.remove(), 7600);
+  const life = s => box.querySelector(".taunts") ? s * 2 : s; // more time to pick a taunt
+  box._t1 = setTimeout(() => box.classList.add("out"), life(7000)); box._t2 = setTimeout(() => { box.remove(); plNext(); }, life(7000) + 600);
 }
+const TAUNT_LIST = {griddy: ["🕺", "Hit the griddy"], cry: ["😭", "Cry about it"], sleep: ["😴", "Night night"], ice: ["🥶", "Ice cold"], board: ["📊", "Check the scoreboard"], easy: ["🥱", "Too easy"]};
+// A taunt from your opponent: full-screen moment if the app is open (the notification covers it when it isn't).
+function tauntFx(t){
+  if (!t || !TAUNT_LIST[t.kind]) return;
+  let el = $("#tauntFx"); if (el) el.remove();
+  el = document.createElement("div"); el.id = "tauntFx"; el.setAttribute("role", "alert");
+  el.innerHTML = '<div class="tin"><span class="te">' + TAUNT_LIST[t.kind][0] + "</span><b>" + esc(TAUNT_LIST[t.kind][1]) + "</b><span>" + esc(t.from || "Your opponent") + " taunted you" + (t.player ? " after " + esc(t.player) + "’s touchdown" : "") + '</span><em>Tap to close</em></div>' +
+    Array.from({length: 18}, (_, i) => '<i style="left:' + (i * 5.5 + Math.random() * 3) + "%;animation-delay:" + (Math.random() * 1.4).toFixed(2) + 's">' + TAUNT_LIST[t.kind][0] + "</i>").join("");
+  el.addEventListener("click", () => el.remove());
+  document.body.appendChild(el);
+  try { navigator.vibrate && navigator.vibrate([60, 60, 60]); } catch(e){}
+  setTimeout(() => { if (el.isConnected) el.remove(); }, 6000);
+}
+if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", e => { if (e.data && e.data.taunt && !document.hidden) tauntFx(e.data.taunt); });
 async function playWatch(){
   clearTimeout(plTimer);
   if (document.hidden) return;
@@ -7384,7 +7425,7 @@ async function post(path, body){
   if (!r.ok) throw new Error(j.error || ("Request failed (" + r.status + ")"));
   return j;
 }
-function alertPrefs(){ try { return Object.assign({mine:true, fa:true, news:true, league:true, brief:true, preview:true, plays:true, livescore:true, swings:true, watch:true, faPos:"ALL"}, JSON.parse(localStorage.getItem(KEY + ".alerts") || "{}")); } catch(e){ return {mine:true, fa:true, news:true, league:true, brief:true, preview:true, faPos:"ALL"}; } }
+function alertPrefs(){ try { return Object.assign({mine:true, fa:true, news:true, league:true, brief:true, preview:true, plays:true, livescore:true, swings:true, taunts:true, watch:true, faPos:"ALL"}, JSON.parse(localStorage.getItem(KEY + ".alerts") || "{}")); } catch(e){ return {mine:true, fa:true, news:true, league:true, brief:true, preview:true, faPos:"ALL"}; } }
 function saveAlertPrefs(p){ try { localStorage.setItem(KEY + ".alerts", JSON.stringify(p)); } catch(e){} }
 function b64uBytes(s){ s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; const b = atob(s), a = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; }
 async function getSub(){
@@ -7549,6 +7590,7 @@ async function renderAlerts(v){
     '<label class="toggle"><input type="checkbox" id="alFa"' + (prefs.fa ? " checked" : "") + "> Free agents: new starters and projection jumps</label>" +
     '<label class="toggle"><input type="checkbox" id="alNews"' + (prefs.news ? " checked" : "") + "> News: injury report notes and headlines about my players</label>" +
     '<label class="toggle"><input type="checkbox" id="alPlays"' + (prefs.plays !== false ? " checked" : "") + "> Live plays: touchdowns, long gains and in-game injuries for your starters and your opponent’s</label>" +
+    '<label class="toggle"><input type="checkbox" id="alTaunt"' + (prefs.taunts !== false ? " checked" : "") + "> Taunts from your opponent when their players score</label>" +
     '<label class="toggle"><input type="checkbox" id="alSwing"' + (prefs.swings !== false ? " checked" : "") + "> Upset watch and big swings: when an underdog takes over a game, or a team’s chance of winning jumps (NFL and ranked college games)</label>" +
     '<label class="toggle"><input type="checkbox" id="alLive"' + (prefs.livescore !== false ? " checked" : "") + "> Live matchup score in your notifications during games (Android updates it every few minutes; iPhone gets it when each game window ends)</label>" +
     '<label class="toggle"><input type="checkbox" id="alLeague"' + (prefs.league ? " checked" : "") + "> League activity: trades, trade-block posts and QB pickups (Fleaflicker)</label>" +
@@ -7569,6 +7611,7 @@ async function renderAlerts(v){
   v.querySelector("#alPlays").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {plays:e.target.checked})));
   v.querySelector("#alLive").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {livescore:e.target.checked})));
   v.querySelector("#alSwing").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {swings:e.target.checked})));
+  v.querySelector("#alTaunt").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {taunts:e.target.checked})));
   v.querySelector("#alNews").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {news:e.target.checked})));
   v.querySelector("#alBrief").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {brief:e.target.checked})));
   v.querySelector("#alPreview").addEventListener("change", e => savePrefs(Object.assign(alertPrefs(), {preview:e.target.checked})));

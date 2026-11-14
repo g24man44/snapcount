@@ -3,7 +3,7 @@
 
 import { chatRoute, groupmeSay, ChatRoom } from "./src/chat.js";
 import { showRoute, elUsage, elSetup, gemModels, gemChat, gemProbe } from "./src/show.js";
-import { alertsRoute, runMinute, staticRoute, injuriesRoute, readInjuries, eachSubscriber, norm, alertNames } from "./src/alerts.js";
+import { alertsRoute, tauntRoute, runMinute, staticRoute, injuriesRoute, readInjuries, eachSubscriber, norm, alertNames } from "./src/alerts.js";
 import { PROSPECTS } from "./src/prospects.js";
 import { gameWeather } from "./src/weather.js";
 import { ttsRoute, marketRoute, pickemRoute, commRoute, syncRoute, transcribeRoute, espnRoute, mflRoute, scoresRoute, calendarRoute, coachRoute, hookPostRoute, espnLineupRoute, mflLoginRoute, mflLineupRoute, fleaLoginRoute, fleaLineupRoute, fleaMoveRoute } from "./src/more.js";
@@ -827,6 +827,7 @@ export default {
       }
       const st = staticRoute(p);
       if (st) return st;
+      if (p === "/api/taunt") return tauntRoute(request, env);
       if (p.startsWith("/api/push/")) return alertsRoute(request, env, p, url);
       if (p === "/api/coach") return coachRoute(request, env);
       if (p === "/api/tts") return ttsRoute(request, env);

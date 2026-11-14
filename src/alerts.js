@@ -208,6 +208,30 @@ export async function swingAlerts(env) {
   return { events: events.length, sent };
 }
 
+
+/* ---------- taunts: after your player scores, send your opponent a little celebration ---------- */
+export const TAUNTS = { griddy: ["🕺", "Hit the griddy"], cry: ["😭", "Cry about it"], sleep: ["😴", "Night night"], ice: ["🥶", "Ice cold"], board: ["📊", "Check the scoreboard"], easy: ["🥱", "Too easy"] };
+export async function tauntRoute(request, env) {
+  if (request.method !== "POST") return out({ error: "POST only" }, 405);
+  const b = await request.json().catch(() => ({}));
+  const t = TAUNTS[b.kind], lid = String(b.lid || ""), p = String(b.p || ""), to = String(b.to || ""), dev = String(b.dev || "");
+  if (!t || !/^[\w-]{1,40}$/.test(lid) || !/^(flea|sleeper|espn|mfl)$/.test(p) || !/^[\w-]{1,40}$/.test(to) || !/^[a-f0-9]{16,64}$/.test(dev)) return out({ error: "Bad request" }, 400);
+  if (env.CHAT) {
+    const g = await env.CHAT.get(env.CHAT.idFromName("taunts")).fetch("https://chat/gate?dev=" + dev).catch(() => null);
+    if (g && g.status === 429) return out({ error: "One taunt at a time." }, 429);
+  }
+  const from = String(b.fromName || "Your opponent").slice(0, 60), player = String(b.player || "").slice(0, 60);
+  const data = { show: 1, taunt: { kind: b.kind, e: t[0], text: t[1], from, player }, tag: "taunt:" + lid, title: t[0] + " " + from + ": " + t[1], body: player ? "After " + player + "’s touchdown." : "They just scored.", url: "/" };
+  let sent = 0;
+  for (const id of await subscriberIds(env)) {
+    const rec = await env.SNAP.get("sub:" + id, "json");
+    if (!rec || !rec.sub || (rec.prefs || {}).taunts === false) continue;
+    if (!(rec.leagues || []).some(L => L.p === p && L.id === lid && L.team === to)) continue;
+    try { const st = await sendPushData(env, rec.sub, rec.origin, data, 600); if (st >= 200 && st < 300) sent++; } catch (e) {}
+  }
+  return out({ ok: true, sent });
+}
+
 async function addAlerts(env, id, items) {
   const key = "al:" + id;
   const list = (await env.SNAP.get(key, "json")) || [];
@@ -251,7 +275,7 @@ export async function alertsRoute(request, env, p, url) {
           watch: (body.watch || []).slice(0, 60).map(String),
           lineups: (Array.isArray(body.lineups) ? body.lineups : []).slice(0, 30).map(l => ({ p: ["flea", "espn", "mfl", "sleeper"].includes(l.p) ? l.p : null, id: String(l.id || ""), name: String(l.name || "").slice(0, 80), season: /^\d{4}$/.test(String(l.season || "")) ? String(l.season) : undefined, s: (l.s || []).slice(0, 30).map(String), b: (l.b || []).slice(0, 40).map(String), t: l.t ? String(l.t).slice(0, 40) : undefined, slots: Array.isArray(l.slots) ? l.slots.slice(0, 20).map(x => String(x).slice(0, 12)) : undefined })),
           hooks: (body.hooks || []).map(String).filter(u => hookKind(u)).slice(0, 5),
-          prefs: { mine: body.prefs?.mine !== false, fa: body.prefs?.fa !== false, news: body.prefs?.news !== false, league: body.prefs?.league !== false, recap: body.prefs?.recap !== false, brief: body.prefs?.brief !== false, preview: body.prefs?.preview !== false, plays: body.prefs?.plays !== false, livescore: body.prefs?.livescore !== false, swings: body.prefs?.swings !== false, watch: body.prefs?.watch !== false, faPos: body.prefs?.faPos === "QB" ? "QB" : "ALL" },
+          prefs: { mine: body.prefs?.mine !== false, fa: body.prefs?.fa !== false, news: body.prefs?.news !== false, league: body.prefs?.league !== false, recap: body.prefs?.recap !== false, brief: body.prefs?.brief !== false, preview: body.prefs?.preview !== false, plays: body.prefs?.plays !== false, livescore: body.prefs?.livescore !== false, swings: body.prefs?.swings !== false, taunts: body.prefs?.taunts !== false, watch: body.prefs?.watch !== false, faPos: body.prefs?.faPos === "QB" ? "QB" : "ALL" },
           origin: url.origin
         };
         const prev = await env.SNAP.get("sub:" + id);
@@ -1118,7 +1142,7 @@ export async function runMinute(env) {
 
 /* ---------- files the phone needs ---------- */
 export const SW_JS = `
-const SHELL = "snapcount-shell-v11", DATA = "snapcount-data-v1";
+const SHELL = "snapcount-shell-v12", DATA = "snapcount-data-v1";
 self.addEventListener("install", e => { self.skipWaiting(); e.waitUntil(caches.open(SHELL).then(c => c.addAll(["/", "/icon-192.png?v=6"])).catch(() => {})); });
 self.addEventListener("fetch", e => {
   const u = new URL(e.request.url);
@@ -1136,6 +1160,7 @@ self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
 self.addEventListener("push", e => e.waitUntil((async () => {
   let d = null; try { d = e.data ? e.data.json() : null; } catch (err) {}
   if (d && d.live) { await self.registration.showNotification(d.title, { body: d.body, tag: d.tag, renotify: false, silent: true, icon: "/icon-192.png?v=6", badge: "/icon-192.png?v=6", data: { url: d.url || "/" } }); return; }
+  if (d && d.taunt) { for (const c of await self.clients.matchAll({ type: "window", includeUncontrolled: true })) { try { c.postMessage({ taunt: d.taunt }); } catch (err) {} } }
   if (d && d.show) { await self.registration.showNotification(d.title, { body: d.body, tag: d.tag, icon: "/icon-192.png?v=6", badge: "/icon-192.png?v=6", data: { url: d.url || "/" } }); return; }
   let items = [];
   try {
