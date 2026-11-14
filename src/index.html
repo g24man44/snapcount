@@ -994,6 +994,8 @@ nav.tabbar button[aria-selected=true]::before{display:none}
 #tauntFx em{font-style:normal;font-size:13px;color:var(--muted);margin-top:14px}
 #tauntFx>i{position:absolute;top:-40px;font-style:normal;font-size:30px;animation:tdfall 3s linear infinite}
 @media (prefers-reduced-motion:reduce){#tauntFx,#tauntFx .te,#tauntFx>i{animation:none}#tauntFx>i{display:none}}
+.gdt summary{list-style:none;cursor:pointer;display:flex;flex-direction:column;gap:2px}.gdt summary::-webkit-details-marker{display:none}.gdt summary b{font:800 17px/1.2 var(--display);font-stretch:88%}
+.gdh{margin:14px 0 6px;font-weight:700;font-size:13.5px;color:var(--muted)}.gdb{display:grid;grid-template-columns:1fr 1fr;gap:8px}.gdb .btn{font-size:14px;padding:11px 8px}
 @media (max-width:400px){h2{font-size:28px}.brand h1{font-size:21px}.coachfab{padding:8px 10px!important}}
 @media (max-width:350px){.brand h1{font-size:21px}.coachfab{font-size:0!important;gap:0;padding:9px!important}.coachfab i{font-size:16px}}
 </style>
@@ -1594,6 +1596,39 @@ async function playWatch(){
 }
 document.addEventListener("visibilitychange", () => { if (!document.hidden) playWatch(); else clearTimeout(plTimer); });
 setTimeout(playWatch, 6000);
+
+/* ---------- try the game-day features any time (on this phone only) ---------- */
+function gdTestCard(){
+  return '<details class="card gdt"><summary><b>Try the game-day features</b><span class="small muted">See them now instead of waiting for Sunday. Only you see these.</span></summary>' +
+    '<p class="gdh">In the app</p><div class="gdb">' +
+    '<button type="button" class="btn ghost" data-gdt="banner">Your player scores</button>' +
+    '<button type="button" class="btn ghost" data-gdt="tauntfx">Opponent taunts you</button>' +
+    '<button type="button" class="btn ghost" data-gdt="team">Your team scores</button></div>' +
+    '<p class="gdh">On your phone (needs alerts on)</p><div class="gdb">' +
+    '<button type="button" class="btn ghost" data-gdt="live">Live matchup score</button>' +
+    '<button type="button" class="btn ghost" data-gdt="taunt">Taunt notification</button>' +
+    '<button type="button" class="btn ghost" data-gdt="swing">Upset alert</button></div>' +
+    '<p class="small muted" id="gdMsg" style="margin:10px 0 0">Phone tests arrive in a few seconds. Lock your phone or go to the home screen to see them in the notification bar.</p></details>';
+}
+document.addEventListener("click", async e => {
+  const b = e.target.closest && e.target.closest("[data-gdt]"); if (!b) return;
+  const k = b.dataset.gdt, msg = $("#gdMsg"), say = t => { if (msg) msg.textContent = t; };
+  if (k === "banner") {
+    const t = myTeams()[0]; const p = t && (t.me.roster || []).find(x => x.slot === "start" && x.name);
+    if (!p) { say("Load your league first."); return; }
+    playBanner({id: "test", kind: "td", text: p.name + " 12 Yd pass (test play)", game: "Test"}, {p, L: t.L, me: t.me}, false); return;
+  }
+  if (k === "tauntfx") { tauntFx({kind: "cry", from: "Your opponent", player: "Josh Allen"}); return; }
+  if (k === "team") { const pr = tdPrefs(); if (!pr.team && !pr.cfb) { openTD(); return; } tdCelebrate(pr.team ? nflTeamInfo(pr.team) : pr.cfb, "td", "Test"); return; }
+  const sub = pushOK ? await getSub().catch(() => null) : null;
+  if (!sub) { say("Turn on alerts above first, then try again."); return; }
+  b.disabled = true; say("Sending…");
+  try {
+    const r = await post("/api/push/test", {endpoint: sub.endpoint, kind: k});
+    say(r.ok ? "Sent. Check your notifications" + (k === "live" && r.apple ? " (on iPhone, live scores come at the end of each game window)" : "") + "." : "It didn’t go through. Try turning alerts off and on.");
+  } catch(x){ say(x.message); }
+  b.disabled = false;
+});
 /* ---------- Home: one card that changes with the day (game time, lineup check, waivers, all set) ---------- */
 function etNow(){ return new Date(new Date().toLocaleString("en-US", {timeZone: "America/New_York"})); }
 function myTeams(){ return leagues.map((L, i) => ({L, i, me: L.detail && L.detail.teams.find(t => t.mine)})).filter(x => x.me); }
@@ -7556,7 +7591,7 @@ async function openBriefing(){
 function wireCopy(v){ v.querySelectorAll("[data-copy]").forEach(b => { if (b.dataset.wired) return; b.dataset.wired = 1; const t0 = b.textContent; b.addEventListener("click", async () => { try { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = "Copied"; } catch(e){ b.textContent = "Copy failed"; } setTimeout(() => { b.textContent = t0; }, 1800); }); }); }
 async function renderAlerts(v){
   const prefs = alertPrefs();
-  let h = "<h2>Alerts</h2>" + tdRow();
+  let h = "<h2>Alerts</h2>" + tdRow() + gdTestCard();
   if (!pushOK) {
     v.innerHTML = h + '<div class="card"><p style="margin:0">This browser can’t show phone notifications.</p><p class="small muted" style="margin:8px 0 0">On iPhone, tap Share, then Add to Home Screen, and open Snap Count from your home screen. On Android, use Chrome. You can still get every alert in Discord, Slack, Telegram or another app below.</p></div>' + (alertState.msg ? '<p class="small" style="margin:8px 0 0">' + esc(alertState.msg) + "</p>" : "") + briefCard(!!alertState.sub) + hooksCard() + calCard();
     wireHooks(v); wireCopy(v); wireBrief(v);

@@ -25,6 +25,7 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- “Try the game-day features” on the Alerts page: in-app previews (your player scores with taunts, opponent taunts you, your team scores) and real test pushes to your own phone (live matchup score from your actual league, taunt, upset alert) via /api/push/test.
 - Taunts: the in-app “Touchdown for you” banner offers six taunts (🕺 😭 😴 🥶 📊 🥱); tapping one sends your opponent a push (encrypted, nothing stored) and, if their app is open, a full-screen taunt with falling emoji. Opponent found by league + team id; per-device flood guard; toggle in Alerts. Scoring banners now queue one at a time.
 - Kickoff lineup alerts: every 5 min, for games starting in 50–95 min (Thu, Sun early/late/night, Mon), a push if a starter is out/inactive/projected 0 (with the best healthy bench swap), or a bench player is projected 3+ points above a starter. Swaps respect the league's slots, so a bench RB can go into FLEX (or SUPER_FLEX, REC_FLEX, WR/RB flex) over a weak flex WR; biggest gains are suggested first.
 - Live win chance for every fantasy matchup: League tab shows a bar under each game (Fleaflicker loads every team's live lineup, refreshed every 2 min during games); your own matchup's win chance now works on home (opponent's live lineup loaded too); the live-score notification includes your win %.

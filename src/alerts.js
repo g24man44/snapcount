@@ -134,6 +134,21 @@ async function leagueMatchups(L, cache) {
   return res;
 }
 const f1 = n => (Math.round((Number(n) || 0) * 10) / 10).toFixed(1);
+async function liveMessagesFor(rec, cache, windowEnded, tm) {
+  const msgs = [];
+  for (const L of (rec.leagues || []).filter(x => x.team && (x.p === "flea" || x.p === "sleeper")).slice(0, 3)) {
+      const m = await leagueMatchups(L, cache); if (!m) continue;
+      const g = m.games.find(x => x.a.id === L.team || x.b.id === L.team); if (!g) continue;
+      const me = g.a.id === L.team ? g.a : g.b, op = g.a.id === L.team ? g.b : g.a, d = me.pts - op.pts;
+      const lead = Math.abs(d) < 0.05 ? "Tied" : d > 0 ? "You lead by " + f1(d) : "You trail by " + f1(-d);
+      const title = me.name + " " + f1(me.pts) + " – " + f1(op.pts) + " " + op.name;
+      let wpTxt = "";
+      if (me.proj != null && op.proj != null && !windowEnded) { const rem = Math.max(0, me.proj - me.pts) + Math.max(0, op.proj - op.pts), sd = Math.max(1.2, 6 * Math.sqrt(rem / 10)), z = (me.proj - op.proj) / sd; const cdf = 0.5 * (1 + Math.tanh(0.7978845608 * (z + 0.044715 * z * z * z))); wpTxt = " · " + Math.round(Math.min(.995, Math.max(.005, cdf)) * 100) + "% to win"; }
+      const body = lead + wpTxt + (me.proj != null && op.proj != null ? " · Projected " + f1(me.proj) + "–" + f1(op.proj) : "") + " · " + (windowEnded ? "End of this game window" : "Live, " + tm) + "\n" + (L.name || "Your league") + (m.week ? " · Week " + m.week : "");
+      msgs.push({ live: 1, tag: "live:" + L.p + ":" + L.id, title, body, url: "/" });
+    }
+  return msgs;
+}
 export async function liveScores(env) {
   let live = 0, total = 0;
   try {
@@ -151,16 +166,8 @@ export async function liveScores(env) {
     if (!rec || !rec.sub || (rec.prefs || {}).livescore === false) continue;
     if (String(rec.sub.endpoint).startsWith("https://snapcount.hooks/")) continue;
     if (isApple(rec.sub) && !windowEnded) continue;
-    for (const L of (rec.leagues || []).filter(x => x.team && (x.p === "flea" || x.p === "sleeper")).slice(0, 3)) {
-      const m = await leagueMatchups(L, cache); if (!m) continue;
-      const g = m.games.find(x => x.a.id === L.team || x.b.id === L.team); if (!g) continue;
-      const me = g.a.id === L.team ? g.a : g.b, op = g.a.id === L.team ? g.b : g.a, d = me.pts - op.pts;
-      const lead = Math.abs(d) < 0.05 ? "Tied" : d > 0 ? "You lead by " + f1(d) : "You trail by " + f1(-d);
-      const title = me.name + " " + f1(me.pts) + " – " + f1(op.pts) + " " + op.name;
-      let wpTxt = "";
-      if (me.proj != null && op.proj != null && !windowEnded) { const rem = Math.max(0, me.proj - me.pts) + Math.max(0, op.proj - op.pts), sd = Math.max(1.2, 6 * Math.sqrt(rem / 10)), z = (me.proj - op.proj) / sd; const cdf = 0.5 * (1 + Math.tanh(0.7978845608 * (z + 0.044715 * z * z * z))); wpTxt = " · " + Math.round(Math.min(.995, Math.max(.005, cdf)) * 100) + "% to win"; }
-      const body = lead + wpTxt + (me.proj != null && op.proj != null ? " · Projected " + f1(me.proj) + "–" + f1(op.proj) : "") + " · " + (windowEnded ? "End of this game window" : "Live, " + tm) + "\n" + (L.name || "Your league") + (m.week ? " · Week " + m.week : "");
-      try { const s = await sendPushData(env, rec.sub, rec.origin, { live: 1, tag: "live:" + L.p + ":" + L.id, title, body, url: "/" }, windowEnded ? 43200 : 300); if (s >= 200 && s < 300) sent++; if (s === 404 || s === 410) { await env.SNAP.delete("sub:" + id); break; } } catch (e) {}
+    for (const data of await liveMessagesFor(rec, cache, windowEnded, tm)) {
+      try { const s = await sendPushData(env, rec.sub, rec.origin, data, windowEnded ? 43200 : 300); if (s >= 200 && s < 300) sent++; if (s === 404 || s === 410) { await env.SNAP.delete("sub:" + id); break; } } catch (e) {}
     }
   }
   return { live, windowEnded, sent };
@@ -263,6 +270,18 @@ export async function alertsRoute(request, env, p, url) {
       const endpoint = (body.sub && body.sub.endpoint) || body.endpoint;
       if (!endpoint || !/^https:\/\//.test(endpoint)) return out({ error: "Missing subscription" }, 400);
       const id = await hashId(endpoint);
+      if (p === "/api/push/test") {
+        // Try the game-day pushes on your own phone: live score, a taunt, an upset alert.
+        const rec = await env.SNAP.get("sub:" + id, "json");
+        if (!rec) return out({ error: "Turn on alerts first." }, 404);
+        const kind = String(body.kind || "live"), tm = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" });
+        let msgs = [];
+        if (kind === "live") { msgs = await liveMessagesFor(rec, new Map(), false, tm); if (!msgs.length) msgs = [{ live: 1, tag: "live:test", title: "Your team 84.3 – 71.2 Their team", body: "You lead by 13.1 · 78% to win · Live, " + tm + "\nTest (your league's matchup wasn't found)", url: "/" }]; }
+        else if (kind === "taunt") msgs = [{ show: 1, taunt: { kind: "griddy", e: "🕺", text: "Hit the griddy", from: "Test opponent", player: "Josh Allen" }, tag: "taunt:test", title: "🕺 Test opponent: Hit the griddy", body: "After Josh Allen’s touchdown. (This is a test.)", url: "/" }];
+        else if (kind === "swing") msgs = [{ show: 1, tag: "swing:test", title: "Upset watch: Jets 75% to win", body: "They started as a 21% underdog against Bills. NYJ 21, BUF 10 · Q3 4:12 (This is a test.)", url: "/?go=news" }];
+        let ok = 0; for (const m of msgs) { const st = await sendPushData(env, rec.sub, rec.origin, m, 300); if (st >= 200 && st < 300) ok++; }
+        return out({ ok: ok > 0, sent: ok, apple: isApple(rec.sub) });
+      }
       if (p === "/api/push/subscribe") {
         const rec = {
           sub: { endpoint, keys: (body.sub && body.sub.keys) || {} },
