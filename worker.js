@@ -357,17 +357,20 @@ function calibrateQBs(out, t, q) {
 const OWNER = { p: "flea", lid: "183120", team: "1245245" };
 async function healthCheck(env) {
   const t0 = Date.now(), res = [];
-  const check = async (name, fn) => { const s = Date.now(); try { const note = await fn(); res.push({ name, ok: true, ms: Date.now() - s, note: note || "" }); } catch (e) { res.push({ name, ok: false, ms: Date.now() - s, note: String(e && e.message || e).slice(0, 160) }); } };
+  // Every check runs at the same time with a 15-second cap, so one slow service can't hold up the rest.
+  const jobs = [];
+  const check = (name, fn) => { const job = run(name, fn); jobs.push(job); return job; };
+  const run = async (name, fn) => { const s = Date.now(); try { const note = await Promise.race([fn(), new Promise((_, rej) => setTimeout(() => rej(new Error("timed out after 15 s")), 15000))]); res.push({ name, ok: true, ms: Date.now() - s, note: note || "" }); } catch (e) { res.push({ name, ok: false, ms: Date.now() - s, note: String(e && e.message || e).slice(0, 160) }); } };
   const getJ = async (u, h) => { const r = await fetch(u, { headers: h || UA }); if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); };
-  await check("Trade values", async () => { const j = await tradeValues("0.5", 14, 2, true, 16, env).then(r => r.json()); const n = Object.keys(j.values || {}).length; if (n < 300) throw new Error("only " + n + " values"); if (!j.values["pick:" + (new Date().getUTCFullYear() + 1) + " 1st"] && !Object.keys(j.values).some(k => k.startsWith("pick:"))) throw new Error("no draft picks"); return n + " values"; });
-  await check("Fleaflicker", async () => { const j = await getJ("https://www.fleaflicker.com/api/FetchLeagueStandings?sport=NFL&league_id=" + OWNER.lid); if (!(j.divisions || []).length) throw new Error("no standings"); });
-  await check("Sleeper", async () => { const j = await getJ("https://api.sleeper.app/v1/state/nfl"); if (!j.week && j.week !== 0) throw new Error("no week"); });
-  await check("ESPN scores", async () => { const j = await getJ("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"); if (!(j.events || []).length) throw new Error("no games"); });
-  await check("FantasyCalc trades", async () => { const j = await getJ("https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=2&numTeams=12&ppr=1"); if (!Array.isArray(j) || j.length < 100) throw new Error("short list"); });
-  await check("Expert rankings", async () => { const r = await fetch("https://raw.githubusercontent.com/dynastyprocess/data/master/files/values-players.csv", { headers: UA }); if (!r.ok) throw new Error("HTTP " + r.status); });
-  await check("AI coach", async () => { if (!env.AI) throw new Error("no AI binding"); const r = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", { messages: [{ role: "user", content: "Reply with OK." }], max_tokens: 3 }); const t = r && (r.response ?? (r.choices && r.choices[0] && r.choices[0].message && r.choices[0].message.content)); if (!t || !String(t).length) throw new Error("empty answer"); });
+  check("Trade values", async () => { const j = await tradeValues("0.5", 14, 2, true, 16, env).then(r => r.json()); const n = Object.keys(j.values || {}).length; if (n < 300) throw new Error("only " + n + " values"); if (!j.values["pick:" + (new Date().getUTCFullYear() + 1) + " 1st"] && !Object.keys(j.values).some(k => k.startsWith("pick:"))) throw new Error("no draft picks"); return n + " values"; });
+  check("Fleaflicker", async () => { const j = await getJ("https://www.fleaflicker.com/api/FetchLeagueStandings?sport=NFL&league_id=" + OWNER.lid); if (!(j.divisions || []).length) throw new Error("no standings"); });
+  check("Sleeper", async () => { const j = await getJ("https://api.sleeper.app/v1/state/nfl"); if (!j.week && j.week !== 0) throw new Error("no week"); });
+  check("ESPN scores", async () => { const j = await getJ("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"); if (!(j.events || []).length) throw new Error("no games"); });
+  check("FantasyCalc trades", async () => { const j = await getJ("https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=2&numTeams=12&ppr=1"); if (!Array.isArray(j) || j.length < 100) throw new Error("short list"); });
+  check("Expert rankings", async () => { const r = await fetch("https://raw.githubusercontent.com/dynastyprocess/data/master/files/values-players.csv", { headers: UA }); if (!r.ok) throw new Error("HTTP " + r.status); });
+  check("AI coach", async () => { if (!env.AI) throw new Error("no AI binding"); const r = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", { messages: [{ role: "user", content: "Reply with OK." }], max_tokens: 3 }); const t = r && (r.response ?? (r.choices && r.choices[0] && r.choices[0].message && r.choices[0].message.content)); if (!t || !String(t).length) throw new Error("empty answer"); });
   // Tests exactly what the show does (speak a word with a show voice); costs a tiny fraction of a cent.
-  await check("Show voices (Deepgram)", async () => {
+  check("Show voices (Deepgram)", async () => {
     if (!env.DEEPGRAM_KEY) throw new Error("no DEEPGRAM_KEY secret found");
     const key = String(env.DEEPGRAM_KEY).trim();
     const r = await fetch("https://api.deepgram.com/v2/speak?model=flux-cole-en&expressivity=2&speed=1.15", { method: "POST", headers: { Authorization: "Token " + key, "Content-Type": "application/json" }, body: JSON.stringify({ text: "Okay." }) });
@@ -386,6 +389,9 @@ async function healthCheck(env) {
     const u = await elUsage(env), set = await elSetup(env);
     return (set.names || []).join(" & ") + " on " + set.model + " · " + (u.used || 0).toLocaleString() + " of " + (u.limit || 0).toLocaleString() + " characters used this month";
   });
+  await Promise.all(jobs);
+  const ORDER = ["Trade values", "Fleaflicker", "Sleeper", "ESPN scores", "FantasyCalc trades", "Expert rankings", "AI coach", "Show voices (Deepgram)", "Show (Gemini)", "Show voices (ElevenLabs)"];
+  res.sort((x, y) => ORDER.indexOf(x.name) - ORDER.indexOf(y.name));
   await check("Storage", async () => { if (!env.SNAP) throw new Error("no storage"); await env.SNAP.put("health:last", JSON.stringify({ at: t0, res })); const back = await env.SNAP.get("health:last", "json"); if (!back || back.at !== t0) throw new Error("write did not read back (daily limit?)"); });
   const bad = res.filter(r => !r.ok);
   try { await env.SNAP.put("health:last", JSON.stringify({ at: t0, res })); } catch (e) {}

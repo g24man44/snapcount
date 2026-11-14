@@ -79,7 +79,7 @@ const GEM = "https://generativelanguage.googleapis.com/v1beta/models/";
 let gemModelsMem = null;
 export async function gemModels(env) {
   if (gemModelsMem && Date.now() - gemModelsMem.at < 6 * 3600e3) return gemModelsMem;
-  let c = env.SNAP ? await env.SNAP.get("gem:models", "json").catch(() => null) : null;
+  let c = env.SNAP ? await env.SNAP.get("gem:models2", "json").catch(() => null) : null;
   if (!c || Date.now() - c.at > 86400e3) {
     const r = await fetch(GEM.replace(/\/$/, "") + "?pageSize=300", { headers: { "x-goog-api-key": gemKey(env) } });
     if (!r.ok) { const e = new Error("Gemini model list " + r.status); e.status = r.status; throw e; }
@@ -89,8 +89,10 @@ export async function gemModels(env) {
     const text = ms.filter(n => /^gemini-[\d.]+-flash(-preview[-\d]*)?$/.test(n) || /^gemini-flash-latest$/.test(n)).sort(rank);
     const lite = ms.filter(n => /^gemini-[\d.]+-flash-lite(-preview[-\d]*)?$/.test(n)).sort(rank);
     const tts = ms.filter(n => /tts/.test(n)).sort((a, b) => (/pro/.test(b) - /pro/.test(a)) || rank(a, b));
-    c = { at: Date.now(), text: text.concat(lite).slice(0, 4), tts: tts.slice(0, 4) };
-    if (env.SNAP && c.text.length) await env.SNAP.put("gem:models", JSON.stringify(c)).catch(() => {});
+    // 2.5 Flash first when the key has it: with thinking off it answers in seconds (newer flashes think first).
+    const fast = text.filter(n => n === "gemini-2.5-flash");
+    c = { at: Date.now(), text: fast.concat(text.filter(n => !fast.includes(n)), lite).slice(0, 4), tts: tts.slice(0, 4) };
+    if (env.SNAP && c.text.length) await env.SNAP.put("gem:models2", JSON.stringify(c)).catch(() => {});
   }
   return (gemModelsMem = c);
 }
