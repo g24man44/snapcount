@@ -31,6 +31,20 @@ export class ChatRoom {
       for (const ws of this.state.getWebSockets()) { try { ws.send(msg); } catch (e) {} }
       return out({ ok: true });
     }
+    if (u.pathname === "/addMany") {
+      // Many items in one request (the breaking-news feed): returns only the ones that weren't stored yet.
+      const items = await request.json(), fresh = [];
+      const keys = items.map(m => "m:" + pad(m.at) + ":" + m.id), have = await st.get(keys);
+      const put = {};
+      items.forEach((m, i) => { if (!have.get(keys[i])) { put[keys[i]] = m; fresh.push(m); } });
+      if (fresh.length) {
+        for (let i = 0, ks = Object.keys(put); i < ks.length; i += 100) await st.put(Object.fromEntries(ks.slice(i, i + 100).map(k => [k, put[k]])));
+        let n = ((await st.get("count")) || 0) + fresh.length;
+        if (n > KEEP + 100) { const old = await st.list({ prefix: "m:", limit: Math.min(128, n - KEEP) }); if (old.size) { await st.delete([...old.keys()]); n -= old.size; } }
+        await st.put("count", n);
+      }
+      return out({ fresh, had: ((await st.get("count")) || 0) - fresh.length });
+    }
     if (u.pathname === "/list") {
       const before = u.searchParams.get("before");
       const opts = { prefix: "m:", reverse: true, limit: 60 };

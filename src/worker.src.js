@@ -444,13 +444,10 @@ async function readRotowire() {
 async function runPlayerNews(env) {
   if (!env.CHAT || !env.SNAP) return { skipped: "no storage" };
   let items; try { items = await readRotowire(); } catch (e) { return { error: e.message }; }
+  // One Durable Object request per check (it was one per news item: ~36,000 a day).
   const log = env.CHAT.get(env.CHAT.idFromName("news:feed"));
-  const had = ((await (await log.fetch("https://chat/list")).json()).list || []).length;
-  const fresh = [];
-  for (const it of items.sort((a, b) => a.at - b.at)) {
-    const r = await (await log.fetch("https://chat/add", { method: "POST", body: JSON.stringify(it) })).json();
-    if (!r.dup) fresh.push(it);
-  }
+  const r = await (await log.fetch("https://chat/addMany", { method: "POST", body: JSON.stringify(items.sort((a, b) => a.at - b.at)) })).json();
+  const fresh = r.fresh || [], had = r.had || 0;
   // First run only fills the log; alerts start with the next new item.
   if (!had || !fresh.length) return { items: items.length, fresh: fresh.length, baseline: !had };
   const sent = await eachSubscriber(env, rec => {
