@@ -882,7 +882,8 @@ export default {
         do { const r = await env.SNAP.list({ prefix: "use:", cursor }); for (const k of r.keys) { const [, d, dev] = k.name.split(":"); (days[d] = days[d] || []).push({ dev, m: k.metadata || {} }); if (!firstSeen[dev] || d < firstSeen[dev]) firstSeen[dev] = d; } cursor = r.list_complete ? null : r.cursor; } while (cursor);
         const rows = Object.keys(days).sort().map(d => ({ d, active: days[d].length, fresh: days[d].filter(x => firstSeen[x.dev] === d).length, installed: days[d].filter(x => x.m.i).length, sites: days[d].reduce((o, x) => { String(x.m.s || "").split(",").filter(Boolean).forEach(k => o[k] = (o[k] || 0) + 1); return o; }, {}) }));
         const now = Date.now(), within = n => new Set(Object.entries(days).filter(([d]) => now - Date.parse(d) < n * 864e5).flatMap(([, a]) => a.map(x => x.dev))).size;
-        return json({ rows, total: Object.keys(firstSeen).length, wau: within(7), mau: within(30), health: (await env.SNAP.get("health:last", "json")) || null }, 200, 0);
+        let ai = {}; try { if (env.CHAT) ai = await (await env.CHAT.get(env.CHAT.idFromName("stats")).fetch("https://chat/counts?day=" + new Date().toISOString().slice(0, 10))).json(); } catch (e) {}
+        return json({ rows, total: Object.keys(firstSeen).length, wau: within(7), mau: within(30), health: (await env.SNAP.get("health:last", "json")) || null, ai }, 200, 0);
       }
       if (p === "/api/health") {
         if (url.searchParams.get("run") === "1") { const last = env.SNAP && await env.SNAP.get("health:last", "json"); if (last && Date.now() - last.at < 60000) return json(last, 200, 0); const r = await healthCheck(env); return json({ at: Date.now(), res: r }, 200, 0); }

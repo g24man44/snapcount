@@ -1,3 +1,4 @@
+import { gemChat } from "./show.js";
 // More integrations: ESPN Fantasy, MyFantasyLeague, every-sport scores, calendar feed.
 const UA = { "User-Agent": "Mozilla/5.0 (SnapCount fantasy dashboard)", "Accept": "application/json" };
 
@@ -273,11 +274,17 @@ export async function coachRoute(request, env) {
   const messages = [{ role: "system", content: mode === "brief" ? BRIEF_SYS + "\n\nLEAGUE DATA:\n" + ctx : mode === "roast" ? ROAST_SYS + "\n\nDATA:\n" + ctx : mode === "draft" ? DRAFT_SYS + "\n\nDRAFT DATA:\n" + ctx : mode === "matchups" ? MATCHUPS_SYS + "\n\nWEEK DATA:\n" + ctx : mode === "pitch" ? PITCH_SYS + "\n\nTRADE DATA:\n" + ctx : mode === "negotiate" ? NEGO_SYS + "\n\nTRADE DATA:\n" + ctx : (mode === "recap" ? RECAP_SYS : COACH_SYS) + "\n\nLEAGUE DATA:\n" + ctx }]
     .concat(["pitch", "brief", "roast", "draft", "matchups"].includes(mode) ? [] : hist).concat([{ role: "user", content: mode === "recap" ? "Write this week's recap." : mode === "pitch" ? "Write the message." : mode === "brief" ? "Write today's briefing." : mode === "roast" ? "Write the roast." : mode === "draft" ? "Write the draft write-up." : mode === "matchups" ? "Write the matchup recaps." : q }]);
   let lastErr = null;
+  const maxT = mode === "draft" || mode === "matchups" ? 1300 : mode === "recap" || mode === "brief" || mode === "roast" ? 900 : mode === "negotiate" ? 260 : 600;
+  const tempr = mode === "recap" || mode === "roast" || mode === "pitch" ? 0.8 : mode === "negotiate" ? 0.7 : 0.4;
+  // The owner's free Gemini key first, so everyday AI use doesn't spend the Cloudflare neuron allowance.
+  const gem = await gemChat(env, messages, maxT, tempr).catch(() => "");
+  if (gem) { bumpAI(env, mode, "gemini"); return new Response(sseText(gem), { headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store", "x-model": "gemini" } }); }
   for (const model of COACH_MODELS) {
     try {
       const ai = await env.AI.run(model, { messages, max_tokens: mode === "draft" || mode === "matchups" ? 1300 : mode === "recap" || mode === "brief" || mode === "roast" ? 900 : mode === "negotiate" ? 260 : 600, temperature: mode === "recap" || mode === "roast" ? 0.85 : mode === "draft" || mode === "matchups" ? 0.7 : mode === "brief" ? 0.5 : mode === "negotiate" ? 0.7 : 0.4 });
       const full = String((ai && (ai.response ?? (ai.choices && ai.choices[0] && ai.choices[0].message && ai.choices[0].message.content))) ?? "").trim();
       if (!full) throw new Error("empty answer");
+      bumpAI(env, mode, "cloudflare");
       return new Response(sseText(full), { headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store", "x-model": model } });
     } catch (e) { lastErr = e; }
   }
@@ -300,13 +307,19 @@ function sseText(full) {
 }
 
 // One-shot AI text (no streaming) with model fallback; returns "" if the AI is unavailable.
+// Counts AI uses per feature per day in a Durable Object (no KV writes), for the owner's usage page.
+export function bumpAI(env, mode, via) {
+  try { if (env.CHAT) env.CHAT.get(env.CHAT.idFromName("stats")).fetch("https://chat/bump?k=" + encodeURIComponent(new Date().toISOString().slice(0, 10) + "|" + mode + "|" + via)).catch(() => {}); } catch (e) {}
+}
 export async function aiComplete(env, system, user, maxTokens, temperature) {
+  const g = await gemChat(env, [{ role: "system", content: system }, { role: "user", content: user }], maxTokens, temperature).catch(() => "");
+  if (g) { bumpAI(env, "auto", "gemini"); return g.replace(/\*\*/g, "").trim(); }
   if (!env.AI) return "";
   for (const model of COACH_MODELS) {
     try {
       const ai = await env.AI.run(model, { messages: [{ role: "system", content: system }, { role: "user", content: user }], max_tokens: maxTokens || 600, temperature: temperature ?? 0.4 });
       const text = String((ai && (ai.response || (ai.choices && ai.choices[0] && ai.choices[0].message && ai.choices[0].message.content))) || "").replace(/\*\*/g, "").trim();
-      if (text) return text;
+      if (text) { bumpAI(env, "auto", "cloudflare"); return text; }
     } catch (e) {}
   }
   return "";

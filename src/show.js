@@ -94,6 +94,24 @@ async function gemWrite(env, sys, user) {
   }
   throw last || new Error("Gemini wrote nothing");
 }
+// Chat-style text for the app's AI features (coach, briefing, recaps…), on the owner's free Gemini key.
+// Flash 2.5 first (biggest free daily quota, thinking off for speed), then the newer flash.
+export async function gemChat(env, messages, maxTokens, temperature) {
+  if (!gemKey(env)) return "";
+  const sys = messages.filter(m => m.role === "system").map(m => m.content).join("\n\n");
+  const contents = messages.filter(m => m.role !== "system").map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: String(m.content || "") }] }));
+  for (const model of ["gemini-2.5-flash", "gemini-3.8-flash"]) {
+    try {
+      const gc = { temperature: temperature ?? 0.5, maxOutputTokens: Math.max(400, (maxTokens || 600) + 200) };
+      if (model === "gemini-2.5-flash") gc.thinkingConfig = { thinkingBudget: 0 };
+      const j = await (await gemFetch(env, model, { systemInstruction: sys ? { parts: [{ text: sys }] } : undefined, contents, generationConfig: gc })).json();
+      const c = ((j.candidates || [])[0] || {}).content, txt = ((c && c.parts) || []).filter(x => !x.thought && x.text).map(x => x.text).join("").trim();
+      if (txt) return txt;
+    } catch (e) { if (e.status === 401 || e.status === 403) break; }
+  }
+  return "";
+}
+
 // One chunk of the conversation, read in one go so the two voices play off each other.
 // Three voice pairs the owner can compare in the app; the pick is stored once ("showvoice").
 // As different from each other as Gemini allows: upbeat/young, gravelly/firm, deep/youthful.
