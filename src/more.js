@@ -109,7 +109,16 @@ export async function scoresRoute(url) {
         rec: ((x.records || [])[0] || {}).summary || "", winner: !!x.winner, color: t.color || "" };
     };
     const odds = (c.odds || [])[0] || {};
-    return Object.assign(base, { away: side("away"), home: side("home"), line: odds.details || "", ou: odds.overUnder || null, sit: c.situation ? { down: c.situation.shortDownDistanceText || "", poss: c.situation.possession || "", rz: !!c.situation.isRedZone, last: (c.situation.lastPlay || {}).text || "" } : null });
+    // Win chances: live games use ESPN's in-game win probability; before kickoff, the sportsbook moneyline with the house cut removed.
+    const mlOf = k => { const m = odds.moneyline && odds.moneyline[k]; const v = (m && ((m.close || {}).odds || (m.open || {}).odds)) || ((odds[k + "TeamOdds"] || {}).moneyLine); const n = Number(String(v || "").replace(/^\+/, "")); return Number.isFinite(n) && Math.abs(n) >= 100 ? n : null; };
+    const imp = n => n == null ? null : n < 0 ? -n / (-n + 100) : 100 / (n + 100);
+    const mh = mlOf("home"), ma = mlOf("away");
+    let wp = null;
+    const lp = c.situation && c.situation.lastPlay && c.situation.lastPlay.probability;
+    if (st.state === "in" && lp && lp.homeWinPercentage != null) wp = { home: Math.round(lp.homeWinPercentage * 100), src: "live" };
+    else if (st.state === "pre" && mh != null && ma != null) { const h = imp(mh), a = imp(ma); wp = { home: Math.round(h / (h + a) * 100), src: "odds" }; }
+    if (wp) wp.away = 100 - wp.home;
+    return Object.assign(base, { away: side("away"), home: side("home"), line: odds.details || "", ou: odds.overUnder || null, ml: mh != null || ma != null ? { home: mh, away: ma } : null, wp, sit: c.situation ? { down: c.situation.shortDownDistanceText || "", poss: c.situation.possession || "", rz: !!c.situation.isRedZone, last: (c.situation.lastPlay || {}).text || "" } : null });
   });
   return out({ sport: s, label: sp[1], day: (j.day || {}).date || "", games }, 200, 30);
 }
