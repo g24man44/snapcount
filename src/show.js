@@ -100,8 +100,10 @@ const thinkOff = model => /2\.5-flash/.test(model) ? { thinkingConfig: { thinkin
 export const GEM_VOICES = { DEZ: "Fenrir", SAM: "Zephyr" }; // Fenrir: "excitable"; Zephyr: "bright"
 const NAME = { DEZ: "Dez", SAM: "Sam" };
 const gemKey = env => String(env.GEMINI_KEY || "").trim();
-async function gemFetch(env, model, body) {
-  const r = await fetch(GEM + model + ":generateContent", { method: "POST", headers: { "x-goog-api-key": gemKey(env), "content-type": "application/json" }, body: JSON.stringify(body) });
+async function gemFetch(env, model, body, ms) {
+  let r;
+  try { r = await fetch(GEM + model + ":generateContent", { method: "POST", headers: { "x-goog-api-key": gemKey(env), "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(ms || 45000) }); }
+  catch (e) { const err = new Error(model + " didn’t answer in " + Math.round((ms || 45000) / 1000) + " s"); err.status = 504; throw err; }
   if (!r.ok) { let m = ""; try { const j = await r.json(); m = (j.error && j.error.message) || ""; } catch (e) {} const err = new Error("Gemini " + r.status + (m ? ": " + m.slice(0, 160) : "")); err.status = r.status; throw err; }
   return r;
 }
@@ -121,6 +123,12 @@ async function gemWrite(env, sys, user) {
 }
 // Chat-style text for the app's AI features (coach, briefing, recaps…), on the owner's free Gemini key.
 // Flash 2.5 first (biggest free daily quota, thinking off for speed), then the newer flash.
+// For the health check: try each writing model separately and report exactly what happened.
+export async function gemProbe(env) {
+  const m = await gemModels(env);
+  const one = async model => { const t = Date.now(); try { const j = await (await gemFetch(env, model, { contents: [{ role: "user", parts: [{ text: "Reply with OK." }] }], generationConfig: Object.assign({ maxOutputTokens: 20 }, thinkOff(model)) }, 12000)).json(); const ok = (((j.candidates || [])[0] || {}).content || {}).parts; return { model, ok: !!ok, ms: Date.now() - t, note: ok ? "" : "empty answer" }; } catch (e) { return { model, ok: false, ms: Date.now() - t, note: String(e.message).slice(0, 110) }; } };
+  return { models: m, results: await Promise.all(m.text.slice(0, 3).map(one)) };
+}
 export async function gemChat(env, messages, maxTokens, temperature) {
   if (!gemKey(env)) return "";
   const sys = messages.filter(m => m.role === "system").map(m => m.content).join("\n\n");
