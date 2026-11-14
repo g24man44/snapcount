@@ -25,6 +25,7 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- Live win chance for every fantasy matchup: League tab shows a bar under each game (Fleaflicker loads every team's live lineup, refreshed every 2 min during games); your own matchup's win chance now works on home (opponent's live lineup loaded too); the live-score notification includes your win %.
 - Upset watch and big swings (information only, no betting picks): every 3 min during NFL and ranked college games; upset alert once when a pregame underdog of 35% or less reaches 70%; swing alert (max 2 per game) when win chance moves 35+ points between checks. Encrypted pushes, state in the Durable Object, toggle in Alerts.
 - Win chances on every NFL and college game in Scores: a two-color bar from the sportsbook moneyline before kickoff (house cut removed) and ESPN's live win probability during the game; spread, over/under and moneyline underneath.
 - Live matchup score in the notification bar (free): every 3 min while NFL games are live the server sends an encrypted push (score inside, nothing stored in KV) that replaces itself silently on Android; iPhone gets one at the end of each game window. Fleaflicker and Sleeper leagues; toggle in Alerts. Live-window bookkeeping lives in a Durable Object; subscriber index key avoids KV list calls.

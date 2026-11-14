@@ -983,6 +983,7 @@ nav.tabbar button[aria-selected=true]::before{display:none}
 .wpb{margin-top:10px}.wpl{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:12.5px;color:var(--muted)}.wpl b{color:var(--ink);font-variant-numeric:tabular-nums}.wpl small{font-size:11px}
 .wpt{display:flex;height:6px;border-radius:3px;overflow:hidden;margin-top:5px;gap:2px;background:var(--surface2)}.wpt i{display:block;height:100%;min-width:3px}
 .gbet{margin-top:6px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.mwp{grid-column:1/-1;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;margin-top:8px;font-size:12.5px}.mwp b{font-variant-numeric:tabular-nums}.mwp .wpt{margin:0}
 @media (max-width:400px){h2{font-size:28px}.brand h1{font-size:21px}.coachfab{padding:8px 10px!important}}
 @media (max-width:350px){.brand h1{font-size:21px}.coachfab{font-size:0!important;gap:0;padding:9px!important}.coachfab i{font-size:16px}}
 </style>
@@ -1327,7 +1328,7 @@ async function loadAll(){
     catch(e){ L.error = e.message; }
     if (cur.tab === "leagues") render();
   }));
-  await Promise.all(leagues.filter(L => L.meta.platform === "flea" && L.detail).map(L => { const me = L.detail.teams.find(t => t.mine); return me && !me.live ? fleaTeamRoster(L, me) : null; }));
+  await Promise.all(leagues.filter(L => L.meta.platform === "flea" && L.detail).flatMap(L => { const me = L.detail.teams.find(t => t.mine); if (!me) return []; const g = L.detail.games.find(x => x.a.id === me.id || x.b.id === me.id), op = g && L.detail.teams.find(t => t.id === (g.a.id === me.id ? g.b.id : g.a.id)); return [me, op].filter(t => t && !t.live).map(t => fleaTeamRoster(L, t)); }));
   if (cur.tab === "leagues" || cur.tab === "edge") render();
   syncAlerts().catch(() => {});
   if (leagues.some(L => L.detail && L.detail.teams.some(t => t.mine))) maybeTour();
@@ -1729,6 +1730,18 @@ function teamLogo(t, big){
   return '<span class="tl' + (big ? " big" : "") + '"><i>' + esc(initials(t && t.name)) + "</i>" + (t && t.logo ? '<img src="' + esc(t.logo) + '" alt="" loading="lazy" onerror="this.remove()">' : "") + "</span>";
 }
 const posTag = p => '<em class="pt" data-pos="' + esc(p.pos || "") + '">' + esc(p.pos || "–") + "</em>";
+// Chance the first team wins: projected finish gap over the spread of points still to be played.
+function wpFrom(projA, projB, remA, remB){
+  const sd = Math.max(1.2, 6 * Math.sqrt((remA + remB) / 10));
+  return Math.min(0.995, Math.max(0.005, normCdf((projA - projB) / sd)));
+}
+function gameWp(d, g){
+  const A = d.teams.find(t => t.id === g.a.id), B = d.teams.find(t => t.id === g.b.id);
+  const la = teamLive(A, g.a), lb = teamLive(B, g.b);
+  if (la && lb) return {a: wpFrom(la.proj, lb.proj, la.rem, lb.rem), pa: la.proj, pb: lb.proj};
+  if (g.a.proj != null && g.b.proj != null) return {a: wpFrom(g.a.proj, g.b.proj, Math.max(0, g.a.proj - (g.a.pts || 0)), Math.max(0, g.b.proj - (g.b.pts || 0))), pa: g.a.proj, pb: g.b.proj};
+  return null;
+}
 function matchupHero(d, me, g, compact){
   const mine = g.a.id === me.id ? g.a : g.b, opp = g.a.id === me.id ? g.b : g.a;
   const ot = d.teams.find(t => t.id === opp.id) || {name:"Opponent"};
@@ -1739,12 +1752,7 @@ function matchupHero(d, me, g, compact){
   const lpA = teamLive(meT, mine), lpB = teamLive(opT, opp);
   if ((mine.proj == null || mine._lp) && lpA && lpB) { mine.proj = lpA.proj; opp.proj = lpB.proj; mine._lp = opp._lp = true; }
   let wp = null;
-  if (mine.proj != null && opp.proj != null) {
-    const remA = lpA ? lpA.rem : Math.max(0, mine.proj - (mine.pts || 0)), remB = lpB ? lpB.rem : Math.max(0, opp.proj - (opp.pts || 0));
-    const sd = Math.max(1.2, 6 * Math.sqrt((remA + remB) / 10));
-    wp = normCdf((mine.proj - opp.proj) / sd);
-    wp = Math.min(0.995, Math.max(0.005, wp));
-  }
+  if (mine.proj != null && opp.proj != null) wp = wpFrom(mine.proj, opp.proj, lpA ? lpA.rem : Math.max(0, mine.proj - (mine.pts || 0)), lpB ? lpB.rem : Math.max(0, opp.proj - (opp.pts || 0)));
   const showPts = !pre, A = showPts ? mine.pts : mine.proj, B = showPts ? opp.pts : opp.proj;
   const aLead = (A || 0) >= (B || 0);
   const row = (t, pts, proj, lead) => '<div class="bugrow' + (lead ? " lead" : "") + '">' + teamLogo(t) + '<span class="bugname">' + esc(t.name) + '</span><span class="bugrec">' + rec(t) + '</span><span class="bugpts">' + fmt(pts) + "</span>" + (showPts && proj != null ? '<span class="bugproj">' + fmt(proj) + "</span>" : '<span class="bugproj"></span>') + "</div>";
@@ -1928,6 +1936,10 @@ function renderLeague(v, L){
     GROUPS.forEach(([title, ids]) => { const list = ids.map(id => tiles.find(t => idOf(t) === id)).filter(t => t && !used.has(t)); list.forEach(t => used.add(t)); if (list.length) more += '<h3 class="tgh">' + title + '</h3><div class="tlist">' + list.map(t => t.replace('class="btn aibtn"', 'class="btn ghost"')).join("") + "</div>"; });
     const rest = tiles.filter(t => !used.has(t)); if (rest.length) more += '<h3 class="tgh">More</h3><div class="tlist">' + rest.join("") + "</div>";
     if (more) h += '<details class="moretools"' + (cur.moreTools ? " open" : "") + '><summary>More tools <span class="small muted">' + (tiles.length - top.length) + "</span></summary>" + more + "</details>";
+    if (d.games.length && m.platform === "flea" && !d._allLoading && (!d._allAt || (anyLive() && Date.now() - d._allAt > 120000))) {
+      d._allLoading = true;
+      Promise.all(d.teams.map(t => fleaTeamRoster(L, t))).then(() => { d._allAt = Date.now(); d._allLoading = false; if (cur.league === leagues.indexOf(L) && cur.sub === "league") render(); });
+    }
     if (d.games.length) {
       h += "<h3>Matchups" + (d.week ? " · Week " + d.week : "") + '</h3><div class="stack">';
       d.games.forEach(g => {
@@ -1936,7 +1948,8 @@ function renderLeague(v, L){
         const va = notStarted && hasProj ? g.a.proj : g.a.pts, vb = notStarted && hasProj ? g.b.proj : g.b.pts;
         const aLead = (va||0) > (vb||0), bLead = (vb||0) > (va||0);
         const show = v => notStarted && !hasProj ? "–" : fmt(v);
-        h += '<div class="card score' + (notStarted ? " pre" : "") + (m.platform === "flea" && g.id ? ' tapable" data-game="' + esc(g.id) : "") + '"><span class="t' + (me && A.id === me.id ? " me" : "") + '">' + esc(A.name) + '</span><span class="p ' + (aLead ? "lead" : "") + '">' + show(va) + '</span><span class="t' + (me && B.id === me.id ? " me" : "") + '">' + esc(B.name) + '</span><span class="p ' + (bLead ? "lead" : "") + '">' + show(vb) + "</span>" + (notStarted && hasProj ? '<span class="sproj">Projected</span>' : "") + "</div>";
+        const gw = gameWp(d, g), wpa = gw ? Math.round(gw.a * 100) : null;
+        h += '<div class="card score' + (notStarted ? " pre" : "") + (m.platform === "flea" && g.id ? ' tapable" data-game="' + esc(g.id) : "") + '"><span class="t' + (me && A.id === me.id ? " me" : "") + '">' + esc(A.name) + '</span><span class="p ' + (aLead ? "lead" : "") + '">' + show(va) + '</span><span class="t' + (me && B.id === me.id ? " me" : "") + '">' + esc(B.name) + '</span><span class="p ' + (bLead ? "lead" : "") + '">' + show(vb) + "</span>" + (notStarted && hasProj ? '<span class="sproj">Projected</span>' : "") + (wpa != null && !(g.final) ? '<div class="mwp" aria-label="Win chance ' + esc(A.name) + " " + wpa + "%, " + esc(B.name) + " " + (100 - wpa) + '%"><b>' + wpa + '%</b><div class="wpt"><i style="width:' + wpa + '%;background:var(--accent)"></i><i style="width:' + (100 - wpa) + '%;background:var(--muted)"></i></div><b>' + (100 - wpa) + "%</b></div>" : "") + "</div>";
       });
       h += "</div>";
     }

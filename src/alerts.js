@@ -157,7 +157,9 @@ export async function liveScores(env) {
       const me = g.a.id === L.team ? g.a : g.b, op = g.a.id === L.team ? g.b : g.a, d = me.pts - op.pts;
       const lead = Math.abs(d) < 0.05 ? "Tied" : d > 0 ? "You lead by " + f1(d) : "You trail by " + f1(-d);
       const title = me.name + " " + f1(me.pts) + " – " + f1(op.pts) + " " + op.name;
-      const body = lead + (me.proj != null && op.proj != null ? " · Projected " + f1(me.proj) + "–" + f1(op.proj) : "") + " · " + (windowEnded ? "End of this game window" : "Live, " + tm) + "\n" + (L.name || "Your league") + (m.week ? " · Week " + m.week : "");
+      let wpTxt = "";
+      if (me.proj != null && op.proj != null && !windowEnded) { const rem = Math.max(0, me.proj - me.pts) + Math.max(0, op.proj - op.pts), sd = Math.max(1.2, 6 * Math.sqrt(rem / 10)), z = (me.proj - op.proj) / sd; const cdf = 0.5 * (1 + Math.tanh(0.7978845608 * (z + 0.044715 * z * z * z))); wpTxt = " · " + Math.round(Math.min(.995, Math.max(.005, cdf)) * 100) + "% to win"; }
+      const body = lead + wpTxt + (me.proj != null && op.proj != null ? " · Projected " + f1(me.proj) + "–" + f1(op.proj) : "") + " · " + (windowEnded ? "End of this game window" : "Live, " + tm) + "\n" + (L.name || "Your league") + (m.week ? " · Week " + m.week : "");
       try { const s = await sendPushData(env, rec.sub, rec.origin, { live: 1, tag: "live:" + L.p + ":" + L.id, title, body, url: "/" }, windowEnded ? 43200 : 300); if (s >= 200 && s < 300) sent++; if (s === 404 || s === 410) { await env.SNAP.delete("sub:" + id); break; } } catch (e) {}
     }
   }
