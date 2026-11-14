@@ -2,7 +2,7 @@
 // Paste this whole file into a new Cloudflare Worker and deploy. Free plan is fine.
 
 import { chatRoute, groupmeSay, ChatRoom } from "./src/chat.js";
-import { showRoute, elUsage, elSetup } from "./src/show.js";
+import { showRoute, elUsage, elSetup, gemModels, gemChat } from "./src/show.js";
 import { alertsRoute, runMinute, staticRoute, injuriesRoute, readInjuries, eachSubscriber, norm } from "./src/alerts.js";
 import { PROSPECTS } from "./src/prospects.js";
 import { gameWeather } from "./src/weather.js";
@@ -376,10 +376,11 @@ async function healthCheck(env) {
   if (env.GEMINI_KEY) await check("Show (Gemini)", async () => {
     const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", { headers: { "x-goog-api-key": String(env.GEMINI_KEY).trim() } });
     if (!r.ok) throw new Error("Gemini said HTTP " + r.status + (r.status === 400 || r.status === 403 ? " (key not accepted)" : ""));
-    const names = ((await r.json()).models || []).map(m => m.name);
-    const tts = names.filter(n => /tts/.test(n)).map(n => n.replace("models/", ""));
-    if (!tts.length) throw new Error("key works, but no Gemini voice models are available to it");
-    return tts.slice(0, 3).join(", ");
+    const m = await gemModels(env);
+    if (!m.text.length) throw new Error("key works, but no Gemini writing models are available to it");
+    const t = await gemChat(env, [{ role: "user", content: "Reply with the single word OK." }], 20, 0);
+    if (!t) throw new Error("writing test failed on " + m.text.join(", "));
+    return "writes with " + m.text[0] + (m.tts[0] ? ", voices " + m.tts[0] : "");
   });
   if (env.ELEVENLABS_KEY) await check("Show voices (ElevenLabs)", async () => {
     const u = await elUsage(env), set = await elSetup(env);

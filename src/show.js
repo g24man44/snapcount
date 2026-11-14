@@ -75,8 +75,26 @@ const plain = t => String(t).replace(/<[^>]{1,20}>/g, "").replace(/\|([^|]{1,60}
 const GEM = "https://generativelanguage.googleapis.com/v1beta/models/";
 // 2.5 Flash with thinking off writes a script in ~10 s; the slow "thinking" pass pushed requests past the
 // ~100 s a phone connection stays open ("Failed to fetch").
-const GEM_TEXT = ["gemini-2.5-flash", "gemini-3.8-flash"];
-const GEM_TTS = ["gemini-3.8-flash-tts", "gemini-3.1-flash-tts-preview", "gemini-2.5-flash-preview-tts"];
+// Model names change; ask Google which ones this key can use (cached a day) and rank them.
+let gemModelsMem = null;
+export async function gemModels(env) {
+  if (gemModelsMem && Date.now() - gemModelsMem.at < 6 * 3600e3) return gemModelsMem;
+  let c = env.SNAP ? await env.SNAP.get("gem:models", "json").catch(() => null) : null;
+  if (!c || Date.now() - c.at > 86400e3) {
+    const r = await fetch(GEM.replace(/\/$/, "") + "?pageSize=300", { headers: { "x-goog-api-key": gemKey(env) } });
+    if (!r.ok) { const e = new Error("Gemini model list " + r.status); e.status = r.status; throw e; }
+    const ms = ((await r.json()).models || []).filter(m => (m.supportedGenerationMethods || []).includes("generateContent")).map(m => m.name.replace("models/", ""));
+    const ver = n => Number((n.match(/gemini-(\d+(?:\.\d+)?)/) || [])[1] || 0);
+    const rank = (a, b) => (ver(b) - ver(a)) || (/preview|exp/.test(a) - /preview|exp/.test(b)) || (a.length - b.length);
+    const text = ms.filter(n => /^gemini-[\d.]+-flash(-preview[-\d]*)?$/.test(n) || /^gemini-flash-latest$/.test(n)).sort(rank);
+    const lite = ms.filter(n => /^gemini-[\d.]+-flash-lite(-preview[-\d]*)?$/.test(n)).sort(rank);
+    const tts = ms.filter(n => /tts/.test(n)).sort((a, b) => (/pro/.test(b) - /pro/.test(a)) || rank(a, b));
+    c = { at: Date.now(), text: text.concat(lite).slice(0, 4), tts: tts.slice(0, 4) };
+    if (env.SNAP && c.text.length) await env.SNAP.put("gem:models", JSON.stringify(c)).catch(() => {});
+  }
+  return (gemModelsMem = c);
+}
+const thinkOff = model => /2\.5-flash/.test(model) ? { thinkingConfig: { thinkingBudget: 0 } } : /gemini-3/.test(model) ? { thinkingConfig: { thinkingLevel: "low" } } : {};
 export const GEM_VOICES = { DEZ: "Fenrir", SAM: "Zephyr" }; // Fenrir: "excitable"; Zephyr: "bright"
 const NAME = { DEZ: "Dez", SAM: "Sam" };
 const gemKey = env => String(env.GEMINI_KEY || "").trim();
@@ -87,12 +105,15 @@ async function gemFetch(env, model, body) {
 }
 async function gemWrite(env, sys, user) {
   let last = null;
-  for (const model of GEM_TEXT) {
+  for (const model of (await gemModels(env)).text) {
     try {
-      const j = await (await gemFetch(env, model, { systemInstruction: { parts: [{ text: sys }] }, contents: [{ role: "user", parts: [{ text: user }] }], generationConfig: Object.assign({ temperature: 0.9, maxOutputTokens: 3000 }, model === "gemini-2.5-flash" ? { thinkingConfig: { thinkingBudget: 0 } } : {}) })).json();
+      let res;
+      try { res = await gemFetch(env, model, { systemInstruction: { parts: [{ text: sys }] }, contents: [{ role: "user", parts: [{ text: user }] }], generationConfig: Object.assign({ temperature: 0.9, maxOutputTokens: 3000 }, thinkOff(model)) }); }
+      catch (e) { if (e.status !== 400) throw e; res = await gemFetch(env, model, { systemInstruction: { parts: [{ text: sys }] }, contents: [{ role: "user", parts: [{ text: user }] }], generationConfig: { temperature: 0.9, maxOutputTokens: 6000 } }); }
+      const j = await res.json();
       const t = ((j.candidates || [])[0] || {}).content; const txt = ((t && t.parts) || []).filter(x => !x.thought && x.text).map(x => x.text).join("\n");
       if (txt) return txt;
-    } catch (e) { last = e; if (e.status && e.status !== 404 && e.status !== 400) break; }
+    } catch (e) { last = e; if (e.status === 401 || e.status === 403) break; }
   }
   throw last || new Error("Gemini wrote nothing");
 }
@@ -102,11 +123,13 @@ export async function gemChat(env, messages, maxTokens, temperature) {
   if (!gemKey(env)) return "";
   const sys = messages.filter(m => m.role === "system").map(m => m.content).join("\n\n");
   const contents = messages.filter(m => m.role !== "system").map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: String(m.content || "") }] }));
-  for (const model of ["gemini-2.5-flash", "gemini-3.8-flash"]) {
+  let models = []; try { models = (await gemModels(env)).text; } catch (e) { return ""; }
+  for (const model of models) {
     try {
-      const gc = { temperature: temperature ?? 0.5, maxOutputTokens: Math.max(400, (maxTokens || 600) + 200) };
-      if (model === "gemini-2.5-flash") gc.thinkingConfig = { thinkingBudget: 0 };
-      const j = await (await gemFetch(env, model, { systemInstruction: sys ? { parts: [{ text: sys }] } : undefined, contents, generationConfig: gc })).json();
+      const gc = Object.assign({ temperature: temperature ?? 0.5, maxOutputTokens: Math.max(400, (maxTokens || 600) + 200) }, thinkOff(model));
+      const body = { systemInstruction: sys ? { parts: [{ text: sys }] } : undefined, contents, generationConfig: gc };
+      let res; try { res = await gemFetch(env, model, body); } catch (e) { if (e.status !== 400) throw e; delete gc.thinkingConfig; gc.maxOutputTokens = Math.max(2000, gc.maxOutputTokens * 3); res = await gemFetch(env, model, body); }
+      const j = await res.json();
       const c = ((j.candidates || [])[0] || {}).content, txt = ((c && c.parts) || []).filter(x => !x.thought && x.text).map(x => x.text).join("").trim();
       if (txt) return txt;
     } catch (e) { if (e.status === 401 || e.status === 403) break; }
@@ -123,7 +146,7 @@ async function gemSpeak(env, lines, pairKey) {
   const pair = GEM_PAIRS[pairKey] || GEM_PAIRS[(env.SNAP && await env.SNAP.get("showvoice")) || "a"] || GEM_PAIRS.a;
   const cfg = { responseModalities: ["AUDIO"], speechConfig: { multiSpeakerVoiceConfig: { speakerVoiceConfigs: ["DEZ", "SAM"].map(h => ({ speaker: NAME[h], voiceConfig: { prebuiltVoiceConfig: { voiceName: pair[h] } } })) } } };
   let last = null;
-  for (const model of GEM_TTS) {
+  for (const model of (await gemModels(env)).tts) {
     try {
       const contents = model.startsWith("gemini-3.8")
         ? [{ role: "user", parts: lines.map(l => ({ text: l.t, speech_metadata: { speaker: NAME[l.s], style: l.st || "natural, casual" } })) }]
@@ -302,7 +325,7 @@ export async function showRoute(request, url, env) {
     const allowed = new Set();
     for (const m of data.matchAll(/\d+(?:\.\d+)?/g)) { const x = Number(m[0]); allowed.add(m[0]); allowed.add(String(Math.round(x))); allowed.add(String(Math.floor(x))); allowed.add(x.toFixed(1)); }
     const badNums = ls => ls.flatMap(l => (l.t.match(/\d+(?:\.\d+)?/g) || []).filter(n => Number(n) > 20 && !allowed.has(n)));
-    let best = null, lastErr = null, useCf = false;
+    let best = null, lastErr = null, useCf = false, gemErr = null;
     const t0 = Date.now();
     for (let tries = 0; tries < 3 && !(best && !best.bad.length) && !(best && Date.now() - t0 > 35000); tries++) {
       const model = SCRIPT_MODELS[tries === 2 ? 1 : 0];
@@ -310,7 +333,7 @@ export async function showRoute(request, url, env) {
       try {
         let txt = "";
         const len = elKey(env) ? "\n\nKeep it SHORT this time: 330 to 400 words total (the voice budget is tight). Fewer games in detail; still mention the closest game, the blowout, the high score and the blunder." : "";
-        if (gemKey(env) && !useCf) { try { txt = await gemWrite(env, SHOW_SYS, "LEAGUE DATA:\n" + data + "\n\nWrite the script now." + len + fix); } catch (e) { lastErr = e; useCf = true; } }
+        if (gemKey(env) && !useCf) { try { txt = await gemWrite(env, SHOW_SYS, "LEAGUE DATA:\n" + data + "\n\nWrite the script now." + len + fix); } catch (e) { lastErr = e; gemErr = e; useCf = true; } }
         if (!txt) {
           const r = await env.AI.run(model, { messages: [{ role: "system", content: SHOW_SYS }, { role: "user", content: "LEAGUE DATA:\n" + data + "\n\nWrite the script now." + len + fix }], max_tokens: 1800, temperature: 0.8 });
           txt = String((r && (r.response ?? (r.choices && r.choices[0] && r.choices[0].message && r.choices[0].message.content))) ?? "");
@@ -323,6 +346,7 @@ export async function showRoute(request, url, env) {
     const lines = best ? best.lines : [];
     if (lines.length < 12) {
       const m = String(lastErr && lastErr.message || "");
+      if (gemErr) return out({ error: "Gemini couldn’t write the script: " + String(gemErr.message).slice(0, 200) }, 502);
       if (/4006|neuron|allocation|quota|limit/i.test(m)) return out({ error: "Today’s free AI allowance is used up. Try again after 7 PM Eastern, when it resets.", wait: true }, 503);
       return out({ error: "The script writer came back short. Try again in a minute. (" + m.slice(0, 100) + ")" }, 502);
     }
