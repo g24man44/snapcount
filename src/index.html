@@ -974,6 +974,12 @@ nav.tabbar button[aria-selected=true]::before{display:none}
 #tdFx.fg b{font-size:54px}
 .tdask{margin-bottom:12px}.tdask b{font:800 19px/1.15 var(--display);font-stretch:88%}.tdask .tdp{margin:4px 0 12px;font-size:14px;color:var(--muted)}
 .tdrow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;cursor:pointer;margin-bottom:12px}.tdrow>span:first-child{flex:1;display:flex;flex-direction:column;gap:2px}
+.plban{position:fixed;z-index:90;left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));top:calc(10px + env(safe-area-inset-top,0px));max-width:520px;margin:0 auto;display:flex;gap:12px;align-items:center;padding:12px 14px;border-radius:12px;background:var(--surface);border:1px solid var(--line);border-left:5px solid var(--accent);box-shadow:var(--shadow);color:var(--ink);animation:plin .3s cubic-bezier(.2,.8,.2,1);transition:opacity .4s,transform .3s;cursor:pointer}
+.plban.opp{border-left-color:var(--bad)}.plban.out{opacity:0;transform:translateY(-10px)}
+@keyframes plin{from{transform:translateY(-30px);opacity:0}}
+.plban>img,.plban>i{width:48px;height:48px;border-radius:50%;object-fit:cover;object-position:top;flex:none;background:var(--surface2);display:grid;place-items:center;font:800 15px/1 var(--body);font-style:normal;color:var(--muted)}
+.plban>span{display:flex;flex-direction:column;gap:2px;min-width:0}.plban b{font:800 17px/1.15 var(--display);font-stretch:88%}.plban>span>span{font-size:14px;line-height:1.3}.plban small{font-size:12px;color:var(--muted);font-weight:600}
+@media (prefers-reduced-motion:reduce){.plban{animation:none}}
 @media (max-width:400px){h2{font-size:28px}.brand h1{font-size:21px}.coachfab{padding:8px 10px!important}}
 @media (max-width:350px){.brand h1{font-size:21px}.coachfab{font-size:0!important;gap:0;padding:9px!important}.coachfab i{font-size:16px}}
 </style>
@@ -1495,6 +1501,54 @@ async function openTD(){
   };
   draw();
 }
+
+/* ---------- Your fantasy players scoring, live in the app: a banner when one of your starters (or your opponent's) scores ---------- */
+let plSeen = null, plTimer = null;
+function myStarterSets(){
+  const mine = new Map(), opp = new Map();
+  myTeams().forEach(({L, me}) => {
+    (me.roster || []).filter(p => p.slot === "start" && p.name).forEach(p => mine.set(norm(p.name), {p, L, me}));
+    const g = (L.detail.games || []).find(x => x.a.id === me.id || x.b.id === me.id), oid = g && (g.a.id === me.id ? g.b.id : g.a.id), o = oid && L.detail.teams.find(t => t.id === oid);
+    if (o) (o.roster || []).filter(p => p.slot === "start" && p.name).forEach(p => opp.set(norm(p.name), {p, L, me: o}));
+  });
+  return {mine, opp};
+}
+function playBanner(ev, hit, theirs){
+  const box = document.createElement("div"); box.className = "plban" + (theirs ? " opp" : ""); box.setAttribute("role", "status");
+  const title = ev.kind === "td" ? (theirs ? "Opponent touchdown" : "Touchdown for you") : ev.kind === "big" ? (theirs ? "Big play against you" : "Big play for you") : (theirs ? "Opponent scores" : "Points for you");
+  const img = hit.p.img ? '<img src="' + esc(hit.p.img) + '" alt="" onerror="this.remove()">' : '<i>' + esc(initials(hit.p.name)) + "</i>";
+  box.innerHTML = img + '<span><b>' + esc(title) + '</b><span>' + esc(ev.text) + '</span><small>' + esc(hit.me.name) + (myTeams().length > 1 ? " · " + esc(hit.L.meta.name) : "") + "</small></span>";
+  box.addEventListener("click", () => box.remove());
+  document.querySelectorAll(".plban").forEach((b, i) => { b.style.transform = "translateY(" + ((i + 1) * 8) + "px) scale(.97)"; });
+  document.body.appendChild(box);
+  try { navigator.vibrate && navigator.vibrate(theirs ? [80] : [120, 60, 120]); } catch(e){}
+  if (ev.kind === "td" && !theirs && tdPrefs().sound !== "off") tdHorn(true);
+  setTimeout(() => box.classList.add("out"), 7000); setTimeout(() => box.remove(), 7600);
+}
+async function playWatch(){
+  clearTimeout(plTimer);
+  if (document.hidden) return;
+  if (!gamesAt) await loadScoreboard();
+  const live = anyLive();
+  if (live && myTeams().length) {
+    try {
+      const r = await api("/api/plays"), ev = r.ev || [];
+      if (!plSeen) plSeen = new Set(ev.map(x => x.id));
+      else {
+        const {mine, opp} = myStarterSets();
+        ev.filter(x => !plSeen.has(x.id)).forEach(x => {
+          plSeen.add(x.id);
+          const t = norm(x.text);
+          const hit = [...mine.keys()].find(k => k.length > 4 && t.includes(k)), them = !hit && x.kind === "td" && [...opp.keys()].find(k => k.length > 4 && t.includes(k));
+          if (hit) playBanner(x, mine.get(hit), false); else if (them) playBanner(x, opp.get(them), true);
+        });
+      }
+    } catch(e){}
+  }
+  plTimer = setTimeout(playWatch, live ? 30000 : 300000);
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden) playWatch(); else clearTimeout(plTimer); });
+setTimeout(playWatch, 6000);
 /* ---------- Home: one card that changes with the day (game time, lineup check, waivers, all set) ---------- */
 function etNow(){ return new Date(new Date().toLocaleString("en-US", {timeZone: "America/New_York"})); }
 function myTeams(){ return leagues.map((L, i) => ({L, i, me: L.detail && L.detail.teams.find(t => t.mine)})).filter(x => x.me); }

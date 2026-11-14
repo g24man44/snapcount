@@ -826,6 +826,10 @@ export async function playAlerts(env) {
     }
     next[e.id] = n;
   }
+  // The last 40 scoring plays and big plays, for the in-app banner (it reads them through /api/plays; no extra writes).
+  const now = Date.now();
+  next._ev = (prev._ev || []).filter(x => now - x.at < 6 * 3600e3).concat(events.filter(x => x.kind === "td" || x.kind === "score" || x.kind === "big").map(x => ({ id: x.id, kind: x.kind, text: x.text.replace(/\s+/g, " ").slice(0, 200), game: x.game, at: now }))).slice(-40);
+  if (!next._ev.length) delete next._ev;
   // Free KV allows 1,000 writes a day: only save when a game's state actually moved.
   const nextRaw = JSON.stringify(next);
   if (nextRaw !== (prevRaw || "{}")) await env.SNAP.put("plays:state", nextRaw, { expirationTtl: 86400 });

@@ -853,6 +853,7 @@ export default {
       if (p === "/api/mfl") return mflRoute(url, ctx);
       if (p === "/api/scores") return cached(ctx, "scores/" + url.search, 30, () => scoresRoute(url));
       if (p === "/api/cfb/teams") return cached(ctx, "cfbteams", 86400, cfbTeams);
+      if (p === "/api/plays") return cached(ctx, "plays", 20, async () => { const j = env.SNAP ? await env.SNAP.get("plays:state", "json") : null; return json({ ev: (j && j._ev) || [] }, 200, 20); });
       if (p === "/cal.ics" || p === "/api/cal.ics") return cached(ctx, "cal/" + url.search, 21600, () => calendarRoute(url));
       if (p === "/api/injuries") return cached(ctx, "injuries", 300, injuriesRoute);
       if (p.startsWith("/api/sleeper/")) {

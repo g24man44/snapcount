@@ -25,6 +25,7 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- In-app scoring banners: while games are live and the app is open, a banner drops in when one of your starters scores (photo, play, which team) or an opponent starter scores a TD; reads the server's scoring-play list through /api/plays (cached 20 s, no extra KV writes).
 - Score celebrations: each person picks a favorite NFL and college team (home asks until they pick; also on the Alerts page and More tools); touchdowns and field goals (optional) celebrate. On a TD with the app open it plays a stadium horn or a song file you pick from your phone (kept on the phone), buzzes, and flashes the team’s colors with confetti. Score checked every 20 s during their game.
 - ESPN feel: score strip of every NFL game across the top of home (logos, live first), Top headlines with photos (your players first), grey page with filled rounded cards, bold mixed-case type, pill Coach button and round header icons.
 - Open layout: no boxes around every section; sections sit on the page split by hairlines, only the scoreboard is filled; masthead rule under the header; tools and league tools as arrow lists; borderless header icons.
