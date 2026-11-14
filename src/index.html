@@ -7,8 +7,8 @@
 <meta name="theme-color" content="#eef2f8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0d1730" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="/manifest.json">
-<link rel="apple-touch-icon" href="/icon-192.png?v=3">
-<link rel="icon" type="image/png" href="/icon-192.png?v=3">
+<link rel="apple-touch-icon" href="/icon-192.png?v=4">
+<link rel="icon" type="image/png" href="/icon-192.png?v=4">
 <link rel="preload" href="/fonts/archivo-v1.woff" as="font" type="font/woff" crossorigin>
 <style>
 [class^=ic-],[class*=" ic-"]{display:inline-block;width:1.15em;height:1.15em;flex:none;background:currentColor;vertical-align:-.2em;-webkit-mask:var(--m) center/contain no-repeat;mask:var(--m) center/contain no-repeat}
@@ -63,7 +63,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 /* header */
 header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 0 8px}
 .brand{display:flex;align-items:center;gap:10px;margin:0}
-.brand .logo{width:36px;height:36px;border-radius:11px}
+.brand .logo{width:36px;height:36px;border-radius:11px;box-shadow:0 0 0 1px rgba(255,255,255,.14)}
 .brand h1{font:800 22px/1 var(--body);letter-spacing:-.03em;margin:0}
 .hright{display:flex;align-items:center;gap:8px}
 @media (max-width:430px){#wk{display:none}}
@@ -804,7 +804,7 @@ path.vho{stroke:var(--ok);stroke-dasharray:4 3}
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="brand"><img class="logo" src="/icon-192.png?v=3" alt=""><h1>Snap Count</h1></div>
+    <div class="brand"><img class="logo" src="/icon-192.png?v=4" alt=""><h1>Snap Count</h1></div>
     <div class="hright"><span class="wk" id="wk"></span><button type="button" class="coachfab" id="coachFab" aria-label="Ask the AI coach"><i class=ic-spark aria-hidden=true></i>Coach</button><button type="button" class="iconbtn" id="bellBtn" aria-label="Alerts" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15Z"/><path d="M10 21h4"/></svg></button><button class="iconbtn" id="gearBtn" aria-label="Accounts" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg></button></div>
   </header>
   <button type="button" id="updBar" class="updbar" hidden onclick="location.reload()">New version of Snap Count ready. Tap to update.</button>
@@ -1466,7 +1466,7 @@ function renderLeague(v, L){
   h += '<div class="seg sub" role="group" aria-label="League sections">' + [["team","My team"],["fa","Free agents"],["league","League"]].concat(m.platform === "flea" ? [["act","Activity"]] : []).concat(["flea", "sleeper"].includes(m.platform) ? [["trades","Trades"]] : []).map(x => '<button type="button" data-sub="' + x[0] + '" aria-pressed="' + (sub === x[0]) + '">' + x[1] + "</button>").join("") + "</div>";
   let me = cur.team ? d.teams.find(t => t.id === cur.team) : d.teams.find(t => t.mine);
   if (sub === "team") {
-    if (!me) h += '<div class="card install" style="margin-top:12px"><img src="/icon-192.png?v=3" alt=""><div><b>' + (cur.joined ? "Welcome to Snap Count" : "Which team is yours?") + '</b><span>Pick your team below. Your scores, alerts and trade tools all follow it.</span></div></div>';
+    if (!me) h += '<div class="card install" style="margin-top:12px"><img src="/icon-192.png?v=4" alt=""><div><b>' + (cur.joined ? "Welcome to Snap Count" : "Which team is yours?") + '</b><span>Pick your team below. Your scores, alerts and trade tools all follow it.</span></div></div>';
     const picker = (lab) => '<label for="teamPick" style="display:block;margin-top:' + (me ? "20px" : "12px") + '">' + lab + '</label><select id="teamPick">' + (me ? "" : '<option value="">Pick your team…</option>') +
       d.teams.map(t => '<option value="' + esc(t.id) + '"' + (me && me.id === t.id ? " selected" : "") + ">" + esc(t.name) + (t.owner ? " (" + esc(t.owner) + ")" : "") + "</option>").join("") + "</select>";
     if (!me) h += picker("Team");
@@ -7086,9 +7086,9 @@ const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.
 function installCard(){
   if (isInstalled()) return "";
   if (!installEvt && isIOS()) { let off = false; try { off = !!localStorage.getItem(KEY + ".iosHint"); } catch(e){}
-    return off ? "" : '<div class="card install"><img src="/icon-192.png?v=3" alt=""><div><b>Put Snap Count on your home screen</b><span>Tap the Share button <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px" aria-label="Share"><path d="M12 3v12M7 8l5-5 5 5M5 13v7h14v-7"/></svg> in Safari, then Add to Home Screen. Alerts on iPhone only work from there.</span></div><button class="icon" id="iosHintX" aria-label="Hide this">Hide</button></div>'; }
+    return off ? "" : '<div class="card install"><img src="/icon-192.png?v=4" alt=""><div><b>Put Snap Count on your home screen</b><span>Tap the Share button <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px" aria-label="Share"><path d="M12 3v12M7 8l5-5 5 5M5 13v7h14v-7"/></svg> in Safari, then Add to Home Screen. Alerts on iPhone only work from there.</span></div><button class="icon" id="iosHintX" aria-label="Hide this">Hide</button></div>'; }
   if (!installEvt) return "";
-  return '<div class="card install"><img src="/icon-192.png?v=3" alt=""><div><b>Get the Snap Count app</b><span>Its own icon, full screen, and alerts.</span></div><button class="btn" id="installBtn">Install</button></div>';
+  return '<div class="card install"><img src="/icon-192.png?v=4" alt=""><div><b>Get the Snap Count app</b><span>Its own icon, full screen, and alerts.</span></div><button class="btn" id="installBtn">Install</button></div>';
 }
 function wireInstall(v){
   const x = v.querySelector("#iosHintX"); if (x) x.addEventListener("click", () => { try { localStorage.setItem(KEY + ".iosHint", "1"); } catch(e){} render(); });
