@@ -73,7 +73,9 @@ const plain = t => String(t).replace(/<[^>]{1,20}>/g, "").replace(/\|([^|]{1,60}
 
 /* ---------- Gemini ---------- */
 const GEM = "https://generativelanguage.googleapis.com/v1beta/models/";
-const GEM_TEXT = ["gemini-3.8-flash", "gemini-2.5-flash"];
+// 2.5 Flash with thinking off writes a script in ~10 s; the slow "thinking" pass pushed requests past the
+// ~100 s a phone connection stays open ("Failed to fetch").
+const GEM_TEXT = ["gemini-2.5-flash", "gemini-3.8-flash"];
 const GEM_TTS = ["gemini-3.8-flash-tts", "gemini-3.1-flash-tts-preview", "gemini-2.5-flash-preview-tts"];
 export const GEM_VOICES = { DEZ: "Fenrir", SAM: "Zephyr" }; // Fenrir: "excitable"; Zephyr: "bright"
 const NAME = { DEZ: "Dez", SAM: "Sam" };
@@ -87,7 +89,7 @@ async function gemWrite(env, sys, user) {
   let last = null;
   for (const model of GEM_TEXT) {
     try {
-      const j = await (await gemFetch(env, model, { systemInstruction: { parts: [{ text: sys }] }, contents: [{ role: "user", parts: [{ text: user }] }], generationConfig: { temperature: 0.9, maxOutputTokens: 6000 } })).json();
+      const j = await (await gemFetch(env, model, { systemInstruction: { parts: [{ text: sys }] }, contents: [{ role: "user", parts: [{ text: user }] }], generationConfig: Object.assign({ temperature: 0.9, maxOutputTokens: 3000 }, model === "gemini-2.5-flash" ? { thinkingConfig: { thinkingBudget: 0 } } : {}) })).json();
       const t = ((j.candidates || [])[0] || {}).content; const txt = ((t && t.parts) || []).filter(x => !x.thought && x.text).map(x => x.text).join("\n");
       if (txt) return txt;
     } catch (e) { last = e; if (e.status && e.status !== 404 && e.status !== 400) break; }
@@ -301,7 +303,8 @@ export async function showRoute(request, url, env) {
     for (const m of data.matchAll(/\d+(?:\.\d+)?/g)) { const x = Number(m[0]); allowed.add(m[0]); allowed.add(String(Math.round(x))); allowed.add(String(Math.floor(x))); allowed.add(x.toFixed(1)); }
     const badNums = ls => ls.flatMap(l => (l.t.match(/\d+(?:\.\d+)?/g) || []).filter(n => Number(n) > 20 && !allowed.has(n)));
     let best = null, lastErr = null, useCf = false;
-    for (let tries = 0; tries < 3 && !(best && !best.bad.length); tries++) {
+    const t0 = Date.now();
+    for (let tries = 0; tries < 3 && !(best && !best.bad.length) && !(best && Date.now() - t0 > 35000); tries++) {
       const model = SCRIPT_MODELS[tries === 2 ? 1 : 0];
       const fix = best && best.bad.length ? "\n\nYour last draft used numbers that are NOT in the data: " + [...new Set(best.bad)].slice(0, 8).join(", ") + ". Use only numbers that appear in the data." : "";
       try {

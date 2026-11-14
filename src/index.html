@@ -7130,8 +7130,15 @@ async function openShow(L){
   async function make(){
     busy = true; msg = ""; draw();
     try {
-      const r = await post("/api/show/script?" + q, {dev: devId(), ctx: F.ctx, final, league: L.meta.name});
-      show = r.show; done = 0; busy = false; draw(); record();
+      let r;
+      try { r = await post("/api/show/script?" + q, {dev: devId(), ctx: F.ctx, final, league: L.meta.name}); }
+      catch(e){
+        // The connection can drop while the server keeps writing; check whether the script landed anyway.
+        if (!/fetch|network|load failed/i.test(e.message)) throw e;
+        for (let k = 0; k < 6 && !(r && r.show); k++) { await new Promise(x => setTimeout(x, 5000)); try { r = await api("/api/show?" + q); } catch(x){} }
+        if (!r || !r.show) throw new Error("The script is taking longer than usual. Close this and open it again in a minute.");
+      }
+      show = r.show; done = show.done || 0; busy = false; draw(); record();
     } catch(e){ busy = false; msg = e.message; draw(); }
   }
   body.innerHTML = '<p class="spin">Checking for this week’s episode…</p>';
