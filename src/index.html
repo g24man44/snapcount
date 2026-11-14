@@ -961,7 +961,7 @@ nav.tabbar button[aria-selected=true]::before{display:none}
 .hli small{display:block;margin-top:4px;color:var(--accent);font-weight:700;font-size:12px}
 #tdFx{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:var(--c1);overflow:hidden;animation:tdin .25s ease-out;cursor:pointer}
 @keyframes tdin{from{opacity:0;transform:scale(1.06)}}
-#tdFx .tdin{display:flex;flex-direction:column;align-items:center;gap:6px;color:#fff;text-align:center;padding:24px;position:relative;z-index:2}
+#tdFx .tdin{display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--tx,#fff);text-align:center;padding:24px;position:relative;z-index:2}
 #tdFx img{width:150px;height:150px;object-fit:contain;filter:drop-shadow(0 6px 18px rgba(0,0,0,.4));animation:tdbounce .6s ease-out}
 @keyframes tdbounce{0%{transform:scale(.4)}70%{transform:scale(1.12)}100%{transform:scale(1)}}
 #tdFx b{font:900 64px/.9 var(--display);font-stretch:62%;text-transform:uppercase;letter-spacing:.01em;text-shadow:0 4px 0 var(--c2)}
@@ -971,6 +971,8 @@ nav.tabbar button[aria-selected=true]::before{display:none}
 #tdFx>i{position:absolute;top:-20px;width:10px;height:16px;border-radius:2px;animation:tdfall 2.6s linear infinite}
 @keyframes tdfall{to{transform:translateY(110vh) rotate(540deg)}}
 @media (prefers-reduced-motion:reduce){#tdFx,#tdFx img,#tdFx>i{animation:none}#tdFx>i{display:none}}
+#tdFx.fg b{font-size:54px}
+.tdask{margin-bottom:12px}.tdask b{font:800 19px/1.15 var(--display);font-stretch:88%}.tdask .tdp{margin:4px 0 12px;font-size:14px;color:var(--muted)}
 .tdrow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;cursor:pointer;margin-bottom:12px}.tdrow>span:first-child{flex:1;display:flex;flex-direction:column;gap:2px}
 @media (max-width:400px){h2{font-size:28px}.brand h1{font-size:21px}.coachfab{padding:8px 10px!important}}
 @media (max-width:350px){.brand h1{font-size:21px}.coachfab{font-size:0!important;gap:0;padding:9px!important}.coachfab i{font-size:16px}}
@@ -1360,7 +1362,7 @@ function emptyState(v){
   wireAdd(v);
 }
 
-/* ---------- Touchdown celebration: when your NFL team scores while the app is open, play a sound and flash the screen ---------- */
+/* ---------- Score celebrations: each person picks a favorite NFL and college team; when one scores a touchdown or field goal while the app is open, the phone plays a sound and flashes their colors ---------- */
 const NFL_TEAMS = {ARI:["Cardinals","#97233F","#FFB612"],ATL:["Falcons","#A71930","#000000"],BAL:["Ravens","#241773","#9E7C0C"],BUF:["Bills","#00338D","#C60C30"],CAR:["Panthers","#0085CA","#101820"],CHI:["Bears","#0B162A","#C83803"],CIN:["Bengals","#FB4F14","#000000"],CLE:["Browns","#311D00","#FF3C00"],DAL:["Cowboys","#003594","#869397"],DEN:["Broncos","#FB4F14","#002244"],DET:["Lions","#0076B6","#B0B7BC"],GB:["Packers","#203731","#FFB612"],HOU:["Texans","#03202F","#A71930"],IND:["Colts","#002C5F","#A2AAAD"],JAX:["Jaguars","#006778","#D7A22A"],KC:["Chiefs","#E31837","#FFB81C"],LAC:["Chargers","#0080C6","#FFC20E"],LAR:["Rams","#003594","#FFA300"],LV:["Raiders","#000000","#A5ACAF"],MIA:["Dolphins","#008E97","#FC4C02"],MIN:["Vikings","#4F2683","#FFC62F"],NE:["Patriots","#002244","#C60C30"],NO:["Saints","#D3BC8D","#101820"],NYG:["Giants","#0B2265","#A71930"],NYJ:["Jets","#125740","#FFFFFF"],PHI:["Eagles","#004C54","#A5ACAF"],PIT:["Steelers","#101820","#FFB612"],SEA:["Seahawks","#002244","#69BE28"],SF:["49ers","#AA0000","#B3995D"],TB:["Buccaneers","#D50A0A","#FF7900"],TEN:["Titans","#0C2340","#4B92DB"],WAS:["Commanders","#5A1414","#FFB612"]};
 const tdPrefs = () => { try { return JSON.parse(localStorage.getItem("snapcount.v1.td") || "{}"); } catch(e){ return {}; } };
 const tdSave = o => { try { localStorage.setItem("snapcount.v1.td", JSON.stringify(o)); } catch(e){} };
@@ -1375,77 +1377,121 @@ async function tdFile(set){
 let tdCtx = null, tdAudio = null;
 // Phones only allow sound after a tap, so unlock audio on the first touch of the session.
 document.addEventListener("pointerdown", () => { try { if (!tdCtx) tdCtx = new (window.AudioContext || window.webkitAudioContext)(); if (tdCtx.state === "suspended") tdCtx.resume(); } catch(e){} }, {passive: true});
-function tdHorn(){
+function tdHorn(short){
   try {
     const c = tdCtx || (tdCtx = new (window.AudioContext || window.webkitAudioContext)()); c.resume && c.resume();
     const t0 = c.currentTime + .05, out = c.createGain(); out.gain.value = .25; out.connect(c.destination);
     // A stadium horn: three short blasts and one long, a stacked chord through a little distortion.
-    [[0, .32], [.42, .32], [.84, .32], [1.3, 1.6]].forEach(([st, len]) => {
+    (short ? [[0, .3], [.4, .9]] : [[0, .32], [.42, .32], [.84, .32], [1.3, 1.6]]).forEach(([st, len]) => {
       const g = c.createGain(); g.connect(out);
       g.gain.setValueAtTime(0, t0 + st); g.gain.linearRampToValueAtTime(1, t0 + st + .04); g.gain.setValueAtTime(1, t0 + st + len - .08); g.gain.linearRampToValueAtTime(0, t0 + st + len);
       [174.6, 220, 261.6, 349.2].forEach(f => { const o = c.createOscillator(); o.type = "sawtooth"; o.frequency.value = f; const lp = c.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1400; o.connect(lp); lp.connect(g); o.start(t0 + st); o.stop(t0 + st + len + .02); });
     });
   } catch(e){}
 }
-async function tdPlay(){
+async function tdPlay(kind){
   const pr = tdPrefs();
-  if (pr.sound === "file") {
-    try { const f = await tdFile(); if (f) { if (tdAudio) { tdAudio.pause(); URL.revokeObjectURL(tdAudio.src); } tdAudio = new Audio(URL.createObjectURL(f)); tdAudio.currentTime = 0; await tdAudio.play(); setTimeout(() => tdAudio && tdAudio.pause(), (pr.secs || 30) * 1000); return; } } catch(e){}
+  if (pr.sound === "off") return;
+  if (pr.sound === "file" && kind === "td") {
+    try { const f = await tdFile(); if (f) { if (tdAudio) { tdAudio.pause(); URL.revokeObjectURL(tdAudio.src); } tdAudio = new Audio(URL.createObjectURL(f)); await tdAudio.play(); setTimeout(() => tdAudio && tdAudio.pause(), (pr.secs || 30) * 1000); return; } } catch(e){}
   }
-  if (pr.sound !== "off") tdHorn();
+  tdHorn(kind === "fg");
 }
 function tdStop(){ if (tdAudio) tdAudio.pause(); }
-function tdCelebrate(team, txt){
-  const t = NFL_TEAMS[team] || [team, "#111", "#fff"];
+const nflTeamInfo = k => { const t = NFL_TEAMS[k] || [k, "#111111", "#ffffff"]; return {name: t[0], color: t[1], alt: t[2], logo: "https://a.espncdn.com/i/teamlogos/nfl/500/" + String(k).toLowerCase().replace("was", "wsh") + ".png"}; };
+const lightHex = h => { const m = String(h || "").replace("#", ""); if (m.length !== 6) return false; const [r, g, b] = [0, 2, 4].map(i => parseInt(m.slice(i, i + 2), 16) / 255); return .2126 * r + .7152 * g + .0722 * b > .6; };
+function tdCelebrate(t, kind, txt){
   let el = $("#tdFx"); if (el) el.remove();
-  el = document.createElement("div"); el.id = "tdFx"; el.setAttribute("role", "alert");
-  el.style.setProperty("--c1", t[1]); el.style.setProperty("--c2", t[2]);
-  el.innerHTML = '<div class="tdin"><img src="https://a.espncdn.com/i/teamlogos/nfl/500/' + team.toLowerCase().replace("was", "wsh") + '.png" alt="" onerror="this.remove()"><b>Touchdown</b><span>' + esc(t[0]) + "</span>" + (txt ? "<small>" + esc(txt) + "</small>" : "") + '<em>Tap to close</em></div>' + Array.from({length: 40}, (_, i) => '<i style="left:' + (i * 2.5 + Math.random() * 2) + "%;animation-delay:" + (Math.random() * 1.2).toFixed(2) + "s;background:" + (i % 2 ? t[1] : t[2]) + '"></i>').join("");
+  const c1 = t.color || "#111111", c2 = t.alt && t.alt.toLowerCase() !== c1.toLowerCase() ? t.alt : "#ffffff";
+  el = document.createElement("div"); el.id = "tdFx"; el.setAttribute("role", "alert"); el.className = kind === "fg" ? "fg" : "";
+  el.style.setProperty("--c1", c1); el.style.setProperty("--c2", c2); el.style.setProperty("--tx", lightHex(c1) ? "#111111" : "#ffffff");
+  el.innerHTML = '<div class="tdin">' + (t.logo ? '<img src="' + esc(t.logo) + '" alt="" onerror="this.remove()">' : "") + "<b>" + (kind === "fg" ? "Field goal" : "Touchdown") + "</b><span>" + esc(t.name) + "</span>" + (txt ? "<small>" + esc(txt) + "</small>" : "") + '<em>Tap to close</em></div>' +
+    (kind === "fg" ? "" : Array.from({length: 40}, (_, i) => '<i style="left:' + (i * 2.5 + Math.random() * 2) + "%;animation-delay:" + (Math.random() * 1.2).toFixed(2) + "s;background:" + (i % 2 ? c1 : c2) + '"></i>').join(""));
   el.addEventListener("click", () => { el.remove(); tdStop(); });
   document.body.appendChild(el);
-  try { navigator.vibrate && navigator.vibrate([200, 100, 200, 100, 400]); } catch(e){}
-  tdPlay();
-  setTimeout(() => { if (el.isConnected) el.remove(); }, 9000);
+  try { navigator.vibrate && navigator.vibrate(kind === "fg" ? [150, 80, 150] : [200, 100, 200, 100, 400]); } catch(e){}
+  tdPlay(kind);
+  setTimeout(() => { if (el.isConnected) el.remove(); }, kind === "fg" ? 4500 : 9000);
 }
-// Watch the score while the app is open: a jump of 6 or more for your team is a touchdown.
-let tdLast = null, tdTimer = null;
+// Watch the scores while the app is open. A jump of 6+ is a touchdown, exactly 3 is a field goal.
+const tdLast = {}; let tdTimer = null;
+function tdCheck(slot, team, key, pts, line){
+  const pr = tdPrefs(), was = tdLast[slot];
+  if (was && was.key === key) {
+    const d = pts - was.pts;
+    if (d >= 6) tdCelebrate(team, "td", line);
+    else if (d === 3 && pr.fg !== false) tdCelebrate(team, "fg", line);
+  }
+  tdLast[slot] = {key, pts};
+}
 async function tdWatch(){
   clearTimeout(tdTimer);
-  const pr = tdPrefs(); if (!pr.team) return;
-  if (!document.hidden) {
+  const pr = tdPrefs(); if (!pr.team && !(pr.cfb && pr.cfb.id)) return;
+  if (document.hidden) return;
+  let live = false;
+  if (pr.team) {
     await loadScoreboard();
     const g = nflGames[pr.team];
-    if (g && g.state !== "pre") {
-      const mine = tnorm(g.home) === pr.team ? +g.homeScore : +g.awayScore, key = g.date + ":" + pr.team;
-      if (tdLast && tdLast.key === key && mine - tdLast.pts >= 6) tdCelebrate(pr.team, tnorm(g.away) + " " + g.awayScore + " – " + tnorm(g.home) + " " + g.homeScore);
-      tdLast = {key, pts: mine};
-    }
-    tdTimer = setTimeout(tdWatch, g && g.state === "in" ? 20000 : 300000);
+    if (g && g.state !== "pre") { const home = tnorm(g.home) === pr.team; tdCheck("nfl", nflTeamInfo(pr.team), g.date + ":" + pr.team, +(home ? g.homeScore : g.awayScore) || 0, tnorm(g.away) + " " + g.awayScore + " – " + tnorm(g.home) + " " + g.homeScore); }
+    if (g && g.state === "in") live = true;
   }
+  if (pr.cfb && pr.cfb.id) {
+    try {
+      const find = r => (r.games || []).find(x => x.away && x.home && (x.away.id === pr.cfb.id || x.home.id === pr.cfb.id));
+      // FBS first; FCS schools are on a separate ESPN board.
+      let g = find(await api("/api/scores?sport=cfb"));
+      if (!g) g = find(await api("/api/scores?sport=cfb&grp=81"));
+      if (g && g.state !== "pre") { const me = g.home.id === pr.cfb.id ? g.home : g.away; tdCheck("cfb", pr.cfb, g.id, +me.score || 0, (g.away.abbr || g.away.name) + " " + g.away.score + " – " + (g.home.abbr || g.home.name) + " " + g.home.score); }
+      if (g && g.state === "in") live = true;
+    } catch(e){}
+  }
+  tdTimer = setTimeout(tdWatch, live ? 20000 : 300000);
 }
-document.addEventListener("visibilitychange", () => { if (!document.hidden) { tdLast = null; tdWatch(); } else clearTimeout(tdTimer); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { delete tdLast.nfl; delete tdLast.cfb; tdWatch(); } else clearTimeout(tdTimer); });
 setTimeout(tdWatch, 4000);
-function tdRow(){
-  const pr = tdPrefs(), t = pr.team && NFL_TEAMS[pr.team];
-  return '<button type="button" class="card tdrow" data-tdopen="1"><span><b>Touchdown celebration</b><span class="small muted">' + (t ? esc(t[0]) + " · " + (pr.sound === "file" ? "your sound" : pr.sound === "off" ? "no sound" : "stadium horn") : "Pick your team. When they score with the app open, it plays a sound.") + '</span></span><span class="showgo">' + (t ? "Change" : "Set up") + "</span></button>";
+function tdSummary(){
+  const pr = tdPrefs(), names = [pr.team && NFL_TEAMS[pr.team] ? NFL_TEAMS[pr.team][0] : "", pr.cfb && pr.cfb.short || ""].filter(Boolean);
+  return names.length ? names.join(" and ") + " · " + (pr.sound === "file" ? "your song" : pr.sound === "off" ? "no sound" : "stadium horn") : "";
 }
-document.addEventListener("click", e => { if (e.target.closest && e.target.closest("[data-tdopen]")) openTD(); });
+function tdRow(){
+  const sm = tdSummary();
+  return '<button type="button" class="card tdrow" data-tdopen="1"><span><b>Your teams</b><span class="small muted">' + (sm ? esc(sm) : "Pick your favorite NFL and college teams. When they score with the app open, your phone celebrates.") + '</span></span><span class="showgo">' + (sm ? "Change" : "Pick") + "</span></button>";
+}
+// Until someone picks (or says not now), home asks them for their teams.
+function tdAsk(){
+  const pr = tdPrefs(); if (pr.asked || pr.team || pr.cfb) return "";
+  return '<div class="card tdask"><b>Who do you root for?</b><p class="tdp">Pick your NFL and college teams. Every touchdown and field goal they score while you’re in the app gets a celebration.</p><div class="nowbtns"><button type="button" class="btn" data-tdopen="1">Pick my teams</button><button type="button" class="btn ghost" id="tdNo">Not now</button></div></div>';
+}
+document.addEventListener("click", e => {
+  if (!e.target.closest) return;
+  if (e.target.closest("#tdNo")) { const o = tdPrefs(); o.asked = true; tdSave(o); const c = e.target.closest(".tdask"); if (c) c.remove(); return; }
+  if (e.target.closest("[data-tdopen]")) openTD();
+});
+let cfbList = null;
 async function openTD(){
-  const body = openSheetShell("Touchdown celebration");
+  const o0 = tdPrefs(); if (!o0.asked) { o0.asked = true; tdSave(o0); }
+  const body = openSheetShell("Your teams");
+  if (!cfbList) api("/api/cfb/teams").then(r => { cfbList = r.teams || []; if ($("#tdCfb")) draw(); }).catch(() => { cfbList = []; });
   const draw = async () => {
     const pr = tdPrefs(); let f = null; try { f = await tdFile(); } catch(e){}
-    body.innerHTML = '<p class="muted" style="margin-top:0">When your team scores a touchdown while Snap Count is open, your phone plays a sound, buzzes, and flashes their colors.</p>' +
-      '<label for="tdTeam">Your team</label><select id="tdTeam"><option value="">None</option>' + Object.entries(NFL_TEAMS).sort((a, b) => a[1][0].localeCompare(b[1][0])).map(([k, v]) => '<option value="' + k + '"' + (pr.team === k ? " selected" : "") + ">" + esc(v[0]) + "</option>").join("") + "</select>" +
-      '<label style="display:block;margin-top:14px">Sound</label><div class="seg" role="group" aria-label="Sound">' + [["horn", "Stadium horn"], ["file", "My song"], ["off", "No sound"]].map(([k, l]) => '<button type="button" data-tds="' + k + '" aria-pressed="' + ((pr.sound || "horn") === k) + '">' + l + "</button>").join("") + "</div>" +
+    body.innerHTML = '<p style="margin-top:0">Pick your teams. When one scores a touchdown or field goal while Snap Count is open, your phone plays a sound, buzzes, and flashes their colors.</p>' +
+      '<label for="tdTeam">NFL team</label><select id="tdTeam"><option value="">None</option>' + Object.entries(NFL_TEAMS).sort((a, b) => a[1][0].localeCompare(b[1][0])).map(([k, v]) => '<option value="' + k + '"' + (pr.team === k ? " selected" : "") + ">" + esc(v[0]) + "</option>").join("") + "</select>" +
+      '<label for="tdCfb" style="display:block;margin-top:14px">College team</label><select id="tdCfb"' + (cfbList ? "" : " disabled") + '><option value="">' + (cfbList ? "None" : "Loading teams…") + "</option>" + (cfbList || []).map(t => '<option value="' + esc(t.id) + '"' + (pr.cfb && pr.cfb.id === t.id ? " selected" : "") + ">" + esc(t.name) + "</option>").join("") + "</select>" +
+      '<label class="toggle" style="margin-top:14px"><input type="checkbox" id="tdFg"' + (pr.fg !== false ? " checked" : "") + "> Celebrate field goals too</label>" +
+      '<label style="display:block;margin-top:6px">Touchdown sound</label><div class="seg" role="group" aria-label="Sound">' + [["horn", "Stadium horn"], ["file", "My song"], ["off", "No sound"]].map(([k, l]) => '<button type="button" data-tds="' + k + '" aria-pressed="' + ((pr.sound || "horn") === k) + '">' + l + "</button>").join("") + "</div>" +
       ((pr.sound === "file") ? '<div class="card" style="margin-top:12px"><p style="margin:0 0 8px">' + (f ? "<b>" + esc(f.name || "Your song") + "</b> is saved on this phone." : "Pick a song or sound file you own from this phone (MP3 or M4A). It stays on this phone and isn’t shared with anyone.") + '</p><label class="btn ghost" style="width:100%">' + (f ? "Choose a different file" : "Choose a file") + '<input type="file" id="tdFileIn" accept="audio/*" hidden></label>' +
-        '<label for="tdSecs" style="display:block;margin-top:12px">Play for</label><select id="tdSecs">' + [10, 20, 30, 45, 60].map(n => '<option value="' + n + '"' + ((pr.secs || 30) === n ? " selected" : "") + ">" + n + " seconds</option>").join("") + "</select></div>" : "") +
-      '<button type="button" class="btn" id="tdTest" style="width:100%;margin-top:16px"' + (pr.team ? "" : " disabled") + '>Preview the celebration</button>' +
+        '<label for="tdSecs" style="display:block;margin-top:12px">Play for</label><select id="tdSecs">' + [10, 20, 30, 45, 60].map(n => '<option value="' + n + '"' + ((pr.secs || 30) === n ? " selected" : "") + ">" + n + " seconds</option>").join("") + "</select><p class=\"small muted\" style=\"margin:8px 0 0\">Field goals get a short horn instead.</p></div>" : "") +
+      '<div class="nowbtns" style="margin-top:16px"><button type="button" class="btn" id="tdTest"' + (pr.team || pr.cfb ? "" : " disabled") + '>Preview touchdown</button><button type="button" class="btn ghost" id="tdTestFg"' + (pr.team || pr.cfb ? "" : " disabled") + '>Preview field goal</button></div>' +
       '<p class="small muted">Works while the app is open on your screen. Scores update about every 20 seconds during your team’s game, so it can land a little after the TV.</p>';
-    body.querySelector("#tdTeam").addEventListener("change", e => { const o = tdPrefs(); o.team = e.target.value; tdSave(o); tdLast = null; tdWatch(); draw(); });
+    const pick = () => { const p2 = tdPrefs(); return p2.team ? nflTeamInfo(p2.team) : p2.cfb; };
+    body.querySelector("#tdTeam").addEventListener("change", e => { const o = tdPrefs(); o.team = e.target.value; tdSave(o); delete tdLast.nfl; tdWatch(); draw(); });
+    body.querySelector("#tdCfb").addEventListener("change", e => { const o = tdPrefs(); const t = (cfbList || []).find(x => x.id === e.target.value); o.cfb = t ? {id: t.id, name: t.short || t.name, short: t.short || t.name, color: t.color, alt: t.alt, logo: t.logo} : null; tdSave(o); delete tdLast.cfb; tdWatch(); draw(); });
+    body.querySelector("#tdFg").addEventListener("change", e => { const o = tdPrefs(); o.fg = e.target.checked; tdSave(o); });
     body.querySelectorAll("[data-tds]").forEach(b => b.addEventListener("click", () => { const o = tdPrefs(); o.sound = b.dataset.tds; tdSave(o); draw(); }));
     const fi = body.querySelector("#tdFileIn"); if (fi) fi.addEventListener("change", async () => { const x = fi.files && fi.files[0]; if (!x) return; if (x.size > 15e6) { alertMsg(body, "That file is over 15 MB. Try a shorter clip."); return; } await tdFile(x); draw(); });
     const se = body.querySelector("#tdSecs"); if (se) se.addEventListener("change", () => { const o = tdPrefs(); o.secs = +se.value; tdSave(o); });
-    body.querySelector("#tdTest").addEventListener("click", () => tdCelebrate(tdPrefs().team, "Preview"));
+    body.querySelector("#tdTest").addEventListener("click", () => tdCelebrate(pick(), "td", "Preview"));
+    body.querySelector("#tdTestFg").addEventListener("click", () => tdCelebrate(pick(), "fg", "Preview"));
   };
   draw();
 }
@@ -1528,10 +1574,10 @@ function renderLeagues(v){
   leaguesErr.forEach(e => h += '<div class="err">' + esc(e) + "</div>");
   if (!leaguesLoaded) { v.innerHTML = h + '<p class="spin">Loading your leagues…</p>'; return; }
   if (!leagues.length) { v.innerHTML = h + '<p class="muted">No leagues found for this season.</p>'; return; }
-  const TL = {sweatBtn: ["ic-flame", "Sweat board"], briefBtn: ["ic-speaker", "Morning briefing"], injBtn: ["ic-medic", "Injury center"], planBtn: ["ic-calendar", "Byes and injuries, next 4 weeks"], brkBtn: ["ic-pulse", "Breakouts"], expBtn: ["ic-list", "All my leagues"], wlBtn: ["ic-star", "Watchlist"], wxBtn: ["ic-wind", "Game weather"], tdBtn: ["ic-ball", "Touchdown celebration"]};
+  const TL = {sweatBtn: ["ic-flame", "Sweat board"], briefBtn: ["ic-speaker", "Morning briefing"], injBtn: ["ic-medic", "Injury center"], planBtn: ["ic-calendar", "Byes and injuries, next 4 weeks"], brkBtn: ["ic-pulse", "Breakouts"], expBtn: ["ic-list", "All my leagues"], wlBtn: ["ic-star", "Watchlist"], wxBtn: ["ic-wind", "Game weather"], tdBtn: ["ic-ball", "Your teams (score celebrations)"]};
   const tb = id => '<button type="button" class="btn ghost" id="' + id + '"' + (id === "tdBtn" ? ' data-tdopen="1"' : "") + '><i class=' + TL[id][0] + ' aria-hidden=true></i>' + TL[id][1] + "</button>";
   const tools = leagues.some(L => L.detail && L.detail.teams.some(t => t.mine)) ? '<h3 class="tgh">Tools</h3><div class="tlist">' + ["sweatBtn", "briefBtn", "injBtn"].map(tb).join("") + '</div><details class="moretools"' + (cur.homeMore ? " open" : "") + '><summary>More tools <span class="small muted">6</span></summary><div class="tlist" style="margin-top:8px">' + ["wlBtn", "planBtn", "brkBtn", "expBtn", "wxBtn", "tdBtn"].map(tb).join("") + "</div></details>" : "";
-  h = scoreStrip() + h + nowCard() + wlHomeCard();
+  h = scoreStrip() + h + nowCard() + tdAsk() + wlHomeCard();
   h += '<div class="stack">';
   leagues.forEach((L, i) => {
     const m = L.meta, d = L.detail;

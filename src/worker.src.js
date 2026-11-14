@@ -554,6 +554,17 @@ async function headlines() {
 }
 
 // Every NFL game this week: teams, score, quarter/clock or kickoff time.
+// Every FBS college football team, for the "favorite team" picker.
+async function cfbTeams() {
+  const r = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/college-football/teams?groups=80&limit=300", { headers: UA });
+  if (!r.ok) return json({ error: "College teams unavailable (" + r.status + ")" }, 502, 0);
+  const d = await r.json();
+  const teams = (((d.sports || [])[0] || {}).leagues || [])[0];
+  const list = ((teams && teams.teams) || []).map(x => x.team || {}).filter(t => t.id).map(t => ({ id: t.id, name: t.displayName || t.name, short: t.shortDisplayName || t.location || t.name, abbr: t.abbreviation || "", color: t.color ? "#" + t.color : "", alt: t.alternateColor ? "#" + t.alternateColor : "", logo: ((t.logos || [])[0] || {}).href || "" }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return json({ teams: list }, 200, 86400);
+}
+
 async function scoreboard() {
   const r = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard", { headers: UA });
   if (!r.ok) return json({ error: "NFL scoreboard unavailable (" + r.status + ")" }, 502, 0);
@@ -841,6 +852,7 @@ export default {
       if (p === "/api/espn") return espnRoute(request, url, ctx);
       if (p === "/api/mfl") return mflRoute(url, ctx);
       if (p === "/api/scores") return cached(ctx, "scores/" + url.search, 30, () => scoresRoute(url));
+      if (p === "/api/cfb/teams") return cached(ctx, "cfbteams", 86400, cfbTeams);
       if (p === "/cal.ics" || p === "/api/cal.ics") return cached(ctx, "cal/" + url.search, 21600, () => calendarRoute(url));
       if (p === "/api/injuries") return cached(ctx, "injuries", 300, injuriesRoute);
       if (p.startsWith("/api/sleeper/")) {

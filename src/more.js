@@ -86,7 +86,7 @@ export async function scoresRoute(url) {
   const d = url.searchParams.get("date");
   const q = new URLSearchParams({ limit: "200" });
   if (d && /^\d{8}$/.test(d)) q.set("dates", d);
-  if (s === "cfb" && !d) q.set("groups", "80");
+  if (s === "cfb" && !d) q.set("groups", /^(80|81)$/.test(url.searchParams.get("grp") || "") ? url.searchParams.get("grp") : "80");
   if ((s === "ncaam" || s === "ncaaw") && !d) q.set("groups", "50");
   const r = await fetch("https://site.api.espn.com/apis/site/v2/sports/" + sp[0] + "/scoreboard?" + q.toString(), { headers: UA });
   if (!r.ok) return out({ error: sp[1] + " scores unavailable (" + r.status + ")" }, 502);
