@@ -899,6 +899,39 @@ body{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
 .card h3,.empty h3,details h3{border-top:0;padding-top:0;margin-top:4px}
 .gnum{border-radius:4px!important}
 .av{border-radius:50%}
+
+/* ===== Open layout: no boxes around everything. Sections sit on the page, split by hairlines; only the scoreboard is filled. ===== */
+.card{background:transparent!important;border:0!important;border-top:1px solid var(--line)!important;border-radius:0!important;padding:18px 0!important}
+.stack>.card:first-child,h3+.card,h3+.stack>.card:first-child,.seg+.card,h2+.card{border-top:0!important;padding-top:6px!important}
+.plist{background:transparent!important;border:0!important;border-radius:0!important;padding:0!important}
+.plist .prow{padding:12px 0!important}
+.plist li+li{border-top:1px solid var(--line)!important}
+.stack{gap:0}
+.bug{border-radius:2px;background:var(--surface2)}
+.heroCard{background:transparent!important}
+.heroCard .bug{margin:0}
+/* masthead */
+header.top{border-bottom:2px solid var(--ink)}
+.iconbtn{border:0!important;background:transparent!important;width:36px}
+.iconbtn[aria-pressed=true]{color:var(--accent)!important}
+.coachfab{border:0!important;padding:8px 6px!important}
+/* home: the day card reads as the lead story */
+.nowcard{border:0!important;border-top:4px solid var(--accent)!important;padding:16px 0 20px!important;margin-bottom:0!important}
+.nowtop b{font-size:30px}
+.nowic{display:none}
+.nowtop p{font-size:15px}
+.showcard{padding:16px 0!important}
+.lfoot{margin-top:2px}
+/* tools as a plain list with arrows, not a grid of boxes */
+.tlist{display:flex!important;flex-direction:column;gap:0!important}
+.tlist .btn{justify-content:flex-start;border:0!important;border-bottom:1px solid var(--line)!important;border-radius:0!important;background:transparent!important;padding:15px 0!important;font:700 16px/1.2 var(--body)!important;gap:12px;position:relative}
+.tlist .btn::after{content:"";position:absolute;right:4px;top:50%;width:8px;height:8px;border-right:2px solid var(--muted);border-top:2px solid var(--muted);transform:translateY(-50%) rotate(45deg)}
+.moretools{margin-top:0}
+.moretools>summary{border:0!important;background:transparent!important;padding:15px 0!important;text-align:left;justify-content:flex-start}
+.tiles .btn{border-radius:2px}
+/* sheets keep a little air at the sides */
+.sheet .panel .card{padding:16px 0!important}
+h3.tgh{color:var(--ink)!important;margin-left:0!important;margin-right:0!important;padding-left:0!important}
 @media (max-width:400px){h2{font-size:36px}.brand h1{font-size:24px}.coachfab{padding:8px 10px!important}}
 @media (max-width:350px){.brand h1{font-size:21px}.coachfab{font-size:0!important;gap:0;padding:9px!important}.coachfab i{font-size:16px}}
 </style>
