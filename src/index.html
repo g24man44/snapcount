@@ -1020,6 +1020,7 @@ h3.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .valbadge.comeback,.betcalc .valtop.comeback{background:var(--warn-soft)}.valbadge.comeback,.betcalc .valtop.comeback b{color:var(--warn)}
 .valbadge{margin-top:8px;padding:6px 10px;border-radius:8px;background:var(--ok-soft);color:var(--ok);font-weight:700;font-size:13px}
 .betcalc .valtop{margin-top:10px;padding:10px 12px;border-radius:8px;background:var(--ok-soft);color:var(--ink);font-size:13.5px;line-height:1.4;display:flex;flex-direction:column;gap:3px}.betcalc .valtop b{color:var(--ok)}.betcalc .valtop.none{background:var(--surface2);color:var(--muted)}
+.upset{border-left:4px solid var(--warn)!important;margin-bottom:12px}.upset .uh{font:800 15px/1.2 var(--display);font-stretch:90%;color:var(--warn)}.upset .upick{font:800 22px/1.15 var(--display);font-stretch:88%;margin-top:6px}.upset .umeta{margin:2px 0 0;color:var(--muted);font-size:13px}.upset .why{margin:8px 0 0;padding-left:18px;font-size:13.5px;line-height:1.4}.upset .why li{margin:3px 0}
 @media (max-width:400px){h2{font-size:28px}.brand h1{font-size:21px}.coachfab{padding:8px 10px!important}}
 @media (max-width:350px){.brand h1{font-size:21px}.coachfab{font-size:0!important;gap:0;padding:9px!important}.coachfab i{font-size:16px}}
 </style>
@@ -1756,6 +1757,32 @@ async function loadBet(d, quiet){
     } else if (r.state !== "post" && (r.ml || r.livePrices)) h = '<div class="valtop none">No good value bets' + (r.state === "in" ? " right now" : "") + ". Nothing here has both a good chance to win and a price that pays more than it should.</div>" + h;
     box.innerHTML = h || '<p class="small muted">No betting lines posted for this game yet.</p>';
   } catch(x){ box.innerHTML = '<p class="small muted">Couldn’t load: ' + esc(x.message) + "</p>"; d._loaded = false; }
+}
+
+/* ---------- Greg's upset pick of the week ---------- */
+async function loadUpset(sport){
+  const box = $("#upsetBox"); if (!box) return;
+  try {
+    const r = await api("/api/upset?sport=" + sport); if ($("#upsetBox") !== box) return;
+    const p = r.pick, rec = r.record || {};
+    const recLine = rec.w + rec.l ? '<p class="small muted" style="margin:8px 0 0">Season: ' + rec.w + "-" + rec.l + " · " + (rec.profit >= 0 ? "+$" : "−$") + Math.abs(rec.profit).toFixed(2) + " betting $10 on each" + (rec.recent.length ? " · " + rec.recent.map(x => (x.won ? "✅ " : "❌ ") + esc(x.team)).join(", ") : "") + "</p>" : "";
+    if (!p || p.none) { box.innerHTML = '<div class="card upset"><b class="uh">🎯 Greg’s upset pick of the week</b><p style="margin:6px 0 0">No pick yet. No underdog this week has a real enough shot by the analytics (40%+ and well above what the price says).</p>' + recLine + "</div>"; return; }
+    const pay = 10 * p.odds / 100, st = p.status || {}, when = st.state === "pre" ? new Date(p.date).toLocaleString([], {weekday: "short", hour: "numeric", minute: "2-digit"}) : st.state === "in" ? "Live: " + esc(p.abbr || p.team) + " " + st.me + ", " + esc(p.oppAbbr || p.opp) + " " + st.op + " · " + esc(st.detail) : (Number(st.me) > Number(st.op) ? "✅ Won " : "❌ Lost ") + st.me + "-" + st.op;
+    const reasons = ["The analytics give " + (sport === "nfl" ? "the " : "") + p.team + " a " + Math.round(p.model) + "% chance to win. The sportsbook’s price only gives them " + Math.round(p.implied) + "%."];
+    const qb = (p.injuriesOpp || []).filter(i => i.pos === "QB");
+    if (qb.length) reasons.push(p.opp + " are missing " + qb.map(i => i.name).join(" and ") + " at quarterback.");
+    else if ((p.injuriesOpp || []).length >= 2) reasons.push(p.opp + " are missing " + p.injuriesOpp.length + " players, including " + p.injuriesOpp.slice(0, 2).map(i => i.name + " (" + i.pos + ")").join(" and ") + ".");
+    const stt = k => (p.stats || []).find(x => x.k === k), me = p.home ? "home" : "away", op = p.home ? "away" : "home", n = v => parseFloat(v);
+    const ppg = stt("totalPointsPerGame"), pa = stt("totalPointsPerGameAllowed");
+    if (ppg && pa) { const mm = n(ppg[me]) - n(pa[me]), om = n(ppg[op]) - n(pa[op]); if (mm > om) reasons.push("Season scoring margin: " + p.team + " " + (mm >= 0 ? "+" : "") + mm.toFixed(1) + " a game, " + p.opp + " " + (om >= 0 ? "+" : "") + om.toFixed(1) + "."); }
+    if (p.l5 && p.l5.me && p.l5.op && +p.l5.me.rec.split("-")[0] >= +p.l5.op.rec.split("-")[0]) reasons.push("Last five: " + p.team + " " + p.l5.me.rec + ", " + p.opp + " " + p.l5.op.rec + ".");
+    box.innerHTML = '<div class="card upset"><b class="uh">🎯 Greg’s upset pick of the week</b>' +
+      '<div class="upick">' + esc(p.team) + (p.home ? " vs " : " at ") + esc(p.opp) + "</div>" +
+      '<p class="umeta">' + when + "</p>" +
+      '<p style="margin:8px 0 0">Moneyline <b>' + amFmt(p.odds) + "</b>: bet $10, get back <b>$" + (10 + pay).toFixed(2) + "</b> if they win." + (p.spread != null ? " Or take them " + (p.spread > 0 ? "+" : "") + p.spread + " on the spread." : "") + "</p>" +
+      '<ul class="why">' + reasons.slice(0, 4).map(x => "<li>" + esc(x) + "</li>").join("") + "</ul>" +
+      '<p class="small muted" style="margin:6px 0 0">An upset pick: they’re the underdog, so they’ll lose plenty of these. The analytics just give them a much better shot than the price does. Not a guarantee.</p>' + recLine + "</div>";
+  } catch(e){ box.innerHTML = ""; }
 }
 /* ---------- try the game-day features any time (on this phone only) ---------- */
 function gdTestCard(){
@@ -2626,8 +2653,9 @@ function drawScores(r){
     }
     h += g.link ? '<a class="card gcard" href="' + esc(g.link) + '" target="_blank" rel="noopener">' + body + meta + "</a>" : '<div class="card gcard">' + body + meta + "</div>";
   });
-  el.innerHTML = h + '</div><p class="small muted" style="margin:10px 4px 0">Scores from ESPN. Tap a game for the full box score and play-by-play.</p>';
+  el.innerHTML = ((r.sport === "nfl" || r.sport === "cfb") && !r.date ? '<div id="upsetBox"></div>' : "") + h + '</div><p class="small muted" style="margin:10px 4px 0">Scores from ESPN. Tap a game for the full box score and play-by-play.</p>';
   if (r.sport === "nfl") preloadBets(el);
+  if ((r.sport === "nfl" || r.sport === "cfb") && !r.date) loadUpset(r.sport);
 }
 
 /* ---------- AI coach ---------- */

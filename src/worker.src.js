@@ -6,7 +6,7 @@ import { showRoute, elUsage, elSetup, gemModels, gemChat, gemProbe } from "./src
 import { alertsRoute, tauntRoute, runMinute, staticRoute, injuriesRoute, readInjuries, eachSubscriber, norm, alertNames } from "./src/alerts.js";
 import { PROSPECTS } from "./src/prospects.js";
 import { gameWeather } from "./src/weather.js";
-import { betInfoRoute, ttsRoute, marketRoute, pickemRoute, commRoute, syncRoute, transcribeRoute, espnRoute, mflRoute, scoresRoute, calendarRoute, coachRoute, hookPostRoute, espnLineupRoute, mflLoginRoute, mflLineupRoute, fleaLoginRoute, fleaLineupRoute, fleaMoveRoute } from "./src/more.js";
+import { upsetRoute, betInfoRoute, ttsRoute, marketRoute, pickemRoute, commRoute, syncRoute, transcribeRoute, espnRoute, mflRoute, scoresRoute, calendarRoute, coachRoute, hookPostRoute, espnLineupRoute, mflLoginRoute, mflLineupRoute, fleaLoginRoute, fleaLineupRoute, fleaMoveRoute } from "./src/more.js";
 
 const HTML = __HTML__;
 
@@ -861,6 +861,7 @@ export default {
       if (p === "/api/mfl") return mflRoute(url, ctx);
       if (p === "/api/scores") return cached(ctx, "scores/" + url.search, 30, () => scoresRoute(url));
       if (p === "/api/cfb/teams") return cached(ctx, "cfbteams", 86400, cfbTeams);
+      if (p === "/api/upset") return cached(ctx, "upset/" + url.search, 600, () => upsetRoute(url, env));
       if (p === "/api/betinfo") return cached(ctx, "bet/" + url.search, 60, () => betInfoRoute(url, env));
       if (p === "/api/plays") return cached(ctx, "plays", 20, async () => { const j = env.SNAP ? await env.SNAP.get("plays:state", "json") : null; return json({ ev: (j && j._ev) || [] }, 200, 20); });
       if (p === "/cal.ics" || p === "/api/cal.ics") return cached(ctx, "cal/" + url.search, 21600, () => calendarRoute(url));

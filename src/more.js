@@ -191,6 +191,55 @@ export async function betInfoRoute(url, env) {
   return jsonT(out, 200, out.state === "in" ? 60 : 300);
 }
 
+
+/* ---------- Greg's upset pick of the week: the underdog the analytics give the best real shot ---------- */
+// An underdog (moneyline +110 to +450) that ESPN's predictor gives at least a 40% chance, and at least 5 points more
+// than the price implies. Re-checked every 6 hours until its game starts, then locked; results are kept for a season record.
+export async function upsetRoute(url, env) {
+  const sport = url.searchParams.get("sport") === "cfb" ? "cfb" : "nfl", lg = sport === "cfb" ? "college-football" : "nfl";
+  const sb = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/" + lg + "/scoreboard" + (sport === "cfb" ? "?groups=80&limit=300" : ""), { headers: UA }).then(r => r.json());
+  const season = (sb.season || {}).year || "", week = (sb.week || {}).number || "", key = "upset:" + sport + ":" + season + ":" + week, histKey = "upset:hist:" + sport + ":" + season;
+  const kv = env && env.SNAP;
+  let pick = kv ? await kv.get(key, "json") : null;
+  const games = await (await scoresRoute(new URL("https://x/api/scores?sport=" + sport))).json();
+  const gameOf = id => (games.games || []).find(g => String(g.id) === String(id));
+  const pg = pick && gameOf(pick.gameId);
+  const locked = pick && (pick.locked || (pg && pg.state !== "pre"));
+  if (!locked && (!pick || Date.now() - pick.at > 6 * 3600e3)) {
+    const cands = (games.games || []).filter(g => g.state === "pre" && g.ml && g.ml.home != null && g.ml.away != null)
+      .flatMap(g => ["home", "away"].filter(sd => g.ml[sd] >= 110 && g.ml[sd] <= 450).map(sd => ({ g, sd })))
+      .sort((a, b) => a.g.ml[a.sd] - b.g.ml[b.sd]).slice(0, sport === "cfb" ? 18 : 16);
+    let best = null;
+    for (const c of cands) {
+      let info; try { info = await (await betInfoRoute(new URL("https://x/api/betinfo?sport=" + sport + "&id=" + c.g.id), env)).json(); } catch (e) { continue; }
+      if (!info.model || !info.ml || info.ml[c.sd] == null) continue;
+      const odds = info.ml[c.sd], implied = 100 / (odds + 100) * 100, model = info.model[c.sd], edge = model - implied;
+      if (model < 40 || edge < 5) continue;
+      const score = edge * model;
+      if (!best || score > best.score) {
+        const me = info[c.sd], op = info[c.sd === "home" ? "away" : "home"];
+        best = { score, gameId: String(c.g.id), side: c.sd, team: me.short || me.name, teamFull: me.name, abbr: me.abbr, opp: op.short || op.name, oppAbbr: op.abbr, home: c.sd === "home", odds, implied: Math.round(implied * 10) / 10, model: Math.round(model * 10) / 10,
+          spread: info.spread ? info.spread[c.sd] : null, stats: info.stats, l5: info.l5 ? { me: info.l5[c.sd], op: info.l5[c.sd === "home" ? "away" : "home"] } : null, injuriesOpp: (info.injuries || {})[c.sd === "home" ? "away" : "home"] || [], injuriesMe: (info.injuries || {})[c.sd] || [], date: c.g.date };
+      }
+    }
+    if (best) { delete best.score; pick = Object.assign(best, { at: Date.now(), week, season }); if (kv) await kv.put(key, JSON.stringify(pick), { expirationTtl: 60 * 86400 }); }
+    else if (!pick) pick = { none: true, at: Date.now(), week, season };
+  }
+  // How it's going, and the season record once games are final.
+  let hist = kv ? (await kv.get(histKey, "json")) || [] : [];
+  if (pick && !pick.none) {
+    const g = gameOf(pick.gameId);
+    if (g) { const me = pick.side === "home" ? g.home : g.away, op = pick.side === "home" ? g.away : g.home; pick.status = { state: g.state, detail: g.detail, me: me && me.score, op: op && op.score }; if (g.state !== "pre" && !pick.locked && kv) { pick.locked = true; await kv.put(key, JSON.stringify(pick), { expirationTtl: 60 * 86400 }); } }
+    if (pick.status && pick.status.state === "post" && !hist.find(x => x.key === key)) {
+      const won = Number(pick.status.me) > Number(pick.status.op);
+      hist = hist.concat([{ key, week, team: pick.team, opp: pick.opp, odds: pick.odds, won, score: pick.status.me + "-" + pick.status.op }]);
+      if (kv) await kv.put(histKey, JSON.stringify(hist), { expirationTtl: 400 * 86400 });
+    }
+  }
+  const w = hist.filter(x => x.won).length, profit = hist.reduce((t, x) => t + (x.won ? 10 * x.odds / 100 : -10), 0);
+  return jsonT({ sport, week, pick, record: { w, l: hist.length - w, profit: Math.round(profit * 100) / 100, recent: hist.slice(-5) } }, 200, 600);
+}
+
 export async function scoresRoute(url) {
   const s = url.searchParams.get("sport") || "nfl";
   const sp = SPORTS[s]; if (!sp) return out({ error: "Unknown sport" }, 400);

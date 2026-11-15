@@ -25,6 +25,7 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- 🎯 Greg’s upset pick of the week (top of Scores, NFL and College FB): the underdog (+110 to +450) that ESPN’s predictor gives 40%+ and at least 5 points more than its price; re-picked every 6 h until kickoff, then locked; reasons (model vs price, opponent QB/injuries, scoring margin, last five); live score and won/lost; season record and profit betting $10 each (KV, a few writes a week).
 - Renamed ✅ “Recommended by the analytics” to ✅ “Good value bet” (good chance to win, 55%+, and the price pays more than it should, +$1 per $10); same rules.
 - 🔥 Comeback value (live only, separate from ✅): a pregame favorite that’s now losing, whose live price has dropped further than ESPN’s live chance (20–55% to win, +$1.50 per $10 after a 50/50 blend); explains the drop, the yardage/turnover story, and that it’s a value play, not a likely winner.
 - ✅ “Recommended by the analytics” replaces the 💰 value tag: a bet is recommended only if it’s expected to win 55%+ after blending in the book (our model counts 1/3 before kickoff, ESPN live 1/2 in-game) and is still worth +$1 per $10; no long shots. Shows the reasons (model vs price, trailing-but-still-favored in live games, yardage and turnovers, season scoring margin, recent form, opponent injuries). Tomorrow’s slate: 2 of 13 games.
