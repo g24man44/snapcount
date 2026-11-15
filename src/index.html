@@ -1753,7 +1753,7 @@ async function loadBet(d, quiet){
     } else if (rec) {
       h = '<div class="valtop">✅ <b>Good value bet: ' + esc(rec.title) + '</b><span class="vsub">Good chance to win (about ' + Math.round(rec.p) + '%) and the price pays more than it should for that chance.</span><ul class="why">' + why(rec).map(x => "<li>" + esc(x) + "</li>").join("") + "</ul><span>Price " + amFmt(rec.odds) + ": bet $10, get back <strong>$" + (10 + amPay(rec.odds)).toFixed(2) + "</strong> if it hits.</span><small>Expected to win about " + Math.round(rec.p) + "% of the time, counting the sportsbook’s view too. Not a guarantee.</small></div>" + h;
       d.insertAdjacentHTML("beforebegin", '<div class="valbadge">✅ Good value bet: ' + esc(rec.title) + " · about " + Math.round(rec.p) + "% to win</div>");
-    } else if (r.state !== "post" && (r.ml || r.livePrices)) h = '<div class="valtop none">No recommendation' + (r.state === "in" ? " right now" : "") + ". Nothing here is both likely to win and fairly priced.</div>" + h;
+    } else if (r.state !== "post" && (r.ml || r.livePrices)) h = '<div class="valtop none">No good value bets' + (r.state === "in" ? " right now" : "") + ". Nothing here has both a good chance to win and a price that pays more than it should.</div>" + h;
     box.innerHTML = h || '<p class="small muted">No betting lines posted for this game yet.</p>';
   } catch(x){ box.innerHTML = '<p class="small muted">Couldn’t load: ' + esc(x.message) + "</p>"; d._loaded = false; }
 }
