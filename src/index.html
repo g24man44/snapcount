@@ -561,6 +561,7 @@ nav.tabbar button{padding-left:0;padding-right:0}
 .ro{display:flex;flex-direction:column;align-items:flex-end;gap:5px}
 .ro b{font:800 17px/1 var(--body);font-stretch:112%;font-variant-numeric:tabular-nums}
 .ro .chip{font-size:11.5px;padding:3px 8px}
+.ro small{font-size:11.5px;font-weight:650}
 .cutline{display:flex;align-items:center;gap:8px;margin:2px 0;color:var(--accent);font-size:11.5px;font-weight:750}
 .cutline::before,.cutline::after{content:"";flex:1;border-top:2px dashed color-mix(in srgb,var(--accent) 60%,transparent)}
 .swing{padding:10px 14px}
@@ -6285,7 +6286,8 @@ function simulate(d, sched, boostId, boost, n, hook){
   const mean = T.map(t => { const a = (t.pf || 0) / gp(t), p = pnow[t.id]; return (p ? 0.5 * a + 0.5 * p : a) + (t.id === boostId ? boost : 0); });
   const P = Math.min(sched.po.teams, N), divs = {}; T.forEach((t, i) => { if (t.div != null) (divs[t.div] = divs[t.div] || []).push(i); });
   const useDivs = Object.keys(divs).length > 1 && Object.keys(divs).length <= P;
-  const make = new Array(N).fill(0), wins = new Array(N).fill(0), slot = new Array(N).fill(0), seed = new Array(N).fill(0);
+  const make = new Array(N).fill(0), wins = new Array(N).fill(0), slot = new Array(N).fill(0), seed = new Array(N).fill(0), champ = new Array(N).fill(0), final = new Array(N).fill(0);
+  const bo = bracketOrder(P);
   const rn = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
   for (let s = 0; s < n; s++) {
     const W = T.map(t => (t.w || 0) + (t.t || 0) / 2), PF = T.map(t => t.pf || 0), res = hook ? [] : null;
@@ -6306,8 +6308,22 @@ function simulate(d, sched, boostId, boost, n, hook){
     seeds.forEach((i, k) => { make[i]++; seed[i] += k + 1; });
     order.slice().reverse().forEach((i, k) => slot[i] += k + 1);
     order.forEach(i => wins[i] += W[i]);
+    // Play the bracket: fixed seeding, top seeds get the byes, one-week games scored like regular weeks.
+    let field = bo.map(k => k < seeds.length ? seeds[k] : -1);
+    while (field.length > 1) {
+      if (field.length === 2 && field[0] >= 0 && field[1] >= 0) { final[field[0]]++; final[field[1]]++; }
+      const nx = []; for (let k = 0; k < field.length; k += 2) { const a = field[k], b = field[k + 1]; nx.push(a < 0 ? b : b < 0 ? a : (mean[a] + 24 * rn() > mean[b] + 24 * rn() ? a : b)); }
+      field = nx;
+    }
+    if (field[0] >= 0) champ[field[0]]++;
   }
-  return T.map((t, i) => ({t, odds: make[i] / n, wins: wins[i] / n, slot: slot[i] / n, seed: make[i] ? seed[i] / make[i] : null, mean: mean[i]}));
+  return T.map((t, i) => ({t, odds: make[i] / n, wins: wins[i] / n, slot: slot[i] / n, seed: make[i] ? seed[i] / make[i] : null, mean: mean[i], title: champ[i] / n, final: final[i] / n}));
+}
+// Standard bracket order for P playoff teams (0-based seeds, padded to a power of two; seeds >= P are byes): 8 → 1v8, 4v5, 2v7, 3v6.
+function bracketOrder(P){
+  let size = 1; while (size < Math.max(2, P)) size *= 2;
+  let o = [0]; while (o.length < size) { const m = o.length * 2; o = o.flatMap(x => [x, m - 1 - x]); }
+  return o;
 }
 /* ---------- Playoff picture: seeds today, the race, and the games that swing it ---------- */
 function seedsToday(d, P){
@@ -6360,6 +6376,18 @@ async function openPlayoffPicture(L){
     const st = status(r.x.odds), t = r.x.t, likely = S.seedDist[r.i].indexOf(Math.max(...S.seedDist[r.i]));
     return (k === P ? '<div class="cutline"><span>Playoff line</span></div>' : "") + '<div class="raceRow' + (t.mine ? " me" : "") + '">' + teamLogo(t) + '<div class="rn"><b>' + esc(t.name) + "</b><small>" + rec(t) + " · " + fmt(t.pf) + " PF · proj " + r.x.wins.toFixed(1) + " wins" + (r.x.odds > 0.05 ? " · likely seed " + (likely + 1) : "") + '</small><div class="rbar"><span style="width:' + Math.round(r.x.odds * 100) + '%"></span></div></div><div class="ro"><b>' + pct(r.x.odds) + '</b><span class="chip ' + st[1] + '">' + st[0] + "</span></div></div>";
   }).join("") + "</div>";
+  // Who wins it all: the same simulated seasons, played through the bracket.
+  if (left) {
+    const tr = S.base.map((x, i) => ({x, i})).sort((a, b) => b.x.title - a.x.title || b.x.odds - a.x.odds);
+    const shown = tr.filter((r, k) => k < 6 || r.x.t.mine).filter(r => r.x.title > 0 || r.x.t.mine);
+    const fav = tr[0], mineT = me ? tr.find(r => r.x.t === me) : null, myRank = mineT ? tr.indexOf(mineT) + 1 : 0, top = fav ? Math.max(fav.x.title, 0.01) : 1;
+    let lead = "";
+    if (mineT) {
+      const o = mineT.x.title;
+      lead = o >= 0.995 ? "You win the title in nearly every simulation." : myRank === 1 ? "You’re the title favorite: " + pct(o) + " to win it all, " + pct(mineT.x.final) + " to reach the final." : o >= 0.005 ? pct(o) + " to win it all (" + ORDN(myRank) + "-best odds in the league), " + pct(mineT.x.final) + " to reach the final. The favorite is " + fav.x.t.name + " at " + pct(fav.x.title) + "." : "Almost no path to the title this year: you win it in under 1 of every 100 simulations.";
+    }
+    h += "<h3>Who wins it all</h3>" + (lead ? '<p class="small" style="margin:-2px 2px 10px">' + esc(lead) + "</p>" : "") + '<div class="card race">' + shown.map(r => { const t = r.x.t; return '<div class="raceRow' + (t.mine ? " me" : "") + '">' + teamLogo(t) + '<div class="rn"><b>' + esc(t.name) + "</b><small>Makes the final " + pct(r.x.final) + " · playoffs " + pct(r.x.odds) + '</small><div class="rbar"><span style="width:' + Math.round(Math.min(1, r.x.title / top) * 100) + '%"></span></div></div><div class="ro"><b>' + pct(r.x.title) + '</b><small class="muted">title</small></div></div>'; }).join("") + "</div>";
+  }
   // Games this week that move the most
   const wk = sched.weeks[0];
   if (wk && wk.games.length && left) {
@@ -6377,7 +6405,7 @@ async function openPlayoffPicture(L){
         (s.mine && s.mine.gain >= 0.01 ? '<p class="small" style="margin:8px 0 0">Root for <b>' + esc(T[s.mine.root].name) + "</b>: it’s worth " + Math.round(s.mine.gain * 100) + " points of playoff odds to you.</p>" : "") + "</div>").join("") + "</div>";
     }
   }
-  h += '<p class="small muted" style="margin:12px 4px 0">Based on ' + n.toLocaleString() + " simulated seasons from each team’s scoring average, this week’s projections and live scores, and the real remaining schedule. Ties go to points for. “Virtually in” and “virtually out” mean every simulation went that way, not that it’s mathematically locked.</p>";
+  h += '<p class="small muted" style="margin:12px 4px 0">Based on ' + n.toLocaleString() + " simulated seasons from each team’s scoring average, this week’s projections and live scores, and the real remaining schedule. Ties go to points for. Title odds play each simulated bracket as one-week games (top seeds get any byes, no reseeding), using each team’s scoring average. “Virtually in” and “virtually out” mean every simulation went that way, not that it’s mathematically locked.</p>";
   p.innerHTML = h;
   p.querySelector("#closeSheet").addEventListener("click", closeSheet);
 }
@@ -7318,6 +7346,7 @@ async function edgeLeague(L, el){
   let h = '<div class="card grade ' + tone + '"><div class="gtop"><div class="gnum"><b>' + Math.round(mine.odds * 100) + '</b><small>%</small></div><div><b class="glabel">Playoff odds</b><span class="muted small">Projected ' + mine.wins.toFixed(1) + " wins after week " + (sched.po.start - 1) + " · top " + sched.po.teams + " make it" + (mine.seed ? " · avg seed " + mine.seed.toFixed(1) : "") + "</span></div></div>" +
     '<ul class="reasons"><li class="' + (tone === "good" ? "good" : tone === "bad" ? "bad" : "") + '"><b>' + esc(call) + "</b></li>" +
     "<li>With a +15 point-a-week upgrade (a starting QB for you): " + pct(mineB.odds) + ".</li>" +
+    (left ? (() => { const tr = base.slice().sort((a, b) => b.title - a.title), r = tr.indexOf(mine) + 1, tp = x => x > 0 && x < 0.01 ? "under 1%" : pct(x); return "<li>Title odds: " + tp(mine.title) + (mine.title >= 0.005 ? " (" + ORDN(r) + "-best in the league; " + esc(tr[0].t.name) + " lead at " + tp(tr[0].title) + ")" : "") + ". With the +15 upgrade: " + tp(mineB.title) + ".</li>"; })() : "") +
     "<li>Remaining schedule: " + left + " games, " + (sosRank <= 5 ? "one of the hardest" : sosRank >= d.teams.length - 4 ? "one of the easiest" : "about average") + " in the league (opponents average " + fmt(sos) + ").</li>" +
     "<li>Projected draft slot for your own pick: about #" + Math.round(mine.slot) + ".</li></ul></div>";
   let pp = null; try { pp = playoffPath(d, sched, me, 3000); } catch(e){}
