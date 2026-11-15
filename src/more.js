@@ -121,12 +121,39 @@ export async function betInfoRoute(url) {
   const lh = l5[home.id], la = l5[away.id];
   const projTotal = lh && la ? Math.round(((lh.pf + la.pa) / 2 + (la.pf + lh.pa) / 2) * 10) / 10 : null;
   const out = { sport, home, away, provider: pc && pc.provider ? pc.provider.name : null, model, l5: { home: lh || null, away: la || null }, projTotal, state: ((comp.status || {}).type || {}).state || "" };
+  // Team stats: season averages before the game, this game's numbers once it starts.
+  const WANT = { totalPointsPerGame: "Points per game", totalPointsPerGameAllowed: "Points allowed per game", yardsPerGame: "Yards per game", yardsPerGameAllowed: "Yards allowed per game", passingYardsPerGame: "Passing yards per game", rushingYardsPerGame: "Rushing yards per game",
+    totalYards: "Total yards", yardsPerPass: "Yards per pass", yardsPerRushAttempt: "Yards per run", turnovers: "Turnovers", thirdDownEff: "Third downs", firstDowns: "First downs", possessionTime: "Time of possession", totalPenaltiesYards: "Penalties" };
+  const lower = new Set(["totalPointsPerGameAllowed", "yardsPerGameAllowed", "turnovers", "totalPenaltiesYards"]);
+  const statOf = id => { const t = ((d.boxscore || {}).teams || []).find(x => String((x.team || {}).id) === id); const o = {}; ((t && t.statistics) || []).forEach(st => { if (WANT[st.name]) o[st.name] = st.displayValue; }); return o; };
+  const sh = statOf(home.id), sa = statOf(away.id);
+  out.stats = Object.keys(WANT).filter(k => sh[k] != null && sa[k] != null).map(k => ({ k, label: WANT[k], home: sh[k], away: sa[k], lowerBetter: lower.has(k) }));
+  out.records = {}; cs.forEach(c => { const r = (c.record || []).find(x => x.type === "total") || (c.record || [])[0]; if (r) out.records[c.homeAway] = r.summary || r.displayValue; out[c.homeAway].rank = c.rank && c.rank < 99 ? c.rank : null; out[c.homeAway].score = c.score != null ? Number(c.score) : null; });
+  // Injuries worth knowing (out or doubtful, top few per team).
+  out.injuries = {};
+  for (const g of d.injuries || []) { const tid = String((g.team || {}).id || ""), side = tid === home.id ? "home" : tid === away.id ? "away" : null; if (!side) continue;
+    out.injuries[side] = (g.injuries || []).filter(i => /out|doubtful|injured reserve/i.test(i.status || "")).slice(0, 6).map(i => ({ name: (i.athlete || {}).displayName || "", pos: ((i.athlete || {}).position || {}).abbreviation || "", status: i.status })); }
+  // Live: win-chance history (trimmed to ~80 points), time left, and how the pregame bets look now.
+  const st = (comp.status || {}), period = Number(st.period) || 0, clk = String(st.displayClock || "0:00").split(":").map(Number), clockS = (clk[0] || 0) * 60 + (clk[1] || 0);
+  const rem = out.state === "in" ? Math.max(0, period <= 4 ? (4 - period) * 900 + clockS : 0) : out.state === "pre" ? 3600 : 0;
+  out.secondsLeft = rem; out.period = period; out.clock = st.displayClock || "";
+  const wps = (d.winprobability || []).map(x => x.homeWinPercentage).filter(x => x != null);
+  if (wps.length) { const step = Math.max(1, Math.ceil(wps.length / 80)); out.wp = wps.filter((_, i) => i % step === 0 || i === wps.length - 1).map(x => Math.round(x * 1000) / 10);
+    let big = 0, at = -1; for (let i = 1; i < wps.length; i++) { const dd = Math.abs(wps[i] - wps[i - 1]); if (dd > big) { big = dd; at = i; } } out.bigSwing = Math.round(big * 100); }
   if (pc) {
     const hs = num(pc.spread); // home team's spread, e.g. -3
     out.ml = { home: num((pc.homeTeamOdds || {}).moneyLine), away: num((pc.awayTeamOdds || {}).moneyLine) };
     out.spread = hs == null ? null : { home: hs, away: -hs, homeOdds: num((pc.homeTeamOdds || {}).spreadOdds) || -110, awayOdds: num((pc.awayTeamOdds || {}).spreadOdds) || -110 };
     out.total = num(pc.overUnder) == null ? null : { line: num(pc.overUnder), over: num(pc.overOdds) || -110, under: num(pc.underOdds) || -110 };
     if (model && out.spread) { const pH = ncdf((model.margin + out.spread.home) / sd); out.spread.homeCover = Math.round(pH * 1000) / 10; out.spread.awayCover = Math.round((1 - pH) * 1000) / 10; }
+    if (out.state === "in" && rem > 0 && out.home.score != null && out.away.score != null) {
+      const live = { margin: out.home.score - out.away.score, pts: out.home.score + out.away.score };
+      const lastWp = (d.winprobability || []).slice(-1)[0], ph = lastWp ? lastWp.homeWinPercentage : null;
+      const sdr = sd * Math.sqrt(rem / 3600), sdt = sdTot * Math.sqrt(rem / 3600);
+      if (ph != null) { const lim = 3 + 14 * rem / 3600, r0 = ph > .005 && ph < .995 ? sdr * ninv(ph) - live.margin : 0, mu = live.margin + Math.max(-lim, Math.min(lim, r0)); live.expMargin = Math.round((mu) * 10) / 10; if (out.spread) { const c = ncdf((mu + out.spread.home) / sdr); live.homeCover = Math.round(c * 1000) / 10; live.awayCover = Math.round((1 - c) * 1000) / 10; } }
+      if (out.total) { const expRest = out.total.line * rem / 3600; live.projTotal = Math.round((live.pts + expRest) * 10) / 10; const need = out.total.line - live.pts; const po = ncdf((expRest - need) / Math.max(1, sdt)); live.overChance = Math.round(po * 1000) / 10; live.underChance = Math.round((1 - po) * 1000) / 10; }
+      out.live = live;
+    }
     if (projTotal != null && out.total) { const po = ncdf((projTotal - out.total.line) / sdTot); out.total.overChance = Math.round(po * 1000) / 10; out.total.underChance = Math.round((1 - po) * 1000) / 10; }
   }
   return jsonT(out, 200, 300);

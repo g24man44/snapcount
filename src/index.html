@@ -1013,6 +1013,9 @@ h3.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .betcalc .bcard{display:flex;flex-direction:column;gap:3px;padding:10px 12px;margin-top:8px;border-radius:8px;background:var(--surface2);font-size:13.5px;line-height:1.4}.betcalc .bcard b{font-size:14.5px}.betcalc .bcard small{color:var(--muted);font-size:12px}
 .betcalc .bcard strong{font-variant-numeric:tabular-nums}.betcalc em.v{font-style:normal;font-size:12.5px;color:var(--muted);margin-top:2px;padding:0;background:none}.betcalc em.v.up{color:var(--ok)}.betcalc em.v.dn{color:var(--muted)}
 .betcalc .bhow{margin-top:10px}.betcalc .bhow summary{cursor:pointer;color:var(--muted);font-size:12.5px;font-weight:700;list-style:none}.betcalc .bhow summary::-webkit-details-marker{display:none}
+.wpchart{position:relative;margin-top:6px;padding:16px 0;border-radius:8px;background:var(--surface2)}.wpchart svg{display:block;width:100%;height:90px}.wpchart .mid{stroke:var(--line);stroke-dasharray:4 4;stroke-width:1}.wpchart .ln{fill:none;stroke:var(--accent);stroke-width:2.2;vector-effect:non-scaling-stroke}
+.wpchart .wl{position:absolute;left:10px;font-size:11px;font-weight:700;color:var(--muted)}.wpchart .wl.t{top:2px}.wpchart .wl.b{bottom:2px}
+.betcalc .stbl{margin-top:6px}.betcalc .stbl td{text-align:center;width:22%;font-weight:600}.betcalc .stbl th{text-align:center;font-weight:500;color:var(--muted);font-size:12px}.betcalc .stbl thead th{color:var(--ink);font-weight:800;font-size:12.5px}.betcalc .stbl td.win{color:var(--ok);font-weight:800}
 @media (max-width:400px){h2{font-size:28px}.brand h1{font-size:21px}.coachfab{padding:8px 10px!important}}
 @media (max-width:350px){.brand h1{font-size:21px}.coachfab{font-size:0!important;gap:0;padding:9px!important}.coachfab i{font-size:16px}}
 </style>
@@ -1668,6 +1671,25 @@ document.addEventListener("toggle", async e => {
       const l = r.total.line, hi = Math.floor(l) + 1, lo = Math.ceil(l) - 1;
       h += '<p class="bah">Total points scored</p>' + card("Both teams combine for " + hi + "+ points", "Listed as Over " + l + "." + (Number.isInteger(l) ? " Exactly " + l + " gets your $10 back." : ""), r.total.over, r.total.overChance) + card("Both teams combine for " + lo + " points or fewer", "Listed as Under " + l + ".", r.total.under, r.total.underChance);
     }
+    // Live: the win-chance line through the game, then how the pregame bets stand right now.
+    if (r.state === "in" && r.wp && r.wp.length > 3) {
+      const W = 300, Hh = 90, n = r.wp.length, pt = (v, i) => (i / (n - 1) * W).toFixed(1) + "," + ((1 - v / 100) * Hh).toFixed(1);
+      const path = r.wp.map((v, i) => (i ? "L" : "M") + pt(v, i)).join(" "), last = r.wp[n - 1];
+      h = '<p class="bah">Win chance through the game</p><div class="wpchart"><span class="wl t">' + esc(H) + '</span><span class="wl b">' + esc(A) + '</span><svg viewBox="0 0 ' + W + " " + Hh + '" preserveAspectRatio="none" aria-label="' + esc(H) + " win chance from " + r.wp[0] + "% to " + last + '%"><line x1="0" x2="' + W + '" y1="' + Hh / 2 + '" y2="' + Hh / 2 + '" class="mid"/><path d="' + path + '" class="ln"/></svg></div><p class="small muted" style="margin:4px 0 0">Line above the middle means ' + esc(H) + " are favored, below means " + esc(A) + ". " + (r.bigSwing ? "Biggest single-play swing: " + r.bigSwing + " points." : "") + "</p>" + h;
+    }
+    if (r.state === "in" && r.live && (r.spread || r.total)) {
+      const lv = r.live, chance = c => c == null ? "–" : c >= 99.5 ? "almost certain" : c <= 0.5 ? "almost no chance" : Math.round(c) + "% chance";
+      const stat = (title, c, extra) => '<div class="bcard"><b>' + esc(title) + "</b><span>Right now: <strong>" + chance(c) + "</strong>" + (extra ? " · " + extra : "") + "</span></div>";
+      h += '<p class="bah">If you bet before kickoff</p>';
+      if (r.spread) { h += stat(A + " " + (r.spread.away > 0 ? "+" : "") + r.spread.away, lv.awayCover, (lv.margin < 0 ? A + " lead by " + -lv.margin : lv.margin > 0 ? H + " lead by " + lv.margin : "tied")) + stat(H + " " + (r.spread.home > 0 ? "+" : "") + r.spread.home, lv.homeCover, ""); }
+      if (r.total && lv.projTotal != null) { h += stat("Over " + r.total.line + " total points", lv.overChance, lv.pts + " scored so far, on pace for about " + Math.round(lv.projTotal)) + stat("Under " + r.total.line + " total points", lv.underChance, ""); }
+    }
+    if (r.stats && r.stats.length) {
+      const better = (x, a, b) => { const n = v => parseFloat(String(v).split(/[-/:]/)[0]) + (String(v).includes(":") ? parseFloat(String(v).split(":")[1]) / 60 : 0), pct = v => { const m = String(v).match(/^(\d+)-(\d+)$/); return m && x.k === "thirdDownEff" ? (+m[2] ? +m[1] / +m[2] : 0) : n(v); }; const va = pct(a), vb = pct(b); if (!isFinite(va) || !isFinite(vb) || va === vb) return 0; return (va > vb) !== !!x.lowerBetter ? -1 : 1; };
+      h += '<p class="bah">' + (r.state === "pre" ? "Season averages" : "This game so far") + '</p><table class="stbl"><thead><tr><th>' + esc(A) + "</th><th></th><th>" + esc(H) + "</th></tr></thead><tbody>" + r.stats.map(x => { const b = better(x, x.away, x.home); return "<tr><td" + (b < 0 ? ' class="win"' : "") + ">" + esc(x.away) + "</td><th>" + esc(x.label) + "</th><td" + (b > 0 ? ' class="win"' : "") + ">" + esc(x.home) + "</td></tr>"; }).join("") + "</tbody></table>";
+    }
+    const injL = (t, list) => list && list.length ? "<li><b>" + esc(t) + ":</b> " + list.map(i => esc(i.name) + (i.pos ? " (" + esc(i.pos) + ")" : "") + " " + esc(String(i.status).toLowerCase())).join(", ") + "</li>" : "";
+    if (r.injuries && (r.injuries.away || r.injuries.home)) h += '<p class="bah">Injuries to know</p><ul class="l5">' + injL(A, r.injuries.away) + injL(H, r.injuries.home) + "</ul>";
     const l5 = (t, x) => x ? "<li><b>" + esc(t) + "</b> won " + x.rec.split("-")[0] + " of their last " + x.games.length + ", scoring " + x.pf + " and allowing " + x.pa + " points a game.</li>" : "";
     if (r.l5 && (r.l5.away || r.l5.home)) h += '<p class="bah">How they’ve been playing</p><ul class="l5">' + l5(A, r.l5.away) + l5(H, r.l5.home) + "</ul>";
     if (r.state === "pre") h += '<details class="bhow"><summary>Where these numbers come from</summary><p>“Sportsbook’s chance” is the chance hidden in the price ' + (r.provider ? esc(r.provider) + " " : "") + "is offering. Books add a small cut, so both sides add up to a little over 100%. " +
@@ -2529,7 +2551,7 @@ function drawScores(r){
     const betRow = (t, pct) => { const p = Math.min(.99, Math.max(.01, pct / 100)); return "<tr><th>" + esc(t.abbr || t.name) + "</th><td>" + pct + "%</td><td>" + fairOdds(p) + "</td><td>$" + (10 * (1 - p) / p).toFixed(2) + "</td></tr>"; };
     const liveOne = (t, pct) => { const p = Math.min(.99, Math.max(.01, pct / 100)); return '<div class="bcard"><b>' + esc(t.name || t.abbr) + " to win</b><span>ESPN gives them <strong>" + pct + "%</strong> right now.</span><span>A fair price would pay about <strong>$" + (10 * (1 - p) / p).toFixed(2) + "</strong> profit on $10 (" + fairOdds(p) + ").</span><small>If your sportsbook pays more than that, it’s a better-than-fair price. If it pays less, it isn’t.</small></div>"; };
     const liveTbl = g.state === "in" && g.wp && g.wp.src === "live" && g.away && g.home && g.wp.away > 0 && g.wp.home > 0 ? '<p class="bah">Betting on who wins, right now</p>' + liveOne(g.away, g.wp.away) + liveOne(g.home, g.wp.home) : "";
-    const betCalc = g.state !== "post" && g.id && (r.sport === "nfl" || r.sport === "cfb") ? '<details class="betcalc" data-bet="' + esc(r.sport + ":" + g.id) + '"><summary>What would a $10 bet pay?</summary>' + liveTbl + '<div class="bapre"><p class="small muted">Loading…</p></div></details>' : "";
+    const betCalc = g.state !== "post" && g.id && (r.sport === "nfl" || r.sport === "cfb") ? '<details class="betcalc" data-bet="' + esc(r.sport + ":" + g.id) + '"><summary>Betting numbers and game analytics</summary>' + liveTbl + '<div class="bapre"><p class="small muted">Loading…</p></div></details>' : "";
     const bet = [g.line ? "Spread " + g.line : "", g.ou ? "O/U " + g.ou : "", g.ml && g.ml.away != null && g.ml.home != null && g.state === "pre" ? "ML " + fmtMl(g.ml.away) + " / " + fmtMl(g.ml.home) : ""].filter(Boolean).join(" · ");
     const meta = wpBar + betCalc + '<div class="gmeta"><span class="' + (g.state === "in" ? "glive" : "") + '">' + esc(g.state === "in" ? g.detail : when) + "</span><span>" + esc(g.tv || "") + "</span></div>" + (bet ? '<div class="gbet">' + esc(bet) + "</div>" : "");
     let body;
