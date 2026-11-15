@@ -80,6 +80,58 @@ export const SPORTS = {
   epl: ["soccer/eng.1", "Premier League"], mls: ["soccer/usa.1", "MLS"], ucl: ["soccer/uefa.champions", "Champions League"], laliga: ["soccer/esp.1", "La Liga"],
   pga: ["golf/pga", "PGA Tour"], f1: ["racing/f1", "Formula 1"], ufc: ["mma/ufc", "UFC"]
 };
+
+/* ---------- bet analytics for one game: book prices, $10 payouts, and model chances (ESPN predictor, last-5 scoring) ---------- */
+const ncdf = z => 0.5 * (1 + Math.tanh(0.7978845608 * (z + 0.044715 * z * z * z)));
+const ninv = p => { // inverse normal (Acklam), enough precision for this
+  const a = [-39.6968302866538, 220.946098424521, -275.928510446969, 138.357751867269, -30.6647980661472, 2.50662827745924], b = [-54.4760987982241, 161.585836858041, -155.698979859887, 66.8013118877197, -13.2806815528857], c = [-0.00778489400243029, -0.322396458041136, -2.40075827716184, -2.54973253934373, 4.37466414146497, 2.93816398269878], d = [0.00778469570904146, 0.32246712907004, 2.445134137143, 3.75440866190742];
+  p = Math.min(.999, Math.max(.001, p));
+  if (p < .02425) { const q = Math.sqrt(-2 * Math.log(p)); return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1); }
+  if (p > 1 - .02425) { const q = Math.sqrt(-2 * Math.log(1 - p)); return -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1); }
+  const q = p - .5, r = q * q; return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
+};
+const jsonT = (data, status, ttl) => new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "public, max-age=" + (ttl || 0) } });
+export async function betInfoRoute(url) {
+  const sport = url.searchParams.get("sport") === "cfb" ? "cfb" : "nfl", id = String(url.searchParams.get("id") || "");
+  if (!/^\d{5,12}$/.test(id)) return jsonT({ error: "Bad game id" }, 400, 0);
+  const lg = sport === "cfb" ? "college-football" : "nfl";
+  const r = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/" + lg + "/summary?event=" + id, { headers: UA });
+  if (!r.ok) return jsonT({ error: "ESPN didn’t answer (" + r.status + ")" }, 502, 0);
+  const d = await r.json();
+  const comp = ((d.header || {}).competitions || [])[0] || {}, cs = comp.competitors || [];
+  const H = cs.find(c => c.homeAway === "home") || {}, A = cs.find(c => c.homeAway === "away") || {};
+  const tm = c => ({ id: String((c.team || {}).id || ""), abbr: (c.team || {}).abbreviation || "", name: (c.team || {}).displayName || "" });
+  const home = tm(H), away = tm(A);
+  const pc = (d.pickcenter || [])[0] || null;
+  const num = x => { const n = Number(x); return Number.isFinite(n) ? n : null; };
+  const pr = d.predictor || {}, mh = num((pr.homeTeam || {}).gameProjection), ma = num((pr.awayTeam || {}).gameProjection);
+  const sd = sport === "cfb" ? 15.5 : 13.5, sdTot = sport === "cfb" ? 16 : 13;
+  // ESPN's predictor gives win chances; turn that into an expected margin so a spread can be checked too.
+  let model = null;
+  if (mh != null && ma != null && mh + ma > 0) { const ph = mh / (mh + ma); model = { home: Math.round(ph * 1000) / 10, away: Math.round((1 - ph) * 1000) / 10, margin: Math.round(sd * ninv(ph) * 10) / 10 }; }
+  // Last five games: points for and against, for a simple scoring projection.
+  const l5 = {};
+  for (const g of d.lastFiveGames || []) {
+    const tid = String((g.team || {}).id || ""), ev = (g.events || []).filter(e => e.homeTeamScore != null);
+    if (!ev.length) continue;
+    let pf = 0, pa = 0, w = 0;
+    const games = ev.map(e => { const atHome = String(e.homeTeamId) === tid, f = +(atHome ? e.homeTeamScore : e.awayTeamScore), a = +(atHome ? e.awayTeamScore : e.homeTeamScore); pf += f; pa += a; if (e.gameResult === "W") w++; return { r: e.gameResult, s: f + "-" + a, opp: ((e.opponent || {}).abbreviation) || "", at: e.atVs || "" }; });
+    l5[tid] = { pf: Math.round(pf / ev.length * 10) / 10, pa: Math.round(pa / ev.length * 10) / 10, rec: w + "-" + (ev.length - w), games };
+  }
+  const lh = l5[home.id], la = l5[away.id];
+  const projTotal = lh && la ? Math.round(((lh.pf + la.pa) / 2 + (la.pf + lh.pa) / 2) * 10) / 10 : null;
+  const out = { sport, home, away, provider: pc && pc.provider ? pc.provider.name : null, model, l5: { home: lh || null, away: la || null }, projTotal, state: ((comp.status || {}).type || {}).state || "" };
+  if (pc) {
+    const hs = num(pc.spread); // home team's spread, e.g. -3
+    out.ml = { home: num((pc.homeTeamOdds || {}).moneyLine), away: num((pc.awayTeamOdds || {}).moneyLine) };
+    out.spread = hs == null ? null : { home: hs, away: -hs, homeOdds: num((pc.homeTeamOdds || {}).spreadOdds) || -110, awayOdds: num((pc.awayTeamOdds || {}).spreadOdds) || -110 };
+    out.total = num(pc.overUnder) == null ? null : { line: num(pc.overUnder), over: num(pc.overOdds) || -110, under: num(pc.underOdds) || -110 };
+    if (model && out.spread) { const pH = ncdf((model.margin + out.spread.home) / sd); out.spread.homeCover = Math.round(pH * 1000) / 10; out.spread.awayCover = Math.round((1 - pH) * 1000) / 10; }
+    if (projTotal != null && out.total) { const po = ncdf((projTotal - out.total.line) / sdTot); out.total.overChance = Math.round(po * 1000) / 10; out.total.underChance = Math.round((1 - po) * 1000) / 10; }
+  }
+  return jsonT(out, 200, 300);
+}
+
 export async function scoresRoute(url) {
   const s = url.searchParams.get("sport") || "nfl";
   const sp = SPORTS[s]; if (!sp) return out({ error: "Unknown sport" }, 400);

@@ -25,6 +25,7 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- Bet analytics on every NFL and college game in Scores (/api/betinfo, cached 5 min): moneyline, spread and total with the book’s odds, $10 payout, the chance built into the price, and a model chance (ESPN matchup predictor → win and cover chances; last-5 scoring → over/under), green “model +” when the model is 3+ points above the price; recent form; live games add the live-win-chance fair-odds table. Estimates only, no picks.
 - Scores, live games: “If you bet $10 on the moneyline now” opens a table per team (live win chance, fair odds, fair win on $10) from ESPN’s live win probability, with a note on comparing to the book’s price. No picks or labels; ESPN’s free feed has no live lines.
 - Trade rosters: when a team’s live roster loads, its players are removed from any other team’s older cached list (fixes a player showing on both teams right after a trade); “Trade with a team” refreshes both teams’ live rosters (Fleaflicker) when opened.
 - Trade with a team: now the first and default Trade mode (was “grade a trade”); teams shown as tappable chips with record and owner; one roster at a time with a sticky “You get / You give” switch; paste-an-offer box collapsed; “Trade” link on every standings row jumps straight in. Fixed: the league view’s team picker was labeled “See another team” but it sets which team is yours — relabeled.

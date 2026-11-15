@@ -1008,6 +1008,8 @@ h3.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .betcalc{margin-top:8px;font-size:13px}.betcalc summary{cursor:pointer;color:var(--accent);font-weight:700;list-style:none}.betcalc summary::-webkit-details-marker{display:none}.betcalc summary::after{content:" ›"}
 .betcalc table{width:100%;border-collapse:collapse;margin-top:8px;font-variant-numeric:tabular-nums}.betcalc th,.betcalc td{text-align:right;padding:5px 4px;border-bottom:1px solid var(--line)}.betcalc thead th{font-size:11px;color:var(--muted);font-weight:600}.betcalc tbody th{text-align:left}
 .betcalc p{margin:8px 0 0;color:var(--muted);font-size:12px;line-height:1.45}
+.betcalc .bah{margin:12px 0 0;font-weight:800;font-size:13px;color:var(--ink)}.betcalc tbody td em{font-style:normal;font-size:11px;font-weight:700;margin-left:4px;padding:1px 5px;border-radius:4px}.betcalc em.up{color:var(--ok);background:var(--ok-soft)}.betcalc em.dn{color:var(--muted);background:var(--surface2)}
+.betcalc .l5{margin:6px 0 0;padding-left:18px;color:var(--muted);font-size:12.5px}.betcalc .l5 b{color:var(--ink)}.betcalc td{white-space:nowrap}
 @media (max-width:400px){h2{font-size:28px}.brand h1{font-size:21px}.coachfab{padding:8px 10px!important}}
 @media (max-width:350px){.brand h1{font-size:21px}.coachfab{font-size:0!important;gap:0;padding:9px!important}.coachfab i{font-size:16px}}
 </style>
@@ -1630,6 +1632,35 @@ document.addEventListener("click", async e => {
   } catch(x){ lab.textContent = "Couldn’t send"; }
   setTimeout(() => { lab.textContent = was; }, 4000);
 });
+
+/* ---------- bet analytics: book prices, $10 payouts and model chances for one game (loads when opened) ---------- */
+const amPay = o => o == null ? null : o > 0 ? 10 * o / 100 : 10 * 100 / Math.abs(o);
+const amImp = o => o == null ? null : o > 0 ? 100 / (o + 100) : Math.abs(o) / (Math.abs(o) + 100);
+const amFmt = o => o == null ? "–" : o > 0 ? "+" + Math.round(o) : String(Math.round(o));
+document.addEventListener("toggle", async e => {
+  const d = e.target; if (!d.matches || !d.matches("details.betcalc[data-bet]") || !d.open || d._loaded) return;
+  d._loaded = true;
+  const [sp, id] = d.dataset.bet.split(":"), box = d.querySelector(".bapre");
+  try {
+    const r = await api("/api/betinfo?sport=" + sp + "&id=" + id);
+    const A = r.away.abbr || r.away.name, H = r.home.abbr || r.home.name, M = r.model;
+    const edge = (model, book) => model == null || book == null ? "" : (model - book * 100 >= 3 ? ' <em class="up">model +' + (model - book * 100).toFixed(1) + "</em>" : model - book * 100 <= -3 ? ' <em class="dn">model ' + (model - book * 100).toFixed(1) + "</em>" : "");
+    const row = (lab, odds, model, extra) => "<tr><th>" + esc(lab) + "</th><td>" + amFmt(odds) + "</td><td>" + (amPay(odds) != null ? "$" + amPay(odds).toFixed(2) : "–") + "</td><td>" + (odds != null ? Math.round(amImp(odds) * 100) + "%" : "–") + "</td><td>" + (model != null ? model.toFixed(1) + "%" + edge(model, amImp(odds)) : "–") + "</td></tr>";
+    const head = '<thead><tr><th></th><th>Odds</th><th>$10 wins</th><th>Book says</th><th>Model</th></tr></thead>';
+    let h = "";
+    if (r.state === "pre" && r.ml && (r.ml.home != null || r.ml.away != null)) h += '<p class="bah">Moneyline' + (r.provider ? " · " + esc(r.provider) : "") + "</p><table>" + head + "<tbody>" + row(A, r.ml.away, M && M.away) + row(H, r.ml.home, M && M.home) + "</tbody></table>";
+    if (r.state === "pre" && r.spread) h += '<p class="bah">Spread</p><table>' + head + "<tbody>" + row(A + " " + (r.spread.away > 0 ? "+" : "") + r.spread.away, r.spread.awayOdds, r.spread.awayCover) + row(H + " " + (r.spread.home > 0 ? "+" : "") + r.spread.home, r.spread.homeOdds, r.spread.homeCover) + "</tbody></table>";
+    if (r.state === "pre" && r.total) h += '<p class="bah">Total</p><table>' + head + "<tbody>" + row("Over " + r.total.line, r.total.over, r.total.overChance) + row("Under " + r.total.line, r.total.under, r.total.underChance) + "</tbody></table>";
+    const l5 = (t, x) => x ? "<li><b>" + esc(t) + "</b> " + x.rec + " last " + x.games.length + " · " + x.pf + " scored, " + x.pa + " allowed a game · " + x.games.map(g => g.r).join(" ") + "</li>" : "";
+    if (r.l5 && (r.l5.away || r.l5.home)) h += '<p class="bah">Recent form</p><ul class="l5">' + l5(A, r.l5.away) + l5(H, r.l5.home) + "</ul>";
+    if (r.state === "pre") h += "<p>“Book says” is the chance built into the sportsbook’s price (it includes the book’s cut, so the two sides add up to a bit over 100%). " +
+      (M ? "“Model” for the moneyline and spread comes from ESPN’s matchup predictor (" + esc(H) + " by " + Math.abs(M.margin) + " expected" + (M.margin < 0 ? ", for " + esc(A) : "") + "). " : "ESPN hasn’t posted its matchup predictor for this game. ") +
+      (r.projTotal != null ? "The total’s model uses both teams’ last five games (" + r.projTotal + " points projected). " : "") +
+      "A green “model +” means the model gives that side a better chance than the price does. These are estimates, not guarantees.</p>";
+    if (r.state === "in") h += "<p>Sportsbook lines drop out of ESPN’s feed once a game starts, so live numbers come from ESPN’s live win chance" + (d.querySelector("table") ? " above" : " (not shown when a game is this one-sided)") + ".</p>";
+    box.innerHTML = h || '<p class="small muted">No betting lines posted for this game yet.</p>';
+  } catch(x){ box.innerHTML = '<p class="small muted">Couldn’t load: ' + esc(x.message) + "</p>"; d._loaded = false; }
+}, true);
 /* ---------- try the game-day features any time (on this phone only) ---------- */
 function gdTestCard(){
   return '<details class="card gdt"><summary><b>Try the game-day features</b><span class="small muted">See them now instead of waiting for Sunday. Only you see these.</span></summary>' +
@@ -2479,7 +2510,8 @@ function drawScores(r){
     // Live games: what ESPN's win chance says a $10 moneyline bet on each side is worth, so you can compare to your book's price.
     const fairOdds = p => p >= .5 ? "-" + Math.round(100 * p / (1 - p)) : "+" + Math.round(100 * (1 - p) / p);
     const betRow = (t, pct) => { const p = Math.min(.99, Math.max(.01, pct / 100)); return "<tr><th>" + esc(t.abbr || t.name) + "</th><td>" + pct + "%</td><td>" + fairOdds(p) + "</td><td>$" + (10 * (1 - p) / p).toFixed(2) + "</td></tr>"; };
-    const betCalc = g.state === "in" && g.wp && g.wp.src === "live" && g.away && g.home && g.wp.away > 0 && g.wp.home > 0 ? '<details class="betcalc"><summary>If you bet $10 on the moneyline now</summary><table><thead><tr><th></th><th>Win chance</th><th>Fair odds</th><th>Fair win on $10</th></tr></thead><tbody>' + betRow(g.away, g.wp.away) + betRow(g.home, g.wp.home) + '</tbody></table><p>From ESPN’s live win chance. If your sportsbook pays <b>more</b> than the fair odds (for example +450 when fair is +400), ESPN’s model rates that price as worth it; if it pays less, it isn’t. Books build in a cut, so most live prices come out a little worse than fair. It’s a model, not a sure thing.</p></details>' : "";
+    const liveTbl = g.state === "in" && g.wp && g.wp.src === "live" && g.away && g.home && g.wp.away > 0 && g.wp.home > 0 ? '<p class="bah">Moneyline right now</p><table><thead><tr><th></th><th>Win chance</th><th>Fair odds</th><th>Fair win on $10</th></tr></thead><tbody>' + betRow(g.away, g.wp.away) + betRow(g.home, g.wp.home) + '</tbody></table><p>From ESPN’s live win chance. If your sportsbook pays <b>more</b> than the fair odds (for example +450 when fair is +400), the model rates that price as worth it; if it pays less, it isn’t.</p>' : "";
+    const betCalc = g.state !== "post" && g.id && (r.sport === "nfl" || r.sport === "cfb") ? '<details class="betcalc" data-bet="' + esc(r.sport + ":" + g.id) + '"><summary>Bet analytics</summary>' + liveTbl + '<div class="bapre"><p class="small muted">Loading…</p></div></details>' : "";
     const bet = [g.line ? "Spread " + g.line : "", g.ou ? "O/U " + g.ou : "", g.ml && g.ml.away != null && g.ml.home != null && g.state === "pre" ? "ML " + fmtMl(g.ml.away) + " / " + fmtMl(g.ml.home) : ""].filter(Boolean).join(" · ");
     const meta = wpBar + betCalc + '<div class="gmeta"><span class="' + (g.state === "in" ? "glive" : "") + '">' + esc(g.state === "in" ? g.detail : when) + "</span><span>" + esc(g.tv || "") + "</span></div>" + (bet ? '<div class="gbet">' + esc(bet) + "</div>" : "");
     let body;
