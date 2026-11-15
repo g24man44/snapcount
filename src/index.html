@@ -1010,6 +1010,9 @@ h3.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .betcalc p{margin:8px 0 0;color:var(--muted);font-size:12px;line-height:1.45}
 .betcalc .bah{margin:12px 0 0;font-weight:800;font-size:13px;color:var(--ink)}.betcalc tbody td em{font-style:normal;font-size:11px;font-weight:700;margin-left:4px;padding:1px 5px;border-radius:4px}.betcalc em.up{color:var(--ok);background:var(--ok-soft)}.betcalc em.dn{color:var(--muted);background:var(--surface2)}
 .betcalc .l5{margin:6px 0 0;padding-left:18px;color:var(--muted);font-size:12.5px}.betcalc .l5 b{color:var(--ink)}.betcalc td{white-space:nowrap}
+.betcalc .bcard{display:flex;flex-direction:column;gap:3px;padding:10px 12px;margin-top:8px;border-radius:8px;background:var(--surface2);font-size:13.5px;line-height:1.4}.betcalc .bcard b{font-size:14.5px}.betcalc .bcard small{color:var(--muted);font-size:12px}
+.betcalc .bcard strong{font-variant-numeric:tabular-nums}.betcalc em.v{font-style:normal;font-size:12.5px;color:var(--muted);margin-top:2px;padding:0;background:none}.betcalc em.v.up{color:var(--ok)}.betcalc em.v.dn{color:var(--muted)}
+.betcalc .bhow{margin-top:10px}.betcalc .bhow summary{cursor:pointer;color:var(--muted);font-size:12.5px;font-weight:700;list-style:none}.betcalc .bhow summary::-webkit-details-marker{display:none}
 @media (max-width:400px){h2{font-size:28px}.brand h1{font-size:21px}.coachfab{padding:8px 10px!important}}
 @media (max-width:350px){.brand h1{font-size:21px}.coachfab{font-size:0!important;gap:0;padding:9px!important}.coachfab i{font-size:16px}}
 </style>
@@ -1643,21 +1646,35 @@ document.addEventListener("toggle", async e => {
   const [sp, id] = d.dataset.bet.split(":"), box = d.querySelector(".bapre");
   try {
     const r = await api("/api/betinfo?sport=" + sp + "&id=" + id);
-    const A = r.away.abbr || r.away.name, H = r.home.abbr || r.home.name, M = r.model;
-    const edge = (model, book) => model == null || book == null ? "" : (model - book * 100 >= 3 ? ' <em class="up">model +' + (model - book * 100).toFixed(1) + "</em>" : model - book * 100 <= -3 ? ' <em class="dn">model ' + (model - book * 100).toFixed(1) + "</em>" : "");
-    const row = (lab, odds, model, extra) => "<tr><th>" + esc(lab) + "</th><td>" + amFmt(odds) + "</td><td>" + (amPay(odds) != null ? "$" + amPay(odds).toFixed(2) : "–") + "</td><td>" + (odds != null ? Math.round(amImp(odds) * 100) + "%" : "–") + "</td><td>" + (model != null ? model.toFixed(1) + "%" + edge(model, amImp(odds)) : "–") + "</td></tr>";
-    const head = '<thead><tr><th></th><th>Odds</th><th>$10 wins</th><th>Book says</th><th>Model</th></tr></thead>';
+    const A = r.away.short || r.away.abbr, H = r.home.short || r.home.abbr, M = r.model;
+    const money = o => "$" + (10 + amPay(o)).toFixed(2);
+    const verdict = (model, odds) => {
+      if (model == null || odds == null) return '<em class="v">We don’t have our own numbers for this one.</em>';
+      const d = model - amImp(odds) * 100;
+      return d >= 3 ? '<em class="v up">👍 Our numbers give this a better chance than the sportsbook does.</em>' : d <= -3 ? '<em class="v dn">👎 Our numbers give this a worse chance than the sportsbook does.</em>' : '<em class="v">About what the sportsbook expects.</em>';
+    };
+    const card = (title, how, odds, model) => odds == null ? "" : '<div class="bcard"><b>' + esc(title) + "</b>" + (how ? "<small>" + how + "</small>" : "") +
+      "<span>Bet $10, get back <strong>" + money(odds) + "</strong> if it hits (" + "$" + amPay(odds).toFixed(2) + " profit).</span>" +
+      "<span>Sportsbook’s chance: <strong>" + Math.round(amImp(odds) * 100) + "%</strong>" + (model != null ? " · Our numbers: <strong>" + Math.round(model) + "%</strong>" : "") + "</span>" + verdict(model, odds) + "</div>";
+    const pts = n => n === 1 ? "1 point" : n + " points";
     let h = "";
-    if (r.state === "pre" && r.ml && (r.ml.home != null || r.ml.away != null)) h += '<p class="bah">Moneyline' + (r.provider ? " · " + esc(r.provider) : "") + "</p><table>" + head + "<tbody>" + row(A, r.ml.away, M && M.away) + row(H, r.ml.home, M && M.home) + "</tbody></table>";
-    if (r.state === "pre" && r.spread) h += '<p class="bah">Spread</p><table>' + head + "<tbody>" + row(A + " " + (r.spread.away > 0 ? "+" : "") + r.spread.away, r.spread.awayOdds, r.spread.awayCover) + row(H + " " + (r.spread.home > 0 ? "+" : "") + r.spread.home, r.spread.homeOdds, r.spread.homeCover) + "</tbody></table>";
-    if (r.state === "pre" && r.total) h += '<p class="bah">Total</p><table>' + head + "<tbody>" + row("Over " + r.total.line, r.total.over, r.total.overChance) + row("Under " + r.total.line, r.total.under, r.total.underChance) + "</tbody></table>";
-    const l5 = (t, x) => x ? "<li><b>" + esc(t) + "</b> " + x.rec + " last " + x.games.length + " · " + x.pf + " scored, " + x.pa + " allowed a game · " + x.games.map(g => g.r).join(" ") + "</li>" : "";
-    if (r.l5 && (r.l5.away || r.l5.home)) h += '<p class="bah">Recent form</p><ul class="l5">' + l5(A, r.l5.away) + l5(H, r.l5.home) + "</ul>";
-    if (r.state === "pre") h += "<p>“Book says” is the chance built into the sportsbook’s price (it includes the book’s cut, so the two sides add up to a bit over 100%). " +
-      (M ? "“Model” for the moneyline and spread comes from ESPN’s matchup predictor (" + esc(H) + " by " + Math.abs(M.margin) + " expected" + (M.margin < 0 ? ", for " + esc(A) : "") + "). " : "ESPN hasn’t posted its matchup predictor for this game. ") +
-      (r.projTotal != null ? "The total’s model uses both teams’ last five games (" + r.projTotal + " points projected). " : "") +
-      "A green “model +” means the model gives that side a better chance than the price does. These are estimates, not guarantees.</p>";
-    if (r.state === "in") h += "<p>Sportsbook lines drop out of ESPN’s feed once a game starts, so live numbers come from ESPN’s live win chance" + (d.querySelector("table") ? " above" : " (not shown when a game is this one-sided)") + ".</p>";
+    if (r.state === "pre" && r.ml && (r.ml.home != null || r.ml.away != null)) h += '<p class="bah">Who wins the game</p>' + card(A + " win", "", r.ml.away, M && M.away) + card(H + " win", "", r.ml.home, M && M.home);
+    if (r.state === "pre" && r.spread) {
+      const sp = (t, line, other) => line > 0 ? t + " win, or lose by " + (Math.ceil(line) - 1 > 0 ? pts(Math.ceil(line) - 1) + " or less" : "0") : t + " win by " + pts(Math.floor(-line) + 1) + " or more";
+      const pushNote = l => Number.isInteger(l) ? " If it lands exactly on " + Math.abs(l) + ", you get your $10 back." : "";
+      h += '<p class="bah">Winning by enough (the spread)</p>' + card(sp(A, r.spread.away), "Listed as " + esc(A) + " " + (r.spread.away > 0 ? "+" : "") + r.spread.away + "." + pushNote(r.spread.away), r.spread.awayOdds, r.spread.awayCover) + card(sp(H, r.spread.home), "Listed as " + esc(H) + " " + (r.spread.home > 0 ? "+" : "") + r.spread.home + "." + pushNote(r.spread.home), r.spread.homeOdds, r.spread.homeCover);
+    }
+    if (r.state === "pre" && r.total) {
+      const l = r.total.line, hi = Math.floor(l) + 1, lo = Math.ceil(l) - 1;
+      h += '<p class="bah">Total points scored</p>' + card("Both teams combine for " + hi + "+ points", "Listed as Over " + l + "." + (Number.isInteger(l) ? " Exactly " + l + " gets your $10 back." : ""), r.total.over, r.total.overChance) + card("Both teams combine for " + lo + " points or fewer", "Listed as Under " + l + ".", r.total.under, r.total.underChance);
+    }
+    const l5 = (t, x) => x ? "<li><b>" + esc(t) + "</b> won " + x.rec.split("-")[0] + " of their last " + x.games.length + ", scoring " + x.pf + " and allowing " + x.pa + " points a game.</li>" : "";
+    if (r.l5 && (r.l5.away || r.l5.home)) h += '<p class="bah">How they’ve been playing</p><ul class="l5">' + l5(A, r.l5.away) + l5(H, r.l5.home) + "</ul>";
+    if (r.state === "pre") h += '<details class="bhow"><summary>Where these numbers come from</summary><p>“Sportsbook’s chance” is the chance hidden in the price ' + (r.provider ? esc(r.provider) + " " : "") + "is offering. Books add a small cut, so both sides add up to a little over 100%. " +
+      (M ? "“Our numbers” for who wins and the spread come from ESPN’s game predictor, which expects " + esc(M.margin >= 0 ? H : A) + " to win by about " + Math.max(1, Math.round(Math.abs(M.margin))) + ". " : "") +
+      (r.projTotal != null ? "Total points use each team’s last five games, which point to about " + Math.round(r.projTotal) + " combined. " : "") +
+      "These are estimates, not guarantees. Sportsbooks are usually very good at pricing games.</p></details>";
+    if (r.state === "in") h += "<p>Sportsbook prices aren’t available here once a game starts, so the live numbers above use ESPN’s live win chance" + (d.querySelector(".bcard") ? "" : " (they’re hidden when a game is this one-sided)") + ".</p>";
     box.innerHTML = h || '<p class="small muted">No betting lines posted for this game yet.</p>';
   } catch(x){ box.innerHTML = '<p class="small muted">Couldn’t load: ' + esc(x.message) + "</p>"; d._loaded = false; }
 }, true);
@@ -2510,8 +2527,9 @@ function drawScores(r){
     // Live games: what ESPN's win chance says a $10 moneyline bet on each side is worth, so you can compare to your book's price.
     const fairOdds = p => p >= .5 ? "-" + Math.round(100 * p / (1 - p)) : "+" + Math.round(100 * (1 - p) / p);
     const betRow = (t, pct) => { const p = Math.min(.99, Math.max(.01, pct / 100)); return "<tr><th>" + esc(t.abbr || t.name) + "</th><td>" + pct + "%</td><td>" + fairOdds(p) + "</td><td>$" + (10 * (1 - p) / p).toFixed(2) + "</td></tr>"; };
-    const liveTbl = g.state === "in" && g.wp && g.wp.src === "live" && g.away && g.home && g.wp.away > 0 && g.wp.home > 0 ? '<p class="bah">Moneyline right now</p><table><thead><tr><th></th><th>Win chance</th><th>Fair odds</th><th>Fair win on $10</th></tr></thead><tbody>' + betRow(g.away, g.wp.away) + betRow(g.home, g.wp.home) + '</tbody></table><p>From ESPN’s live win chance. If your sportsbook pays <b>more</b> than the fair odds (for example +450 when fair is +400), the model rates that price as worth it; if it pays less, it isn’t.</p>' : "";
-    const betCalc = g.state !== "post" && g.id && (r.sport === "nfl" || r.sport === "cfb") ? '<details class="betcalc" data-bet="' + esc(r.sport + ":" + g.id) + '"><summary>Bet analytics</summary>' + liveTbl + '<div class="bapre"><p class="small muted">Loading…</p></div></details>' : "";
+    const liveOne = (t, pct) => { const p = Math.min(.99, Math.max(.01, pct / 100)); return '<div class="bcard"><b>' + esc(t.name || t.abbr) + " to win</b><span>ESPN gives them <strong>" + pct + "%</strong> right now.</span><span>A fair price would pay about <strong>$" + (10 * (1 - p) / p).toFixed(2) + "</strong> profit on $10 (" + fairOdds(p) + ").</span><small>If your sportsbook pays more than that, it’s a better-than-fair price. If it pays less, it isn’t.</small></div>"; };
+    const liveTbl = g.state === "in" && g.wp && g.wp.src === "live" && g.away && g.home && g.wp.away > 0 && g.wp.home > 0 ? '<p class="bah">Betting on who wins, right now</p>' + liveOne(g.away, g.wp.away) + liveOne(g.home, g.wp.home) : "";
+    const betCalc = g.state !== "post" && g.id && (r.sport === "nfl" || r.sport === "cfb") ? '<details class="betcalc" data-bet="' + esc(r.sport + ":" + g.id) + '"><summary>What would a $10 bet pay?</summary>' + liveTbl + '<div class="bapre"><p class="small muted">Loading…</p></div></details>' : "";
     const bet = [g.line ? "Spread " + g.line : "", g.ou ? "O/U " + g.ou : "", g.ml && g.ml.away != null && g.ml.home != null && g.state === "pre" ? "ML " + fmtMl(g.ml.away) + " / " + fmtMl(g.ml.home) : ""].filter(Boolean).join(" · ");
     const meta = wpBar + betCalc + '<div class="gmeta"><span class="' + (g.state === "in" ? "glive" : "") + '">' + esc(g.state === "in" ? g.detail : when) + "</span><span>" + esc(g.tv || "") + "</span></div>" + (bet ? '<div class="gbet">' + esc(bet) + "</div>" : "");
     let body;

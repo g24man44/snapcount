@@ -100,7 +100,7 @@ export async function betInfoRoute(url) {
   const d = await r.json();
   const comp = ((d.header || {}).competitions || [])[0] || {}, cs = comp.competitors || [];
   const H = cs.find(c => c.homeAway === "home") || {}, A = cs.find(c => c.homeAway === "away") || {};
-  const tm = c => ({ id: String((c.team || {}).id || ""), abbr: (c.team || {}).abbreviation || "", name: (c.team || {}).displayName || "" });
+  const tm = c => ({ id: String((c.team || {}).id || ""), abbr: (c.team || {}).abbreviation || "", name: (c.team || {}).displayName || "", short: sport === "nfl" ? ((c.team || {}).name || (c.team || {}).shortDisplayName || "") : ((c.team || {}).shortDisplayName || (c.team || {}).location || "") });
   const home = tm(H), away = tm(A);
   const pc = (d.pickcenter || [])[0] || null;
   const num = x => { const n = Number(x); return Number.isFinite(n) ? n : null; };
