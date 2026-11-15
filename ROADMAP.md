@@ -25,6 +25,7 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- Trade with a team: now the first and default Trade mode (was “grade a trade”); teams shown as tappable chips with record and owner; one roster at a time with a sticky “You get / You give” switch; paste-an-offer box collapsed; “Trade” link on every standings row jumps straight in. Fixed: the league view’s team picker was labeled “See another team” but it sets which team is yours — relabeled.
 - Taunt any time: a “Taunt <opponent>” row of the six emojis under your league card on home and under your matchup in the league view; tells you if the opponent doesn’t have alerts on.
 - “Try the game-day features” on the Alerts page: in-app previews (your player scores with taunts, opponent taunts you, your team scores) and real test pushes to your own phone (live matchup score from your actual league, taunt, upset alert) via /api/push/test.
 - Taunts: the in-app “Touchdown for you” banner offers six taunts (🕺 😭 😴 🥶 📊 🥱); tapping one sends your opponent a push (encrypted, nothing stored) and, if their app is open, a full-screen taunt with falling emoji. Opponent found by league + team id; per-device flood guard; toggle in Alerts. Scoring banners now queue one at a time.

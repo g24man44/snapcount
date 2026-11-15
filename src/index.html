@@ -997,6 +997,14 @@ nav.tabbar button[aria-selected=true]::before{display:none}
 .gdt summary{list-style:none;cursor:pointer;display:flex;flex-direction:column;gap:2px}.gdt summary::-webkit-details-marker{display:none}.gdt summary b{font:800 17px/1.2 var(--display);font-stretch:88%}
 .gdh{margin:14px 0 6px;font-weight:700;font-size:13.5px;color:var(--muted)}.gdb{display:grid;grid-template-columns:1fr 1fr;gap:8px}.gdb .btn{font-size:14px;padding:11px 8px}
 .tauntrow{display:flex;flex-direction:column;gap:8px;padding:12px 16px!important}.tauntrow .trl{font-weight:700;font-size:14px;color:var(--muted)}.tauntrow .taunts{margin-top:0;justify-content:space-between}
+.tchips{display:flex;gap:8px;overflow-x:auto;margin:4px -16px 0;padding:2px 16px 4px;scrollbar-width:none}.tchips::-webkit-scrollbar{display:none}
+.tchips button{flex:none;display:flex;align-items:center;gap:8px;padding:8px 12px 8px 8px;border-radius:999px;border:1px solid var(--line);background:var(--surface2);color:var(--ink);cursor:pointer;max-width:220px}
+.tchips button[aria-pressed=true]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.tchips .tl{width:30px;height:30px;flex:none}.tchips span{display:flex;flex-direction:column;text-align:left;min-width:0}.tchips b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tchips small{font-size:11.5px;color:var(--muted)}
+.trside{position:sticky;top:0;z-index:5;background:var(--bg);margin-top:18px}.trside button{flex:1 1 0;white-space:normal;line-height:1.2}
+h3.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.trlab{font-weight:600;font-size:14px;color:var(--muted)}
+.stright{display:flex;flex-direction:column;align-items:flex-end;gap:4px}.stright .linkbtn{font-weight:700;color:var(--accent);font-size:13.5px}
 @media (max-width:400px){h2{font-size:28px}.brand h1{font-size:21px}.coachfab{padding:8px 10px!important}}
 @media (max-width:350px){.brand h1{font-size:21px}.coachfab{font-size:0!important;gap:0;padding:9px!important}.coachfab i{font-size:16px}}
 </style>
@@ -1997,7 +2005,7 @@ function renderLeague(v, L){
         h += "<h3>Roster" + (me.liveLoading ? " · loading live points…" : "") + '</h3><ul class="plist">' + me.roster.slice().sort(byPos).map(p => playerRow(p, right(p))).join("") + "</ul>";
       }
       h += '<p class="small muted">' + (anyLive() ? "Games in progress · updates every minute" : "Updated " + new Date().toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})) + "</p>";
-      if (me.mine) h += picker("See another team");
+      if (me.mine) h += picker("Your team (change only if this isn’t you)");
     }
   } else if (sub === "fa") {
     const pos = cur.faPos || "ALL";
@@ -2054,13 +2062,14 @@ function renderLeague(v, L){
       h += "</div>";
     }
     const stand = d.teams.slice().sort((a,b) => b.w - a.w || (b.pf||0) - (a.pf||0));
-    h += '<h3>Standings</h3><ul class="plist">' + stand.map((t,i) => '<li><div class="prow" style="grid-template-columns:28px 1fr auto"><span class="muted" style="font-variant-numeric:tabular-nums">' + (i+1) + '</span><span class="pname"><b' + (me && t.id === me.id ? ' class="me"' : "") + ">" + esc(t.name) + "</b><small>" + t.w + "-" + t.l + (t.t ? "-" + t.t : "") + (t.waiver ? " · waiver #" + t.waiver : "") + (t.faab != null ? " · $" + Math.round(t.faab) + " FAAB" : "") + '</small></span><span class="small muted" style="font-variant-numeric:tabular-nums">' + fmt(t.pf) + " PF</span></div></li>").join("") + "</ul>";
+    h += '<h3>Standings</h3><ul class="plist">' + stand.map((t,i) => '<li><div class="prow" style="grid-template-columns:28px 1fr auto"><span class="muted" style="font-variant-numeric:tabular-nums">' + (i+1) + '</span><span class="pname"><b' + (me && t.id === me.id ? ' class="me"' : "") + ">" + esc(t.name) + "</b><small>" + t.w + "-" + t.l + (t.t ? "-" + t.t : "") + (t.waiver ? " · waiver #" + t.waiver : "") + (t.faab != null ? " · $" + Math.round(t.faab) + " FAAB" : "") + '</small></span><span class="stright"><span class="small muted" style="font-variant-numeric:tabular-nums">' + fmt(t.pf) + " PF</span>" + (me && t.id !== me.id ? '<button type="button" class="linkbtn" data-tradewith="' + esc(t.id) + '">Trade</button>' : "") + "</span></div></li>").join("") + "</ul>";
   }
   v.innerHTML = h;
   wireBack(v);
   v.querySelectorAll("[data-sub]").forEach(b => b.addEventListener("click", () => { cur.sub = b.dataset.sub; render(); }));
   const mt = v.querySelector(".moretools"); if (mt) mt.addEventListener("toggle", () => { cur.moreTools = mt.open; });
   const onSub = v.querySelector('.seg.sub [aria-pressed="true"]'); if (onSub && onSub.parentNode.scrollWidth > onSub.parentNode.clientWidth) onSub.parentNode.scrollLeft = onSub.offsetLeft - 8;
+  v.querySelectorAll("[data-tradewith]").forEach(b => b.addEventListener("click", () => { tr.league = cur.league; tr.mode = "grade"; tr.give.clear(); tr.get.clear(); tr.side = "get"; tr.other = b.dataset.tradewith; setTab("trade"); window.scrollTo(0, 0); }));
   const sel = v.querySelector("#teamPick");
   if (sel) sel.addEventListener("change", () => {
     cur.team = sel.value || null;
@@ -3263,8 +3272,8 @@ function pickRow(p, side, V, sid, selected, prem){
 }
 async function renderTrade(v){
   const ready = leagues.map((L, i) => ({L, i})).filter(x => x.L.detail && x.L.detail.teams.find(t => t.mine));
-  if (!tr.mode) tr.mode = "scan";
-  let h = "<h2>Trade</h2>" + tradeSwitch("league") + '<label class="tmodesel"><span>I want to</span><select id="trMode" aria-label="What do you want to do?">' + [["scan","Buy a player"],["sell","Sell a player"],["find","Price a player"],["grade","Grade a trade"]].map(x => '<option value="' + x[0] + '"' + (tr.mode === x[0] ? " selected" : "") + ">" + x[1].toLowerCase() + "</option>").join("") + "</select></label>";
+  if (!tr.mode) tr.mode = "grade";
+  let h = "<h2>Trade</h2>" + tradeSwitch("league") + '<label class="tmodesel"><span>I want to</span><select id="trMode" aria-label="What do you want to do?">' + [["grade","Trade with a team"],["scan","Buy a player"],["sell","Sell a player"],["find","Price a player"]].map(x => '<option value="' + x[0] + '"' + (tr.mode === x[0] ? " selected" : "") + ">" + x[1].toLowerCase() + "</option>").join("") + "</select></label>";
   h += '<button type="button" class="btn ghost" id="cmpOpen" style="width:100%;margin:-2px 0 12px"><i class=ic-scale aria-hidden=true></i> Compare players side by side' + (cmpList.length ? " (" + cmpList.length + ")" : "") + "</button>";
   if (!ready.length) { v.innerHTML = h + '<div class="card"><p style="margin:0">' + (hasAccts() ? "Your leagues are still loading, or you haven’t picked your team in a league yet. Open the league once and choose your team." : "Add your leagues under the settings button first.") + "</p></div>"; return; }
   if (tr.league == null || !ready.find(x => x.i === tr.league)) { tr.league = ready[0].i; tr.other = null; tr.give.clear(); tr.get.clear(); tr.ppr = null; tr.dyn = null; tr.keep = null; tr.target = null; }
@@ -3276,9 +3285,9 @@ async function renderTrade(v){
   const qbs = qbsOf(d);
   if (tr.dyn == null) { const sv = savedDyn(L); tr.dyn = sv != null ? sv : /dynasty|keeper/i.test(L.meta.name); }
   if (tr.mode !== "scan" && tr.mode !== "sell") h += '<div class="psearch"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="trS" type="search" placeholder="Search any player in this league" autocomplete="off" aria-label="Search any player in this league"></div><ul id="trSR" class="sres" hidden></ul>';
-  h += '<p class="muted small" style="margin:' + (tr.mode === "scan" ? "-2px" : "-4px") + ' 2px 12px">' + (tr.mode === "sell" ? "Pick a player to shop. Every team is checked for how much he’d help them, and you get a fair return to ask for from each." : tr.mode === "scan" ? "Pick a position. The finder checks every roster for players who would start for you and owners who can spare them, then builds an offer." : tr.mode === "find" ? "Pick a player you want and see the fairest packages from your roster and picks." : "Got an offer? Pick the players from it and get a grade from 1 to 10.") + "</p>";
+  h += '<p class="muted small" style="margin:' + (tr.mode === "scan" ? "-2px" : "-4px") + ' 2px 12px">' + (tr.mode === "sell" ? "Pick a player to shop. Every team is checked for how much he’d help them, and you get a fair return to ask for from each." : tr.mode === "scan" ? "Pick a position. The finder checks every roster for players who would start for you and owners who can spare them, then builds an offer." : tr.mode === "find" ? "Pick a player you want and see the fairest packages from your roster and picks." : "Pick a team, then tap what you’d give and what you’d get. You’ll see if it’s fair and the chance they say yes, and you can send it straight to Fleaflicker.") + "</p>";
   h += '<div class="card stackc" style="gap:10px"><label for="trL">League</label><select id="trL">' + ready.map(x => '<option value="' + x.i + '"' + (x.i === tr.league ? " selected" : "") + ">" + esc(x.L.meta.name) + "</option>").join("") + "</select>" +
-    (tr.mode === "scan" || tr.mode === "sell" ? "" : '<label for="trT">Trading with</label><select id="trT">' + others.map(t => '<option value="' + esc(t.id) + '"' + (t.id === tr.other ? " selected" : "") + ">" + esc(t.name) + (t.owner ? " (" + esc(t.owner) + ")" : "") + "</option>").join("") + "</select>") +
+    (tr.mode === "scan" || tr.mode === "sell" ? "" : '<span class="trlab">Trading with</span><select id="trT" hidden aria-hidden="true" tabindex="-1">' + others.map(t => '<option value="' + esc(t.id) + '"' + (t.id === tr.other ? " selected" : "") + ">" + esc(t.name) + (t.owner ? " (" + esc(t.owner) + ")" : "") + "</option>").join("") + "</select>" + '<div class="tchips" role="group" aria-label="Pick a team to trade with">' + others.map(t => '<button type="button" data-tchip="' + esc(t.id) + '" aria-pressed="' + (t.id === tr.other) + '">' + teamLogo(t) + "<span><b>" + esc(t.name) + "</b>" + (t.w != null ? "<small>" + t.w + "-" + t.l + (t.owner ? " · " + esc(t.owner) : "") + "</small>" : "") + "</span></button>").join("") + "</div>") +
     // The league already says its format; show it in one line and keep the switches one tap away.
     '<details class="fmtd"><summary>' + esc([tr.dyn ? "Dynasty" : "Redraft", ({"1": "PPR", "0.5": "Half PPR", "0": "Standard"})[tr.ppr], qbs === 2 ? "Superflex" : "1 QB", d.teams.length + " teams"].concat((fmtAdj(d) || {}).tep ? ["TE +" + fmtAdj(d).tep] : []).join(" · ")) + '<span>Change</span></summary>' +
     '<div class="seg" role="group" aria-label="League type">' + [[false,"Redraft"],[true,"Dynasty"]].map(x => '<button type="button" data-dyn="' + x[0] + '" aria-pressed="' + (tr.dyn === x[0]) + '">' + x[1] + "</button>").join("") + "</div>" +
@@ -3286,6 +3295,8 @@ async function renderTrade(v){
   h += '<div id="trOut"><p class="spin">Loading trade values…</p></div>';
   v.innerHTML = h;
   const tms = v.querySelector("#trMode"); if (tms) tms.addEventListener("change", () => { tr.mode = tms.value; render(); });
+  v.querySelectorAll("[data-tchip]").forEach(b => b.addEventListener("click", () => { const sel = v.querySelector("#trT"); if (sel) { sel.value = b.dataset.tchip; sel.dispatchEvent(new Event("change")); } }));
+  const tcOn = v.querySelector("[data-tchip][aria-pressed=true]"); if (tcOn) tcOn.scrollIntoView({block: "nearest", inline: "center"});
   const co = v.querySelector("#cmpOpen"); if (co) co.addEventListener("click", openCompare);
   const sIn = v.querySelector("#trS") || document.createElement("input"), sOut = v.querySelector("#trSR") || document.createElement("ul");
   const pool = others.flatMap(t => t.roster.filter(p => p.name).map(p => ({p, t})));
@@ -4314,7 +4325,7 @@ function drawTrade(ctx){
   }
   const byVal = (a, b) => ((V[sid.get(b)] || [0])[0] || 0) - ((V[sid.get(a)] || [0])[0] || 0);
   let h = "";
-  h += '<details class="card pastebox"' + (tr.give.size || tr.get.size ? "" : " open") + '><summary><b>Paste a trade offer</b><span class="muted small"> from your Fleaflicker email</span></summary><textarea id="trPaste" rows="4" placeholder="* Bumblebee tuna gets: D. Swift; 2028 1st round pick 1.16 #16 (Jaxon the Box)&#10;* Here comes the McBride gets: A. Jeanty"></textarea><button type="button" class="btn" id="trPasteGo" style="width:100%;margin-top:8px">Grade this offer</button>' + (tr.pasteMsg ? '<p class="small" style="margin:8px 0 0">' + esc(tr.pasteMsg) + "</p>" : "") + "</details>";
+  h += '<details class="card pastebox"><summary><b>Got an offer? Paste it</b><span class="muted small"> from your Fleaflicker email</span></summary><textarea id="trPaste" rows="4" placeholder="* Bumblebee tuna gets: D. Swift; 2028 1st round pick 1.16 #16 (Jaxon the Box)&#10;* Here comes the McBride gets: A. Jeanty"></textarea><button type="button" class="btn" id="trPasteGo" style="width:100%;margin-top:8px">Grade this offer</button>' + (tr.pasteMsg ? '<p class="small" style="margin:8px 0 0">' + esc(tr.pasteMsg) + "</p>" : "") + "</details>";
   if (tr.give.size || tr.get.size) {
     const both = tr.give.size && tr.get.size;
     const g = gradeTrade(ctx), [label, tone] = both ? GRADE_LABEL(g.score) : ["Add the other side", ""];
@@ -4333,9 +4344,12 @@ function drawTrade(ctx){
     h += '<div class="card"><p style="margin:0" class="small">Tap players below. Your grade shows up here.</p></div>';
   }
   const pk = (arr, side) => arr.length ? '<h3>' + (side === "give" ? "Your" : "Their") + ' draft picks</h3><ul class="plist">' + arr.map(p => draftRow(p, side, V, (side === "give" ? tr.give : tr.get).has(p.id))).join("") + "</ul>" : "";
-  h += '<h3>You give</h3><ul class="plist">' + me.roster.slice().sort(byVal).map(p => pickRow(p, "give", V, sid, tr.give.has(p.id), ctx.prem)).join("") + "</ul>" + pk(ctx.myPicks, "give");
-  h += "<h3>You get from " + esc(them.name) + '</h3><ul class="plist">' + (them.roster.length ? them.roster.slice().sort(byVal).map(p => pickRow(p, "get", V, sid, tr.get.has(p.id), ctx.prem)).join("") : '<li><p class="muted small" style="margin:12px 14px">Their roster isn’t available.</p></li>') + "</ul>" + pk(ctx.theirPicks, "get");
+  if (!tr.side) tr.side = "get";
+  h += '<div class="seg trside" role="group" aria-label="Which roster">' + [["get", "You get from " + them.name, tr.get.size], ["give", "You give", tr.give.size]].map(x => '<button type="button" data-trside="' + x[0] + '" aria-pressed="' + (tr.side === x[0]) + '">' + esc(x[1]) + (x[2] ? " (" + x[2] + ")" : "") + "</button>").join("") + "</div>";
+  if (tr.side === "give") h += '<h3 class="sr">You give</h3><ul class="plist">' + me.roster.slice().sort(byVal).map(p => pickRow(p, "give", V, sid, tr.give.has(p.id), ctx.prem)).join("") + "</ul>" + pk(ctx.myPicks, "give");
+  else h += "<h3 class=\"sr\">You get from " + esc(them.name) + '</h3><ul class="plist">'  + (them.roster.length ? them.roster.slice().sort(byVal).map(p => pickRow(p, "get", V, sid, tr.get.has(p.id), ctx.prem)).join("") : '<li><p class="muted small" style="margin:12px 14px">Their roster isn’t available.</p></li>') + "</ul>" + pk(ctx.theirPicks, "get");
   el.innerHTML = h;
+  el.querySelectorAll("[data-trside]").forEach(b => b.addEventListener("click", () => { tr.side = b.dataset.trside; drawTrade(ctx); const sg = el.querySelector(".trside"); if (sg) sg.scrollIntoView({block: "start", behavior: "smooth"}); }));
   const nb = el.querySelector("#negoBtn");
   if (nb) nb.addEventListener("click", () => openNegotiate(ctx, me, them, me.roster.concat(ctx.myPicks).filter(p => tr.give.has(p.id)), them.roster.concat(ctx.theirPicks).filter(p => tr.get.has(p.id))));
   const ptb = el.querySelector("#pitchBtn"); if (ptb) ptb.addEventListener("click", () => openPitch(ctx));
