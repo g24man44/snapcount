@@ -1016,6 +1016,7 @@ h3.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .wpchart{position:relative;margin-top:6px;padding:16px 0;border-radius:8px;background:var(--surface2)}.wpchart svg{display:block;width:100%;height:90px}.wpchart .mid{stroke:var(--line);stroke-dasharray:4 4;stroke-width:1}.wpchart .ln{fill:none;stroke:var(--accent);stroke-width:2.2;vector-effect:non-scaling-stroke}
 .wpchart .wl{position:absolute;left:10px;font-size:11px;font-weight:700;color:var(--muted)}.wpchart .wl.t{top:2px}.wpchart .wl.b{bottom:2px}
 .betcalc .stbl{margin-top:6px}.betcalc .stbl td{text-align:center;width:22%;font-weight:600}.betcalc .stbl th{text-align:center;font-weight:500;color:var(--muted);font-size:12px}.betcalc .stbl thead th{color:var(--ink);font-weight:800;font-size:12.5px}.betcalc .stbl td.win{color:var(--ok);font-weight:800}
+.betcalc .why{margin:6px 0 4px;padding-left:18px}.betcalc .why li{margin:2px 0}.betcalc .valtop small{color:var(--muted);font-size:12px}
 .valbadge{margin-top:8px;padding:6px 10px;border-radius:8px;background:var(--ok-soft);color:var(--ok);font-weight:700;font-size:13px}
 .betcalc .valtop{margin-top:10px;padding:10px 12px;border-radius:8px;background:var(--ok-soft);color:var(--ink);font-size:13.5px;line-height:1.4;display:flex;flex-direction:column;gap:3px}.betcalc .valtop b{color:var(--ok)}.betcalc .valtop.none{background:var(--surface2);color:var(--muted)}
 @media (max-width:400px){h2{font-size:28px}.brand h1{font-size:21px}.coachfab{padding:8px 10px!important}}
@@ -1646,6 +1647,9 @@ const amPay = o => o == null ? null : o > 0 ? 10 * o / 100 : 10 * 100 / Math.abs
 const amImp = o => o == null ? null : o > 0 ? 100 / (o + 100) : Math.abs(o) / (Math.abs(o) + 100);
 const amFmt = o => o == null ? "–" : o > 0 ? "+" + Math.round(o) : String(Math.round(o));
 // Expected profit on a $10 bet if our chance is right: win chance x payout, minus lose chance x $10.
+// How much we trust our model vs the sportsbook. Books are sharp, ESPN's pregame predictor often runs hotter than Vegas on favorites,
+// so before kickoff it counts for a third; ESPN's live model reacts to every play and counts for half.
+const MW = 1 / 3, MWL = 1 / 2;
 const evOf = (pct, odds) => pct == null || odds == null ? null : pct / 100 * amPay(odds) - (1 - pct / 100) * 10;
 document.addEventListener("toggle", e => { const d = e.target; if (d.matches && d.matches("details.betcalc[data-bet]") && d.open) loadBet(d); }, true);
 // NFL games before kickoff get loaded in the background so the 💰 tag can show on the score card (no live-price credits used).
@@ -1661,13 +1665,13 @@ async function loadBet(d, quiet){
     const money = o => "$" + (10 + amPay(o)).toFixed(2);
     const verdict = (model, odds, noTag) => {
       if (model == null || odds == null) return '<em class="v">We don’t have our own numbers for this one.</em>';
-      const d = model - amImp(odds) * 100, ev = evOf((model + amImp(odds) * 100) / 2, odds);
-      if (ev >= 1.5 && !noTag) return '<em class="v up">💰 Good bet by the numbers: about +$' + ev.toFixed(2) + " per $10 on average.</em>";
+      const pb = MW * model + (1 - MW) * amImp(odds) * 100, d = model - amImp(odds) * 100, ev = evOf(pb, odds);
+      if (!noTag && pb >= 55 && ev >= 1) return '<em class="v up">✅ Recommended: likely to win (about ' + Math.round(pb) + "%) and fairly priced.</em>";
       return d >= 3 ? '<em class="v up">👍 Our numbers give this a better chance than the sportsbook does.</em>' : d <= -3 ? '<em class="v dn">👎 Our numbers give this a worse chance than the sportsbook does.</em>' : '<em class="v">About what the sportsbook expects.</em>';
     };
     // For the 💰 tag, our chance is pulled halfway toward the sportsbook's (books are usually sharp), and the rough total-points model is left out.
-    const blend = (model, odds) => (model + amImp(odds) * 100) / 2;
-    const card = (title, how, odds, model, noTag) => { if (odds != null && model != null && !noTag) vals.push({title, ev: evOf(blend(model, odds), odds), p: blend(model, odds)}); return odds == null ? "" : '<div class="bcard"><b>' + esc(title) + "</b>" + (how ? "<small>" + how + "</small>" : "") +
+    const blend = (model, odds) => MW * model + (1 - MW) * amImp(odds) * 100;
+    const card = (title, how, odds, model, noTag) => { if (odds != null && model != null && !noTag) vals.push({title, odds, ev: evOf(blend(model, odds), odds), p: blend(model, odds), raw: model, imp: amImp(odds) * 100, side: title.indexOf(A) === 0 ? "away" : title.indexOf(H) === 0 ? "home" : null, kind: /win by|lose by/.test(title) ? "spread" : "ml"}); return odds == null ? "" : '<div class="bcard"><b>' + esc(title) + "</b>" + (how ? "<small>" + how + "</small>" : "") +
       "<span>Bet $10, get back <strong>" + money(odds) + "</strong> if it hits (" + "$" + amPay(odds).toFixed(2) + " profit).</span>" +
       "<span>Sportsbook’s chance: <strong>" + Math.round(amImp(odds) * 100) + "%</strong>" + (model != null ? " · Our numbers: <strong>" + Math.round(model) + "%</strong>" : "") + "</span>" + verdict(model, odds, noTag) + "</div>"; };
     const pts = n => n === 1 ? "1 point" : n + " points";
@@ -1692,7 +1696,7 @@ async function loadBet(d, quiet){
     if (r.state === "in" && r.livePrices && r.livePrices.espn) {
       const lp = r.livePrices, one = (t, b, espn) => {
         if (!b) return "";
-        const imp = amImp(b.price) * 100, dlt = espn - imp; vals.push({title: t + " to win (live, " + amFmt(b.price) + " at " + b.book + ")", ev: evOf(espn, b.price), p: espn});
+        const imp = amImp(b.price) * 100, dlt = espn - imp; { const pb = MWL * espn + (1 - MWL) * imp; vals.push({title: t + " to win (live, " + amFmt(b.price) + " at " + b.book + ")", odds: b.price, ev: evOf(pb, b.price), p: pb, raw: espn, imp, side: t === A ? "away" : "home", kind: "live"}); }
         return '<div class="bcard"><b>' + esc(t) + " to win, betting now</b><span>Best price: <strong>" + amFmt(b.price) + "</strong> at " + esc(b.book) + ". Bet $10, get back <strong>" + money(b.price) + "</strong>.</span><span>Price’s chance: <strong>" + Math.round(imp) + "%</strong> · ESPN’s live chance: <strong>" + Math.round(espn) + "%</strong></span>" +
           (dlt >= 4 ? '<em class="v up">👍 ESPN’s live numbers give them a better chance than this price does.</em>' : dlt <= -4 ? '<em class="v dn">👎 ESPN’s live numbers give them a worse chance than this price does.</em>' : '<em class="v">This price is close to what ESPN’s live numbers expect.</em>') + "</div>";
       };
@@ -1716,15 +1720,31 @@ async function loadBet(d, quiet){
     if (r.state === "pre") h += '<details class="bhow"><summary>Where these numbers come from</summary><p>“Sportsbook’s chance” is the chance hidden in the price ' + (r.provider ? esc(r.provider) + " " : "") + "is offering. Books add a small cut, so both sides add up to a little over 100%. " +
       (M ? "“Our numbers” for who wins and the spread come from ESPN’s game predictor, which expects " + esc(M.margin >= 0 ? H : A) + " to win by about " + Math.max(1, Math.round(Math.abs(M.margin))) + ". " : "") +
       (r.projTotal != null ? "Total points use each team’s last five games, which point to about " + Math.round(r.projTotal) + " combined. " : "") +
-      "The 💰 tag only goes on a bet when, even after meeting the sportsbook halfway, it still comes out ahead by $1.50 or more per $10 on average. It skips total points, since that model is rougher. These are estimates, not guarantees. Sportsbooks are usually very good at pricing games.</p></details>";
+      "A ✅ recommendation needs both: the bet is expected to win (55% or better, after blending in the sportsbook’s view) and the price is still fair or better for that chance. Long shots are never recommended just because they pay a lot. Total points are left out, since that model is rougher. These are estimates, not guarantees. Sportsbooks are usually very good at pricing games.</p></details>";
     if (r.state === "in") h += "<p>Sportsbook prices aren’t available here once a game starts, so the live numbers above use ESPN’s live win chance" + (d.querySelector(".bcard") ? "" : " (they’re hidden when a game is this one-sided)") + ".</p>";
     // The best-value bet in this game, on top, and as a tag on the score card.
-    const top = vals.filter(v => v.ev >= 1.5).sort((a, b) => b.ev - a.ev)[0];
-    if (top) {
-      h = '<div class="valtop">💰 <b>Best bet by the numbers: ' + esc(top.title) + "</b><span>About <strong>+$" + top.ev.toFixed(2) + "</strong> per $10 on average. Splitting the difference between our numbers and the sportsbook’s, it wins about " + Math.round(top.p) + "% of the time" + (top.p < 50 ? ", so it loses more often than it wins, but it pays enough to come out ahead over time" : "") + ".</span></div>" + h;
-      const old = d.parentNode.querySelector(".valbadge"); if (old) old.remove();
-      d.insertAdjacentHTML("beforebegin", '<div class="valbadge">💰 Good bet by the numbers: ' + esc(top.title) + " (+$" + top.ev.toFixed(2) + " per $10)</div>");
-    } else if (r.state !== "post" && (r.ml || r.livePrices)) h = '<div class="valtop none">No bets stand out by the numbers' + (r.state === "in" ? " right now" : "") + ". The sportsbook’s prices are close to our chances.</div>" + h;
+    // A recommendation needs two things: the analytics expect it to WIN (55%+ after blending in the sportsbook’s view),
+    // and the price is still fair or better for that chance. Long shots that only pay well never get recommended.
+    const rec = vals.filter(v => v.side && v.p >= 55 && v.ev >= 1).sort((a, b) => (b.p - 50) * b.ev - (a.p - 50) * a.ev)[0];
+    const why = v => {
+      const me = v.side, op = me === "home" ? "away" : "home", T = me === "home" ? H : A, O = me === "home" ? A : H, out = [];
+      if (v.kind === "live" && r.live) { const mar = me === "home" ? r.live.margin : -r.live.margin; if (mar < 0) out.push(T + " are down " + -mar + ", but the analytics still give them a " + Math.round(v.raw) + "% chance to win."); else out.push("ESPN’s live model gives " + T + " a " + Math.round(v.raw) + "% chance to win."); }
+      else out.push("Our numbers give " + T + " a " + Math.round(v.raw) + "% chance" + (v.kind === "spread" ? " to cover" : " to win") + "; the price assumes " + Math.round(v.imp) + "%.");
+      const st = k => (r.stats || []).find(x => x.k === k), num = x => parseFloat(String(x));
+      const ty = st("totalYards"), to = st("turnovers"), ypg = st("yardsPerGame"), ppg = st("totalPointsPerGame"), pa = st("totalPointsPerGameAllowed");
+      if (ty && num(ty[me]) > num(ty[op]) + 30) out.push(T + " have out-gained " + O + " " + ty[me] + " to " + ty[op] + " yards.");
+      if (to && num(to[op]) > num(to[me])) out.push(O + " have " + to[op] + " turnover" + (num(to[op]) === 1 ? "" : "s") + " to " + T + "’s " + to[me] + ".");
+      if (ppg && pa && num(ppg[me]) - num(pa[me]) > num(ppg[op]) - num(pa[op]) + 3) out.push("Season scoring margin: " + T + " " + (num(ppg[me]) - num(pa[me]) >= 0 ? "+" : "") + (num(ppg[me]) - num(pa[me])).toFixed(1) + " a game vs " + O + " " + (num(ppg[op]) - num(pa[op]) >= 0 ? "+" : "") + (num(ppg[op]) - num(pa[op])).toFixed(1) + ".");
+      else if (ypg && num(ypg[me]) > num(ypg[op]) + 25) out.push(T + " average " + ypg[me] + " yards a game to " + O + "’s " + ypg[op] + ".");
+      const l5m = r.l5 && r.l5[me], l5o = r.l5 && r.l5[op]; if (l5m && l5o && +l5m.rec.split("-")[0] > +l5o.rec.split("-")[0]) out.push("Recent form: " + T + " " + l5m.rec + " in their last five, " + O + " " + l5o.rec + ".");
+      const inj = r.injuries && r.injuries[op]; if (inj && inj.length >= 2) out.push(O + " are missing " + inj.length + " players (" + inj.slice(0, 2).map(i => i.name).join(", ") + (inj.length > 2 ? "…" : "") + ").");
+      return out.slice(0, 4);
+    };
+    const old = d.parentNode.querySelector(".valbadge"); if (old) old.remove();
+    if (rec) {
+      h = '<div class="valtop">✅ <b>Recommended by the analytics: ' + esc(rec.title) + '</b><ul class="why">' + why(rec).map(x => "<li>" + esc(x) + "</li>").join("") + "</ul><span>Price " + amFmt(rec.odds) + ": bet $10, get back <strong>$" + (10 + amPay(rec.odds)).toFixed(2) + "</strong> if it hits.</span><small>Expected to win about " + Math.round(rec.p) + "% of the time, counting the sportsbook’s view too. Not a guarantee.</small></div>" + h;
+      d.insertAdjacentHTML("beforebegin", '<div class="valbadge">✅ Recommended by the analytics: ' + esc(rec.title) + " · about " + Math.round(rec.p) + "% to win</div>");
+    } else if (r.state !== "post" && (r.ml || r.livePrices)) h = '<div class="valtop none">No recommendation' + (r.state === "in" ? " right now" : "") + ". Nothing here is both likely to win and fairly priced.</div>" + h;
     box.innerHTML = h || '<p class="small muted">No betting lines posted for this game yet.</p>';
   } catch(x){ box.innerHTML = '<p class="small muted">Couldn’t load: ' + esc(x.message) + "</p>"; d._loaded = false; }
 }
