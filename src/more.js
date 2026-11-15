@@ -91,7 +91,24 @@ const ninv = p => { // inverse normal (Acklam), enough precision for this
   const q = p - .5, r = q * q; return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
 };
 const jsonT = (data, status, ttl) => new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "public, max-age=" + (ttl || 0) } });
-export async function betInfoRoute(url) {
+// Live sportsbook prices (The Odds API, free plan: 500 credits a month; one sport's moneylines = 1 credit).
+// Fetched only when someone opens a live game's analytics, shared by everyone for 3 minutes, and paused when credits run low.
+async function liveOdds(env, sport) {
+  if (!env || !env.ODDS_API_KEY) return { off: "nokey" };
+  const cache = typeof caches !== "undefined" ? caches.default : null, key = "https://snapcount.cache/liveodds/" + sport, pauseKey = "https://snapcount.cache/liveodds-pause";
+  if (cache) { const p = await cache.match(pauseKey); if (p) return { off: "credits" }; const hit = await cache.match(key); if (hit) return hit.json(); }
+  const sk = sport === "cfb" ? "americanfootball_ncaaf" : "americanfootball_nfl";
+  const r = await fetch("https://api.the-odds-api.com/v4/sports/" + sk + "/odds?regions=us&markets=h2h&oddsFormat=american&apiKey=" + encodeURIComponent(env.ODDS_API_KEY));
+  const left = Number(r.headers.get("x-requests-remaining"));
+  if (cache && Number.isFinite(left) && left < 25) await cache.put(pauseKey, new Response("1", { headers: { "cache-control": "public, max-age=21600" } }));
+  if (!r.ok) return { off: "error", status: r.status };
+  const events = (await r.json()).map(e => ({ home: e.home_team, away: e.away_team, start: e.commence_time, books: (e.bookmakers || []).map(b => { const m = (b.markets || []).find(x => x.key === "h2h"); return m ? { book: b.title, at: b.last_update, prices: Object.fromEntries((m.outcomes || []).map(o => [o.name, o.price])) } : null; }).filter(Boolean) }));
+  const out = { events, left: Number.isFinite(left) ? left : null };
+  if (cache) await cache.put(key, new Response(JSON.stringify(out), { headers: { "cache-control": "public, max-age=180" } }));
+  return out;
+}
+const nameKey = s => String(s || "").toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]/g, "");
+export async function betInfoRoute(url, env) {
   const sport = url.searchParams.get("sport") === "cfb" ? "cfb" : "nfl", id = String(url.searchParams.get("id") || "");
   if (!/^\d{5,12}$/.test(id)) return jsonT({ error: "Bad game id" }, 400, 0);
   const lg = sport === "cfb" ? "college-football" : "nfl";
@@ -156,7 +173,22 @@ export async function betInfoRoute(url) {
     }
     if (projTotal != null && out.total) { const po = ncdf((projTotal - out.total.line) / sdTot); out.total.overChance = Math.round(po * 1000) / 10; out.total.underChance = Math.round((1 - po) * 1000) / 10; }
   }
-  return jsonT(out, 200, 300);
+  // During the game: the best live moneyline price for each team across US sportsbooks, next to ESPN's live chance.
+  if (out.state === "in") {
+    const lo = await liveOdds(env, sport).catch(() => ({ off: "error" }));
+    if (lo.off) out.liveOff = lo.off;
+    else {
+      const hk = nameKey(home.name), ak = nameKey(away.name);
+      const ev = (lo.events || []).find(e => nameKey(e.home) === hk && nameKey(e.away) === ak) || (lo.events || []).find(e => (nameKey(e.home).includes(nameKey(home.short)) || hk.includes(nameKey(e.home))) && (nameKey(e.away).includes(nameKey(away.short)) || ak.includes(nameKey(e.away))));
+      if (ev && ev.books.length) {
+        const best = nm => { let b = null; for (const x of ev.books) { const pr = x.prices[nm]; if (pr != null && (!b || pr > b.price)) b = { price: pr, book: x.book, at: x.at }; } return b; };
+        out.livePrices = { home: best(ev.home), away: best(ev.away), books: ev.books.length };
+        const lastWp = (d.winprobability || []).slice(-1)[0];
+        if (lastWp) out.livePrices.espn = { home: Math.round(lastWp.homeWinPercentage * 1000) / 10, away: Math.round((1 - lastWp.homeWinPercentage) * 1000) / 10 };
+      } else out.liveOff = "nogame";
+    }
+  }
+  return jsonT(out, 200, out.state === "in" ? 60 : 300);
 }
 
 export async function scoresRoute(url) {

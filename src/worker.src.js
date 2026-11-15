@@ -401,6 +401,13 @@ async function healthCheck(env) {
   await Promise.all(jobs);
   const ORDER = ["Trade values", "Fleaflicker", "Sleeper", "ESPN scores", "FantasyCalc trades", "Expert rankings", "AI coach", "Show voices (Deepgram)", "Show (Gemini)", "Show voices (ElevenLabs)"];
   res.sort((x, y) => ORDER.indexOf(x.name) - ORDER.indexOf(y.name));
+  if (env.ODDS_API_KEY) check("Live betting prices", async () => {
+    // Listing sports is free on The Odds API, and its reply says how many credits are left this month.
+    const r = await fetch("https://api.the-odds-api.com/v4/sports?apiKey=" + encodeURIComponent(env.ODDS_API_KEY));
+    if (!r.ok) throw new Error("The Odds API answered " + r.status + (r.status === 401 ? " (check the key)" : ""));
+    const left = r.headers.get("x-requests-remaining"), used = r.headers.get("x-requests-used");
+    return (left != null ? left + " credits left this month" : "OK") + (used != null ? " · " + used + " used" : "");
+  });
   await check("Storage", async () => { if (!env.SNAP) throw new Error("no storage"); await env.SNAP.put("health:last", JSON.stringify({ at: t0, res })); const back = await env.SNAP.get("health:last", "json"); if (!back || back.at !== t0) throw new Error("write did not read back (daily limit?)"); });
   const bad = res.filter(r => !r.ok);
   try { await env.SNAP.put("health:last", JSON.stringify({ at: t0, res })); } catch (e) {}
@@ -854,7 +861,7 @@ export default {
       if (p === "/api/mfl") return mflRoute(url, ctx);
       if (p === "/api/scores") return cached(ctx, "scores/" + url.search, 30, () => scoresRoute(url));
       if (p === "/api/cfb/teams") return cached(ctx, "cfbteams", 86400, cfbTeams);
-      if (p === "/api/betinfo") return cached(ctx, "bet/" + url.search, 300, () => betInfoRoute(url));
+      if (p === "/api/betinfo") return cached(ctx, "bet/" + url.search, 60, () => betInfoRoute(url, env));
       if (p === "/api/plays") return cached(ctx, "plays", 20, async () => { const j = env.SNAP ? await env.SNAP.get("plays:state", "json") : null; return json({ ev: (j && j._ev) || [] }, 200, 20); });
       if (p === "/cal.ics" || p === "/api/cal.ics") return cached(ctx, "cal/" + url.search, 21600, () => calendarRoute(url));
       if (p === "/api/injuries") return cached(ctx, "injuries", 300, injuriesRoute);

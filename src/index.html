@@ -1677,6 +1677,16 @@ document.addEventListener("toggle", async e => {
       const path = r.wp.map((v, i) => (i ? "L" : "M") + pt(v, i)).join(" "), last = r.wp[n - 1];
       h = '<p class="bah">Win chance through the game</p><div class="wpchart"><span class="wl t">' + esc(H) + '</span><span class="wl b">' + esc(A) + '</span><svg viewBox="0 0 ' + W + " " + Hh + '" preserveAspectRatio="none" aria-label="' + esc(H) + " win chance from " + r.wp[0] + "% to " + last + '%"><line x1="0" x2="' + W + '" y1="' + Hh / 2 + '" y2="' + Hh / 2 + '" class="mid"/><path d="' + path + '" class="ln"/></svg></div><p class="small muted" style="margin:4px 0 0">Line above the middle means ' + esc(H) + " are favored, below means " + esc(A) + ". " + (r.bigSwing ? "Biggest single-play swing: " + r.bigSwing + " points." : "") + "</p>" + h;
     }
+    // Live: real sportsbook prices right now next to ESPN's live chance.
+    if (r.state === "in" && r.livePrices && r.livePrices.espn) {
+      const lp = r.livePrices, one = (t, b, espn) => {
+        if (!b) return "";
+        const imp = amImp(b.price) * 100, dlt = espn - imp;
+        return '<div class="bcard"><b>' + esc(t) + " to win, betting now</b><span>Best price: <strong>" + amFmt(b.price) + "</strong> at " + esc(b.book) + ". Bet $10, get back <strong>" + money(b.price) + "</strong>.</span><span>Price’s chance: <strong>" + Math.round(imp) + "%</strong> · ESPN’s live chance: <strong>" + Math.round(espn) + "%</strong></span>" +
+          (dlt >= 4 ? '<em class="v up">👍 ESPN’s live numbers give them a better chance than this price does.</em>' : dlt <= -4 ? '<em class="v dn">👎 ESPN’s live numbers give them a worse chance than this price does.</em>' : '<em class="v">This price is close to what ESPN’s live numbers expect.</em>') + "</div>";
+      };
+      h += '<p class="bah">Live sportsbook prices</p>' + one(A, lp.away, lp.espn.away) + one(H, lp.home, lp.espn.home) + '<p class="small muted" style="margin:6px 0 0">Best price across ' + lp.books + " US sportsbook" + (lp.books === 1 ? "" : "s") + ", updated every few minutes. Live prices move fast, so check your app before betting. ESPN’s model can be wrong; this isn’t a guarantee.</p>";
+    } else if (r.state === "in" && r.liveOff) h += '<p class="small muted" style="margin:10px 0 0">' + (r.liveOff === "nokey" ? "Live sportsbook prices aren’t connected yet." : r.liveOff === "credits" ? "Live sportsbook prices are paused until next month (free data limit)." : r.liveOff === "nogame" ? "No sportsbook has live prices for this game right now." : "Live sportsbook prices didn’t load. Try again in a minute.") + "</p>";
     if (r.state === "in" && r.live && (r.spread || r.total)) {
       const lv = r.live, chance = c => c == null ? "–" : c >= 99.5 ? "almost certain" : c <= 0.5 ? "almost no chance" : Math.round(c) + "% chance";
       const stat = (title, c, extra) => '<div class="bcard"><b>' + esc(title) + "</b><span>Right now: <strong>" + chance(c) + "</strong>" + (extra ? " · " + extra : "") + "</span></div>";
