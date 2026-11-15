@@ -1930,7 +1930,13 @@ async function fleaTeamRoster(L, team){
         slot: grp === "START" ? "start" : (grp === "INJURED" || grp === "IR") ? "ir" : "bench",
         pts: pts, proj: proj, avg: val(lp.seasonAverage), tot: val(lp.seasonTotal), ...fleaExtras(lp, p, L.meta.id)});
     }));
-    if (out.length) { team.roster = out; team.live = true; }
+    if (out.length) {
+      team.roster = out; team.live = true; team.liveAt = Date.now();
+      // The all-teams roster list is cached a few minutes longer than one team's live roster, so right after a trade
+      // a player can show up on both teams. The live roster wins: drop him from any team whose list is older.
+      const ids = new Set(out.map(p => p.id));
+      ((L.detail && L.detail.teams) || []).forEach(t => { if (t !== team && t.roster && !(t.live && t.liveAt > Date.now() - 60000)) t.roster = t.roster.filter(p => !ids.has(p.id)); });
+    }
   } catch(e){ team.liveErr = e.message; }
 }
 
@@ -3281,6 +3287,10 @@ async function renderTrade(v){
   const others = d.teams.filter(t => t !== me);
   if (!tr.other || !others.find(t => t.id === tr.other)) { tr.other = others[0] && others[0].id; tr.get.clear(); }
   const them = others.find(t => t.id === tr.other);
+  if (L.meta.platform === "flea" && tr.mode === "grade" && them && !tr._fresh) {
+    tr._fresh = true;
+    Promise.all([me, them].filter(t => !(t.liveAt > Date.now() - 120000)).map(t => fleaTeamRoster(L, t))).then(() => { setTimeout(() => { tr._fresh = false; }, 120000); if (cur.tab === "trade") render(); });
+  }
   if (tr.ppr == null) tr.ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1");
   const qbs = qbsOf(d);
   if (tr.dyn == null) { const sv = savedDyn(L); tr.dyn = sv != null ? sv : /dynasty|keeper/i.test(L.meta.name); }
