@@ -25,6 +25,7 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [ ] Draft picks in "Send in Fleaflicker": needs a sample trade-builder link that includes a pick.
 
 ## Done
+- Scores, live games: “If you bet $10 on the moneyline now” opens a table per team (live win chance, fair odds, fair win on $10) from ESPN’s live win probability, with a note on comparing to the book’s price. No picks or labels; ESPN’s free feed has no live lines.
 - Trade rosters: when a team’s live roster loads, its players are removed from any other team’s older cached list (fixes a player showing on both teams right after a trade); “Trade with a team” refreshes both teams’ live rosters (Fleaflicker) when opened.
 - Trade with a team: now the first and default Trade mode (was “grade a trade”); teams shown as tappable chips with record and owner; one roster at a time with a sticky “You get / You give” switch; paste-an-offer box collapsed; “Trade” link on every standings row jumps straight in. Fixed: the league view’s team picker was labeled “See another team” but it sets which team is yours — relabeled.
 - Taunt any time: a “Taunt <opponent>” row of the six emojis under your league card on home and under your matchup in the league view; tells you if the opponent doesn’t have alerts on.

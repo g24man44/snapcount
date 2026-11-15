@@ -1005,6 +1005,9 @@ nav.tabbar button[aria-selected=true]::before{display:none}
 h3.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .trlab{font-weight:600;font-size:14px;color:var(--muted)}
 .stright{display:flex;flex-direction:column;align-items:flex-end;gap:4px}.stright .linkbtn{font-weight:700;color:var(--accent);font-size:13.5px}
+.betcalc{margin-top:8px;font-size:13px}.betcalc summary{cursor:pointer;color:var(--accent);font-weight:700;list-style:none}.betcalc summary::-webkit-details-marker{display:none}.betcalc summary::after{content:" ›"}
+.betcalc table{width:100%;border-collapse:collapse;margin-top:8px;font-variant-numeric:tabular-nums}.betcalc th,.betcalc td{text-align:right;padding:5px 4px;border-bottom:1px solid var(--line)}.betcalc thead th{font-size:11px;color:var(--muted);font-weight:600}.betcalc tbody th{text-align:left}
+.betcalc p{margin:8px 0 0;color:var(--muted);font-size:12px;line-height:1.45}
 @media (max-width:400px){h2{font-size:28px}.brand h1{font-size:21px}.coachfab{padding:8px 10px!important}}
 @media (max-width:350px){.brand h1{font-size:21px}.coachfab{font-size:0!important;gap:0;padding:9px!important}.coachfab i{font-size:16px}}
 </style>
@@ -2473,8 +2476,12 @@ function drawScores(r){
     const when = g.state === "pre" ? new Date(g.date).toLocaleString([], {weekday:"short", hour:"numeric", minute:"2-digit"}) : g.detail;
     const fmtMl = n => n == null ? "" : n > 0 ? "+" + n : String(n);
     const wpBar = g.wp && g.away && g.home ? '<div class="wpb" aria-label="Win chances: ' + esc(g.away.abbr || g.away.name) + " " + g.wp.away + "%, " + esc(g.home.abbr || g.home.name) + " " + g.wp.home + '%"><div class="wpl"><span>' + esc(g.away.abbr || g.away.name) + " <b>" + g.wp.away + '%</b></span><small>' + (g.wp.src === "live" ? "Live win chance" : "Win chance") + '</small><span><b>' + g.wp.home + "%</b> " + esc(g.home.abbr || g.home.name) + '</span></div><div class="wpt"><i style="width:' + g.wp.away + "%;background:" + esc(g.away.color ? "#" + g.away.color.replace("#", "") : "var(--muted)") + '"></i><i style="width:' + g.wp.home + "%;background:" + esc(g.home.color ? "#" + g.home.color.replace("#", "") : "var(--ink)") + '"></i></div></div>' : "";
+    // Live games: what ESPN's win chance says a $10 moneyline bet on each side is worth, so you can compare to your book's price.
+    const fairOdds = p => p >= .5 ? "-" + Math.round(100 * p / (1 - p)) : "+" + Math.round(100 * (1 - p) / p);
+    const betRow = (t, pct) => { const p = Math.min(.99, Math.max(.01, pct / 100)); return "<tr><th>" + esc(t.abbr || t.name) + "</th><td>" + pct + "%</td><td>" + fairOdds(p) + "</td><td>$" + (10 * (1 - p) / p).toFixed(2) + "</td></tr>"; };
+    const betCalc = g.state === "in" && g.wp && g.wp.src === "live" && g.away && g.home && g.wp.away > 0 && g.wp.home > 0 ? '<details class="betcalc"><summary>If you bet $10 on the moneyline now</summary><table><thead><tr><th></th><th>Win chance</th><th>Fair odds</th><th>Fair win on $10</th></tr></thead><tbody>' + betRow(g.away, g.wp.away) + betRow(g.home, g.wp.home) + '</tbody></table><p>From ESPN’s live win chance. If your sportsbook pays <b>more</b> than the fair odds (for example +450 when fair is +400), ESPN’s model rates that price as worth it; if it pays less, it isn’t. Books build in a cut, so most live prices come out a little worse than fair. It’s a model, not a sure thing.</p></details>' : "";
     const bet = [g.line ? "Spread " + g.line : "", g.ou ? "O/U " + g.ou : "", g.ml && g.ml.away != null && g.ml.home != null && g.state === "pre" ? "ML " + fmtMl(g.ml.away) + " / " + fmtMl(g.ml.home) : ""].filter(Boolean).join(" · ");
-    const meta = wpBar + '<div class="gmeta"><span class="' + (g.state === "in" ? "glive" : "") + '">' + esc(g.state === "in" ? g.detail : when) + "</span><span>" + esc(g.tv || "") + "</span></div>" + (bet ? '<div class="gbet">' + esc(bet) + "</div>" : "");
+    const meta = wpBar + betCalc + '<div class="gmeta"><span class="' + (g.state === "in" ? "glive" : "") + '">' + esc(g.state === "in" ? g.detail : when) + "</span><span>" + esc(g.tv || "") + "</span></div>" + (bet ? '<div class="gbet">' + esc(bet) + "</div>" : "");
     let body;
     if (g.top) {
       body = "<b>" + esc(g.title || g.name) + '</b><ol class="lb">' + g.top.map((x, i) => "<li><span>" + (i + 1) + ". " + esc(x.name) + "</span><b>" + esc(x.score || "") + "</b></li>").join("") + "</ol>";
