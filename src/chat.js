@@ -53,7 +53,7 @@ export class ChatRoom {
     if (u.pathname === "/state") {
       // Small bits of server state that change often (live-score bookkeeping), kept here instead of KV's daily write limit.
       const k = "s:" + (u.searchParams.get("k") || "");
-      if (request.method === "POST") { await st.put(k, await request.json()); return out({ ok: true }); }
+      if (request.method === "POST") { const v = await request.json(); if (v == null) await st.delete(k); else await st.put(k, v); return out({ ok: true }); }
       return out((await st.get(k)) || null);
     }
     if (u.pathname === "/bump") {

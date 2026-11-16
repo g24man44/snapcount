@@ -1,3 +1,4 @@
+import { hotGet, hotPut } from "./alerts.js";
 // The league show: a weekly two-host audio recap of one league, written from the league's real results.
 // Made once per league per week and shared in the app (not posted anywhere).
 // Engines, best first:
@@ -278,6 +279,7 @@ const NATURAL_SAMPLE = [
   ["DEZ", "dry, then genuinely excited", "Meanwhile, To Infinity And Bijan puts up a hundred seventy-six. Like... come on."],
   ["SAM", "hyped", "That team is on fire right now. Somebody's gotta stop them."]
 ];
+async function bumpDone(env, key, i) { try { const d = Number(await hotGet(env, "showdone:" + key)) || 0; if (i + 1 > d) await hotPut(env, "showdone:" + key, i + 1); } catch (e) {} }
 export async function showRoute(request, url, env) {
   const path = url.pathname;
   if (path === "/api/show/voice" && request.method === "POST" && env.SNAP) {
@@ -346,7 +348,8 @@ export async function showRoute(request, url, env) {
     return j ? new Response(j, { headers: { "content-type": "application/json", "cache-control": "public, max-age=86400" } }) : out({ error: "Not recorded yet" }, 404);
   }
   const view = async show => {
-    const gem = show.engine === "gemini", done = (await env.SNAP.list({ prefix: key + (gem ? ":g" : ":a") })).keys.length;
+    // How many parts are recorded is kept in the Durable Object (no KV list calls while the phone polls).
+    const gem = show.engine === "gemini", done = Number(await hotGet(env, "showdone:" + key)) || 0;
     return { lines: show.lines, engine: show.engine || "deepgram", final: show.final, at: show.at, done, total: gem ? show.parts.length : show.lines.length, league: show.league, remade: !!show.remade };
   };
   if (request.method === "GET") {
@@ -398,6 +401,7 @@ export async function showRoute(request, url, env) {
     const engine = elKey(env) ? "eleven" : gemKey(env) ? "gemini" : "deepgram";
     const show = { lines, engine, parts: engine === "gemini" ? chunk(lines) : null, final: !!b.final, at: Date.now(), league: String(b.league || "").slice(0, 80), remade: !!old };
     await env.SNAP.put(key, JSON.stringify(show), { expirationTtl: 120 * 86400 });
+    await hotPut(env, "showdone:" + key, 0).catch(() => {});
     return out({ show: Object.assign(await view(show), { done: 0 }) });
   }
 
@@ -414,6 +418,7 @@ export async function showRoute(request, url, env) {
         catch (e) { return out({ error: e.status === 429 ? "Gemini’s free voice limit for today is used up. Open this again tomorrow and it picks up where it stopped." : "Gemini voices: " + e.message, wait: e.status === 429 }, e.status === 429 ? 429 : 502); }
         await env.SNAP.put(gk, j, { expirationTtl: 120 * 86400 });
       }
+      await bumpDone(env, key, i);
       return out({ ok: true });
     }
     if (!Number.isInteger(i) || i < 0 || i >= show.lines.length) return out({ error: "Bad line" }, 400);
@@ -429,6 +434,7 @@ export async function showRoute(request, url, env) {
       if (!audio) return out({ error: "Today’s free voice time is used up. Open this again after 7 PM Eastern and it picks up right where it stopped.", wait: true }, 503);
       await env.SNAP.put(ak, audio, { expirationTtl: 120 * 86400 });
     }
+    await bumpDone(env, key, i);
     return out({ ok: true });
   }
   return out({ error: "Not found" }, 404);

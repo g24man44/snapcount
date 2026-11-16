@@ -1,4 +1,5 @@
 import { gemChat } from "./show.js";
+import { subKeys } from "./alerts.js";
 // More integrations: ESPN Fantasy, MyFantasyLeague, every-sport scores, calendar feed.
 const UA = { "User-Agent": "Mozilla/5.0 (SnapCount fantasy dashboard)", "Accept": "application/json" };
 
@@ -538,7 +539,7 @@ export async function weeklyRecaps(env, force) {
   // Tuesday 10:07 AM Eastern (15:07 UTC), after Monday night is final.
   if (!force && !(now.getUTCDay() === 2 && now.getUTCHours() === 15 && now.getUTCMinutes() === 7)) return { skipped: true };
   if (!env.AI) return { error: "no AI" };
-  const list = await env.SNAP.list({ prefix: "sub:" });
+  const list = await subKeys(env);
   const byLeague = {}; let origin = env.HOST ? "https://" + env.HOST : null;
   for (const k of list.keys) {
     const rec = await env.SNAP.get(k.name, "json");

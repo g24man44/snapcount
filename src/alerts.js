@@ -102,7 +102,7 @@ async function liveState(env, k, v) {
 async function subscriberIds(env) {
   const idx = await env.SNAP.get("subs:idx", "json");
   if (Array.isArray(idx)) return idx;
-  const list = await env.SNAP.list({ prefix: "sub:" }), ids = list.keys.map(k => k.name.slice(4));
+  const list = await env.SNAP.list({ prefix: "sub:" }), ids = list.keys.map(k => k.name.slice(4)); // once, to build the index
   await env.SNAP.put("subs:idx", JSON.stringify(ids));
   return ids;
 }
@@ -239,14 +239,31 @@ export async function tauntRoute(request, env) {
   return out({ ok: true, sent });
 }
 
+
+/* ---------- state that changes all game long lives in a Durable Object, not KV (KV's free plan allows only 1,000 writes and 1,000 lists a day) ---------- */
+function hotStub(env) { return env.CHAT ? env.CHAT.get(env.CHAT.idFromName("hot")) : null; }
+export async function hotGet(env, k) {
+  const st = hotStub(env);
+  if (st) { try { const v = await st.fetch("https://chat/state?k=" + encodeURIComponent(k)).then(r => r.json()); if (v != null) return v; } catch (e) {} }
+  return env.SNAP ? env.SNAP.get(k, "json") : null; // older copy from before the move, read only
+}
+export async function hotPut(env, k, v) {
+  const st = hotStub(env);
+  if (st) { await st.fetch("https://chat/state?k=" + encodeURIComponent(k), { method: "POST", body: JSON.stringify(v) }); return; }
+  if (env.SNAP) await env.SNAP.put(k, JSON.stringify(v));
+}
+export async function hotDel(env, k) { const st = hotStub(env); if (st) await st.fetch("https://chat/state?k=" + encodeURIComponent(k), { method: "POST", body: "null" }).catch(() => {}); }
+// Subscribers from the index key (one read) instead of listing KV (lists are capped at 1,000 a day).
+export async function subKeys(env) { return { keys: (await subscriberIds(env)).map(id => ({ name: "sub:" + id })) }; }
+
 async function addAlerts(env, id, items) {
   const key = "al:" + id;
-  const list = (await env.SNAP.get(key, "json")) || [];
+  const list = (await hotGet(env, key)) || [];
   const seen = new Set(list.map(a => a.id));
   const fresh = items.filter(a => !seen.has(a.id));
   if (!fresh.length) return [];
   const next = fresh.map(a => Object.assign({ t: Date.now(), read: false }, a)).concat(list).slice(0, 40);
-  await env.SNAP.put(key, JSON.stringify(next));
+  await hotPut(env, key, next);
   return fresh;
 }
 async function deliver(env, id, rec, items) {
@@ -256,7 +273,7 @@ async function deliver(env, id, rec, items) {
   for (const h of (rec.hooks || [])) { try { await sendHook(h, fresh, rec.origin); } catch (e) {} }
   if (String(rec.sub.endpoint).startsWith("https://snapcount.hooks/")) return n;
   const st = await sendPush(env, rec.sub, rec.origin);
-  if (st === 404 || st === 410) { await env.SNAP.delete("sub:" + id); await env.SNAP.delete("al:" + id); }
+  if (st === 404 || st === 410) { await env.SNAP.delete("sub:" + id); await hotDel(env, "al:" + id); }
   return n;
 }
 
@@ -310,7 +327,7 @@ export async function alertsRoute(request, env, p, url) {
         }
         return out({ ok: true, watching: rec.ids.length + rec.names.length, leagues: rec.leagues.length });
       }
-      if (p === "/api/push/unsubscribe") { await env.SNAP.delete("sub:" + id); await env.SNAP.delete("al:" + id); return out({ ok: true }); }
+      if (p === "/api/push/unsubscribe") { await env.SNAP.delete("sub:" + id); await hotDel(env, "al:" + id); return out({ ok: true }); }
       if (p === "/api/push/hooktest") {
         const u = String(body.hook || "");
         if (!hookKind(u)) return out({ error: "That link isn’t a Discord, Slack, Teams, Telegram, ntfy, IFTTT, Zapier, Make or Pipedream webhook." }, 400);
@@ -337,10 +354,10 @@ export async function alertsRoute(request, env, p, url) {
       const e = url.searchParams.get("e") || "";
       if (!e) return out({ alerts: [] });
       const id = await hashId(e), key = "al:" + id;
-      const list = (await env.SNAP.get(key, "json")) || [];
+      const list = (await hotGet(env, key)) || [];
       const unread = list.filter(a => !a.read);
       const res = list.map(a => Object.assign({}, a, { fresh: !a.read }));
-      if (url.searchParams.get("mark") === "1" && unread.length) await env.SNAP.put(key, JSON.stringify(list.map(a => Object.assign(a, { read: true }))));
+      if (url.searchParams.get("mark") === "1" && unread.length) await hotPut(env, key, list.map(a => Object.assign(a, { read: true })));
       return out({ alerts: res });
     }
     if (p === "/api/push/run" && url.searchParams.get("what") === "preview") return out(await matchupPreviews(env, deliver, true));
@@ -358,7 +375,7 @@ export async function alertsRoute(request, env, p, url) {
     if (p === "/api/push/status") {
       const snaps = {};
       for (const pos of ["QB", "RB", "WR", "TE"]) {
-        const s = await env.SNAP.get("snap:" + pos, "json");
+        const s = await hotGet(env, "snap:" + pos);
         snaps[pos] = s ? { week: s.week, players: Object.keys(s.p || {}).length, checked: s.at, lastEvents: s.events || [] } : null;
       }
       return out({ snaps, lastError: await env.SNAP.get("err", "json") });
@@ -494,13 +511,13 @@ export async function runChecks(env, forcePos) {
     if (!prevErr || prevErr.msg !== msg) await env.SNAP.put("err", JSON.stringify({ msg, at: Date.now(), pos }));
     return { error: msg, pos, week, season };
   }
-  const prev = await env.SNAP.get("snap:" + pos, "json");
+  const prev = await hotGet(env, "snap:" + pos);
   const fresh = !prev || prev.week !== week || String(prev.season) !== String(season);
   const events = fresh ? [] : diffSlate(pos, prev.p || {}, now);
   const changed = fresh || Object.keys(now).some(id => !prev.p[id] || prev.p[id].join("|") !== now[id].join("|"));
   let sent = 0;
   if (events.length) {
-    const list = await env.SNAP.list({ prefix: "sub:" });
+    const list = await subKeys(env);
     const cache = new Map();
     for (const k of list.keys) {
       const rec = await env.SNAP.get(k.name, "json");
@@ -537,7 +554,7 @@ export async function runChecks(env, forcePos) {
   }
   if (fresh || events.length || (changed && Date.now() - (prev.at || 0) > 3600e3)) {
     const lastEvents = events.length ? events.slice(0, 8).map(e => e.kind + " " + e.name + " " + (e.to ?? e.starter ?? "")) : (prev && prev.events) || [];
-    await env.SNAP.put("snap:" + pos, JSON.stringify({ week, season, at: Date.now(), p: now, events: lastEvents }));
+    await hotPut(env, "snap:" + pos, { week, season, at: Date.now(), p: now, events: lastEvents });
   }
   return { pos, week, players: Object.keys(now).length, events: events.length, sent, baseline: fresh };
 }
@@ -605,7 +622,7 @@ async function readNews() {
 const noteSig = n => (n.date || "") + "|" + norm(n.short).slice(0, 60);
 
 export async function eachSubscriber(env, fn) {
-  const list = await env.SNAP.list({ prefix: "sub:" });
+  const list = await subKeys(env);
   let sent = 0;
   for (const k of list.keys) {
     const rec = await env.SNAP.get(k.name, "json");
@@ -622,9 +639,9 @@ const nameSet = rec => new Set(alertNames(rec).map(n => n.split("|")[0]));
 export async function runInjuryNotes(env) {
   let now;
   try { now = await readInjuries(); } catch (e) { return { error: String(e.message || e) }; }
-  const prev = await env.SNAP.get("snap:inj", "json");
+  const prev = await hotGet(env, "snap:inj");
   const sigs = {}; for (const k in now) if (now[k].short) sigs[k] = noteSig(now[k]);
-  if (!prev) { await env.SNAP.put("snap:inj", JSON.stringify({ at: Date.now(), s: sigs })); return { baseline: true, notes: Object.keys(sigs).length }; }
+  if (!prev) { await hotPut(env, "snap:inj", { at: Date.now(), s: sigs }); return { baseline: true, notes: Object.keys(sigs).length }; }
   const fresh = Object.keys(sigs).filter(k => prev.s[k] !== sigs[k]).map(k => Object.assign({ key: k }, now[k]));
   let sent = 0;
   if (fresh.length) {
@@ -637,7 +654,7 @@ export async function runInjuryNotes(env) {
         body: n.short.slice(0, 220)
       }));
     });
-    await env.SNAP.put("snap:inj", JSON.stringify({ at: Date.now(), s: sigs }));
+    await hotPut(env, "snap:inj", { at: Date.now(), s: sigs });
   }
   return { notes: Object.keys(sigs).length, changed: fresh.length, sent };
 }
@@ -645,7 +662,7 @@ export async function runInjuryNotes(env) {
 export async function runHeadlines(env) {
   let items;
   try { items = await readNews(); } catch (e) { return { error: String(e.message || e) }; }
-  const prev = await env.SNAP.get("snap:news", "json");
+  const prev = await hotGet(env, "snap:news");
   const seen = new Set(prev ? prev.ids : []);
   const fresh = prev ? items.filter(a => !seen.has(a.id)) : [];
   let sent = 0;
@@ -656,7 +673,7 @@ export async function runHeadlines(env) {
       return fresh.filter(a => a.names.some(n => mine.has(n))).slice(0, 3).map(a => ({ id: "news:" + a.id, title: a.title, body: a.desc.slice(0, 200), url: a.link }));
     });
   }
-  if (!prev || fresh.length) await env.SNAP.put("snap:news", JSON.stringify({ at: Date.now(), ids: items.map(a => a.id).concat(prev ? prev.ids : []).slice(0, 200) }));
+  if (!prev || fresh.length) await hotPut(env, "snap:news", ({ at: Date.now(), ids: items.map(a => a.id).concat(prev ? prev.ids : []).slice(0, 200) }));
   return { articles: items.length, fresh: fresh.length, sent, baseline: !prev };
 }
 
@@ -668,7 +685,7 @@ export async function lineupCheck(env, force) {
   if (!force) { if (await env.SNAP.get(key)) return { skipped: "sent" }; await env.SNAP.put(key, "1", { expirationTtl: 172800 }); }
   const byName = {};
   for (const pos of ["QB", "RB", "WR", "TE"]) {
-    const sn = await env.SNAP.get("snap:" + pos, "json"); if (!sn) continue;
+    const sn = await hotGet(env, "snap:" + pos); if (!sn) continue;
     for (const id in sn.p) { const v = sn.p[id]; byName[norm(v[0]) + "|" + pos] = v; }
   }
   const sent = await eachSubscriber(env, rec => {
@@ -793,7 +810,7 @@ async function briefSlate(env) {
   let st = null;
   for (const pos of ["QB", "RB", "WR", "TE"]) {
     let p = null;
-    const sn = await env.SNAP.get("snap:" + pos, "json");
+    const sn = await hotGet(env, "snap:" + pos);
     if (sn && sn.p && Date.now() - (sn.at || 0) < 4 * 86400e3) p = sn.p;
     if (!p) {
       try {
@@ -960,7 +977,7 @@ export async function pregameBriefings(env, force) {
   const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()).map(x => [x.type, x.value]));
   if (!force && (parts.weekday !== "Sun" || Number(parts.hour) !== 11 || Number(parts.minute) >= 30)) return { skipped: true };
   const day = parts.year + parts.month + parts.day, shared = {};
-  const list = await env.SNAP.list({ prefix: "sub:" });
+  const list = await subKeys(env);
   let sent = 0, done = 0;
   for (const k of list.keys) {
     if (done >= 8) break; // spread big lists over the 11:00-11:29 window
@@ -1085,7 +1102,7 @@ export async function playAlerts(env) {
   const r = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard", { headers: UA });
   if (!r.ok) return { error: r.status };
   const sb = await r.json();
-  const prevRaw = await env.SNAP.get("plays:state"), prev = prevRaw ? JSON.parse(prevRaw) : {};
+  const prevObj = await hotGet(env, "plays:state"), prevRaw = prevObj ? JSON.stringify(prevObj) : null, prev = prevObj || {};
   const next = {}, events = [];
   for (const e of sb.events || []) {
     const c = (e.competitions || [])[0] || {}, st = ((c.status || {}).type || {}).state;
@@ -1119,7 +1136,7 @@ export async function playAlerts(env) {
   if (!next._ev.length) delete next._ev;
   // Free KV allows 1,000 writes a day: only save when a game's state actually moved.
   const nextRaw = JSON.stringify(next);
-  if (nextRaw !== (prevRaw || "{}")) await env.SNAP.put("plays:state", nextRaw, { expirationTtl: 86400 });
+  if (nextRaw !== (prevRaw || "{}")) await hotPut(env, "plays:state", next);
   if (!events.length) return { events: 0 };
   const sent = await eachSubscriber(env, rec => {
     if ((rec.prefs || {}).plays === false) return [];

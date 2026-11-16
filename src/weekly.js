@@ -1,5 +1,6 @@
 // Snap Count weekly posts: the Friday matchup preview (push + connected apps) and Tuesday power rankings (connected apps).
 import { sendHook } from "./more.js";
+import { subKeys, hotGet } from "./alerts.js";
 
 const UA = { "User-Agent": "SnapCount/1.0 (fantasy dashboard)", "Accept": "application/json" };
 const FF = "https://www.fleaflicker.com/api/";
@@ -19,7 +20,7 @@ async function slate(env) {
   if (!st || st.season_type === "off" || st.season_type === "pre") return null;
   const week = st.display_week || st.week, season = String(st.league_season || st.season), byId = {}, byName = {};
   for (const pos of ["QB", "RB", "WR", "TE"]) {
-    const sn = await env.SNAP.get("snap:" + pos, "json");
+    const sn = await hotGet(env, "snap:" + pos);
     if (!sn || sn.week !== week || String(sn.season) !== season) continue;
     for (const id in sn.p) { const v = sn.p[id], x = { id, name: v[0], team: v[1], status: v[2] || "", proj: Number(v[4]) || 0, pos }; byId[id] = x; byName[norm(v[0]) + "|" + pos] = x; }
   }
@@ -76,7 +77,7 @@ export async function matchupPreviews(env, deliver, force) {
   const now = etParts();
   if (!force && (now.weekday !== "Fri" || Number(now.hour) !== 12 || Number(now.minute) >= 30)) return { skipped: true };
   const S = await slate(env); if (!S) return { skipped: "no projections" };
-  const day = now.year + now.month + now.day, list = await env.SNAP.list({ prefix: "sub:" });
+  const day = now.year + now.month + now.day, list = await subKeys(env);
   let sent = 0, handled = 0;
   for (const k of list.keys) {
     if (handled >= 4) break;
@@ -138,7 +139,7 @@ async function fleaSeasonGames(lid) {
 export async function weeklyPower(env, force) {
   const now = etParts();
   if (!force && (now.weekday !== "Tue" || Number(now.hour) !== 11 || Number(now.minute) < 30)) return { skipped: true };
-  const list = await env.SNAP.list({ prefix: "sub:" }), byLeague = {}; let origin = null;
+  const list = await subKeys(env), byLeague = {}; let origin = null;
   for (const k of list.keys) {
     const rec = await env.SNAP.get(k.name, "json");
     if (!rec || !(rec.hooks || []).length || (rec.prefs || {}).recap === false) continue;
