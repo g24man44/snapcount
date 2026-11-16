@@ -1022,6 +1022,7 @@ h3.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .valbadge{margin-top:8px;padding:6px 10px;border-radius:8px;background:var(--ok-soft);color:var(--ok);font-weight:700;font-size:13px}
 .betcalc .valtop{margin-top:10px;padding:10px 12px;border-radius:8px;background:var(--ok-soft);color:var(--ink);font-size:13.5px;line-height:1.4;display:flex;flex-direction:column;gap:3px}.betcalc .valtop b{color:var(--ok)}.betcalc .valtop.none{background:var(--surface2);color:var(--muted)}
 .upset{border-left:4px solid var(--warn)!important;margin-bottom:12px}.upset .uh{font:800 15px/1.2 var(--display);font-stretch:90%;color:var(--warn)}.upset .upick{font:800 22px/1.15 var(--display);font-stretch:88%;margin-top:6px}.upset .umeta{margin:2px 0 0;color:var(--muted);font-size:13px}.upset .why{margin:8px 0 0;padding-left:18px;font-size:13.5px;line-height:1.4}.upset .why li{margin:3px 0}
+.clog .cmsg{display:block;max-width:92%}.clog .cmsg ul,.clog .cmsg ol{margin:6px 0 0;padding-left:20px}.clog .cmsg li{margin:3px 0}.clog .cmsg p+p,.clog .cmsg p+ul{margin-top:6px}
 @media (max-width:400px){h2{font-size:28px}.brand h1{font-size:21px}.coachfab{padding:8px 10px!important}}
 @media (max-width:350px){.brand h1{font-size:21px}.coachfab{font-size:0!important;gap:0;padding:9px!important}.coachfab i{font-size:16px}}
 </style>
@@ -2846,6 +2847,29 @@ async function coachTradeMath(L, q){
   return "TRADE MATH (computed by the Snap Count calculator for the trade in the user's question; these totals are exact, quote them and never redo the arithmetic):\n" + line("User gives", give, eG) + "\n" + line("User gets", get, eR) + "\nResult: user gets " + Math.round(eR) + " vs gives " + Math.round(eG) + ", " + (Math.abs(diff) <= 0.05 ? "within 5%: " : "a " + pct + "% gap: ") + verdict + ".\n\n";
 }
 
+
+// Questions about an NFL team ("Patriots backup QB", "who starts for the Jets at RB") get that team's depth chart
+// from the player file (Sleeper's depth-chart order), with injuries and who has each player in your league.
+const NFL_CITY = {ARI:"Arizona",ATL:"Atlanta",BAL:"Baltimore",BUF:"Buffalo",CAR:"Carolina",CHI:"Chicago",CIN:"Cincinnati",CLE:"Cleveland",DAL:"Dallas",DEN:"Denver",DET:"Detroit",GB:"Green Bay",HOU:"Houston",IND:"Indianapolis",JAX:"Jacksonville",KC:"Kansas City",LAC:"LA Chargers",LAR:"LA Rams",LV:"Las Vegas",MIA:"Miami",MIN:"Minnesota",NE:"New England",NO:"New Orleans",NYG:"NY Giants",NYJ:"NY Jets",PHI:"Philadelphia",PIT:"Pittsburgh",SEA:"Seattle",SF:"San Francisco",TB:"Tampa Bay",TEN:"Tennessee",WAS:"Washington"};
+async function coachDepth(L, q){
+  const t = String(q || "").toLowerCase(), hits = Object.keys(NFL_TEAMS).filter(k => {
+    const nick = NFL_TEAMS[k][0].toLowerCase(), city = NFL_CITY[k].toLowerCase();
+    return t.includes(nick) || t.includes(nick.replace(/s$/, "")) || (city.length > 5 && !/^(la |ny )/.test(city) && t.includes(city)) || new RegExp("\\b" + k.toLowerCase() + "\\b").test(t);
+  }).slice(0, 3);
+  if (!hits.length) return "";
+  const pl = await getPlayers(), owner = {};
+  (L.detail.teams || []).forEach(tm => (tm.roster || []).forEach(p => { owner[norm(p.name)] = tm.mine ? "your team" : tm.name; }));
+  const out = ["NFL DEPTH CHARTS (current, from the player file; 1 = starter):"];
+  for (const k of hits) {
+    const abbr = k === "LAR" ? "LAR" : k, team = Object.values(pl).filter(p => p[2] === abbr || (k === "LAR" && p[2] === "LA"));
+    out.push(NFL_TEAMS[k][0] + ":");
+    for (const pos of ["QB", "RB", "WR", "TE"]) {
+      const list = team.filter(p => p[1] === pos).sort((a, b) => (a[6] || 99) - (b[6] || 99)).slice(0, pos === "WR" ? 5 : 4);
+      if (list.length) out.push("  " + pos + ": " + list.map((p, i) => (p[6] ? p[6] + ". " : "") + p[0] + (p[3] ? " (" + p[3] + (p[4] ? ", " + p[4] : "") + ")" : "") + " [" + (owner[norm(p[0])] || "free agent in your league") + "]").join("; "));
+    }
+  }
+  return out.join("\n") + "\n\n";
+}
 async function askCoach(q){
   if (coach.busy) return;
   const li = coachLeague(), L = leagues[li]; if (!L || !L.detail) return;
@@ -2855,7 +2879,8 @@ async function askCoach(q){
   try {
     if (!L.ctx || L.ctxAt < Date.now() - 120000) { L.ctx = await buildCtx(L); L.ctxAt = Date.now(); }
     let tm = ""; try { tm = await coachTradeMath(L, q); } catch(e){}
-    const text = await streamAI({mode:"coach", q, ctx: tm + L.ctx, history}, t => { ans.content = t; drawCoach(); });
+    let dc = ""; try { dc = await coachDepth(L, q); } catch(e){}
+    const text = await streamAI({mode:"coach", q, ctx: tm + dc + L.ctx, history}, t => { ans.content = t; drawCoach(); });
     if (!text) ans.err = "No answer came back. Try again.";
     else if (coach.speak && "speechSynthesis" in window) { const u = new SpeechSynthesisUtterance(text.replace(/[*#•]/g, "")); u.rate = 1.05; speechSynthesis.cancel(); speechSynthesis.speak(u); }
   } catch(e){ ans.err = e.message; }
