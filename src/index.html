@@ -2193,11 +2193,12 @@ function renderLeague(v, L){
     if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="mrBtn"><i class=ic-ball aria-hidden=true></i>Matchup recaps</button>');
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="mktBtn"><i class=ic-swap aria-hidden=true></i>Trade market</button>');
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="cutBtn"><i class=ic-list aria-hidden=true></i>Who to cut</button>');
+    if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="hcBtn"><i class=ic-medic aria-hidden=true></i>Handcuffs</button>');
     if (d.teams.some(t => t.mine) && m.platform === "flea") tiles.push('<button type="button" class="btn ghost" id="rcBtn"><i class=ic-scale aria-hidden=true></i>Your report card</button>');
     if (d.teams.some(t => t.mine) && d.games.length) tiles.push('<button type="button" class="btn ghost" id="pkBtn"><i class=ic-flame aria-hidden=true></i>Pick’em and roast</button>'); tiles.push('<button type="button" class="btn ghost" id="showBtn"><i class=ic-speaker aria-hidden=true></i>The league show</button>'); if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="commBtn"><i class=ic-trophy aria-hidden=true></i>Dues, rules and awards</button>');
     if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="dcBtn"><i class=ic-pencil aria-hidden=true></i>Draft grades and write-up</button>');
     // Grouped by what you're trying to do, as compact rows instead of a wall of identical tiles.
-    const GROUPS = [["This week", ["mrBtn", "pwBtn", "pkBtn", "cutBtn"]], ["Trades", ["lsBtn", "scoutBtn", "mktBtn"]], ["Season", ["picBtn", "ppBtn", "swapBtn", "histBtn", "rcBtn", "winBtn", "wrapBtn"]], ["Draft", ["doBtn", "dcBtn"]]];
+    const GROUPS = [["This week", ["mrBtn", "pwBtn", "pkBtn", "cutBtn", "hcBtn"]], ["Trades", ["lsBtn", "scoutBtn", "mktBtn"]], ["Season", ["picBtn", "ppBtn", "swapBtn", "histBtn", "rcBtn", "winBtn", "wrapBtn"]], ["Draft", ["doBtn", "dcBtn"]]];
     const idOf = t => (t.match(/id="(\w+)"/) || [])[1], used = new Set();
     // Four everyday tools up top; everything else waits behind "More tools", grouped by what you're doing.
     const TOP = ["mrBtn", "pwBtn", "mktBtn", "showBtn"];
@@ -2261,6 +2262,7 @@ function renderLeague(v, L){
   const mrb = v.querySelector("#mrBtn"); if (mrb) mrb.addEventListener("click", () => openMatchupRecaps(L));
   const mkb = v.querySelector("#mktBtn"); if (mkb) mkb.addEventListener("click", () => openMarket(L));
   const ctb = v.querySelector("#cutBtn"); if (ctb) ctb.addEventListener("click", () => openCuts(L));
+  const hcb = v.querySelector("#hcBtn"); if (hcb) hcb.addEventListener("click", () => openHandcuffs(L));
   const rcb = v.querySelector("#rcBtn"); if (rcb) rcb.addEventListener("click", () => openReport(L));
   const pkb = v.querySelector("#pkBtn"); if (pkb) pkb.addEventListener("click", () => openPickem(L));
   const shb = v.querySelector("#showBtn"); if (shb) shb.addEventListener("click", () => openShow(L));
@@ -6154,7 +6156,8 @@ async function edgeWaivers(L, el){
   stash.slice(0, 6).forEach(x => bidC.push({p: x.p, sid: true, kind: "stash", sev: x.sev, note: "backup to " + x.starter + (x.status ? " (" + x.status + ")" : "")}));
   h += "<h3>Stash these backups</h3>" + (stash.length ? '<ul class="plist">' + stash.slice(0, 8).map(x => miniRow(x.p, x.sev === 3 ? '<span class="chip ok" style="padding:4px 8px">Add now</span>' : x.sev === 2 ? '<span class="chip warn" style="padding:4px 8px">Watch</span>' : '<span class="chip" style="padding:4px 8px">Insurance</span>',
       posTag(x.p) + esc(x.p.team) + " · behind " + esc(x.starter) + (x.status ? " (" + esc(x.status) + ")" : ""))).join("") + "</ul>" : '<div class="card"><p class="small" style="margin:0">No free backups behind injured starters right now. Alerts will tell you the moment one opens up.</p></div>') +
-    '<p class="small muted" style="margin:8px 4px 0">Free in your league. "Add now" means the starter is out; "Watch" means he’s questionable. In superflex, every starting QB’s backup is worth a bench spot.</p>';
+    '<p class="small muted" style="margin:8px 4px 0">Free in your league. "Add now" means the starter is out; "Watch" means he’s questionable. In superflex, every starting QB’s backup is worth a bench spot.</p>' +
+    '<button type="button" class="btn ghost" data-hcopen="1" style="width:100%;margin-top:10px"><i class=ic-medic aria-hidden=true></i> Handcuffs: who backs up your starters</button>';
   // 3. role risers
   try {
     const wk = st.display_week || st.week, r = await api("/api/roles?season=" + (st.league_season || st.season) + "&week=" + wk);
@@ -6185,6 +6188,7 @@ async function edgeWaivers(L, el){
   el.innerHTML = bids + h + '<button type="button" class="btn ghost" id="edgeCuts" style="width:100%;margin-top:12px"><i class=ic-list aria-hidden=true></i> Need a roster spot? See who to cut</button>';
   wireRows(el);
   const ec = el.querySelector("#edgeCuts"); if (ec) ec.addEventListener("click", () => openCuts(L));
+  el.querySelectorAll("[data-hcopen]").forEach(b => b.addEventListener("click", () => openHandcuffs(L)));
 }
 
 /* ---------- Edge: what to bid (FAAB) or whether to use your waiver priority ---------- */
@@ -7186,6 +7190,107 @@ async function openCuts(L){
       closeSheet(); setTab("trade");
     }));
   } catch(e){ body.innerHTML = '<div class="err">Couldn’t weigh your roster: ' + esc(e.message) + "</div>"; }
+}
+
+/* ===================== Handcuffs: backup plans for your backfield ===================== */
+// Every NFL backfield (and QB room in superflex) read from the depth chart, snap share and points per game:
+// who leads it, who's next in line, and who in your league holds each one.
+async function handcuffPlan(L){
+  const d = L.detail, me = d.teams.find(t => t.mine), st = await getState();
+  const season = L.meta.season || st.league_season || st.season, wk = st.display_week || st.week;
+  await Promise.all([getPlayers(), getSeasonStats(season), getProj(), rosterFor(L, me)]);
+  ensureSidIndex();
+  let roles = {};
+  try { roles = (await api("/api/roles?season=" + season + "&week=" + wk)).players || {}; } catch(e){}
+  const sf = qbsOf(d) > 1, POS = sf ? ["RB", "QB"] : ["RB"], col = scoringCol(L);
+  const VV = await leagueVals(L).catch(() => null);
+  // Who holds each player in this league.
+  const owner = {};
+  d.teams.forEach(t => (t.roster || []).forEach(p => { if (!p.name || !POS.includes(p.pos)) return; const sid = sleeperKey(L, p); if (sid) owner[sid] = {t, p}; }));
+  const hurt = q => OUTISH_C.test(String(q[3] || ""));
+  const info = id => {
+    const q = players[id], s = sstats && sstats[id], r = roles[id];
+    const ppg = s && s[3] ? s[col] / s[3] : 0, snap = r ? r[0] : null, prevSnap = r ? r[1] : null;
+    const dc = q[6] || null;
+    // Role score: points per game, recent snap share and the depth chart, so a new starter outranks last month's.
+    const rs = ppg + 0.12 * (snap ?? prevSnap ?? 0) + (dc === 1 ? 4 : dc === 2 ? 1.5 : 0);
+    return {id, q, ppg, snap, prevSnap, car: r ? r[4] : null, dc, rs, out: hurt(q), games: s ? s[3] : 0};
+  };
+  const rooms = {};
+  for (const id in players) { const q = players[id]; if (!q[2] || !POS.includes(q[1])) continue; (rooms[q[2] + "|" + q[1]] = rooms[q[2] + "|" + q[1]] || []).push(info(id)); }
+  const room = (team, pos) => {
+    const xs = (rooms[team + "|" + pos] || []).filter(x => x.ppg > 0 || x.dc || x.snap != null).sort((a, b) => b.rs - a.rs);
+    const lead = xs[0] || null, next = xs.filter(x => x !== lead && !x.out);
+    return {lead, next, backup: next[0] || null};
+  };
+  const asP = (x, fallback) => (owner[x.id] && owner[x.id].p) || fallback || {id: x.id, name: x.q[0], pos: x.q[1], team: x.q[2], inj: x.q[3], injPart: x.q[4]};
+  const holder = x => { const o = owner[x.id]; return o ? (o.t === me ? "me" : o.t) : null; };
+  const value = x => { const o = owner[x.id]; return VV && o ? VV.val(o.p) : 0; };
+  const usage = x => x.q[1] === "QB" ? (x.dc ? "QB" + x.dc + " on the depth chart" : "") :
+    [x.snap != null ? x.snap + "% of snaps last week" : x.prevSnap != null ? x.prevSnap + "% of snaps lately" : "", x.car ? x.car + " carries" : "", x.ppg ? fmt(x.ppg) + " pts a game" : ""].filter(Boolean).join(" · ");
+  // 1. Your lead backs (and QBs in superflex): is the next man up covered?
+  const mine = me.roster.filter(p => p.name && POS.includes(p.pos)), cover = [], leverage = [];
+  const seen = new Set();
+  mine.forEach(p => {
+    const sid = sleeperKey(L, p); if (!sid || seen.has(sid) || !players[sid]) return; seen.add(sid);
+    const R = room(players[sid][2], p.pos); if (!R.lead) return;
+    if (R.lead.id === sid) {
+      if (p.pos === "RB" && R.lead.ppg < 6 && !R.lead.out) return;
+      const b = R.backup; if (!b) return;
+      const h = holder(b), share = b.snap != null && R.lead.snap != null && b.snap >= 40 && R.lead.snap < 60;
+      cover.push({p, lead: R.lead, b, bp: asP(b), h, share, v: value(R.lead) || (VV ? VV.val(p) : 0), bv: value(b)});
+    } else {
+      // You hold someone else's insurance: the lead back's owner may pay for it.
+      const h = holder(R.lead), isBackup = R.backup && R.backup.id === sid;
+      if (isBackup && h && h !== "me" && (p.pos === "QB" || R.lead.ppg >= 8)) leverage.push({p, lead: R.lead, lp: asP(R.lead), t: h, b: R.backup});
+    }
+  });
+  cover.sort((a, b) => (b.lead.out - a.lead.out) || (b.v - a.v));
+  // 2. Free backups behind other teams' lead backs: one injury from a starting job.
+  const lotto = [];
+  for (const k in rooms) {
+    const [team, pos] = k.split("|"), R = room(team, pos);
+    if (!R.lead || !R.backup || holder(R.backup)) continue;
+    if (pos === "RB" && R.lead.ppg < 10) continue;
+    if (pos === "QB" && R.lead.ppg < 14) continue;
+    if (mine.some(p => sleeperKey(L, p) === R.lead.id)) continue;
+    lotto.push({lead: R.lead, b: R.backup, bp: asP(R.backup), h: holder(R.lead)});
+  }
+  lotto.sort((a, b) => (b.lead.out - a.lead.out) || (b.lead.ppg + (b.b.snap || 0) * 0.08) - (a.lead.ppg + (a.b.snap || 0) * 0.08));
+  return {me, sf, cover, leverage, lotto: lotto.slice(0, 8), usage, hasDepth: Object.values(players).some(q => q[6])};
+}
+async function openHandcuffs(L){
+  const body = openSheetShell("Handcuffs");
+  body.innerHTML = '<p class="spin">Reading every depth chart…</p>';
+  try {
+    const P = await handcuffPlan(L), T = t => t === "me" ? "you" : esc(t.name);
+    let h = '<p class="muted" style="margin:-6px 2px 12px">If one of your ' + (P.sf ? "running backs or quarterbacks" : "running backs") + " goes down, who takes over, and do you have him? Built from each NFL team’s depth chart, last week’s snaps and points per game.</p>";
+    // Rows here carry who backs up whom and who owns him, so the detail line wraps instead of cutting off.
+    const row = (p, right, sub) => miniRow(p, right, sub).replace("<small>", '<small style="white-space:normal">');
+    const tag = (txt, tone) => '<span class="chip' + (tone ? " " + tone : "") + '" style="padding:4px 8px">' + txt + "</span>";
+    h += "<h3>Your starters’ backups</h3>";
+    if (P.cover.length) {
+      const covered = P.cover.filter(c => c.h === "me").length;
+      h += '<div class="card" style="margin-bottom:10px"><p class="small" style="margin:0"><b>' + covered + " of " + P.cover.length + "</b> covered. " + (covered === P.cover.length ? "Every lead back you own has his backup on your bench." : "The open ones are below, most valuable first.") + "</p></div>";
+      h += '<ul class="plist">' + P.cover.map(c => {
+        const right = c.h === "me" ? tag("Covered", "ok") : !c.h ? tag(c.lead.out ? "Add now" : "Add", c.lead.out ? "warn" : "") : tag("Owned", "");
+        const why = c.lead.out ? "<b>" + esc(c.p.name) + " is " + esc(String(c.lead.q[3]).toLowerCase()) + "</b>: " : "";
+        const sub = posTag(c.bp) + esc(c.bp.team || c.b.q[2]) + " · " + why + "next up behind " + esc(c.p.name) + (c.share ? " (already splits the work)" : "") +
+          (P.usage(c.b) ? " · " + P.usage(c.b) : "") + (c.h && c.h !== "me" ? " · owned by " + esc(c.h.name) + (c.bv ? ", worth " + fmtV(c.bv) + " in a trade" : "") : "");
+        return row(c.bp, right, sub);
+      }).join("") + "</ul>";
+      if (P.cover.some(c => !c.h)) h += '<div class="actions" style="margin-top:8px">' + extBtn(waiverUrl(L), "Add players in " + siteName(L)) + "</div>";
+    } else h += '<div class="card"><p class="small" style="margin:0">None of your ' + (P.sf ? "running backs or quarterbacks" : "running backs") + " leads his team’s depth chart right now, so there’s no one to insure.</p></div>";
+    if (P.leverage.length) h += "<h3>Insurance you hold</h3>" + '<p class="small" style="margin:-2px 2px 8px">You own the backup to someone else’s starter. Their manager has a reason to pay for him, or you take over if the starter goes down.</p><ul class="plist">' +
+      P.leverage.map(x => row(x.p, tag("Trade chip", ""), posTag(x.p) + esc(x.p.team || "") + " · backs up " + esc(x.lp.name) + " (" + T(x.t) + ")" + (P.usage(x.b) ? " · " + P.usage(x.b) : ""))).join("") + "</ul>";
+    h += "<h3>Free lottery tickets</h3>" + (P.lotto.length ? '<p class="small" style="margin:-2px 2px 8px">Nobody in your league owns these backups. Each is one injury away from a starting job.</p><ul class="plist">' +
+      P.lotto.map(x => row(x.bp, x.lead.out ? tag("Starting now", "warn") : tag("Stash", ""), posTag(x.bp) + esc(x.b.q[2]) + " · behind " + esc(x.lead.q[0]) + (x.lead.out ? " (" + esc(String(x.lead.q[3]).toLowerCase()) + ")" : "") + (x.h ? ", owned by " + T(x.h) : "") + " · " + fmt(x.lead.ppg) + " pts a game for the starter" + (x.b.snap != null && x.b.q[1] === "RB" ? " · " + x.b.snap + "% of snaps" : ""))).join("") + "</ul>" +
+      '<div class="actions" style="margin-top:8px">' + extBtn(waiverUrl(L), "Add players in " + siteName(L)) + "</div>"
+      : '<div class="card"><p class="small" style="margin:0">Every backup behind a productive starter is already on a roster in your league.</p></div>');
+    h += '<p class="small muted" style="margin:10px 4px 0">The lead back is the one with the most points a game, snaps and depth chart standing; injured players are skipped as backups. Depth charts change during the week, so check news before you drop anyone for a handcuff.' + (P.hasDepth ? "" : " Depth charts didn’t load, so this used snaps and points only.") + "</p>";
+    body.innerHTML = h;
+    wireRows(body);
+  } catch(e){ body.innerHTML = '<div class="err">Couldn’t read the depth charts: ' + esc(e.message) + "</div>"; }
 }
 
 /* ===================== 6. League pick'em + roast ===================== */
