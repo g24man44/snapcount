@@ -7,6 +7,7 @@ import { ICON_192, ICON_512 } from "./icons.js";
 import { ARCHIVO_WOFF } from "./font.js";
 import { matchupPreviews, weeklyPower } from "./weekly.js";
 import { gameWeather } from "./weather.js";
+import { autoShows } from "./autoshow.js";
 import { hookKind, sendHook, espnLeagueTaken, mflLeagueTaken, weeklyRecaps, aiComplete, scoresRoute } from "./more.js";
 
 const UA = { "User-Agent": "SnapCount/1.0 (fantasy dashboard)", "Accept": "application/json" };
@@ -363,6 +364,7 @@ export async function alertsRoute(request, env, p, url) {
     if (p === "/api/push/run" && url.searchParams.get("what") === "preview") return out(await matchupPreviews(env, deliver, true));
     if (p === "/api/push/run" && url.searchParams.get("what") === "power") return out(await weeklyPower(env, true));
     if (p === "/api/push/run" && url.searchParams.get("what") === "plays") return out(await playAlerts(env));
+    if (p === "/api/push/run" && url.searchParams.get("what") === "autoshow") return out(await autoShows(env, true));
     if (p === "/api/push/run" && url.searchParams.get("what") === "recap") return out(await weeklyRecaps(Object.assign({}, env, { HOST: url.host }), true));
     if (p === "/api/push/run" && url.searchParams.get("what") === "league") return out(await leagueWatch(env, true));
     if (p === "/api/push/run" && url.searchParams.get("what") === "brief") return out(await pregameBriefings(env, false));
@@ -1169,6 +1171,7 @@ export async function runMinute(env) {
   await weeklyPower(env).catch(() => {});
   await lineupCheck(env).catch(() => {});
   if (m % 5 === 3) await kickoffLineupAlerts(env).catch(() => {});
+  if (m % 5 === 4) await autoShows(env).catch(() => {});
   await runChecks(env, "QB").catch(() => {});
   await runChecks(env, OTHERS[m % OTHERS.length]).catch(() => {});
   if (m % 2 === 1) await runInjuryNotes(env).catch(() => {});
