@@ -38,9 +38,11 @@ Flow:
 1. SAM opens with: "This is The Snap Count Show, an AI-made recap of [league name], week [N]!" then a quick, easy back-and-forth.
 2. Results: every game briefly, with big reactions for the closest game, the biggest blowout and the highest score.
 3. Blunder of the week: DEZ gets worked up over the bench points, SAM can't stop laughing.
-4. Standings: who's rising, who's in trouble.
-5. A real disagreement about who the true contender is.
-6. Sign off laughing.
+4. "Coulda won it": for each loss in LOSSES THAT ONE LINEUP CHANGE WOULD HAVE WON, say exactly which swap would have won it, and let the hosts groan about it.
+5. Roast corner: SAM and DEZ playfully roast the teams in ROAST CORNER by name, about their record, their points and this week's result. Make it funny and affectionate, like friends ribbing each other at the bar: no insults about the people, their intelligence or their lives, only their fantasy teams. If a roast-corner team won this week, give them grudging credit.
+6. Standings: who's rising, who's in trouble.
+7. A real disagreement about who the true contender is.
+8. Sign off laughing.
 
 Length: 450 to 550 words total.
 Format: every line is DEZ (acting note): text  or  SAM (acting note): text. No other text before or after.`;
@@ -378,7 +380,7 @@ export async function showRoute(request, url, env) {
       const fix = best && best.bad.length ? "\n\nYour last draft used numbers that are NOT in the data: " + [...new Set(best.bad)].slice(0, 8).join(", ") + ". Use only numbers that appear in the data." : "";
       try {
         let txt = "";
-        const len = elKey(env) ? "\n\nKeep it SHORT this time: 330 to 400 words total (the voice budget is tight). Fewer games in detail; still mention the closest game, the blowout, the high score and the blunder." : "";
+        const len = elKey(env) ? "\n\nKeep it SHORT this time: 360 to 430 words total (the voice budget is tight). Fewer games in detail; still cover the closest game, the blowout, the high score, the blunder, at least one coulda-won-it swap, and the roast corner." : "";
         if (gemKey(env) && !useCf) { try { txt = await gemWrite(env, SHOW_SYS, "LEAGUE DATA:\n" + data + "\n\nWrite the script now." + len + fix); } catch (e) { lastErr = e; gemErr = e; useCf = true; } }
         if (!txt) {
           const r = await env.AI.run(model, { messages: [{ role: "system", content: SHOW_SYS }, { role: "user", content: "LEAGUE DATA:\n" + data + "\n\nWrite the script now." + len + fix }], max_tokens: 1800, temperature: 0.8 });

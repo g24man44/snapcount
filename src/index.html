@@ -8267,6 +8267,14 @@ async function showFacts(L){
     "- Biggest blowout: " + nm(blow.win) + " " + n(blow.win.act) + " to " + nm(blow.lose) + " " + n(blow.lose.act) + ", by " + n(blow.margin) + ".",
     "- Highest score of the week: " + nm(hi) + " with " + n(hi.act) + ".", "- Lowest score of the week: " + nm(lo) + " with " + n(lo.act) + ".");
   if (bls[0]) lines.push("- Blunder of the week: " + bls[0].t + " started " + bls[0].b.start.name + " (" + n(bls[0].b.start.pts) + ") while " + bls[0].b.bench.name + " scored " + n(bls[0].b.bench.pts) + " on the bench, a " + n(bls[0].b.d) + "-point swing" + (bls[0].lost ? ", and it cost them the game" : "") + ".");
+
+  // One lineup change that would have flipped a loss: a bench player at the same position who outscored a starter by more than the margin.
+  const swaps = f.filter(g => !g.tie).map(g => { let best = null; g.lose.start.forEach(a => g.lose.bench.forEach(b => { const gain = b.pts - a.pts; if (b.pos === a.pos && gain > g.margin && (!best || gain > best.gain)) best = {a, b, gain}; })); return best ? {g, ...best} : g.couldWin ? {g, opt: true} : null; }).filter(Boolean);
+  if (swaps.length) { lines.push("", "LOSSES THAT ONE LINEUP CHANGE WOULD HAVE WON (use exactly):"); swaps.forEach(x => lines.push("- " + nm(x.g.lose) + " lost by " + n(x.g.margin) + (x.a ? ". Starting " + x.b.name + " (" + n(x.b.pts) + ") instead of " + x.a.name + " (" + n(x.a.pts) + ") would have won it." : ". Their best possible lineup (" + n(x.g.lose.opt) + ") would have won it."))); }
+
+  const bottom = d.teams.slice().sort((a, b) => a.w - b.w || (a.pf || 0) - (b.pf || 0)).slice(0, 3);
+  lines.push("", "ROAST CORNER (the bottom of the standings; roast them playfully about their fantasy season, never mean):");
+  bottom.forEach(t => { const g = f.find(x => x.win.tid === t.id || x.lose.tid === t.id), won = g && g.win.tid === t.id && !g.tie; lines.push("- " + t.name + " is " + t.w + "-" + t.l + " with " + n(t.pf || 0) + " points for" + (g ? ", and " + (won ? "actually WON this week, " + n(g.win.act) + " to " + n(g.lose.act) : "lost again this week, " + n(g.lose.act) + " to " + n(g.win.act)) : "") + "."); });
   lines.push("", "STANDINGS NOW (wins-losses, points for):");
   d.teams.slice().sort((a, b) => b.w - a.w || (b.pf || 0) - (a.pf || 0)).forEach((t, i) => lines.push((i + 1) + ". " + t.name + " " + t.w + "-" + t.l + ", " + n(t.pf || 0) + " points for"));
   return {w, ctx: lines.join("\n").replace(/\p{Extended_Pictographic}\uFE0F?/gu, "").replace(/ +/g, " ")};
@@ -8290,6 +8298,73 @@ async function wavFromParts(parts){
   let o = 44; got.forEach((x, i) => { if (i) { out.set(gap, o); o += gap.length; } out.set(x.pcm, o); o += x.pcm.length; });
   return URL.createObjectURL(new Blob([out], {type: "audio/wav"}));
 }
+
+/* ---------- show music: an original, soft intro and outro made on the phone (no recordings, nothing to license) ---------- */
+// Laid-back morning-show groove: electric-piano chords (Cmaj7, Am7, Fmaj7, G6), round bass, soft kick and brushed hats.
+const showMusic = {};
+async function jingleUrl(kind){
+  if (showMusic[kind]) return showMusic[kind];
+  const sr = 44100, bpm = 92, beat = 60 / bpm, bars = kind === "intro" ? 4 : 4, dur = bars * 4 * beat + (kind === "intro" ? 1.5 : 3);
+  const C = new OfflineAudioContext(2, Math.ceil(sr * dur), sr), master = C.createGain(); master.connect(C.destination);
+  // Gentle overall shape: intro fades in fast and down under the hosts; outro fades out slowly.
+  master.gain.setValueAtTime(0.0001, 0); master.gain.exponentialRampToValueAtTime(0.5, 0.6);
+  if (kind === "intro") { master.gain.setValueAtTime(0.5, 3 * 4 * beat); master.gain.linearRampToValueAtTime(0.0001, dur); }
+  else { master.gain.setValueAtTime(0.5, 2 * 4 * beat); master.gain.linearRampToValueAtTime(0.0001, dur); }
+  const verb = C.createConvolver(), ir = C.createBuffer(2, sr * 1.6, sr);
+  for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3); }
+  verb.buffer = ir; const wet = C.createGain(); wet.gain.value = 0.25; verb.connect(wet); wet.connect(master);
+  const hz = m => 440 * Math.pow(2, (m - 69) / 12);
+  const ep = (m, t, len, vol) => { // electric piano: sine + soft bell partial
+    [[1, 1], [2, .18], [3.01, .05]].forEach(([mul, g0]) => { const o = C.createOscillator(), g = C.createGain(); o.type = "sine"; o.frequency.value = hz(m) * mul;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol * g0, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+      o.connect(g); g.connect(master); g.connect(verb); o.start(t); o.stop(t + len + 0.05); });
+  };
+  const bass = (m, t, len) => { const o = C.createOscillator(), g = C.createGain(), lp = C.createBiquadFilter(); o.type = "triangle"; o.frequency.value = hz(m); lp.type = "lowpass"; lp.frequency.value = 500;
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.32, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + len); o.connect(lp); lp.connect(g); g.connect(master); o.start(t); o.stop(t + len + 0.05); };
+  const kick = t => { const o = C.createOscillator(), g = C.createGain(); o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.18);
+    g.gain.setValueAtTime(0.45, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25); o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.3); };
+  const noise = C.createBuffer(1, sr * 0.3, sr); { const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+  const hat = (t, v) => { const s = C.createBufferSource(), hp = C.createBiquadFilter(), g = C.createGain(); s.buffer = noise; hp.type = "highpass"; hp.frequency.value = 7000;
+    g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.08); s.connect(hp); hp.connect(g); g.connect(master); s.start(t); s.stop(t + 0.1); };
+  const chords = [[48, [64, 67, 71, 74]], [45, [64, 67, 69, 72]], [41, [64, 65, 69, 72]], [43, [62, 67, 69, 71]]]; // C, Am, F, G with 7ths/6ths
+  const melody = [[0, 76], [1.5, 79], [2.5, 76], [3, 74], [4, 72], [5.5, 74], [6.5, 76], [8, 77], [9.5, 76], [10, 74], [12, 74], [13, 72], [14, 71], [15, 67]];
+  const order = kind === "intro" ? [0, 1, 2, 3] : [2, 3, 1, 0];
+  for (let b = 0; b < bars; b++) {
+    const t0 = b * 4 * beat, [root, notes] = chords[order[b]];
+    notes.forEach((m, i) => ep(m, t0 + i * 0.012, 4 * beat * 0.95, 0.07));
+    notes.forEach(m => ep(m, t0 + 2.5 * beat, 1.2 * beat, 0.035));
+    bass(root, t0, 1.4 * beat); bass(root + 7, t0 + 1.5 * beat, 0.9 * beat); bass(root, t0 + 2.5 * beat, 1.3 * beat);
+    for (let k = 0; k < 4; k++) { if (k % 2 === 0) kick(t0 + k * beat); for (let e = 0; e < 2; e++) hat(t0 + (k + e / 2) * beat, e ? 0.025 : 0.045); }
+  }
+  melody.forEach(([at, m]) => { const t = at * beat + (kind === "intro" ? 4 * beat : 0); if (t < bars * 4 * beat) ep(m, t, 1.2 * beat, 0.06); });
+  if (kind === "outro") ep(84, bars * 4 * beat, 2.5, 0.05);
+  const buf = await C.startRendering(), len = buf.length, out = new ArrayBuffer(44 + len * 4), dv = new DataView(out), wr = (o, str) => [...str].forEach((c, i) => dv.setUint8(o + i, c.charCodeAt(0)));
+  wr(0, "RIFF"); dv.setUint32(4, 36 + len * 4, true); wr(8, "WAVE"); wr(12, "fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 2, true); dv.setUint32(24, sr, true); dv.setUint32(28, sr * 4, true); dv.setUint16(32, 4, true); dv.setUint16(34, 16, true); wr(36, "data"); dv.setUint32(40, len * 4, true);
+  const L = buf.getChannelData(0), R = buf.getChannelData(1); let o = 44;
+  for (let i = 0; i < len; i++) { dv.setInt16(o, Math.max(-1, Math.min(1, L[i])) * 0x7fff, true); dv.setInt16(o + 2, Math.max(-1, Math.min(1, R[i])) * 0x7fff, true); o += 4; }
+  return (showMusic[kind] = URL.createObjectURL(new Blob([out], {type: "audio/wav"})));
+}
+// Wrap an episode player: intro music first (the hosts come in as it fades), outro music after the last line.
+function musicOn(){ try { return localStorage.getItem("snapcount.v1.showMusic") !== "0"; } catch(e){ return true; } }
+function withShowMusic(audio){
+  if (!audio || audio._music) return; audio._music = true;
+  const on = musicOn;
+  let introPlayed = false, intro = null, outro = null;
+  audio.addEventListener("play", async () => {
+    if (introPlayed || !on() || audio.currentTime > 0.5) return;
+    introPlayed = true; audio.pause();
+    try {
+      intro = new Audio(await jingleUrl("intro")); intro.volume = 0.8;
+      const startAt = (60 / 92) * 4 * 3; // the hosts start in bar 4, over the fading music
+      intro.addEventListener("timeupdate", function go(){ if (intro.currentTime >= startAt) { intro.removeEventListener("timeupdate", go); audio.play(); } });
+      intro.addEventListener("ended", () => { if (audio.paused && audio.currentTime < 0.5) audio.play(); });
+      await intro.play();
+    } catch(e){ audio.play(); }
+  });
+  audio.addEventListener("pause", () => { if (intro && !intro.ended && audio.currentTime > 0.5) intro.pause(); if (outro) outro.pause(); });
+  audio.addEventListener("ended", async () => { if (!on()) return; try { outro = new Audio(await jingleUrl("outro")); outro.volume = 0.8; outro.play(); } catch(e){} });
+  audio.addEventListener("seeked", () => { if (audio.currentTime < 0.5) introPlayed = false; });
+}
 async function openShow(L){
   const body = openSheetShell("The Snap Count Show");
   body.innerHTML = '<p class="spin">Checking the box scores…</p>';
@@ -8308,7 +8383,7 @@ async function openShow(L){
     if (!show) h += '<div class="card empty"><h3>Week ' + w + ' isn’t recorded yet</h3><p class="muted">' + "It covers week " + w + ", the latest week with every game final, using the same box scores as Matchup recaps." + '</p><button class="btn" id="shMake"' + (busy ? " disabled" : "") + '>' + (busy ? "Writing the script…" : "Make this week’s show") + '</button></div>';
     else {
       const ready = done >= show.total;
-      if (ready) h += '<div class="card">' + (show.engine === "gemini" ? (epUrl ? '<audio controls style="width:100%" src="' + epUrl + '"></audio>' : '<p class="spin" style="margin:0">Loading the episode…</p>') : '<audio controls preload="metadata" style="width:100%" src="/api/show/mp3?' + q + '&t=' + show.at + '"></audio>') + (!show.final ? '<p class="small muted" style="margin:8px 0 0">Made while games were still being played.' + (final && !show.remade ? ' <button class="linkish" id="shRemake">Remake it with final scores</button>' : "") + "</p>" : "") + "</div>";
+      if (ready) h += '<div class="card">' + (show.engine === "gemini" ? (epUrl ? '<audio class="epaudio" controls style="width:100%" src="' + epUrl + '"></audio>' : '<p class="spin" style="margin:0">Loading the episode…</p>') : '<audio class="epaudio" controls preload="metadata" style="width:100%" src="/api/show/mp3?' + q + '&t=' + show.at + '"></audio>') + '<label class="toggle" style="margin-top:8px"><input type="checkbox" id="shMusic"' + (musicOn() ? " checked" : "") + '> Intro and outro music</label>' + (!show.final ? '<p class="small muted" style="margin:8px 0 0">Made while games were still being played.' + (final && !show.remade ? ' <button class="linkish" id="shRemake">Remake it with final scores</button>' : "") + "</p>" : "") + "</div>";
       else h += '<div class="card"><b>Recording…</b><div class="cbar" style="margin:10px 0 6px"><span style="width:' + Math.round(done / show.total * 100) + '%"></span></div><p class="small muted" style="margin:0">' + done + " of " + show.total + ' parts. Keep this open; it takes about a minute. If you leave, it picks up where it stopped next time anyone opens it.</p></div>';
       h += '<details class="card" style="margin-top:12px"><summary><b>Read the script</b></summary><div class="shscript">' + show.lines.map(l => '<p><b>' + NAMES[l.s] + ':</b> ' + (l.st ? '<i class="muted">(' + esc(l.st) + ')</i> ' : "") + esc(String(l.t).replace(/<[^>]{1,20}>/g, "").replace(/\|/g, "")) + "</p>").join("") + "</div></details>";
     }
@@ -8318,6 +8393,8 @@ async function openShow(L){
     body.querySelectorAll("[data-pair]").forEach(b => b.addEventListener("click", () => { pair = b.dataset.pair; sampleUrl = null; sampleErr = ""; playSample(); }));
     const su = body.querySelector("#shUse"); if (su) su.addEventListener("click", async () => { try { await post("/api/show/voice", {pair}); chosen = pair; } catch(e){ sampleErr = e.message; } draw(); });
     if (show && done >= show.total && show.engine === "gemini" && !epUrl && !epBusy) loadEpisode();
+    body.querySelectorAll(".epaudio").forEach(withShowMusic);
+    const sm = body.querySelector("#shMusic"); if (sm) sm.addEventListener("change", () => { try { localStorage.setItem("snapcount.v1.showMusic", sm.checked ? "1" : "0"); } catch(e){} });
     const mk = body.querySelector("#shMake"); if (mk) mk.addEventListener("click", make);
     const rm = body.querySelector("#shRemake"); if (rm) rm.addEventListener("click", make);
   };

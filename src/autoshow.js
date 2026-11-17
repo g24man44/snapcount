@@ -47,7 +47,7 @@ async function fleaFacts(lid, name, w) {
   const blunder = s => { let best = null; s.start.forEach(a => s.bench.forEach(x => { if (x.pos === a.pos && x.pts - a.pts > 0 && (!best || x.pts - a.pts > best.d)) best = { start: a, bench: x, d: x.pts - a.pts }; })); return best; };
   const f = ok.map(([x, y]) => { const win = x.act >= y.act ? x : y, lose = win === x ? y : x;
     const top = s => s.start.slice().sort((a, b) => b.pts - a.pts)[0], dud = s => s.start.filter(p => !["K", "D/ST", "DEF"].includes(p.pos)).sort((a, b) => a.pts - b.pts)[0];
-    return { win, lose, margin: win.act - lose.act, couldWin: lose.opt != null && lose.opt > win.act, wTop: top(win), lTop: top(lose), lDud: dud(lose), bl: blunder(lose), blW: blunder(win) }; });
+    return { win, lose, margin: win.act - lose.act, tie: win.act === lose.act, couldWin: lose.opt != null && lose.opt > win.act, wTop: top(win), lTop: top(lose), lDud: dud(lose), bl: blunder(lose), blW: blunder(win) }; });
   const n = x => String(Math.round((Number(x) || 0) * 100) / 100), nm = s => T(s.tid).name;
   const lines = ["LEAGUE: " + name + ". This episode covers WEEK " + w + " (every game final). " + Object.keys(teams).length + " teams.", "", "EVERY GAME, WEEK " + w + " (winner first, exact final scores):"];
   f.slice().sort((a, b) => a.margin - b.margin).forEach(g => {
@@ -65,6 +65,14 @@ async function fleaFacts(lid, name, w) {
     "- Biggest blowout: " + nm(blow.win) + " " + n(blow.win.act) + " to " + nm(blow.lose) + " " + n(blow.lose.act) + ", by " + n(blow.margin) + ".",
     "- Highest score of the week: " + nm(hi) + " with " + n(hi.act) + ".", "- Lowest score of the week: " + nm(lo) + " with " + n(lo.act) + ".");
   if (bls[0]) lines.push("- Blunder of the week: " + bls[0].t + " started " + bls[0].b.start.name + " (" + n(bls[0].b.start.pts) + ") while " + bls[0].b.bench.name + " scored " + n(bls[0].b.bench.pts) + " on the bench" + (bls[0].lost ? ", and it cost them the game." : "."));
+
+  // One lineup change that would have flipped a loss: a bench player at the same position who outscored a starter by more than the margin.
+  const swaps = f.filter(g => !(g.margin === 0)).map(g => { let best = null; g.lose.start.forEach(a => g.lose.bench.forEach(b => { const gain = b.pts - a.pts; if (b.pos === a.pos && gain > g.margin && (!best || gain > best.gain)) best = {a, b, gain}; })); return best ? {g, ...best} : g.couldWin ? {g, opt: true} : null; }).filter(Boolean);
+  if (swaps.length) { lines.push("", "LOSSES THAT ONE LINEUP CHANGE WOULD HAVE WON (use exactly):"); swaps.forEach(x => lines.push("- " + nm(x.g.lose) + " lost by " + n(x.g.margin) + (x.a ? ". Starting " + x.b.name + " (" + n(x.b.pts) + ") instead of " + x.a.name + " (" + n(x.a.pts) + ") would have won it." : ". Their best possible lineup (" + n(x.g.lose.opt) + ") would have won it."))); }
+
+  const bottom = Object.entries(teams).map(([id, t]) => Object.assign({ id }, t)).sort((a, b) => a.w - b.w || a.pf - b.pf).slice(0, 3);
+  lines.push("", "ROAST CORNER (the bottom of the standings; roast them playfully about their fantasy season, never mean):");
+  bottom.forEach(t => { const g = f.find(x => x.win.tid === t.id || x.lose.tid === t.id), won = g && g.win.tid === t.id && g.margin > 0; lines.push("- " + t.name + " is " + t.w + "-" + t.l + " with " + n(t.pf) + " points for" + (g ? ", and " + (won ? "actually WON this week, " + n(g.win.act) + " to " + n(g.lose.act) : "lost again this week, " + n(g.lose.act) + " to " + n(g.win.act)) : "") + "."); });
   lines.push("", "STANDINGS NOW (wins-losses, points for):");
   Object.values(teams).sort((a, b) => b.w - a.w || b.pf - a.pf).forEach((t, i) => lines.push((i + 1) + ". " + t.name + " " + t.w + "-" + t.l + ", " + n(t.pf) + " points for"));
   return lines.join("\n").replace(/\p{Extended_Pictographic}️?/gu, "").replace(/ +/g, " ");
