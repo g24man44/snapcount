@@ -246,6 +246,14 @@ async function elSpeak(env, line) {
   if (!r.ok) { const e = new Error("ElevenLabs " + r.status + ": " + (await r.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 160)); e.status = r.status; throw e; }
   return new Uint8Array(await r.arrayBuffer());
 }
+export function wordBudget(u, now) {
+  if (!u || !u.limit) return 430;
+  const left = Math.max(0, u.limit - (u.used || 0)), end = u.resets ? u.resets * 1000 : now + 30 * 864e5;
+  let tues = 0; // episodes still to record before the reset, this one included
+  for (let t = now; t < end; t += 864e5) if (new Date(t - 5 * 36e5).getUTCDay() === 2) tues++;
+  const per = left / Math.max(1, tues) * 0.93; // about 5.6 voiced characters per word; keep a little slack
+  return Math.max(260, Math.min(430, Math.floor(per / 5.6)));
+}
 export async function elUsage(env) { const s = await elGet(env, "/v1/user/subscription"); return { used: s.character_count, limit: s.character_limit, resets: s.next_character_count_reset_unix }; }
 
 async function speak(env, line) {
@@ -375,12 +383,16 @@ export async function showRoute(request, url, env) {
     const badNums = ls => ls.flatMap(l => (l.t.match(/\d+(?:\.\d+)?/g) || []).filter(n => Number(n) > 20 && !allowed.has(n)));
     let best = null, lastErr = null, useCf = false, gemErr = null;
     const t0 = Date.now();
+    // Voice budget: split the ElevenLabs characters left this month across the episodes (Tuesdays) still to come before
+    // the reset, so a month with five Tuesdays gets slightly shorter shows instead of the last one losing the good voices.
+    let words = 430;
+    if (elKey(env)) { try { words = wordBudget(await elUsage(env), Date.now()); } catch (e) {} }
     for (let tries = 0; tries < 3 && !(best && !best.bad.length) && !(best && Date.now() - t0 > 35000); tries++) {
       const model = SCRIPT_MODELS[tries === 2 ? 1 : 0];
       const fix = best && best.bad.length ? "\n\nYour last draft used numbers that are NOT in the data: " + [...new Set(best.bad)].slice(0, 8).join(", ") + ". Use only numbers that appear in the data." : "";
       try {
         let txt = "";
-        const len = elKey(env) ? "\n\nKeep it SHORT this time: 360 to 430 words total (the voice budget is tight). Fewer games in detail; still cover the closest game, the blowout, the high score, the blunder, at least one coulda-won-it swap, and the roast corner." : "";
+        const len = elKey(env) ? "\n\nKeep it SHORT this time: " + (words - 60) + " to " + words + " words total (the voice budget is tight). Fewer games in detail; still cover the closest game, the blowout, the high score, the blunder, at least one coulda-won-it swap, and the roast corner." : "";
         if (gemKey(env) && !useCf) { try { txt = await gemWrite(env, SHOW_SYS, "LEAGUE DATA:\n" + data + "\n\nWrite the script now." + len + fix); } catch (e) { lastErr = e; gemErr = e; useCf = true; } }
         if (!txt) {
           const r = await env.AI.run(model, { messages: [{ role: "system", content: SHOW_SYS }, { role: "user", content: "LEAGUE DATA:\n" + data + "\n\nWrite the script now." + len + fix }], max_tokens: 1800, temperature: 0.8 });
