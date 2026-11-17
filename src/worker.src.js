@@ -758,7 +758,7 @@ async function nflSchedule(season) {
   return json({ season: Number(season), weeks: out }, 200, 86400);
 }
 
-// Fantasy points each defense allowed to each position in one week: { TEAM: { QB, RB, WR, TE } } (PPR, half, std).
+// Fantasy points each defense allowed to each position in one week: { TEAM: { QB, RB, WR, TE, K, DEF, DX } } (PPR, half, std).
 async function allowedWeek(ctx, season, week) {
   const [statsR, boardR, plR] = await Promise.all([
     fetch("https://api.sleeper.app/v1/stats/nfl/regular/" + season + "/" + week, { headers: UA }),
@@ -778,11 +778,15 @@ async function allowedWeek(ctx, season, week) {
   const out = {};
   for (const id in stats) {
     const p = pl[id], s = stats[id];
-    if (!p || !["QB", "RB", "WR", "TE"].includes(p[1]) || !s || !(s.gp || s.off_snp)) continue;
+    if (!p || !["QB", "RB", "WR", "TE", "K", "DEF"].includes(p[1]) || !s || !(s.gp || s.off_snp)) continue;
     const t = ESPN[p[2]] || p[2], o = opp[t];
     if (!o) continue;
+    // For K and DEF too: what kickers and defenses facing this team scored (a defense's points come against the other team's offense).
     const a = (out[o] = out[o] || {}), v = (a[p[1]] = a[p[1]] || [0, 0, 0]);
-    v[0] += s.pts_ppr || 0; v[1] += s.pts_half_ppr || 0; v[2] += s.pts_std || 0;
+    const std = s.pts_std || 0;
+    v[0] += s.pts_ppr != null ? s.pts_ppr : std; v[1] += s.pts_half_ppr != null ? s.pts_half_ppr : std; v[2] += std;
+    // DX: sacks, takeaways and points this offense gave the defense it faced (for the streaming "why").
+    if (p[1] === "DEF") a.DX = [s.sack || 0, (s.int || 0) + (s.fum_rec || 0), s.pts_allow != null ? s.pts_allow : 0];
   }
   for (const t in out) for (const pos in out[t]) out[t][pos] = out[t][pos].map(x => Math.round(x * 10) / 10);
   const done = Object.keys(opp).length > 0;
@@ -985,7 +989,7 @@ export default {
       if (p === "/api/allowed") {
         const season = url.searchParams.get("season") || "", week = Number(url.searchParams.get("week") || 0);
         if (!/^\d{4}$/.test(season) || !(week >= 1 && week <= 18)) return json({ error: "Bad season or week" }, 400, 0);
-        return cached(ctx, "allowed/" + season + "/" + week, 21600, () => allowedWeek(ctx, season, week));
+        return cached(ctx, "allowed2/" + season + "/" + week, 21600, () => allowedWeek(ctx, season, week));
       }
       if (p === "/api/flea-history") {
         const lid = (url.searchParams.get("league_id") || "").replace(/\D/g, ""), season = (url.searchParams.get("season") || "").replace(/\D/g, "");

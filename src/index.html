@@ -2195,11 +2195,12 @@ function renderLeague(v, L){
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="mktBtn"><i class=ic-swap aria-hidden=true></i>Trade market</button>');
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="cutBtn"><i class=ic-list aria-hidden=true></i>Who to cut</button>');
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="hcBtn"><i class=ic-medic aria-hidden=true></i>Handcuffs</button>');
+    if (d.teams.some(t => t.mine) && (kdHasDst(d) || kdHasK(d))) tiles.push('<button type="button" class="btn ghost" id="kdBtn"><i class=ic-target aria-hidden=true></i>Kickers and defenses</button>');
     if (d.teams.some(t => t.mine) && m.platform === "flea") tiles.push('<button type="button" class="btn ghost" id="rcBtn"><i class=ic-scale aria-hidden=true></i>Your report card</button>');
     if (d.teams.some(t => t.mine) && d.games.length) tiles.push('<button type="button" class="btn ghost" id="pkBtn"><i class=ic-flame aria-hidden=true></i>Pick’em and roast</button>'); tiles.push('<button type="button" class="btn ghost" id="showBtn"><i class=ic-speaker aria-hidden=true></i>The league show</button>'); if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="commBtn"><i class=ic-trophy aria-hidden=true></i>Dues, rules and awards</button>');
     if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="dcBtn"><i class=ic-pencil aria-hidden=true></i>Draft grades and write-up</button>');
     // Grouped by what you're trying to do, as compact rows instead of a wall of identical tiles.
-    const GROUPS = [["This week", ["mrBtn", "pwBtn", "pkBtn", "cutBtn", "hcBtn"]], ["Trades", ["lsBtn", "scoutBtn", "mktBtn"]], ["Season", ["picBtn", "ppBtn", "swapBtn", "histBtn", "rcBtn", "winBtn", "wrapBtn"]], ["Draft", ["doBtn", "dcBtn"]]];
+    const GROUPS = [["This week", ["mrBtn", "pwBtn", "pkBtn", "cutBtn", "hcBtn", "kdBtn"]], ["Trades", ["lsBtn", "scoutBtn", "mktBtn"]], ["Season", ["picBtn", "ppBtn", "swapBtn", "histBtn", "rcBtn", "winBtn", "wrapBtn"]], ["Draft", ["doBtn", "dcBtn"]]];
     const idOf = t => (t.match(/id="(\w+)"/) || [])[1], used = new Set();
     // Four everyday tools up top; everything else waits behind "More tools", grouped by what you're doing.
     const TOP = ["mrBtn", "pwBtn", "mktBtn", "showBtn"];
@@ -2264,6 +2265,7 @@ function renderLeague(v, L){
   const mkb = v.querySelector("#mktBtn"); if (mkb) mkb.addEventListener("click", () => openMarket(L));
   const ctb = v.querySelector("#cutBtn"); if (ctb) ctb.addEventListener("click", () => openCuts(L));
   const hcb = v.querySelector("#hcBtn"); if (hcb) hcb.addEventListener("click", () => openHandcuffs(L));
+  const kdb = v.querySelector("#kdBtn"); if (kdb) kdb.addEventListener("click", () => openKD(L));
   const rcb = v.querySelector("#rcBtn"); if (rcb) rcb.addEventListener("click", () => openReport(L));
   const pkb = v.querySelector("#pkBtn"); if (pkb) pkb.addEventListener("click", () => openPickem(L));
   const shb = v.querySelector("#showBtn"); if (shb) shb.addEventListener("click", () => openShow(L));
@@ -6182,7 +6184,8 @@ async function edgeWaivers(L, el){
   h += "<h3>Stash these backups</h3>" + (stash.length ? '<ul class="plist">' + stash.slice(0, 8).map(x => miniRow(x.p, x.sev === 3 ? '<span class="chip ok" style="padding:4px 8px">Add now</span>' : x.sev === 2 ? '<span class="chip warn" style="padding:4px 8px">Watch</span>' : '<span class="chip" style="padding:4px 8px">Insurance</span>',
       posTag(x.p) + esc(x.p.team) + " · behind " + esc(x.starter) + (x.status ? " (" + esc(x.status) + ")" : ""))).join("") + "</ul>" : '<div class="card"><p class="small" style="margin:0">No free backups behind injured starters right now. Alerts will tell you the moment one opens up.</p></div>') +
     '<p class="small muted" style="margin:8px 4px 0">Free in your league. "Add now" means the starter is out; "Watch" means he’s questionable. In superflex, every starting QB’s backup is worth a bench spot.</p>' +
-    '<button type="button" class="btn ghost" data-hcopen="1" style="width:100%;margin-top:10px"><i class=ic-medic aria-hidden=true></i> Handcuffs: who backs up your starters</button>';
+    '<button type="button" class="btn ghost" data-hcopen="1" style="width:100%;margin-top:10px"><i class=ic-medic aria-hidden=true></i> Handcuffs: who backs up your starters</button>' +
+    (kdHasDst(d) || kdHasK(d) ? '<button type="button" class="btn ghost" data-kdopen="1" style="width:100%;margin-top:8px"><i class=ic-target aria-hidden=true></i> Kickers and defenses: who to start and stream</button>' : "");
   // 3. role risers
   try {
     const wk = st.display_week || st.week, r = await api("/api/roles?season=" + (st.league_season || st.season) + "&week=" + wk);
@@ -6214,6 +6217,7 @@ async function edgeWaivers(L, el){
   wireRows(el);
   const ec = el.querySelector("#edgeCuts"); if (ec) ec.addEventListener("click", () => openCuts(L));
   el.querySelectorAll("[data-hcopen]").forEach(b => b.addEventListener("click", () => openHandcuffs(L)));
+  el.querySelectorAll("[data-kdopen]").forEach(b => b.addEventListener("click", () => openKD(L)));
 }
 
 /* ---------- Edge: what to bid (FAAB) or whether to use your waiver priority ---------- */
@@ -7523,12 +7527,184 @@ async function edgeLeague(L, el){
   const pth = el.querySelector("#edPath"); if (pth) pth.addEventListener("click", () => openPlayoffPath(L));
 }
 
+/* ===================== Kickers and defenses: which to start each week, who to grab for the playoffs ===================== */
+// Projections in standard kicker/defense scoring from three things: how good the unit is (its points a game this season),
+// what the other side gives up (points kickers or defenses scored against that team over the last 8 weeks), and, for this
+// week, the sportsbook's team totals and the game's weather. Rough by nature: these positions swing more than any other.
+const kdHasDst = d => (d.kdst || []).some(x => x === "D/ST" || x === "DEF") || (d.slots || []).includes("DEF");
+const kdHasK = d => (d.kdst || []).includes("K") || (d.slots || []).includes("K");
+async function kdPlan(L){
+  const d = L.detail, me = d.teams.find(t => t.mine), st = await getState();
+  const season = L.meta.season || st.league_season || st.season;
+  const cur = Math.max(Number(st.week) || 1, Number(st.display_week) || 1);
+  await Promise.all([getPlayers(), getSeasonStats(season), gamesAt ? null : loadScoreboard()]);
+  ensureSidIndex();
+  const [sch, avg, po] = await Promise.all([
+    api("/api/nflsched?season=" + season),
+    allowedTable(season, cur),
+    (async () => {
+      if (d.sched && d.sched.po && d.sched.po.start) return d.sched.po.start;
+      if (L.meta.platform === "flea") { try { const r = await api("/api/flea-playoffs?league_id=" + L.meta.id); if (r.start) return r.start; } catch(e){} }
+      return d.playoffStart || 15;
+    })()
+  ]);
+  if (!sch || !sch.weeks) throw new Error("the NFL schedule didn’t load");
+  loadWeather().catch(() => {});
+  // Schedule by week, every team in one spelling: S[w][TEAM] = {o: opponent, home}
+  const S = {};
+  for (const w in sch.weeks) { const m = S[w] = {}; for (const t in sch.weeks[w]) { const o = sch.weeks[w][t]; m[tnorm(t)] = {o: tnorm(o.replace("@", "")), home: o[0] !== "@"}; } }
+  // What kickers and defenses scored against each team (standard scoring, column 2).
+  const A = {}; for (const k in avg) { const [t, pos] = k.split("|"); (A[tnorm(t)] = A[tnorm(t)] || {})[pos] = avg[k]; }
+  const mean = xs => xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0;
+  const allowD = t => A[t] && A[t].DEF ? A[t].DEF[2] : null, allowK = t => A[t] && A[t].K ? A[t].K[2] : null;
+  const lgAD = mean(Object.keys(A).map(allowD).filter(x => x != null)), lgAK = mean(Object.keys(A).map(allowK).filter(x => x != null));
+  // The 32 defenses (Sleeper ids are team abbreviations) and each team's kicker.
+  const dIds = Object.keys(players).filter(id => players[id][1] === "DEF" && players[id][2]);
+  const ppg = id => { const s = sstats && sstats[id]; return s && s[3] ? s[2] / s[3] : null; };
+  const rawD = mean(dIds.map(ppg).filter(x => x != null));
+  const kAll = Object.keys(players).filter(id => players[id][1] === "K" && players[id][2]);
+  const rawK = mean(kAll.map(id => (sstats && sstats[id] && sstats[id][3] >= 3) ? ppg(id) : null).filter(x => x != null));
+  // Shrink toward average: a few big games shouldn't make a unit elite.
+  const form = (id, lg) => { const s = sstats && sstats[id]; return s && s[3] ? (s[2] + lg * 3) / (s[3] + 3) : lg; };
+  const lgD = rawD || 7, lgK = rawK || 8;
+  // Vegas and weather only for the week the scoreboard is showing, and only if it's the same game.
+  const liveG = (t, g) => { const x = nflGames[t]; return x && g && [tnorm(x.home), tnorm(x.away)].includes(g.o) && x.state === "pre" ? x : null; };
+  const projD = (id, w) => {
+    const t = tnorm(players[id][2]), g = (S[w] || {})[t]; if (!g) return null;
+    const f = form(id, lgD), al = allowD(g.o) ?? lgAD;
+    let v = lgD + 0.6 * (f - lgD) + (g.home ? 0.3 : -0.3), why = {g, f, al};
+    const x = w === cur ? liveG(t, g) : null, it = x ? impliedTotal(g.o) : null;
+    if (it != null) { v += 0.35 * (al - lgAD) + 0.3 * (22 - it); why.it = it; } else v += 0.7 * (al - lgAD);
+    if (x) { const fx = wxFx({team: t, pos: "DEF"}); if (fx) { v *= 1 + fx / 100; why.fx = fx; } }
+    return Object.assign(why, {v: Math.max(0, v)});
+  };
+  const projK = (id, w) => {
+    const t = tnorm(players[id][2]), g = (S[w] || {})[t]; if (!g) return null;
+    const f = form(id, lgK), al = allowK(g.o) ?? lgAK;
+    let v = lgK + 0.5 * (f - lgK) + 0.5 * (al - lgAK), why = {g, f, al};
+    const x = w === cur ? liveG(t, g) : null, it = x ? impliedTotal(t) : null;
+    if (it != null) { v += 0.2 * (it - 22); why.it = it; }
+    if (x && x.indoor) { v += 0.3; why.dome = true; }
+    else if (x) { const fx = wxFx({team: t, pos: "K"}); if (fx) { v *= 1 + fx / 100; why.fx = fx; } }
+    return Object.assign(why, {v: Math.max(0, v)});
+  };
+  // One kicker per NFL team: the one on top of the depth chart, else the one who's played the most.
+  const kOf = {};
+  kAll.forEach(id => { const q = players[id], s = sstats && sstats[id], sc = (q[6] === 1 ? 100 : 0) + (s ? s[3] : 0) - (OUTISH_C.test(String(q[3] || "")) ? 200 : 0); const t = tnorm(q[2]); if (!kOf[t] || sc > kOf[t].sc) kOf[t] = {id, sc}; });
+  const kIds = Object.values(kOf).filter(x => x.sc > 0).map(x => x.id);
+  // Who holds what in this league.
+  const own = {};
+  d.teams.forEach(t => (t.roster || []).forEach(p => {
+    if (p.pos === "D/ST" || p.pos === "DEF") { const id = dIds.find(x => tnorm(players[x][2]) === tnorm(p.team)) || (players[p.id] && players[p.id][1] === "DEF" ? p.id : null); if (id) own[id] = {t, p}; }
+    else if (p.pos === "K" || p.pos === "PK") { const id = L.meta.platform === "sleeper" ? String(p.id) : sleeperKey(L, Object.assign({}, p, {pos: "K"})); if (id && players[id]) own[id] = {t, p}; }
+  }));
+  // Free agents as the league site lists them (Fleaflicker rows can be added from the player card).
+  const freeObj = {};
+  if (L.meta.platform === "flea") await Promise.all(["DEF", "K"].map(async pos => { try { (await faList(L, pos)).forEach(p => { const id = pos === "DEF" ? dIds.find(x => tnorm(players[x][2]) === tnorm(p.team)) : sleeperKey(L, Object.assign({}, p, {pos: "K"})); if (id && !own[id]) freeObj[id] = p; }); } catch(e){} }));
+  const asP = id => (own[id] && own[id].p) || freeObj[id] || {id, name: players[id][0], pos: players[id][1], team: players[id][2], inj: players[id][3], injPart: players[id][4]};
+  const holder = id => { const o = own[id]; return o ? (o.t === me ? "me" : o.t) : null; };
+  // Weeks to show: this one and the next two, then the fantasy playoffs.
+  const weeks = []; for (let w = cur; w <= Math.min(17, cur + 2); w++) weeks.push(w);
+  const poW = []; for (let w = po; w <= Math.min(17, po + 2); w++) { poW.push(w); if (!weeks.includes(w)) weeks.push(w); }
+  weeks.sort((a, b) => a - b);
+  const grade = (proj, ids) => {
+    // Rank every unit each week so cells can say easy / tough.
+    const R = {};
+    weeks.forEach(w => { const xs = ids.map(id => ({id, p: proj(id, w)})).filter(x => x.p).sort((a, b) => b.p.v - a.p.v); R[w] = {}; xs.forEach((x, i) => R[w][x.id] = {r: i + 1, n: xs.length, p: x.p}); });
+    return R;
+  };
+  const RD = grade(projD, dIds), RK = grade(projK, kIds);
+  const unit = (R, proj, id) => ({id, p: asP(id), h: holder(id), wk: weeks.map(w => R[w][id] || (proj(id, w) ? {r: null, p: proj(id, w)} : null)),
+    now: (R[cur] || {})[id] || null, po: poW.reduce((s, w) => s + (((R[w] || {})[id] || {}).p || {v: 0}).v, 0)});
+  const side = (R, proj, ids, mineIds) => {
+    const all = ids.map(id => unit(R, proj, id));
+    const mine = mineIds.map(id => all.find(x => x.id === id) || unit(R, proj, id));
+    return {mine, all, best: all.filter(x => x.now).sort((a, b) => b.now.p.v - a.now.p.v), poBest: all.slice().sort((a, b) => b.po - a.po)};
+  };
+  const myD = Object.keys(own).filter(id => own[id].t === me && players[id][1] === "DEF");
+  const myK = Object.keys(own).filter(id => own[id].t === me && players[id][1] === "K");
+  return {cur, weeks, poW, po, hasD: kdHasDst(d), hasK: kdHasK(d),
+    D: side(RD, projD, dIds, myD), K: side(RK, projK, kIds, myK), gotVegas: Object.values(nflGames).some(g => g.ou != null)};
+}
+async function openKD(L){
+  const body = openSheetShell("Kickers and defenses");
+  body.innerHTML = '<p class="spin">Lining up every kicker and defense…</p>';
+  try {
+    const P = await kdPlan(L), T = h => h === "me" ? "you" : esc(h.name);
+    const tag = (txt, tone) => '<span class="chip' + (tone ? " " + tone : "") + '" style="padding:4px 8px">' + txt + "</span>";
+    const row = (p, right, sub) => miniRow(p, right, sub).replace("<small>", '<small style="white-space:normal">');
+    const opp = g => (g.home ? "vs " : "at ") + g.o;
+    const pts = v => '<span class="avg">' + v.toFixed(1) + "<small>proj</small></span>";
+    const tier = c => !c ? "bye" : c.r == null ? "" : c.r <= 8 ? "easy" : c.r > c.n - 8 ? "hard" : "mid";
+    const who = x => x.h === "me" ? "yours" : x.h ? "owned by " + T(x.h) : "free agent";
+    let h = '<p class="muted" style="margin:-6px 2px 12px">Which kicker and defense to start each week, and which ones line up best for your playoffs (weeks ' + P.poW[0] + "–" + P.poW[P.poW.length - 1] + "). Built from each unit’s season, what its opponent gives up" + (P.gotVegas ? ", this week’s betting totals" : "") + " and the weather.</p>";
+    const why = (u, kind) => {
+      const c = u.now; if (!c) return "bye this week";
+      const p = c.p, out = [opp(p.g)];
+      if (p.it != null) out.push(kind === "D" ? p.g.o + " expected to score " + p.it.toFixed(1) : "team expected to score " + p.it.toFixed(1));
+      else out.push(p.g.o + " gives up " + p.al.toFixed(1) + " a game to " + (kind === "D" ? "defenses" : "kickers"));
+      if (p.dome) out.push("dome");
+      if (p.fx) out.push(p.fx < 0 ? "weather hurts" : "weather helps");
+      return out.join(" · ");
+    };
+    const block = (S, kind) => {
+      const name = kind === "D" ? "defense" : "kicker", names = kind === "D" ? "defenses" : "kickers";
+      let s = "<h3>" + (kind === "D" ? "Defense" : "Kicker") + " · week " + P.cur + "</h3>";
+      const mine = S.mine.filter(x => x.now).sort((a, b) => b.now.p.v - a.now.p.v), start = mine[0] || null;
+      const free = S.best.filter(x => !x.h), bestFree = free[0] || null;
+      let msg;
+      if (!S.mine.length) msg = "You don’t have a " + name + " on your roster." + (bestFree ? " Best one free: <b>" + esc(bestFree.p.name) + "</b> (" + opp(bestFree.now.p.g) + ")." : "");
+      else if (!start) msg = "Your " + (S.mine.length > 1 ? names + " are" : name + " is") + " on bye." + (bestFree ? " Pick up <b>" + esc(bestFree.p.name) + "</b> (" + opp(bestFree.now.p.g) + ")." : " Every " + name + " with a game is on a roster, so trade for one.");
+      else {
+        msg = "Start <b>" + esc(start.p.name) + "</b> (" + opp(start.now.p.g) + ", " + start.now.p.v.toFixed(1) + " projected" + (start.now.r ? ", #" + start.now.r + " of " + start.now.n + " this week" : "") + ").";
+        if (mine[1]) msg += " " + esc(mine[1].p.name) + " is " + (start.now.p.v - mine[1].now.p.v < 0.6 ? "about the same" : "the backup") + " at " + mine[1].now.p.v.toFixed(1) + ".";
+        if (bestFree && bestFree.now.p.v >= start.now.p.v + 1.5) msg += " <b>Better on waivers: " + esc(bestFree.p.name) + "</b> (" + opp(bestFree.now.p.g) + ", " + bestFree.now.p.v.toFixed(1) + ").";
+      }
+      s += '<div class="card" style="margin-bottom:10px"><p class="small" style="margin:0">' + msg + "</p></div>";
+      if (S.mine.length) s += '<ul class="plist">' + S.mine.slice().sort((a, b) => ((b.now || {p: {v: -1}}).p.v) - ((a.now || {p: {v: -1}}).p.v)).map(u => row(u.p, u.now ? pts(u.now.p.v) : tag("Bye", ""), posTag(u.p) + why(u, kind))).join("") + "</ul>";
+      const top = S.best.filter(x => x.h !== "me").slice(0, 5);
+      if (top.length) {
+        const allOwned = !free.length;
+        s += '<p class="small" style="margin:10px 2px 6px"><b>Best matchups this week</b>' + (allOwned ? " · every " + name + " is on a roster in your league, so these are trade targets (they rarely cost much)" : "") + "</p>";
+        s += '<ul class="plist">' + top.map(u => row(u.p, pts(u.now.p.v), posTag(u.p) + why(u, kind) + " · " + (u.h ? who(u) : "<b>free agent</b>"))).join("") + "</ul>";
+      }
+      return s;
+    };
+    const grid = (units, label) => units.length ? '<div class="card sosc">' + units.map(u => {
+      const i = reg.push(u.p) - 1;
+      return '<div class="sosr"><button type="button" class="sosn" data-i="' + i + '"><b>' + esc(u.p.name) + '</b><small class="muted">' + label(u) + '</small></button><div class="sosw">' +
+        P.weeks.map((w, j) => { const c = u.wk[j]; return '<span class="sosx ' + tier(c) + (P.poW.includes(w) ? " po" : "") + '" title="Week ' + w + (c ? ": " + opp(c.p.g) + ", " + c.p.v.toFixed(1) + " projected" : ": bye") + '"><small>' + w + "</small>" + (c ? (c.p.g.home ? "" : "@") + esc(c.p.g.o) : "BYE") + "</span>"; }).join("") + "</div></div>";
+    }).join("") + "</div>" : "";
+    const playoffs = (S, kind) => {
+      const names = kind === "D" ? "defenses" : "kickers";
+      const mineIds = new Set(S.mine.map(u => u.id));
+      const cand = S.poBest.filter(u => !mineIds.has(u.id)).slice(0, 4);
+      const freeBest = S.poBest.find(u => !u.h && !cand.includes(u));
+      const units = S.mine.concat(cand, freeBest ? [freeBest] : []);
+      const bestMine = S.mine.slice().sort((a, b) => b.po - a.po)[0];
+      const rankOf = u => S.poBest.indexOf(u) + 1;
+      let s = "<h3>" + (kind === "D" ? "Defenses" : "Kickers") + " for your playoffs</h3>";
+      s += '<p class="small" style="margin:-2px 2px 8px">' + (bestMine ? "Your best playoff schedule: <b>" + esc(bestMine.p.name) + "</b>, #" + rankOf(bestMine) + " of " + S.poBest.length + ". " : "") + "Below: yours first, then the " + names + " with the best weeks " + P.poW[0] + "–" + P.poW[P.poW.length - 1] + ".</p>";
+      s += grid(units, u => (u.h === "me" ? "Yours" : u.h ? "Owned by " + T(u.h) : "<b>Free agent</b>") + " · " + u.po.toFixed(1) + " pts in the playoffs · #" + rankOf(u) + " of " + S.poBest.length);
+      return s;
+    };
+    if (P.hasD) h += block(P.D, "D");
+    if (P.hasK) h += block(P.K, "K");
+    if (P.hasD) h += playoffs(P.D, "D");
+    if (P.hasK) h += playoffs(P.K, "K");
+    h += '<p class="small muted" style="margin:10px 4px 0"><span class="sosx easy" style="display:inline-flex;min-width:0;padding:0 6px">green</span> is a top-8 matchup that week, <span class="sosx hard" style="display:inline-flex;min-width:0;padding:0 6px">red</span> a bottom-8 one; outlined weeks are your playoffs. Points are standard scoring, so your league’s totals will differ, but the order holds. Kickers and defenses swing a lot week to week: treat close calls as coin flips.</p>';
+    if (P.D.mine.concat(P.K.mine).length || P.D.best.some(x => !x.h) || P.K.best.some(x => !x.h)) h += '<div class="actions" style="margin-top:10px">' + extBtn(waiverUrl(L), "Add players in " + siteName(L)) + "</div>";
+    body.innerHTML = h;
+    wireRows(body);
+    body.querySelectorAll(".sosn[data-i]").forEach(b => b.addEventListener("click", () => openPlayer(reg[+b.dataset.i])));
+  } catch(e){ body.innerHTML = '<div class="err">Couldn’t build the kicker and defense plan: ' + esc(e.message) + "</div>"; }
+}
 /* ---------- rest-of-season strength of schedule ---------- */
 let allowedP = null;
 async function allowedTable(season, upto){
   if (!allowedP) allowedP = (async () => {
     const weeks = []; for (let w = Math.max(1, upto - 8); w < upto; w++) weeks.push(w);
-    const res = await Promise.all(weeks.map(w => api("/api/allowed?season=" + season + "&week=" + w).catch(() => null)));
+    const res = await Promise.all(weeks.map(w => api("/api/allowed?season=" + season + "&week=" + w + "&v=2").catch(() => null)));
     const sum = {}, n = {};
     res.forEach(r => { if (!r) return; for (const t in r.teams) for (const pos in r.teams[t]) { const k = t + "|" + pos; sum[k] = (sum[k] || [0, 0, 0]).map((x, i) => x + r.teams[t][pos][i]); n[k] = (n[k] || 0) + 1; } });
     const avg = {}; for (const k in sum) avg[k] = sum[k].map(x => x / n[k]);
