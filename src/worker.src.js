@@ -398,7 +398,7 @@ async function healthCheck(env) {
   }, 22000);
   if (env.ELEVENLABS_KEY) await check("Show voices (ElevenLabs)", async () => {
     const u = await elUsage(env), set = await elSetup(env);
-    return (set.names || []).join(" & ") + " on " + set.model + " · " + (u.used || 0).toLocaleString() + " of " + (u.limit || 0).toLocaleString() + " characters used this month";
+    return (set.names || []).join(" & ") + " on " + set.model + " · " + (u.used || 0).toLocaleString() + " of " + (u.limit || 0).toLocaleString() + " characters used this month" + (u.resets ? " · resets " + new Date(u.resets * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" }) : "");
   });
   await Promise.all(jobs);
   const ORDER = ["Trade values", "Fleaflicker", "Sleeper", "ESPN scores", "FantasyCalc trades", "Expert rankings", "AI coach", "Show voices (Deepgram)", "Show (Gemini)", "Show voices (ElevenLabs)"];
