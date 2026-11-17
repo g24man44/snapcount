@@ -151,3 +151,4 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - [x] Bye-week & injury planner: lineup holes for the next 4 weeks in every league (byes, injured reserve, PUP, suspensions, players ruled out or doubtful), a color-coded week strip, the bench fill for each open spot with that week's opponent, and the best free agent when he beats your bench, plus the best pickups to cover several weeks (Leagues › Bye & injury planner, Edge › Week)
 
 - Show: soft original intro/outro music (made on the phone, toggle in the player), roast corner for the bottom 3 teams, and "coulda won it" lineup swaps for close losses.
+- Alerts: one notification per player per story (Sleeper/ESPN note/ESPN headline folded within 8 h unless status really changes); one subscription per phone.

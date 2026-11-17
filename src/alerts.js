@@ -107,6 +107,11 @@ async function subscriberIds(env) {
   await env.SNAP.put("subs:idx", JSON.stringify(ids));
   return ids;
 }
+async function dropSubscriber(env, id) {
+  await env.SNAP.delete("sub:" + id).catch(() => {}); await hotDel(env, "al:" + id);
+  const idx = await env.SNAP.get("subs:idx", "json");
+  if (Array.isArray(idx) && idx.includes(id)) await env.SNAP.put("subs:idx", JSON.stringify(idx.filter(x => x !== id)));
+}
 export async function addSubscriberId(env, id) {
   const idx = await env.SNAP.get("subs:idx", "json");
   if (Array.isArray(idx) && !idx.includes(id)) { idx.push(id); await env.SNAP.put("subs:idx", JSON.stringify(idx)); }
@@ -257,13 +262,42 @@ export async function hotDel(env, k) { const st = hotStub(env); if (st) await st
 // Subscribers from the index key (one read) instead of listing KV (lists are capped at 1,000 a day).
 export async function subKeys(env) { return { keys: (await subscriberIds(env)).map(id => ({ name: "sub:" + id })) }; }
 
+// Several sources (Sleeper status, ESPN injury note, ESPN headline) often report the same story minutes apart.
+// One player = one notification: later items about the same player within 8 hours are folded in quietly,
+// unless they bring a real status change (for example cleared, then ruled out).
+const SAME_STORY_MS = 8 * 3600e3;
+export function stOf(s) {
+  const t = norm(s);
+  if (!t) return "";
+  if (OUTISH.has(t) || /^out|injuredreserve|ruledout|inactive/.test(t)) return "out";
+  if (/question|doubt|gametime|limited/.test(t)) return "q";
+  if (/active|cleared|probable|healthy|full/.test(t)) return "ok";
+  return t;
+}
+export function foldAlerts(list, items, now) {
+  const seen = new Set(list.flatMap(a => [a.id].concat(a.also || [])));
+  const fresh = [], quiet = [];
+  for (const a of items) {
+    if (seen.has(a.id)) continue; seen.add(a.id);
+    if (a.who) {
+      const prior = fresh.concat(list).filter(b => b.who === a.who && now - (b.t || now) < SAME_STORY_MS);
+      if (prior.length) {
+        const withSt = prior.find(b => b.st), lastSt = withSt ? withSt.st : "";
+        const real = a.st && (withSt ? a.st !== lastSt : a.st === "out");
+        if (!real) { quiet.push([prior[0], a.id]); continue; }
+      }
+    }
+    fresh.push(Object.assign({ t: now, read: false }, a));
+  }
+  for (const [b, aid] of quiet) b.also = (b.also || []).concat(aid).slice(-10);
+  return { fresh, quiet: quiet.length };
+}
 async function addAlerts(env, id, items) {
   const key = "al:" + id;
   const list = (await hotGet(env, key)) || [];
-  const seen = new Set(list.map(a => a.id));
-  const fresh = items.filter(a => !seen.has(a.id));
-  if (!fresh.length) return [];
-  const next = fresh.map(a => Object.assign({ t: Date.now(), read: false }, a)).concat(list).slice(0, 40);
+  const { fresh, quiet } = foldAlerts(list, items, Date.now());
+  if (!fresh.length) { if (quiet) await hotPut(env, key, list); return []; }
+  const next = fresh.concat(list).slice(0, 40);
   await hotPut(env, key, next);
   return fresh;
 }
@@ -313,12 +347,18 @@ export async function alertsRoute(request, env, p, url) {
           lineups: (Array.isArray(body.lineups) ? body.lineups : []).slice(0, 30).map(l => ({ p: ["flea", "espn", "mfl", "sleeper"].includes(l.p) ? l.p : null, id: String(l.id || ""), name: String(l.name || "").slice(0, 80), season: /^\d{4}$/.test(String(l.season || "")) ? String(l.season) : undefined, s: (l.s || []).slice(0, 30).map(String), b: (l.b || []).slice(0, 40).map(String), t: l.t ? String(l.t).slice(0, 40) : undefined, slots: Array.isArray(l.slots) ? l.slots.slice(0, 20).map(x => String(x).slice(0, 12)) : undefined })),
           hooks: (body.hooks || []).map(String).filter(u => hookKind(u)).slice(0, 5),
           prefs: { mine: body.prefs?.mine !== false, fa: body.prefs?.fa !== false, news: body.prefs?.news !== false, league: body.prefs?.league !== false, recap: body.prefs?.recap !== false, brief: body.prefs?.brief !== false, preview: body.prefs?.preview !== false, plays: body.prefs?.plays !== false, livescore: body.prefs?.livescore !== false, swings: body.prefs?.swings !== false, taunts: body.prefs?.taunts !== false, watch: body.prefs?.watch !== false, faPos: body.prefs?.faPos === "QB" ? "QB" : "ALL" },
-          origin: url.origin
+          origin: url.origin,
+          dev: /^0+$/.test(String(body.dev || "")) ? "" : String(body.dev || "").slice(0, 64)
         };
         const prev = await env.SNAP.get("sub:" + id);
         const s = JSON.stringify(rec);
         if (prev !== s) await env.SNAP.put("sub:" + id, s);
         if (!prev) await addSubscriberId(env, id);
+        if (rec.dev && !String(endpoint).startsWith("https://snapcount.hooks/")) {
+          const old = await hotGet(env, "devsub:" + rec.dev);
+          if (old && old !== id) await dropSubscriber(env, old);
+          if (old !== id) await hotPut(env, "devsub:" + rec.dev, id);
+        }
         const fl = rec.leagues.filter(x => x.p === "flea");
         if (fl.length) {
           const idx = (await env.SNAP.get("fleaLeagues", "json")) || {};
@@ -472,6 +512,7 @@ export function messagesFor(rec, events, week, now) {
   const minePush = [], faCandidates = [], watchCandidates = [];
   for (const e of events) {
     const tag = e.kind + ":" + e.id + ":" + week + ":" + norm(String(e.to ?? e.starter ?? ""));
+    const n0 = minePush.length;
     if (mine(e)) {
       if (!rec.prefs.mine) continue;
       const key = norm(e.name) + "|" + e.pos;
@@ -491,6 +532,7 @@ export function messagesFor(rec, events, week, now) {
     } else if (rec.prefs.fa && (e.kind === "jump" || e.kind === "nextup") && (rec.prefs.faPos === "ALL" || rec.prefs.faPos === e.pos)) {
       faCandidates.push(Object.assign({ tag }, e));
     }
+    for (const m of minePush.slice(n0)) { m.who = norm(e.name); if (e.kind === "status") m.st = stOf(e.to) || "ok"; else if (e.kind === "team") m.st = "trade:" + norm(e.to); }
   }
   const nextIds = new Set(faCandidates.filter(e => e.kind === "nextup").map(e => e.id));
   const fa = faCandidates.filter(e => e.kind === "nextup" || !nextIds.has(e.id));
@@ -651,7 +693,7 @@ export async function runInjuryNotes(env) {
       if (rec.prefs.news === false && rec.prefs.mine === false) return [];
       const mine = new Set(alertNames(rec));
       return fresh.filter(n => mine.has(n.key)).slice(0, 5).map(n => ({
-        id: "note:" + n.key + ":" + sigs[n.key],
+        id: "note:" + n.key + ":" + sigs[n.key], who: n.key.split("|")[0], st: stOf(n.status) || stOf(n.short) || "",
         title: n.name + (n.status && !/^active$/i.test(n.status) ? " (" + n.status + ")" : "") + (n.prac ? " · " + n.prac : ""),
         body: n.short.slice(0, 220)
       }));
@@ -672,7 +714,7 @@ export async function runHeadlines(env) {
     sent = await eachSubscriber(env, rec => {
       if (rec.prefs.news === false) return [];
       const mine = nameSet(rec);
-      return fresh.filter(a => a.names.some(n => mine.has(n))).slice(0, 3).map(a => ({ id: "news:" + a.id, title: a.title, body: a.desc.slice(0, 200), url: a.link }));
+      return fresh.filter(a => a.names.some(n => mine.has(n))).slice(0, 3).map(a => ({ id: "news:" + a.id, who: a.names.find(n => mine.has(n)), title: a.title, body: a.desc.slice(0, 200), url: a.link }));
     });
   }
   if (!prev || fresh.length) await hotPut(env, "snap:news", ({ at: Date.now(), ids: items.map(a => a.id).concat(prev ? prev.ids : []).slice(0, 200) }));

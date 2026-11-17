@@ -8041,7 +8041,7 @@ async function syncAlerts(sub){
   sub = sub || (pushOK ? await getSub().catch(() => null) : null);
   const hooks = loadHooks();
   if (!sub && !hooks.length) return null;
-  const r = await post("/api/push/subscribe", Object.assign({sub: sub ? sub.toJSON() : {endpoint: hookEndpoint(), keys:{}}, prefs: alertPrefs(), hooks}, watchList()));
+  const r = await post("/api/push/subscribe", Object.assign({sub: sub ? sub.toJSON() : {endpoint: hookEndpoint(), keys:{}}, prefs: alertPrefs(), hooks, dev: devId()}, watchList()));
   alertState.watching = r;
   return r;
 }
