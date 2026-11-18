@@ -2192,6 +2192,7 @@ function renderLeague(v, L){
     if (d.teams.some(t => t.mine) && (d.maxKeepers || /dynasty|keeper/i.test(m.name))) tiles.push('<button type="button" class="btn ghost" id="winBtn"><i class=ic-trophy aria-hidden=true></i>Title window</button>');
     if (d.teams.some(t => t.mine) && ["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="wrapBtn"><i class=ic-spark aria-hidden=true></i>Season Wrapped</button>');
     if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="mrBtn"><i class=ic-ball aria-hidden=true></i>Matchup recaps</button>');
+    if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="pmBtn"><i class=ic-calendar aria-hidden=true></i>Playoff matchups: who to buy</button>');
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="mktBtn"><i class=ic-swap aria-hidden=true></i>Trade market</button>');
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="cutBtn"><i class=ic-list aria-hidden=true></i>Who to cut</button>');
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="hcBtn"><i class=ic-medic aria-hidden=true></i>Handcuffs</button>');
@@ -2200,7 +2201,7 @@ function renderLeague(v, L){
     if (d.teams.some(t => t.mine) && d.games.length) tiles.push('<button type="button" class="btn ghost" id="pkBtn"><i class=ic-flame aria-hidden=true></i>Pick’em and roast</button>'); tiles.push('<button type="button" class="btn ghost" id="showBtn"><i class=ic-speaker aria-hidden=true></i>The league show</button>'); if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="commBtn"><i class=ic-trophy aria-hidden=true></i>Dues, rules and awards</button>');
     if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="dcBtn"><i class=ic-pencil aria-hidden=true></i>Draft grades and write-up</button>');
     // Grouped by what you're trying to do, as compact rows instead of a wall of identical tiles.
-    const GROUPS = [["This week", ["mrBtn", "pwBtn", "pkBtn", "cutBtn", "hcBtn", "kdBtn"]], ["Trades", ["lsBtn", "scoutBtn", "mktBtn"]], ["Season", ["picBtn", "ppBtn", "swapBtn", "histBtn", "rcBtn", "winBtn", "wrapBtn"]], ["Draft", ["doBtn", "dcBtn"]]];
+    const GROUPS = [["This week", ["mrBtn", "pwBtn", "pkBtn", "cutBtn", "hcBtn", "kdBtn"]], ["Trades", ["pmBtn", "lsBtn", "scoutBtn", "mktBtn"]], ["Season", ["picBtn", "ppBtn", "swapBtn", "histBtn", "rcBtn", "winBtn", "wrapBtn"]], ["Draft", ["doBtn", "dcBtn"]]];
     const idOf = t => (t.match(/id="(\w+)"/) || [])[1], used = new Set();
     // Four everyday tools up top; everything else waits behind "More tools", grouped by what you're doing.
     const TOP = ["mrBtn", "pwBtn", "mktBtn", "showBtn"];
@@ -2266,6 +2267,7 @@ function renderLeague(v, L){
   const ctb = v.querySelector("#cutBtn"); if (ctb) ctb.addEventListener("click", () => openCuts(L));
   const hcb = v.querySelector("#hcBtn"); if (hcb) hcb.addEventListener("click", () => openHandcuffs(L));
   const kdb = v.querySelector("#kdBtn"); if (kdb) kdb.addEventListener("click", () => openKD(L));
+  const pmb = v.querySelector("#pmBtn"); if (pmb) pmb.addEventListener("click", () => openPoSched(L));
   const rcb = v.querySelector("#rcBtn"); if (rcb) rcb.addEventListener("click", () => openReport(L));
   const pkb = v.querySelector("#pkBtn"); if (pkb) pkb.addEventListener("click", () => openPickem(L));
   const shb = v.querySelector("#showBtn"); if (shb) shb.addEventListener("click", () => openShow(L));
@@ -7488,6 +7490,7 @@ async function edgeLeague(L, el){
   h += '<h3>Playoff odds · ' + sched.po.teams + " of " + d.teams.length + ' make it</h3><div class="card" style="padding:6px 0"><table class="otable"><tbody>' + ord.map(x => '<tr class="' + (x.t === me ? "me" : "") + '"><td>' + teamLogo(x.t) + '</td><td><b>' + esc(x.t.name) + "</b><small>" + x.t.w + "-" + x.t.l + " · " + x.wins.toFixed(1) + ' proj wins</small></td><td class="obar"><span style="width:' + Math.round(x.odds * 100) + '%"></span></td><td class="onum">' + pct(x.odds) + "</td></tr>").join("") + "</tbody></table></div>" +
     '<p class="small muted" style="margin:8px 4px 0">3,000 simulated seasons using each team’s scoring average and this week’s projections, your remaining schedule, and ' + (Object.keys(d.teams.reduce((o, t) => (t.div != null && (o[t.div] = 1), o), {})).length > 1 ? "division winners getting in" : "best records getting in") + ".</p>";
   try { h += await sosHtml(L, me, sched, base); } catch(e){}
+  h += '<button type="button" class="btn ghost" id="edPoSched" style="width:100%;margin-top:10px"><i class=ic-calendar aria-hidden=true></i> Playoff matchups: who to buy for your playoffs</button>';
   // intel
   el.innerHTML = h + '<p class="spin">Reading the league’s trade history…</p>';
   const qbs = qbsOf(d), ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1");
@@ -7525,6 +7528,7 @@ async function edgeLeague(L, el){
   el.querySelectorAll(".sosn[data-i]").forEach(b => b.addEventListener("click", () => openPlayer(reg[+b.dataset.i])));
   const lsb = el.querySelector("#edLs"); if (lsb) lsb.addEventListener("click", () => openLandscape(L));
   const pth = el.querySelector("#edPath"); if (pth) pth.addEventListener("click", () => openPlayoffPath(L));
+  const eps = el.querySelector("#edPoSched"); if (eps) eps.addEventListener("click", () => openPoSched(L));
 }
 
 /* ===================== Kickers and defenses: which to start each week, who to grab for the playoffs ===================== */
@@ -7698,6 +7702,182 @@ async function openKD(L){
     wireRows(body);
     body.querySelectorAll(".sosn[data-i]").forEach(b => b.addEventListener("click", () => openPlayer(reg[+b.dataset.i])));
   } catch(e){ body.innerHTML = '<div class="err">Couldn’t build the kicker and defense plan: ' + esc(e.message) + "</div>"; }
+}
+/* ===================== Playoff matchups: whose schedule wins your fantasy playoffs ===================== */
+// Every QB/RB/WR/TE's points per game in your league's scoring, nudged up or down each playoff week by what
+// that week's opponent has given up to his position lately. Your best playoff lineup is built from those
+// totals; a buy target is anyone whose playoff weeks would raise it, ranked by how much.
+async function poSchedPlan(L){
+  const d = L.detail, me = d.teams.find(t => t.mine), st = await getState();
+  const season = L.meta.season || st.league_season || st.season;
+  const cur = Math.max(Number(st.week) || 1, Number(st.display_week) || 1);
+  await Promise.all([getPlayers(), getSeasonStats(season), rosterFor(L, me)]);
+  ensureSidIndex();
+  const [sch, avg, po, VV] = await Promise.all([
+    api("/api/nflsched?season=" + season),
+    allowedTable(season, cur),
+    (async () => {
+      if (d.sched && d.sched.po && d.sched.po.start) return d.sched.po;
+      if (L.meta.platform === "flea") { try { const r = await api("/api/flea-playoffs?league_id=" + L.meta.id); if (r.start) return r; } catch(e){} }
+      return {start: d.playoffStart || 15, teams: d.playoffTeams || (d.teams.length >= 12 ? 6 : 4)};
+    })(),
+    leagueVals(L).catch(() => null)
+  ]);
+  if (!sch || !sch.weeks) throw new Error("the NFL schedule didn’t load");
+  const poStart = Number(po.start) || 15, rounds = Math.max(1, Math.ceil(Math.log2(Math.max(2, Number(po.teams) || 6))));
+  const poEnd = Math.min(18, poStart + rounds - 1);
+  // A week that's already been played (all of its games final) no longer counts.
+  const gs = Object.values(nflGames || {}), thisDone = gs.length && gs.every(g => g.state === "post");
+  const from = Math.max(poStart, thisDone ? cur + 1 : cur);
+  const weeks = []; for (let w = from; w <= poEnd; w++) weeks.push(w);
+  const col = ({ppr: 0, half: 1, std: 2})[d.scoring] ?? scoringCol(L), tep = Number(d.tep) || 0;
+  const POS = ["QB", "RB", "WR", "TE"];
+  // What each defense has given up to each position over the last 8 weeks, and its rank (1 = gives up the most).
+  const A = {}, lg = {}, rank = {};
+  for (const k in avg) { const [t, pos] = k.split("|"); if (POS.includes(pos)) (A[tnorm(t)] = A[tnorm(t)] || {})[pos] = avg[k][col]; }
+  POS.forEach(pos => {
+    const xs = Object.keys(A).filter(t => A[t][pos] != null).map(t => ({t, v: A[t][pos]})).sort((a, b) => b.v - a.v);
+    lg[pos] = xs.length ? xs.reduce((s, x) => s + x.v, 0) / xs.length : 0;
+    xs.forEach((x, i) => rank[x.t + "|" + pos] = {r: i + 1, n: xs.length});
+  });
+  const S = {};
+  for (const w in sch.weeks) { const m = S[w] = {}; for (const t in sch.weeks[w]) { const o = sch.weeks[w][t]; m[tnorm(t)] = {o: tnorm(o.replace("@", "")), home: o[0] !== "@"}; } }
+  // Points per game in this league's scoring, pulled toward a fringe starter's when he's played only a few games.
+  const REP = {QB: 14, RB: 7, WR: 7, TE: 5};
+  const ppgOf = id => {
+    const s = sstats && sstats[id], q = players[id]; if (!s || !s[3] || !q) return null;
+    let pts = s[col]; if (q[1] === "TE" && tep) pts += tep * Math.max(0, (s[0] - s[1]) * 2);
+    return (pts + REP[q[1]] * 2) / (s[3] + 2);
+  };
+  const LONG = /^(ir|injured reserve|pup|sus|suspended|na)$/i;
+  const cache = {};
+  const outlook = id => {
+    if (cache[id] !== undefined) return cache[id];
+    const q = players[id]; if (!q || !q[2] || !POS.includes(q[1])) return (cache[id] = null);
+    const base = ppgOf(id); if (base == null) return (cache[id] = null);
+    const team = tnorm(q[2]), longOut = LONG.test(String(q[3] || "")), wt = longOut ? 0.5 : 1;
+    const cells = weeks.map(w => {
+      const g = (S[w] || {})[team]; if (!g) return {w, bye: true, v: 0};
+      const al = (A[g.o] || {})[q[1]], f = al != null && lg[q[1]] ? clamp(1 + 0.6 * (al / lg[q[1]] - 1), 0.75, 1.3) : 1;
+      return {w, g, r: rank[g.o + "|" + q[1]] || null, f, v: base * f * wt};
+    });
+    const tot = cells.reduce((s, c) => s + c.v, 0), usual = base * wt * weeks.length;
+    return (cache[id] = {id, ppg: base, cells, tot, edge: tot - usual, longOut});
+  };
+  // Who holds whom in this league.
+  const owner = {};
+  d.teams.forEach(t => (t.roster || []).forEach(p => { if (!p.name || !POS.includes(p.pos)) return; const sid = sleeperKey(L, p); if (sid && players[sid]) owner[sid] = {t, p}; }));
+  // Free agents as the league site lists them, so a name spelled differently there can't pass for unowned.
+  let faMap = null;
+  if (L.meta.platform !== "sleeper") {
+    faMap = {};
+    await Promise.all(POS.map(async pos => { try { (await faList(L, pos)).forEach(p => { const id = sleeperKey(L, Object.assign({}, p, {pos})); if (id && players[id] && !owner[id]) faMap[id] = p; }); } catch(e){} }));
+    if (!Object.keys(faMap).length) faMap = null;
+  }
+  const asP = id => (owner[id] && owner[id].p) || (faMap && faMap[id]) || {id, name: players[id][0], pos: players[id][1], team: players[id][2], inj: players[id][3], injPart: players[id][4]};
+  // Lineup math runs on stand-ins without injury tags: a player out today may well be back by the playoffs.
+  const slots = leagueSlots(L);
+  const unit = id => { const o = outlook(id); return o ? {pos: players[id][1], id, o} : null; };
+  const lineupOf = ids => bestLineup(ids.map(unit).filter(Boolean), slots, u => u.o.tot);
+  const idsOf = t => [...new Set((t.roster || []).filter(p => p.name && POS.includes(p.pos)).map(p => sleeperKey(L, p)).filter(id => id && players[id]))];
+  const myIds = idsOf(me), mine = lineupOf(myIds);
+  // Every team's best playoff lineup, to say where yours stands.
+  const teams = d.teams.map(t => ({t, total: t === me ? mine.total : lineupOf(idsOf(t)).total})).sort((a, b) => b.total - a.total);
+  const myRank = teams.findIndex(x => x.t === me) + 1;
+  // Anyone who'd raise that lineup, on another roster or free.
+  const mySet = new Set(myIds), cand = [];
+  for (const id in players) {
+    if (mySet.has(id) || (!owner[id] && faMap && !faMap[id])) continue;
+    const o = outlook(id); if (!o || o.tot < 3 * weeks.length) continue;
+    const s = sstats[id]; if (!s || s[3] < 3) continue;
+    const gain = lineupOf(myIds.concat(id)).total - mine.total;
+    if (gain < 1) continue;
+    const h = owner[id] ? owner[id].t : null;
+    cand.push({id, o, p: asP(id), h, gain, v: VV && owner[id] ? VV.val(owner[id].p) : null});
+  }
+  cand.sort((a, b) => b.gain - a.gain);
+  const buy = cand.filter(c => c.h);
+  const free = cand.filter(c => !c.h && !c.o.longOut).slice(0, 6);
+  // Cheapest real upgrades: worth at least a few points, ordered by points gained per unit of trade value.
+  const vals = buy.map(c => c.v).filter(v => v > 0).sort((a, b) => a - b), medV = vals.length ? vals[Math.floor(vals.length / 2)] : 0;
+  const cheap = buy.filter(c => c.gain >= 3 && c.v != null && c.v > 0 && c.v <= medV).sort((a, b) => b.gain / b.v - a.gain / a.v).slice(0, 5);
+  const starters = mine.list.filter(x => x.p).map(x => ({slot: x.slot, id: x.p.id, o: x.p.o, p: asP(x.p.id)}));
+  const startSet = new Set(starters.map(x => x.id));
+  // Your bench players who'd outscore a starter only because of the schedule, and starters with rough draws.
+  const tough = starters.filter(x => x.o.edge <= -0.08 * x.o.ppg * weeks.length && x.o.edge <= -2).sort((a, b) => a.o.edge - b.o.edge);
+  const schedEdge = starters.reduce((s, x) => s + x.o.edge, 0);
+  // Out of a playoff spot before the playoffs start: which of your players would help a contender most.
+  const order = d.teams.slice().sort((a, b) => (b.w + (b.t || 0) / 2) - (a.w + (a.t || 0) / 2) || (b.pf || 0) - (a.pf || 0));
+  const nPO = Number(po.teams) || 6, myStand = order.indexOf(me) + 1, sell = [];
+  if (myStand > nPO && weeks[0] > cur) {
+    const con = order.slice(0, nPO).filter(t => t !== me).map(t => { const ids = idsOf(t); return {t, ids, base: lineupOf(ids).total}; });
+    myIds.forEach(id => {
+      const o = outlook(id); if (!o || o.longOut || o.tot < 3 * weeks.length) return;
+      const fits = con.filter(c => !c.ids.includes(id)).map(c => ({t: c.t, gain: lineupOf(c.ids.concat(id)).total - c.base})).sort((a, b) => b.gain - a.gain);
+      const best = fits[0], next = fits[1] && fits[1].gain >= 3 ? fits[1] : null;
+      if (best && best.gain >= 3) { const p = asP(id); sell.push({id, o, p, best, next, v: VV ? VV.val(p) : null}); }
+    });
+    sell.sort((a, b) => b.best.gain - a.best.gain);
+  }
+  return {me, weeks, poStart, poEnd, cur, slots, starters, startSet, mine, teams, myRank, buy: buy.slice(0, 10), cheap, free, tough, schedEdge, VV, owner, sell: sell.slice(0, 5), myStand, nPO, faN: faMap ? Object.keys(faMap).length : null};
+}
+async function openPoSched(L){
+  const body = openSheetShell("Playoff matchups");
+  body.innerHTML = '<p class="spin">Lining up every playoff matchup…</p>';
+  try {
+    const P = await poSchedPlan(L), d = L.detail;
+    if (!P.weeks.length) { body.innerHTML = '<div class="card"><p style="margin:0">Your league’s playoff weeks are over. Check next season’s outlook in Title window and Projected draft order.</p></div>'; return; }
+    const W = P.weeks.length > 1 ? "weeks " + P.weeks[0] + "–" + P.weeks[P.weeks.length - 1] : "week " + P.weeks[0];
+    const tag = (txt, tone) => '<span class="chip' + (tone ? " " + tone : "") + '" style="padding:1px 7px">' + txt + "</span>";
+    const tier = c => c.bye ? "bye" : !c.r ? "" : c.r.r <= 8 ? "easy" : c.r.r > c.r.n - 8 ? "hard" : "mid";
+    const word = o => { const x = o.edge / Math.max(1, o.ppg * P.weeks.length); return x >= 0.06 ? tag("Easy draw", "ok") : x <= -0.06 ? tag("Tough draw", "warn") : tag("Average draw", ""); };
+    const sgn = v => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(1);
+    const T = t => esc(t.name);
+    const strip = o => '<div class="sosw" tabindex="0" aria-label="Playoff matchups">' + o.cells.map(c => '<span class="sosx ' + tier(c) + ' po" title="Week ' + c.w + (c.bye ? ": bye" : ": " + (c.g.home ? "vs " : "at ") + c.g.o + (c.r ? ", " + ORDN(c.r.r) + " most points allowed" : "") + ", about " + c.v.toFixed(1) + " pts") + '"><small>' + c.w + "</small>" + (c.bye ? "BYE" : (c.g.home ? "" : "@") + esc(c.g.o)) + "</span>").join("") + "</div>";
+    const rowH = (p, top, sub, o, extra) => { const i = reg.push(p) - 1; return '<div class="sosr"><button type="button" class="sosn" data-i="' + i + '"><b>' + esc(p.name) + injChip(p.inj) + '</b><small class="muted">' + sub + "</small></button>" + strip(o) + (extra || "") + "</div>"; };
+    const tone = P.myRank <= Math.max(1, Math.round(P.teams.length / 4)) ? "good" : P.myRank > Math.round(P.teams.length / 2) ? "bad" : "mid";
+    let h = '<p class="muted" style="margin:-6px 2px 12px">Your fantasy playoffs are ' + W + ". Who has the soft matchups then, and who would add the most points to your lineup for them. Built from each player’s points per game in your league’s scoring and what each defense has given up to his position lately.</p>";
+    const best = P.buy[0], bestFree = P.free[0];
+    const lines = [];
+    lines.push({t: "Your best playoff lineup projects " + Math.round(P.mine.total) + " points over " + W + ", " + ORDN(P.myRank) + " of " + P.teams.length + " in the league" + (P.myRank > 1 ? " (" + esc(P.teams[0].t.name) + " lead with " + Math.round(P.teams[0].total) + ")" : "") + ".", c: ""});
+    lines.push({t: Math.abs(P.schedEdge) < 2 ? "Your starters’ matchups are about neutral." : "Matchups " + (P.schedEdge > 0 ? "add about " : "cost you about ") + Math.abs(P.schedEdge).toFixed(0) + " points against an average schedule.", c: P.schedEdge >= 2 ? "good" : P.schedEdge <= -2 ? "bad" : ""});
+    if (best) lines.push({t: "Biggest upgrade: " + esc(best.p.name) + " (" + T(best.h) + "), +" + best.gain.toFixed(1) + " points over the playoffs.", c: "good"});
+    if (bestFree) lines.push({t: "Best free agent: " + esc(bestFree.p.name) + ", +" + bestFree.gain.toFixed(1) + ".", c: ""});
+    h += '<div class="card grade heroCard ' + tone + '"><div class="gtop"><div class="gnum"><b>' + P.myRank + '</b><small>of ' + P.teams.length + '</small></div><div><b class="glabel">Your playoff lineup</b><span class="muted small">' + W + " · " + Math.round(P.mine.total) + " projected points</span></div></div>" +
+      '<ul class="reasons">' + lines.map((r, i) => '<li class="' + r.c + '">' + (i ? r.t : "<b>" + r.t + "</b>") + "</li>").join("") + "</ul></div>";
+    // Your lineup for the playoffs
+    h += "<h3>Your lineup for the playoffs</h3>" + '<div class="card sosc">' + P.starters.map(x => rowH(x.p, null, esc(x.p.pos) + (x.slot !== x.p.pos ? " · " + esc(SLOT_LABEL[x.slot] || x.slot) : "") + " · " + x.o.tot.toFixed(1) + " pts " + word(x.o) + (Math.abs(x.o.edge) >= 0.5 ? " " + sgn(x.o.edge) + " vs his usual" : "") + (x.o.longOut ? " · " + tag("Hurt: may not be back", "warn") : ""), x.o)).join("") + "</div>";
+    if (P.tough.length) h += '<p class="small" style="margin:8px 2px 0"><b>Rough draws:</b> ' + P.tough.map(x => esc(x.p.name) + " (" + sgn(x.o.edge) + ")").join(" · ") + ". Have a backup plan for these weeks.</p>";
+    // Trade targets
+    const tradeBtn = c => '<div style="display:flex;gap:14px;margin-top:8px"><button type="button" class="linkbtn" data-pst="' + esc(c.h.id) + '" data-psp="' + esc(c.p.id) + '">Trade for him</button></div>';
+    const buySub = c => esc(c.p.pos) + " · " + T(c.h) + " · " + tag("+" + c.gain.toFixed(1) + " pts", "ok") + " for you" + (c.v ? " · worth " + fmtV(c.v) : "") + " · " + word(c.o);
+    h += "<h3>Trade targets for the playoffs</h3>";
+    if (P.buy.length) {
+      h += '<p class="small" style="margin:-2px 2px 8px">Players on other teams who would add the most points to your best lineup over ' + W + ", schedule included. Trade value shows what they’d cost.</p>";
+      h += '<div class="card sosc">' + P.buy.slice(0, 8).map(c => rowH(c.p, null, buySub(c), c.o, tradeBtn(c))).join("") + "</div>";
+      if (P.cheap.length) h += '<h3>Cheap upgrades</h3><p class="small" style="margin:-2px 2px 8px">The most playoff points for the least trade value, often veterans a rebuilding team will part with.</p><div class="card sosc">' + P.cheap.map(c => rowH(c.p, null, buySub(c), c.o, tradeBtn(c))).join("") + "</div>";
+    } else h += '<div class="card"><p class="small" style="margin:0">Nobody on another roster would add a point to your playoff lineup. You’re set.</p></div>';
+    if (P.sell.length) {
+      h += "<h3>Out of the race? Sell these schedules</h3>" + '<p class="small" style="margin:-2px 2px 8px">You’re ' + ORDN(P.myStand) + " in the standings and the top " + P.nPO + " make the playoffs. These are the contenders who would gain the most from your players over " + W + ".</p>";
+      h += '<div class="card sosc">' + P.sell.map(c => rowH(c.p, null, esc(c.p.pos) + " · best fit: " + T(c.best.t) + " · " + tag("+" + c.best.gain.toFixed(1) + " pts", "ok") + " for them" + (c.next ? " · next: " + T(c.next.t) + " (+" + c.next.gain.toFixed(1) + ")" : "") + (c.v ? " · worth " + fmtV(c.v) : "") + " · " + word(c.o), c.o,
+        '<div style="display:flex;gap:14px;margin-top:8px"><button type="button" class="linkbtn" data-pss="' + esc(c.best.t.id) + '" data-psp="' + esc(c.p.id) + '">Offer him to ' + T(c.best.t) + "</button></div>")).join("") + "</div>";
+    }
+    // Free agents
+    h += "<h3>Free agents with playoff upside</h3>";
+    if (P.free.length) h += '<div class="card sosc">' + P.free.map(c => rowH(c.p, null, esc(c.p.pos) + " · " + tag("+" + c.gain.toFixed(1) + " pts", "ok") + " for you · " + word(c.o), c.o)).join("") + "</div>" + '<div class="actions" style="margin-top:8px">' + extBtn(waiverUrl(L), "Add players in " + siteName(L)) + "</div>";
+    else h += '<div class="card"><p class="small" style="margin:0">No free agent would crack your playoff lineup.</p></div>';
+    h += '<p class="small muted" style="margin:10px 4px 0"><span class="sosx easy" style="display:inline-flex;min-width:0;padding:0 6px">green</span> is a defense in the top 8 for points allowed to that position over the last 8 weeks, <span class="sosx hard" style="display:inline-flex;min-width:0;padding:0 6px">red</span> the bottom 8. Each week moves a player’s usual points per game by up to about 30%. Players on injured reserve count half. Defenses change by December, so treat close calls as even.</p>';
+    body.innerHTML = h;
+    body.querySelectorAll(".sosn[data-i]").forEach(b => b.addEventListener("click", () => openPlayer(reg[+b.dataset.i])));
+    body.querySelectorAll("[data-pst]").forEach(b => b.addEventListener("click", () => {
+      tr.league = leagues.indexOf(L); tr.other = b.dataset.pst; tr.mode = "grade"; tr.give.clear(); tr.get = new Set([b.dataset.psp]); tr.side = "get"; tr.ppr = null; tr.dyn = null; tr.keep = null; tr.hide = null; tr.target = null;
+      closeSheet(); setTab("trade"); window.scrollTo(0, 0);
+    }));
+    body.querySelectorAll("[data-pss]").forEach(b => b.addEventListener("click", () => {
+      tr.league = leagues.indexOf(L); tr.other = b.dataset.pss; tr.mode = "grade"; tr.get.clear(); tr.give = new Set([b.dataset.psp]); tr.side = "get"; tr.ppr = null; tr.dyn = null; tr.keep = null; tr.hide = null; tr.target = null;
+      closeSheet(); setTab("trade"); window.scrollTo(0, 0);
+    }));
+  } catch(e){ body.innerHTML = '<div class="err">Couldn’t line up the playoff matchups: ' + esc(e.message) + "</div>"; }
 }
 /* ---------- rest-of-season strength of schedule ---------- */
 let allowedP = null;
