@@ -2198,10 +2198,11 @@ function renderLeague(v, L){
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="hcBtn"><i class=ic-medic aria-hidden=true></i>Handcuffs</button>');
     if (d.teams.some(t => t.mine) && (kdHasDst(d) || kdHasK(d))) tiles.push('<button type="button" class="btn ghost" id="kdBtn"><i class=ic-target aria-hidden=true></i>Kickers and defenses</button>');
     if (d.teams.some(t => t.mine) && m.platform === "flea") tiles.push('<button type="button" class="btn ghost" id="rcBtn"><i class=ic-scale aria-hidden=true></i>Your report card</button>');
+    if (d.teams.some(t => t.mine) && m.platform === "flea") tiles.push('<button type="button" class="btn ghost" id="wvBtn"><i class=ic-swap aria-hidden=true></i>Waiver report: best pickups</button>');
     if (d.teams.some(t => t.mine) && d.games.length) tiles.push('<button type="button" class="btn ghost" id="pkBtn"><i class=ic-flame aria-hidden=true></i>Pick’em and roast</button>'); tiles.push('<button type="button" class="btn ghost" id="showBtn"><i class=ic-speaker aria-hidden=true></i>The league show</button>'); if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="commBtn"><i class=ic-trophy aria-hidden=true></i>Dues, rules and awards</button>');
     if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="dcBtn"><i class=ic-pencil aria-hidden=true></i>Draft grades and write-up</button>');
     // Grouped by what you're trying to do, as compact rows instead of a wall of identical tiles.
-    const GROUPS = [["This week", ["mrBtn", "pwBtn", "pkBtn", "cutBtn", "hcBtn", "kdBtn"]], ["Trades", ["pmBtn", "lsBtn", "scoutBtn", "mktBtn"]], ["Season", ["picBtn", "ppBtn", "swapBtn", "histBtn", "rcBtn", "winBtn", "wrapBtn"]], ["Draft", ["doBtn", "dcBtn"]]];
+    const GROUPS = [["This week", ["mrBtn", "pwBtn", "pkBtn", "cutBtn", "hcBtn", "kdBtn"]], ["Trades", ["pmBtn", "lsBtn", "scoutBtn", "mktBtn"]], ["Season", ["picBtn", "ppBtn", "swapBtn", "histBtn", "rcBtn", "wvBtn", "winBtn", "wrapBtn"]], ["Draft", ["doBtn", "dcBtn"]]];
     const idOf = t => (t.match(/id="(\w+)"/) || [])[1], used = new Set();
     // Four everyday tools up top; everything else waits behind "More tools", grouped by what you're doing.
     const TOP = ["mrBtn", "pwBtn", "mktBtn", "showBtn"];
@@ -2269,6 +2270,7 @@ function renderLeague(v, L){
   const kdb = v.querySelector("#kdBtn"); if (kdb) kdb.addEventListener("click", () => openKD(L));
   const pmb = v.querySelector("#pmBtn"); if (pmb) pmb.addEventListener("click", () => openPoSched(L));
   const rcb = v.querySelector("#rcBtn"); if (rcb) rcb.addEventListener("click", () => openReport(L));
+  const wvb = v.querySelector("#wvBtn"); if (wvb) wvb.addEventListener("click", () => openWaiverReport(L));
   const pkb = v.querySelector("#pkBtn"); if (pkb) pkb.addEventListener("click", () => openPickem(L));
   const shb = v.querySelector("#showBtn"); if (shb) shb.addEventListener("click", () => openShow(L));
   const cmb = v.querySelector("#commBtn"); if (cmb) cmb.addEventListener("click", () => openComm(L));
@@ -6187,7 +6189,8 @@ async function edgeWaivers(L, el){
       posTag(x.p) + esc(x.p.team) + " · behind " + esc(x.starter) + (x.status ? " (" + esc(x.status) + ")" : ""))).join("") + "</ul>" : '<div class="card"><p class="small" style="margin:0">No free backups behind injured starters right now. Alerts will tell you the moment one opens up.</p></div>') +
     '<p class="small muted" style="margin:8px 4px 0">Free in your league. "Add now" means the starter is out; "Watch" means he’s questionable. In superflex, every starting QB’s backup is worth a bench spot.</p>' +
     '<button type="button" class="btn ghost" data-hcopen="1" style="width:100%;margin-top:10px"><i class=ic-medic aria-hidden=true></i> Handcuffs: who backs up your starters</button>' +
-    (kdHasDst(d) || kdHasK(d) ? '<button type="button" class="btn ghost" data-kdopen="1" style="width:100%;margin-top:8px"><i class=ic-target aria-hidden=true></i> Kickers and defenses: who to start and stream</button>' : "");
+    (kdHasDst(d) || kdHasK(d) ? '<button type="button" class="btn ghost" data-kdopen="1" style="width:100%;margin-top:8px"><i class=ic-target aria-hidden=true></i> Kickers and defenses: who to start and stream</button>' : "") +
+    (L.meta.platform === "flea" ? '<button type="button" class="btn ghost" data-wvopen="1" style="width:100%;margin-top:8px"><i class=ic-swap aria-hidden=true></i> Waiver report: who’s winning the waiver wire</button>' : "");
   // 3. role risers
   try {
     const wk = st.display_week || st.week, r = await api("/api/roles?season=" + (st.league_season || st.season) + "&week=" + wk);
@@ -6220,6 +6223,7 @@ async function edgeWaivers(L, el){
   const ec = el.querySelector("#edgeCuts"); if (ec) ec.addEventListener("click", () => openCuts(L));
   el.querySelectorAll("[data-hcopen]").forEach(b => b.addEventListener("click", () => openHandcuffs(L)));
   el.querySelectorAll("[data-kdopen]").forEach(b => b.addEventListener("click", () => openKD(L)));
+  el.querySelectorAll("[data-wvopen]").forEach(b => b.addEventListener("click", () => openWaiverReport(L)));
 }
 
 /* ---------- Edge: what to bid (FAAB) or whether to use your waiver priority ---------- */
@@ -6957,12 +6961,12 @@ async function seasonBoxes(L){
         try {
           const b = await api(fq("FetchLeagueBoxscore", {league_id: L.meta.id, fantasy_game_id: g.id, scoring_period: w}));
           const side = (k, tid, tot) => { const t = (tot || {}).total || {}; const start = [], bench = [];
-            (b.lineups || []).forEach(gr => (gr.slots || []).forEach(sl => { const x = sl[k]; if (!x || !x.proPlayer) return; const it = {name: x.proPlayer.nameFull, pos: x.proPlayer.position, pts: val(x.viewingActualPoints) || 0}; (gr.group === "START" ? start : bench).push(it); }));
+            (b.lineups || []).forEach(gr => (gr.slots || []).forEach(sl => { const x = sl[k]; if (!x || !x.proPlayer) return; const it = {id: String(x.proPlayer.id), name: x.proPlayer.nameFull, pos: x.proPlayer.position, team: x.proPlayer.proTeamAbbreviation, img: x.proPlayer.headshotUrl || "", pts: val(x.viewingActualPoints) || 0}; (gr.group === "START" ? start : bench).push(it); }));
             return {tid, act: val(t.value) || 0, opt: val(t.optimum) || val(t.value) || 0, start, bench}; };
           return [side("away", String((g.away || {}).id), b.pointsAway), side("home", String((g.home || {}).id), b.pointsHome)];
         } catch(e){ return []; }
       }));
-      weeks.push({w, sides: games.flat()});
+      weeks.push({w, sides: games.flat(), start: Number(((sb.schedulePeriod || {}).low || {}).startEpochMilli) || 0});
     } catch(e){}
   }
   return (L.boxes = {at: Date.now(), weeks});
@@ -6995,6 +6999,110 @@ async function openReport(L){
       (blunders.length ? "<h3>Costliest start/sit calls</h3><div class=\"card rcrows\">" + blunders.slice(0, 5).map(b => '<div class="mrow" style="grid-template-columns:44px minmax(0,1fr) auto"><span class="dslot">Wk ' + b.w + '</span><span class="sn">Started ' + esc(b.start.name) + " (" + fmt(b.start.pts) + ")<small>" + esc(b.bench.name) + " scored " + fmt(b.bench.pts) + ' on your bench</small></span><span class="chip warn">−' + fmt(b.d) + "</span></div>").join("") + "</div>" : "") +
       "<h3>Your " + yr + " trades, aged</h3>" + (myTr.length ? '<div class="card rcrows">' + myTr.map(x => '<div class="mrow" style="grid-template-columns:minmax(0,1fr) auto"><span class="sn">Got ' + esc(x.got.map(g => g.n).join(", ") || "nothing") + "<small>for " + esc(x.gave.map(g => g.n).join(", ") || "nothing") + '</small></span><span class="chip ' + (x.net >= 0 ? "ok" : "bad") + '">' + (x.net >= 0 ? "+" : "−") + fmtV(Math.abs(x.net)) + "</span></div>").join("") + '</div><p class="small muted" style="margin:6px 4px 0">Net across all your trades: ' + (trNet >= 0 ? "+" : "−") + fmtV(Math.abs(trNet)) + " by today’s values.</p>" : '<div class="card"><p style="margin:0">No trades yet this season.</p></div>') +
       "<h3>Bench points left, whole league</h3><div class=\"card race\">" + order.map((id, k) => { const t = d.teams.find(x => x.id === id); return '<div class="mrow' + (t.mine ? " me" : "") + '" style="grid-template-columns:28px minmax(0,1fr) auto"><span class="dslot">' + (k + 1) + '</span><span class="sn">' + esc(t.name) + "<small>" + Math.round(avg(eff[id]) * 100) + "% efficient</small></span><span class=\"tv\">" + fmt(left[id] || 0) + "</span></div>"; }).join("") + "</div>";
+  } catch(e){ body.innerHTML = '<div class="err">' + esc(e.message) + "</div>"; }
+}
+
+/* ===================== Waiver report: who's winning the waiver wire ===================== */
+// Fleaflicker only. Every add, claim and drop this season (FetchLeagueTransactions) joined with the weekly
+// box scores: a pickup is worth the points he scored in the starting lineup of the team that picked him up;
+// a drop costs what he went on to score in other teams' starting lineups.
+async function wvTransactions(L, since){
+  if (L.wvTx && Date.now() - L.wvTx.at < 30 * 60e3) return L.wvTx.items;
+  const items = []; let off = 0;
+  for (let i = 0; i < 80; i++) {
+    const r = await api(fq("FetchLeagueTransactions", Object.assign({league_id: L.meta.id}, off ? {result_offset: off} : {})));
+    const got = r.items || []; got.forEach(x => items.push(x));
+    if (!r.resultOffsetNext || !got.length || Number(got[got.length - 1].timeEpochMilli) < since) break;
+    off = r.resultOffsetNext;
+  }
+  L.wvTx = {at: Date.now(), items};
+  return items;
+}
+const WV_KIND = {TRANSACTION_CLAIM: "claim", TRANSACTION_DROP: "drop", TRANSACTION_TRADE: "trade", TRANSACTION_DRAFT: "draft"};
+function wvEvents(L, items, since){
+  const ev = [];
+  items.forEach(it => {
+    const t = Number(it.timeEpochMilli), x = it.transaction || {}, pp = x.player && x.player.proPlayer;
+    const kind = x.type ? WV_KIND[x.type] : "add";
+    if (!pp || !x.team || !kind || !(t >= since)) return;
+    ev.push({t, kind, tid: String(x.team.id), p: Object.assign({id: String(pp.id), name: pp.nameFull, pos: pp.position, team: pp.proTeamAbbreviation, img: pp.headshotUrl || ""}, fleaExtras(null, pp, L.meta.id))});
+  });
+  return ev.sort((a, b) => a.t - b.t);
+}
+async function waiverReport(L){
+  const d = L.detail, B = await seasonBoxes(L);
+  const weeks = B.weeks.filter(W => W.start).map((W, k, a) => Object.assign({}, W, {end: (a[k + 1] && a[k + 1].start) || W.start + 7 * 864e5}));
+  if (!weeks.length) return null;
+  const since = weeks[0].start - 21 * 864e5, ev = wvEvents(L, await wvTransactions(L, since), since);
+  const byTP = {}; ev.forEach(e => (byTP[e.tid + "|" + e.p.id] = byTP[e.tid + "|" + e.p.id] || []).push(e));
+  const picks = new Map(), drops = new Map();
+  ev.forEach(e => { if (e.kind === "add" || e.kind === "claim") picks.set(e, {e, start: 0, all: 0, wks: 0, started: 0, top: 0}); else if (e.kind === "drop") drops.set(e, {e, start: 0, all: 0, wks: 0, by: {}}); });
+  const dropsOf = {}; drops.forEach(r => (dropsOf[r.e.p.id] = dropsOf[r.e.p.id] || []).push(r));
+  weeks.forEach(W => W.sides.forEach(s => {
+    const starters = new Set(s.start);
+    s.start.concat(s.bench).forEach(pl => {
+      if (!pl.id) return;
+      const on = starters.has(pl);
+      // Pickup credit: this team's latest way of getting him before the week ended was an add or a claim.
+      let acq = null; (byTP[s.tid + "|" + pl.id] || []).forEach(e => { if (e.t < W.end && e.kind !== "drop") acq = e; });
+      const r = acq && picks.get(acq);
+      if (r) { r.all += pl.pts; r.wks++; if (on) { r.start += pl.pts; r.started++; r.top = Math.max(r.top, pl.pts); } }
+      // Got away: he's on another team after a drop, and the dropping team hasn't taken him back.
+      (dropsOf[pl.id] || []).forEach(x => {
+        if (x.e.tid === s.tid || !(W.end > x.e.t)) return;
+        const back = (byTP[x.e.tid + "|" + pl.id] || []).some(e => e.kind !== "drop" && e.t > x.e.t && e.t < W.start);
+        if (back) return;
+        x.all += pl.pts; x.wks++; if (on) { x.start += pl.pts; x.by[s.tid] = (x.by[s.tid] || 0) + pl.pts; }
+      });
+    });
+  }));
+  const T = {}; d.teams.forEach(t => { T[t.id] = {t, adds: 0, start: 0, hits: 0, best: null, lost: 0}; });
+  picks.forEach(r => { const o = T[r.e.tid]; if (!o) return; o.adds++; o.start += r.start; if (r.started) o.hits++; if (!o.best || r.start > o.best.start) o.best = r; });
+  drops.forEach(r => { const o = T[r.e.tid]; if (o) o.lost += r.start; });
+  const wkOf = t => { const W = weeks.find(W => t >= W.start && t < W.end); return W ? "Wk " + W.w : t < weeks[0].start ? "Preseason" : "Wk " + (d.week || weeks[weeks.length - 1].w + 1); };
+  return {weeks, picks: [...picks.values()], drops: [...drops.values()], T, wkOf, upTo: weeks[weeks.length - 1].w};
+}
+async function openWaiverReport(L){
+  const body = openSheetShell("Waiver report");
+  if (L.meta.platform !== "flea") { body.innerHTML = '<div class="card"><p style="margin:0">The waiver report needs the league’s full transaction log and week-by-week box scores, which are available for Fleaflicker leagues.</p></div>'; return; }
+  body.innerHTML = '<p class="spin">Reading every pickup, drop and box score this season…</p>';
+  try {
+    const d = L.detail, me = d.teams.find(t => t.mine), R = await waiverReport(L);
+    if (!R) { body.innerHTML = '<div class="card"><p style="margin:0">Check back after week 1: the report scores pickups by the points they put in starting lineups.</p></div>'; return; }
+    const N = d.teams.length, f1 = n => (Math.round(n * 10) / 10).toFixed(1), tn = id => { const t = d.teams.find(x => x.id === id); return t ? t.name : "another team"; };
+    const order = Object.values(R.T).sort((a, b) => b.start - a.start || a.adds - b.adds), mineT = me && R.T[me.id], myRank = mineT ? order.indexOf(mineT) + 1 : 0;
+    const G = r => r <= N * 0.15 ? "A" : r <= N * 0.35 ? "B" : r <= N * 0.6 ? "C" : r <= N * 0.85 ? "D" : "F";
+    const avgAdds = order.reduce((s, o) => s + o.adds, 0) / Math.max(1, N);
+    const roster = new Set(((me && me.roster) || []).map(p => String(p.id)));
+    const how = e => e.kind === "claim" ? "claim" : "add";
+    const myPicks = R.picks.filter(r => me && r.e.tid === me.id).sort((a, b) => b.start - a.start || b.all - a.all);
+    const myGone = R.drops.filter(r => me && r.e.tid === me.id && r.start > 0).sort((a, b) => b.start - a.start);
+    const lgPicks = R.picks.filter(r => r.start > 0).sort((a, b) => b.start - a.start).slice(0, 8);
+    const lgGone = R.drops.filter(r => r.start > 0).sort((a, b) => b.start - a.start).slice(0, 5);
+    const topWho = r => { const e = Object.entries(r.by).sort((a, b) => b[1] - a[1])[0]; return e ? tn(e[0]) : ""; };
+    let h = '<p class="muted" style="margin:-6px 2px 12px">Every add and drop in ' + esc(L.meta.name) + " this season, scored by the points each player put in a starting lineup (weeks 1–" + R.upTo + ").</p>";
+    if (mineT) {
+      h += '<div class="card rcard"><div class="rgrade"><b>' + (mineT.adds ? G(myRank) : "–") + '</b><span>Waiver wire grade<small>' +
+        (mineT.adds ? "Your pickups scored <b>" + f1(mineT.start) + "</b> points in your starting lineup, " + (myRank === 1 ? "the most in the league" : "#" + myRank + " of " + N) + ". " +
+          mineT.adds + " add" + (mineT.adds === 1 ? "" : "s") + " (league average " + Math.round(avgAdds) + "), " + mineT.hits + " made your lineup." : "You haven’t picked anyone up this season. The league average is " + Math.round(avgAdds) + " adds.") +
+        (mineT.lost > 0 ? " Players you dropped have scored " + f1(mineT.lost) + " points for other teams." : "") + "</small></span></div></div>";
+      h += "<h3>Your best pickups</h3><p class=\"small muted\" style=\"margin:-4px 4px 8px\">When you got him, waiver claim or free-agent add, and how many weeks he started of those he was yours.</p>" + (myPicks.length ? '<ul class="plist">' + myPicks.slice(0, 8).map(r => miniRow(r.e.p, '<span class="chip ' + (r.start > 0 ? "ok" : "") + '" style="padding:4px 8px">' + (r.start > 0 ? "+" + f1(r.start) : "0") + "</span>",
+          posTag(r.e.p) + R.wkOf(r.e.t) + " " + how(r.e) + " · " + r.started + "/" + r.wks + " starts" + (roster.has(r.e.p.id) ? "" : " · gone"))).join("") + "</ul>" :
+        '<div class="card"><p class="small" style="margin:0">No pickups yet.</p></div>');
+      h += "<h3>The ones that got away</h3><p class=\"small muted\" style=\"margin:-4px 4px 8px\">When you dropped him, and who he’s scoring for now.</p>" + (myGone.length ? '<ul class="plist">' + myGone.slice(0, 5).map(r => miniRow(r.e.p, '<span class="chip bad" style="padding:4px 8px">' + f1(r.start) + "</span>",
+          posTag(r.e.p) + R.wkOf(r.e.t) + " · " + esc(topWho(r)))).join("") + '</ul><p class="small muted" style="margin:8px 4px 0">Points scored in other teams’ starting lineups after you let them go.</p>' :
+        '<div class="card"><p class="small" style="margin:0">Nobody you dropped has scored for another team. Clean cuts.</p></div>');
+    }
+    h += "<h3>Waiver wire standings</h3><div class=\"card race\">" + order.map((o, k) => '<div class="mrow' + (o.t.mine ? " me" : "") + '" style="grid-template-columns:28px minmax(0,1fr) auto"><span class="dslot">' + (k + 1) + '</span><span class="sn">' + esc(o.t.name) +
+      "<small>" + o.adds + " add" + (o.adds === 1 ? "" : "s") + (o.best && o.best.start > 0 ? " · best: " + esc(o.best.e.p.name) + " (" + f1(o.best.start) + ")" : "") + '</small></span><span class="tv">' + f1(o.start) + "</span></div>").join("") +
+      '</div><p class="small muted" style="margin:6px 4px 0">Points from picked-up players in each team’s starting lineup.</p>';
+    if (lgPicks.length) h += "<h3>Best pickups in the league</h3><ul class=\"plist\">" + lgPicks.map(r => miniRow(r.e.p, '<span class="chip ok" style="padding:4px 8px">+' + f1(r.start) + "</span>",
+      posTag(r.e.p) + esc(tn(r.e.tid)) + " · " + R.wkOf(r.e.t) + " " + how(r.e))).join("") + "</ul>";
+    if (lgGone.length) h += "<h3>Biggest drops in the league</h3><p class=\"small muted\" style=\"margin:-4px 4px 8px\">Who let him go → who he’s scoring for now.</p><ul class=\"plist\">" + lgGone.map(r => miniRow(r.e.p, '<span class="chip bad" style="padding:4px 8px">' + f1(r.start) + "</span>",
+      posTag(r.e.p) + esc(tn(r.e.tid)) + " → " + esc(topWho(r)))).join("") + "</ul>";
+    h += '<p class="small muted" style="margin:10px 4px 0">Free-agent adds and waiver claims since the preseason. Trades and draft picks don’t count as pickups. Bench points aren’t counted; a player only earns credit for weeks he was on that team.</p>';
+    body.innerHTML = h;
+    wireRows(body);
   } catch(e){ body.innerHTML = '<div class="err">' + esc(e.message) + "</div>"; }
 }
 
