@@ -1025,6 +1025,32 @@ h3.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .clog .cmsg{display:block;max-width:92%}.clog .cmsg ul,.clog .cmsg ol{margin:6px 0 0;padding-left:20px}.clog .cmsg li{margin:3px 0}.clog .cmsg p+p,.clog .cmsg p+ul{margin-top:6px}
 @media (max-width:400px){h2{font-size:28px}.brand h1{font-size:21px}.coachfab{padding:8px 10px!important}}
 @media (max-width:350px){.brand h1{font-size:21px}.coachfab{font-size:0!important;gap:0;padding:9px!important}.coachfab i{font-size:16px}}
+
+/* ---------- Calm pass: fewer boxes, fewer colors. Green means "act on this"; everything else is ink or gray ---------- */
+.ic-check{--m:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%222.4%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M5%2012.5l4.5%204.5L19%207%22%2F%3E%3C%2Fsvg%3E")}
+.nowslim{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:13px 16px!important;margin-bottom:12px;cursor:pointer;font:inherit;font-size:14.5px;color:var(--ink)}
+.nowslim>i{color:var(--accent);font-size:18px;flex:none}.nowslim>span:nth-child(2){flex:1;min-width:0}.nowslim .go{color:var(--muted);font-size:20px;line-height:1}
+.tdask{display:flex;align-items:center;gap:8px;padding:13px 16px!important;margin:14px 0 0}
+.tdask .tdgo{flex:1;display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:none;border:0;padding:0;color:var(--ink);text-align:left;cursor:pointer;font:inherit}
+.tdask .tdgo b{font:700 15px/1.2 var(--body);font-stretch:100%}.tdask .tdx{background:none;border:0;color:var(--muted);font-size:15px;padding:8px;cursor:pointer}
+.lfoot .warnt{color:var(--warn);font-weight:600}
+.tauntrow{flex-direction:row!important;align-items:center;background:none!important;padding:0 2px!important;gap:10px}
+.tauntrow .trl{font-size:13px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tauntrow .taunts{flex:none;justify-content:flex-end!important;gap:2px}
+.tauntrow .taunts button{width:34px;height:34px;font-size:18px;line-height:34px;background:none}
+.showcard{background:var(--surface)!important;padding:13px 16px!important}
+.showcard .showic{width:36px;height:36px;font-size:16px;background:var(--surface2);color:var(--accent)}
+.hli small{color:var(--muted);font-weight:600}
+.hli small::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-right:6px;vertical-align:1px}
+.gcard .gwp{font:600 13px/1 var(--body);font-stretch:100%;color:var(--muted);letter-spacing:0}
+.gcard .gmine{display:block;margin-top:6px;color:var(--muted);font-weight:500}
+.gcard .gmeta{margin-top:8px}
+.gcard .betcalc{margin-top:6px}.gcard .betcalc summary{color:var(--muted);font-weight:600;font-size:12.5px}
+.gcard .betcalc[open] summary{color:var(--ink)}
+.valbadge{display:inline-block;font-size:12.5px;padding:4px 8px}
+.envrow .chip{background:none!important;padding:0!important;margin-right:10px;font-size:12px;font-weight:600;color:var(--muted)}
+.envrow .chip.ok{color:var(--ok)}.envrow .chip.warn,.envrow .chip.wxhi{color:var(--warn)}
+.heroCard .gnum{width:44px;height:44px;padding-top:0;align-items:center;border-radius:50%!important}.heroCard .gnum b{font-size:20px}
 </style>
 </head>
 <body>
@@ -1509,7 +1535,7 @@ function tdRow(){
 // Until someone picks (or says not now), home asks them for their teams.
 function tdAsk(){
   const pr = tdPrefs(); if (pr.asked || pr.team || pr.cfb) return "";
-  return '<div class="card tdask"><b>Who do you root for?</b><p class="tdp">Pick your NFL and college teams. Every touchdown and field goal they score while you’re in the app gets a celebration.</p><div class="nowbtns"><button type="button" class="btn" data-tdopen="1">Pick my teams</button><button type="button" class="btn ghost" id="tdNo">Not now</button></div></div>';
+  return '<div class="card tdask"><button type="button" class="tdgo" data-tdopen="1"><b>Pick your teams</b><span class="small muted">Celebrate their touchdowns and field goals</span></button><button type="button" class="tdx" id="tdNo" aria-label="Not now">✕</button></div>';
 }
 document.addEventListener("click", e => {
   if (!e.target.closest) return;
@@ -1851,9 +1877,8 @@ function nowCard(){
     sub = "Who to claim and what to bid, from your league’s free agents.";
     btns = [["waivers", "Waiver advice", 1], ["fa:" + mine[0].i, "Free agents"]];
   } else {
-    icon = "ic-spark"; title = "Lineups look set";
-    sub = "No starters out or on bye" + (day === 0 || day === 1 || day === 4 ? ". Kickoff is today." : ".");
-    btns = [["best", "Best lineup", 1], ["fa:" + mine[0].i, "Free agents"]];
+    // Nothing to do: one quiet line instead of a big card with buttons.
+    return '<button type="button" class="card nowslim" data-now="best"><i class=ic-check aria-hidden=true></i><span><b>Lineups look set</b><span class="muted"> · ' + (day === 0 || day === 1 || day === 4 ? "Kickoff is today" : "Nobody out or on bye") + '</span></span><span class="go">›</span></button>';
   }
   return '<div class="card nowcard"><div class="nowtop"><span class="nowic" aria-hidden="true"><i class=' + icon + '></i></span><div><b>' + esc(title) + '</b><p class="small muted">' + esc(sub) + '</p></div></div><div class="nowbtns">' + btns.map(b => '<button type="button" class="btn' + (b[2] ? "" : " ghost") + '" data-now="' + b[0] + '">' + esc(b[1]) + "</button>").join("") + "</div></div>";
 }
@@ -1875,7 +1900,7 @@ function homeHeadlines(){
   const items = (headlines.items || []).map(a => Object.assign({hit: rx ? rx.test(a.title + " " + (a.desc || "") + " " + (a.athletes || []).join(" ")) : false}, a));
   const top = items.filter(a => a.hit).concat(items.filter(a => !a.hit)).slice(0, 5);
   if (!top.length) return "";
-  return '<h3 class="hlh">Top headlines <button type="button" class="seeall" data-now="news">See all</button></h3><div class="card hlist">' + top.map(a => '<a class="hli" href="' + esc(a.link) + '" target="_blank" rel="noopener">' + (a.img ? '<img src="' + esc(a.img) + '" alt="" loading="lazy" onerror="this.remove()">' : "") + "<span><b>" + esc(a.title) + "</b>" + (a.hit ? '<small>Mentions your player</small>' : "") + "</span></a>").join("") + "</div>";
+  return '<h3 class="hlh">Top headlines <button type="button" class="seeall" data-now="news">See all</button></h3><div class="card hlist">' + top.map(a => '<a class="hli" href="' + esc(a.link) + '" target="_blank" rel="noopener">' + (a.img ? '<img src="' + esc(a.img) + '" alt="" loading="lazy" onerror="this.remove()">' : "") + "<span><b>" + esc(a.title) + "</b>" + (a.hit ? '<small>Your player</small>' : "") + "</span></a>").join("") + "</div>";
 }
 function wireNow(v){
   v.querySelectorAll("[data-strip]").forEach(b => b.addEventListener("click", () => setTab("news")));
@@ -1900,7 +1925,7 @@ function renderLeagues(v){
   const TL = {sweatBtn: ["ic-flame", "Sweat board"], briefBtn: ["ic-speaker", "Morning briefing"], injBtn: ["ic-medic", "Injury center"], planBtn: ["ic-calendar", "Byes and injuries, next 4 weeks"], brkBtn: ["ic-pulse", "Breakouts"], expBtn: ["ic-list", "All my leagues"], wlBtn: ["ic-star", "Watchlist"], wxBtn: ["ic-wind", "Game weather"], tdBtn: ["ic-ball", "Your teams (score celebrations)"]};
   const tb = id => '<button type="button" class="btn ghost" id="' + id + '"' + (id === "tdBtn" ? ' data-tdopen="1"' : "") + '><i class=' + TL[id][0] + ' aria-hidden=true></i>' + TL[id][1] + "</button>";
   const tools = leagues.some(L => L.detail && L.detail.teams.some(t => t.mine)) ? '<h3 class="tgh">Tools</h3><div class="tlist">' + ["sweatBtn", "briefBtn", "injBtn"].map(tb).join("") + '</div><details class="moretools"' + (cur.homeMore ? " open" : "") + '><summary>More tools <span class="small muted">6</span></summary><div class="tlist" style="margin-top:8px">' + ["wlBtn", "planBtn", "brkBtn", "expBtn", "wxBtn", "tdBtn"].map(tb).join("") + "</div></details>" : "";
-  h = scoreStrip() + h + nowCard() + tdAsk() + wlHomeCard();
+  h = scoreStrip() + h + nowCard() + wlHomeCard();
   h += '<div class="stack">';
   leagues.forEach((L, i) => {
     const m = L.meta, d = L.detail;
@@ -1916,14 +1941,14 @@ function renderLeagues(v){
         if (g) h += matchupHero(d, me, g, true);
         else h += '<span class="small muted">' + esc(me.name) + " · " + me.w + "-" + me.l + "</span>";
         const hurt = me.roster.filter(p => p.inj && p.slot !== "ir");
-        h += '<div class="lfoot">' + (hurt.length ? '<span class="chip warn">' + hurt.length + " on injury report</span>" : '<span class="chip ok">Healthy</span>') + '<span class="go">Open ›</span></div>';
+        h += '<div class="lfoot"><span class="small' + (hurt.length ? " warnt" : " muted") + '">' + (hurt.length ? hurt.length + " on the injury report" : "No injuries") + '</span><span class="go">Open ›</span></div>';
       }
     }
     h += "</button>";
     if (d && d.teams.some(t => t.mine)) h += tauntRow(L);
     if (d && d.teams.some(t => t.mine)) h += '<button type="button" class="card showcard" data-show="' + i + '"><span class="showic" aria-hidden="true"><i class=ic-speaker></i></span><span class="showtx"><b>The Snap Count Show</b><span class="small muted">This week’s podcast about ' + esc(m.name) + '</span></span><span class="showgo">Listen</span></button>';
   });
-  v.innerHTML = h + "</div>" + homeHeadlines() + tools;
+  v.innerHTML = h + "</div>" + homeHeadlines() + tdAsk() + tools;
   wireNow(v);
   const hm = v.querySelector(".moretools"); if (hm) hm.addEventListener("toggle", () => { cur.homeMore = hm.open; });
   v.querySelectorAll("[data-show]").forEach(b => b.addEventListener("click", () => openShow(leagues[+b.dataset.show])));
@@ -2641,27 +2666,28 @@ function drawScores(r){
   games.forEach(g => {
     const when = g.state === "pre" ? new Date(g.date).toLocaleString([], {weekday:"short", hour:"numeric", minute:"2-digit"}) : g.detail;
     const fmtMl = n => n == null ? "" : n > 0 ? "+" + n : String(n);
-    const wpBar = g.wp && g.away && g.home ? '<div class="wpb" aria-label="Win chances: ' + esc(g.away.abbr || g.away.name) + " " + g.wp.away + "%, " + esc(g.home.abbr || g.home.name) + " " + g.wp.home + '%"><div class="wpl"><span>' + esc(g.away.abbr || g.away.name) + " <b>" + g.wp.away + '%</b></span><small>' + (g.wp.src === "live" ? "Live win chance" : "Win chance") + '</small><span><b>' + g.wp.home + "%</b> " + esc(g.home.abbr || g.home.name) + '</span></div><div class="wpt"><i style="width:' + g.wp.away + "%;background:" + esc(g.away.color ? "#" + g.away.color.replace("#", "") : "var(--muted)") + '"></i><i style="width:' + g.wp.home + "%;background:" + esc(g.home.color ? "#" + g.home.color.replace("#", "") : "var(--ink)") + '"></i></div></div>' : "";
+    const wpBar = "", wpOld = g.wp && g.away && g.home ? '<div class="wpb" aria-label="Win chances: ' + esc(g.away.abbr || g.away.name) + " " + g.wp.away + "%, " + esc(g.home.abbr || g.home.name) + " " + g.wp.home + '%"><div class="wpl"><span>' + esc(g.away.abbr || g.away.name) + " <b>" + g.wp.away + '%</b></span><small>' + (g.wp.src === "live" ? "Live win chance" : "Win chance") + '</small><span><b>' + g.wp.home + "%</b> " + esc(g.home.abbr || g.home.name) + '</span></div><div class="wpt"><i style="width:' + g.wp.away + "%;background:" + esc(g.away.color ? "#" + g.away.color.replace("#", "") : "var(--muted)") + '"></i><i style="width:' + g.wp.home + "%;background:" + esc(g.home.color ? "#" + g.home.color.replace("#", "") : "var(--ink)") + '"></i></div></div>' : "";
     // Live games: what ESPN's win chance says a $10 moneyline bet on each side is worth, so you can compare to your book's price.
     const fairOdds = p => p >= .5 ? "-" + Math.round(100 * p / (1 - p)) : "+" + Math.round(100 * (1 - p) / p);
     const betRow = (t, pct) => { const p = Math.min(.99, Math.max(.01, pct / 100)); return "<tr><th>" + esc(t.abbr || t.name) + "</th><td>" + pct + "%</td><td>" + fairOdds(p) + "</td><td>$" + (10 * (1 - p) / p).toFixed(2) + "</td></tr>"; };
     const liveOne = (t, pct) => { const p = Math.min(.99, Math.max(.01, pct / 100)); return '<div class="bcard"><b>' + esc(t.name || t.abbr) + " to win</b><span>ESPN gives them <strong>" + pct + "%</strong> right now.</span><span>A fair price would pay about <strong>$" + (10 * (1 - p) / p).toFixed(2) + "</strong> profit on $10 (" + fairOdds(p) + ").</span><small>If your sportsbook pays more than that, it’s a better-than-fair price. If it pays less, it isn’t.</small></div>"; };
     const liveTbl = g.state === "in" && g.wp && g.wp.src === "live" && g.away && g.home && g.wp.away > 0 && g.wp.home > 0 ? '<p class="bah">Betting on who wins, right now</p>' + liveOne(g.away, g.wp.away) + liveOne(g.home, g.wp.home) : "";
-    const betCalc = g.state !== "post" && g.id && (r.sport === "nfl" || r.sport === "cfb") ? '<details class="betcalc" data-bet="' + esc(r.sport + ":" + g.id) + '"><summary>Betting numbers and game analytics</summary>' + liveTbl + '<div class="bapre"><p class="small muted">Loading…</p></div></details>' : "";
+    const betCalc = g.state !== "post" && g.id && (r.sport === "nfl" || r.sport === "cfb") ? '<details class="betcalc" data-bet="' + esc(r.sport + ":" + g.id) + '"><summary>Betting analytics</summary>' + liveTbl + '<div class="bapre"><p class="small muted">Loading…</p></div></details>' : "";
     const bet = [g.line ? "Spread " + g.line : "", g.ou ? "O/U " + g.ou : "", g.ml && g.ml.away != null && g.ml.home != null && g.state === "pre" ? "ML " + fmtMl(g.ml.away) + " / " + fmtMl(g.ml.home) : ""].filter(Boolean).join(" · ");
-    const meta = wpBar + betCalc + '<div class="gmeta"><span class="' + (g.state === "in" ? "glive" : "") + '">' + esc(g.state === "in" ? g.detail : when) + "</span><span>" + esc(g.tv || "") + "</span></div>" + (bet ? '<div class="gbet">' + esc(bet) + "</div>" : "");
+    const meta = '<div class="gmeta"><span><span class="' + (g.state === "in" ? "glive" : "") + '">' + esc(g.state === "in" ? g.detail : when) + "</span>" + (g.tv ? " · " + esc(g.tv) : "") + "</span><span>" + esc(g.state === "post" ? "" : g.line || "") + "</span></div>" + betCalc;
     let body;
     if (g.top) {
       body = "<b>" + esc(g.title || g.name) + '</b><ol class="lb">' + g.top.map((x, i) => "<li><span>" + (i + 1) + ". " + esc(x.name) + "</span><b>" + esc(x.score || "") + "</b></li>").join("") + "</ol>";
     } else {
+      const pct = t => g.wp && g.away && g.home ? (t === g.away ? g.wp.away : g.wp.home) : null;
       const side = (t, other) => {
         const lose = g.state === "post" && !t.winner && other.winner;
-        return '<div class="gl' + (lose ? " lose" : "") + '">' + (t.logo ? '<img src="' + esc(t.logo) + '" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'">' : "<span></span>") + '<span class="nm">' + (t.rank ? '<small style="margin:0 4px 0 0">' + t.rank + "</small>" : "") + esc(t.name) + (t.rec ? "<small>" + esc(t.rec) + "</small>" : "") + (g.sit && g.sit.poss && t.abbr && g.sit.poss === (t.id || "") ? " <i class=ic-ball aria-hidden=true></i>" : "") + '</span><span class="sc">' + (g.state === "pre" ? "" : esc(t.score)) + "</span></div>";
+        return '<div class="gl' + (lose ? " lose" : "") + '">' + (t.logo ? '<img src="' + esc(t.logo) + '" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'">' : "<span></span>") + '<span class="nm">' + (t.rank ? '<small style="margin:0 4px 0 0">' + t.rank + "</small>" : "") + esc(t.name) + (t.rec ? "<small>" + esc(t.rec) + "</small>" : "") + (g.sit && g.sit.poss && t.abbr && g.sit.poss === (t.id || "") ? " <i class=ic-ball aria-hidden=true></i>" : "") + '</span><span class="sc">' + (g.state === "pre" ? (pct(t) != null ? '<small class="gwp">' + pct(t) + "%</small>" : "") : (g.state === "in" && pct(t) != null ? '<small class="gwp">' + pct(t) + "%</small> " : "") + esc(t.score)) + "</span></div>";
       };
       body = side(g.away, g.home) + side(g.home, g.away);
       if (g.sit && g.state === "in" && (g.sit.down || g.sit.last)) body += '<div class="sit">' + [g.sit.rz ? '<span class="rz">Red zone</span>' : "", esc(g.sit.down), g.sit.last ? '<span class="muted">' + esc(g.sit.last.length > 90 ? g.sit.last.slice(0, 88) + "…" : g.sit.last) + "</span>" : ""].filter(Boolean).join(" · ") + "</div>";
       const who = g.away ? [...(mine[g.away.abbr] || []), ...(mine[g.home.abbr] || [])] : [];
-      if (who.length) body += '<span class="gmine">Your players: ' + esc(who.slice(0, 5).join(", ") + (who.length > 5 ? " +" + (who.length - 5) : "")) + "</span>";
+      if (who.length) body += '<span class="gmine">Yours: ' + esc(who.slice(0, 5).join(", ") + (who.length > 5 ? " +" + (who.length - 5) : "")) + "</span>";
     }
     h += g.link ? '<a class="card gcard" href="' + esc(g.link) + '" target="_blank" rel="noopener">' + body + meta + "</a>" : '<div class="card gcard">' + body + meta + "</div>";
   });
@@ -5958,14 +5984,18 @@ function impliedTotal(team){
   let s = 0, fav = null; if (m) { fav = tnorm(m[1]); s = Math.abs(Number(m[2])) || 0; }
   return g.ou / 2 + (fav ? (fav === t ? s / 2 : -s / 2) : 0);
 }
+// Only what should change a decision: a game expected to be very high or very low scoring, and real weather (cold, wind, rain, snow).
+// Everyday facts (dome, mild temperature, an average team total) stay off the row to keep lists calm.
 function envChips(team){
   const t = tnorm(team), g = nflGames[t]; if (!g) return gamesAt ? '<span class="chip">Bye</span>' : "";
   const it = impliedTotal(team), out = [];
-  if (it != null) out.push('<span class="chip' + (it >= 26 ? " ok" : it <= 18 ? " warn" : "") + '">Team total ' + it.toFixed(1) + "</span>");
-  if (g.indoor) out.push('<span class="chip">Dome</span>');
-  else if (wxTemp(team)) out.push(wxTemp(team));
-  else if (g.temp != null) out.push('<span class="chip' + (/rain|snow|storm|shower/i.test(g.sky) || g.temp <= 32 ? " warn" : "") + '">' + Math.round(g.temp) + "°" + (g.sky ? " " + esc(g.sky) : "") + "</span>");
-  return out.join("") + (g.indoor ? "" : wxChips(team));
+  if (it != null && (it >= 28 || it <= 16)) out.push('<span class="chip' + (it >= 28 ? " ok" : " warn") + '">Team total ' + it.toFixed(1) + "</span>");
+  if (g.indoor) return out.join("");
+  const wt = wxGames[t] && wxGames[t].wx && wxGames[t].wx.temp;
+  const cold = wt != null ? wt <= 32 : g.temp != null && g.temp <= 32;
+  if (cold) out.push('<span class="chip warn">' + Math.round(wt != null ? wt : g.temp) + "°</span>");
+  else if (wt == null && g.temp != null && /rain|snow|storm|shower/i.test(g.sky)) out.push('<span class="chip warn">' + esc(g.sky) + "</span>");
+  return out.join("") + wxChips(team);
 }
 /* ---------- Game weather: wind, rain, snow and cold at kickoff for every outdoor game ---------- */
 let wxGames = {}, wxAt = 0, wxP = null, wxData = null;

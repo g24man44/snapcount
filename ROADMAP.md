@@ -156,3 +156,4 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 
 - Show: soft original intro/outro music (made on the phone, toggle in the player), roast corner for the bottom 3 teams, and "coulda won it" lineup swaps for close losses.
 - Alerts: one notification per player per story (Sleeper/ESPN note/ESPN headline folded within 8 h unless status really changes); one subscription per phone.
+- Calm pass: slim "lineups set" line, team picker moved down, quieter taunt row/show card, game cards with win % on team rows and one meta line, Advice chips only when they matter.
