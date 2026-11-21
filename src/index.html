@@ -2198,11 +2198,12 @@ function renderLeague(v, L){
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="hcBtn"><i class=ic-medic aria-hidden=true></i>Handcuffs</button>');
     if (d.teams.some(t => t.mine) && (kdHasDst(d) || kdHasK(d))) tiles.push('<button type="button" class="btn ghost" id="kdBtn"><i class=ic-target aria-hidden=true></i>Kickers and defenses</button>');
     if (d.teams.some(t => t.mine) && m.platform === "flea") tiles.push('<button type="button" class="btn ghost" id="rcBtn"><i class=ic-scale aria-hidden=true></i>Your report card</button>');
+    if (d.teams.some(t => t.mine) && m.platform === "flea") tiles.push('<button type="button" class="btn ghost" id="ptsBtn"><i class=ic-bars aria-hidden=true></i>Points by position</button>');
     if (d.teams.some(t => t.mine) && m.platform === "flea") tiles.push('<button type="button" class="btn ghost" id="wvBtn"><i class=ic-swap aria-hidden=true></i>Waiver report: best pickups</button>');
     if (d.teams.some(t => t.mine) && d.games.length) tiles.push('<button type="button" class="btn ghost" id="pkBtn"><i class=ic-flame aria-hidden=true></i>Pick’em and roast</button>'); tiles.push('<button type="button" class="btn ghost" id="showBtn"><i class=ic-speaker aria-hidden=true></i>The league show</button>'); if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="commBtn"><i class=ic-trophy aria-hidden=true></i>Dues, rules and awards</button>');
     if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="dcBtn"><i class=ic-pencil aria-hidden=true></i>Draft grades and write-up</button>');
     // Grouped by what you're trying to do, as compact rows instead of a wall of identical tiles.
-    const GROUPS = [["This week", ["mrBtn", "pwBtn", "pkBtn", "cutBtn", "hcBtn", "kdBtn"]], ["Trades", ["pmBtn", "lsBtn", "scoutBtn", "mktBtn"]], ["Season", ["picBtn", "ppBtn", "swapBtn", "histBtn", "rcBtn", "wvBtn", "winBtn", "wrapBtn"]], ["Draft", ["doBtn", "dcBtn"]]];
+    const GROUPS = [["This week", ["mrBtn", "pwBtn", "pkBtn", "cutBtn", "hcBtn", "kdBtn"]], ["Trades", ["pmBtn", "lsBtn", "scoutBtn", "mktBtn"]], ["Season", ["picBtn", "ppBtn", "swapBtn", "histBtn", "rcBtn", "ptsBtn", "wvBtn", "winBtn", "wrapBtn"]], ["Draft", ["doBtn", "dcBtn"]]];
     const idOf = t => (t.match(/id="(\w+)"/) || [])[1], used = new Set();
     // Four everyday tools up top; everything else waits behind "More tools", grouped by what you're doing.
     const TOP = ["mrBtn", "pwBtn", "mktBtn", "showBtn"];
@@ -2270,6 +2271,7 @@ function renderLeague(v, L){
   const kdb = v.querySelector("#kdBtn"); if (kdb) kdb.addEventListener("click", () => openKD(L));
   const pmb = v.querySelector("#pmBtn"); if (pmb) pmb.addEventListener("click", () => openPoSched(L));
   const rcb = v.querySelector("#rcBtn"); if (rcb) rcb.addEventListener("click", () => openReport(L));
+  const ptb = v.querySelector("#ptsBtn"); if (ptb) ptb.addEventListener("click", () => openPosPoints(L));
   const wvb = v.querySelector("#wvBtn"); if (wvb) wvb.addEventListener("click", () => openWaiverReport(L));
   const pkb = v.querySelector("#pkBtn"); if (pkb) pkb.addEventListener("click", () => openPickem(L));
   const shb = v.querySelector("#showBtn"); if (shb) shb.addEventListener("click", () => openShow(L));
@@ -7106,6 +7108,96 @@ async function openWaiverReport(L){
   } catch(e){ body.innerHTML = '<div class="err">' + esc(e.message) + "</div>"; }
 }
 
+/* ===================== Points by position: where your points come from ===================== */
+// Fleaflicker only. Every starter's points from the weekly box scores, grouped by the player's real position
+// (a WR in the flex counts as WR). Per-game totals show where a team's points come from; points per start
+// (each time a player at that position was in the lineup) is the quality measure used to find your weak spot.
+const PP_GROUP = {QB: "QB", RB: "RB", WR: "WR", TE: "TE", K: "K", "D/ST": "D/ST", DST: "D/ST", DEF: "D/ST", DL: "DL", DE: "DL", DT: "DL", EDR: "DL", LB: "LB", ILB: "LB", OLB: "LB", DB: "DB", CB: "DB", S: "DB", FS: "DB", SS: "DB"};
+const PP_ORDER = ["QB", "RB", "WR", "TE", "K", "D/ST", "DL", "LB", "DB"];
+function posPointsData(L, B){
+  const d = L.detail, T = {};
+  d.teams.forEach(t => { T[t.id] = {t, wk: 0, tot: 0, g: {}, rec: {}, recWk: 0, pl: {}}; });
+  const ws = B.weeks.map(W => W.w), recent = new Set(ws.slice(-3));
+  B.weeks.forEach(W => W.sides.forEach(s => {
+    const o = T[s.tid]; if (!o) return;
+    o.wk++; const isRec = recent.has(W.w); if (isRec) o.recWk++;
+    s.start.forEach(pl => {
+      const g = PP_GROUP[String(pl.pos || "").toUpperCase()] || String(pl.pos || "Other");
+      const x = o.g[g] = o.g[g] || {pts: 0, n: 0}; x.pts += pl.pts; x.n++; o.tot += pl.pts;
+      if (isRec) o.rec[g] = (o.rec[g] || 0) + pl.pts;
+      const k = g + "|" + (pl.id || pl.name), p = o.pl[k] = o.pl[k] || {g, p: pl, pts: 0, n: 0, top: 0};
+      p.pts += pl.pts; p.n++; p.top = Math.max(p.top, pl.pts); p.p = pl;
+    });
+  }));
+  const teams = Object.values(T).filter(o => o.wk);
+  const seen = new Set(); teams.forEach(o => Object.keys(o.g).forEach(g => seen.add(g)));
+  const groups = PP_ORDER.filter(g => seen.has(g)).concat([...seen].filter(g => !PP_ORDER.includes(g)).sort());
+  const lg = {};
+  groups.forEach(g => {
+    const rows = teams.map(o => ({o, ppg: ((o.g[g] || {}).pts || 0) / o.wk}));
+    const pts = teams.reduce((s, o) => s + ((o.g[g] || {}).pts || 0), 0), n = teams.reduce((s, o) => s + ((o.g[g] || {}).n || 0), 0);
+    rows.sort((a, b) => b.ppg - a.ppg).forEach((r, i) => { r.o.rk = r.o.rk || {}; r.o.rk[g] = i + 1; });
+    lg[g] = {ppg: rows.reduce((s, r) => s + r.ppg, 0) / Math.max(1, rows.length), per: n ? pts / n : 0, spw: n / Math.max(1, teams.reduce((s, o) => s + o.wk, 0))};
+  });
+  teams.sort((a, b) => b.tot / b.wk - a.tot / a.wk).forEach((o, i) => { o.rank = i + 1; });
+  return {teams, groups, lg, weeks: ws, recentN: recent.size};
+}
+async function openPosPoints(L){
+  const body = openSheetShell("Points by position");
+  if (L.meta.platform !== "flea") { body.innerHTML = '<div class="card"><p style="margin:0">Points by position needs week-by-week box scores, which are available for Fleaflicker leagues.</p></div>'; return; }
+  body.innerHTML = '<p class="spin">Adding up every starter’s points this season…</p>';
+  try {
+    const d = L.detail, meT = d.teams.find(t => t.mine), B = await seasonBoxes(L);
+    if (!B.weeks.length) { body.innerHTML = '<div class="card"><p style="margin:0">Check back after week 1: this adds up the points your starters score at each position.</p></div>'; return; }
+    const P = posPointsData(L, B), N = P.teams.length, me = meT && P.teams.find(o => o.t === meT);
+    const f1 = n => (Math.round(n * 10) / 10).toFixed(1), sgn = n => (n >= 0 ? "+" : "−") + f1(Math.abs(n));
+    const tone = rk => rk <= N / 3 ? "ok" : rk > N * 2 / 3 ? "bad" : "mid";
+    const wkTxt = P.weeks.length > 1 ? "weeks " + P.weeks[0] + "–" + P.weeks[P.weeks.length - 1] : "week " + P.weeks[0];
+    const PSN = {QB: "quarterbacks", RB: "running backs", WR: "receivers", TE: "tight ends", K: "kickers", "D/ST": "defenses", DL: "defensive linemen", LB: "linebackers", DB: "defensive backs"};
+    const nm = g => PSN[g] || g;
+    let h = '<p class="muted" style="margin:-6px 2px 12px">Every starter’s points in ' + esc(L.meta.name) + " (" + wkTxt + "), grouped by the player’s position, so a receiver in your flex counts as a receiver.</p>";
+    if (me) {
+      // Gap per week vs an average starter at each position, for as many starts a week as you use there.
+      const gaps = P.groups.map(g => { const x = me.g[g] || {pts: 0, n: 0}, per = x.n ? x.pts / x.n : 0, spw = x.n / me.wk;
+        return {g, ppg: x.pts / me.wk, per, n: x.n, spw, gap: x.n ? (per - P.lg[g].per) * spw : -P.lg[g].ppg, rk: me.rk[g], rec: me.recWk ? (me.rec[g] || 0) / me.recWk : null}; });
+      const weak = gaps.filter(x => x.spw >= 0.5 || !x.n).sort((a, b) => a.gap - b.gap)[0], strong = gaps.slice().sort((a, b) => b.gap - a.gap)[0];
+      const hero = me.rank <= Math.max(1, Math.round(N / 4)) ? "good" : me.rank > Math.round(N / 2) ? "bad" : "mid";
+      const lines = [];
+      lines.push({t: "Your starters average " + f1(me.tot / me.wk) + " points a week, " + ORDN(me.rank) + " of " + N + ".", c: ""});
+      if (weak && weak.gap < -0.5) lines.push({t: "Weakest spot: " + nm(weak.g) + ". Your " + weak.g + " starts average " + f1(weak.per) + " points vs " + f1(P.lg[weak.g].per) + " league-wide, about " + f1(-weak.gap) + " points a week behind.", c: "bad"});
+      if (strong && strong.gap > 0.5) lines.push({t: "Strongest spot: " + nm(strong.g) + ", " + sgn(strong.gap) + " points a week over an average lineup.", c: "good"});
+      const hot = gaps.filter(x => x.rec != null && P.recentN >= 2 && x.n).map(x => Object.assign({}, x, {d: x.rec - x.ppg})).sort((a, b) => Math.abs(b.d) - Math.abs(a.d))[0];
+      if (hot && Math.abs(hot.d) >= 3) lines.push({t: "Last " + P.recentN + " weeks: your " + hot.g + " points are " + (hot.d > 0 ? "up" : "down") + " " + f1(Math.abs(hot.d)) + " a week from your season average.", c: hot.d > 0 ? "good" : "bad"});
+      h += '<div class="card grade heroCard ' + hero + '"><div class="gtop"><div class="gnum"><b>' + me.rank + '</b><small>of ' + N + '</small></div><div><b class="glabel">Your scoring</b><span class="muted small">' + f1(me.tot / me.wk) + " a week from your starters</span></div></div>" +
+        '<ul class="reasons">' + lines.map((r, i) => '<li class="' + r.c + '">' + (i ? r.t : "<b>" + r.t + "</b>") + "</li>").join("") + "</ul></div>";
+      // Your positions
+      h += "<h3>Your positions</h3>" + '<div class="card race">' + gaps.map(x => '<div class="mrow" style="grid-template-columns:52px minmax(0,1fr) auto"><span class="dslot">' + esc(x.g) + '</span><span class="sn">' + f1(x.ppg) + " a week " + '<span style="font-size:13px;font-weight:700;color:var(' + (x.gap >= 0.5 ? "--ok" : x.gap <= -0.5 ? "--bad" : "--muted") + ')">' + sgn(x.gap) + " vs avg</span>" +
+        '<small style="white-space:normal">' + (x.n ? f1(x.per) + " a start (league " + f1(P.lg[x.g].per) + ")" + (x.rec != null && P.recentN >= 2 ? " · last " + P.recentN + " wks: " + f1(x.rec) + " a week" : "") : "No starts yet") + "</small></span>" +
+        '<span class="lsr ' + tone(x.rk) + '" title="Rank in the league">' + x.rk + "</span></div>").join("") + "</div>" +
+        '<p class="small muted" style="margin:6px 4px 0">Rank is by points a week from each position (1 is best). “vs average” is how many points a week your starters there gain or lose against average starters in your league.</p>';
+      // Who started at the weak spot
+      if (weak && weak.n) {
+        const reg = [], avg = P.lg[weak.g].per;
+        const rows = Object.values(me.pl).filter(p => p.g === weak.g).sort((a, b) => b.n - a.n || b.pts - a.pts);
+        h += "<h3>Your " + esc(weak.g) + " starts</h3>" + '<div class="card race">' + rows.map(p => { const own = d.teams.flatMap(t => t.roster || []).find(r => String(r.id) === String(p.p.id)), i = reg.push(own || {id: p.p.id, name: p.p.name, pos: p.p.pos, team: p.p.team, img: p.p.img, fl: true, lg: String(L.meta.id)}) - 1, per = p.pts / p.n, ok = per >= avg;
+          return '<div class="mrow" style="grid-template-columns:minmax(0,1fr) auto"><button type="button" class="sosn" data-ppi="' + i + '" style="all:unset;cursor:pointer;min-width:0"><span class="sn"><b>' + esc(p.p.name) + "</b><small>" + p.n + " start" + (p.n === 1 ? "" : "s") + " · " + f1(per) + " a start · best " + f1(p.top) + "</small></span></button>" +
+            '<span class="chip ' + (ok ? "ok" : "warn") + '">' + (ok ? "Above avg" : "Upgrade") + "</span></div>"; }).join("") + "</div>" +
+          '<p class="small muted" style="margin:6px 4px 0">League average ' + esc(weak.g) + " start: " + f1(avg) + " points. Tap a player for his card.</p>";
+        body._ppReg = reg;
+      }
+      h += '<div class="actions" style="margin-top:12px;display:grid;gap:8px"><button type="button" class="btn ghost" data-ppgo="po" style="width:100%"><i class=ic-calendar aria-hidden=true></i> Playoff matchups: who to buy</button>' +
+        '<button type="button" class="btn ghost" data-ppgo="ls" style="width:100%"><i class=ic-compass aria-hidden=true></i> League landscape: who has ' + esc(weak ? weak.g : "players") + " to spare</button></div>";
+    }
+    // Whole league heat table
+    h += "<h3>Every team by position</h3>" + '<div class="card" style="padding:6px 0;overflow-x:auto"><table class="otable lsheat"><thead><tr><th scope="col" style="text-align:left;padding-left:12px">Team</th>' + P.groups.map(g => '<th scope="col">' + esc(g) + "</th>").join("") + "</tr></thead><tbody>" +
+      P.teams.map(o => '<tr class="' + (o === me ? "me" : "") + '"><th scope="row" style="text-align:left;padding-left:12px"><b>' + esc(o.t.name) + "</b><small>" + ORDN(o.rank) + " · " + f1(o.tot / o.wk) + " a week</small></th>" +
+        P.groups.map(g => '<td><span class="lsr ' + tone(o.rk[g]) + '" title="' + f1(((o.g[g] || {}).pts || 0) / o.wk) + ' a week">' + o.rk[g] + "</span></td>").join("") + "</tr>").join("") + "</tbody></table></div>" +
+      '<p class="small muted" style="margin:8px 4px 0">Each team’s rank at each position by points a week from its starters; teams sorted by total starter points a week. League averages: ' + P.groups.map(g => esc(g) + " " + f1(P.lg[g].ppg)).join(" · ") + ".</p>";
+    body.innerHTML = h;
+    body.querySelectorAll("[data-ppi]").forEach(b => b.addEventListener("click", () => openPlayer(body._ppReg[+b.dataset.ppi])));
+    body.querySelectorAll("[data-ppgo]").forEach(b => b.addEventListener("click", () => b.dataset.ppgo === "po" ? openPoSched(L) : openLandscape(L)));
+  } catch(e){ body.innerHTML = '<div class="err">Couldn’t add up the points: ' + esc(e.message) + "</div>"; }
+}
 /* ===================== 5. Injury outlook ===================== */
 const INJ_RULES = [
   [/achilles/i, "Achilles injury", [240, 365], 0.75], [/\bacl\b|cruciate/i, "ACL tear", [270, 365], 0.85], [/high[- ]ankle/i, "High ankle sprain", [21, 42], 0.85],
@@ -7599,6 +7691,7 @@ async function edgeLeague(L, el){
     '<p class="small muted" style="margin:8px 4px 0">3,000 simulated seasons using each team’s scoring average and this week’s projections, your remaining schedule, and ' + (Object.keys(d.teams.reduce((o, t) => (t.div != null && (o[t.div] = 1), o), {})).length > 1 ? "division winners getting in" : "best records getting in") + ".</p>";
   try { h += await sosHtml(L, me, sched, base); } catch(e){}
   h += '<button type="button" class="btn ghost" id="edPoSched" style="width:100%;margin-top:10px"><i class=ic-calendar aria-hidden=true></i> Playoff matchups: who to buy for your playoffs</button>';
+  if (L.meta.platform === "flea") h += '<button type="button" class="btn ghost" id="edPts" style="width:100%;margin-top:8px"><i class=ic-bars aria-hidden=true></i> Points by position: where your points come from</button>';
   // intel
   el.innerHTML = h + '<p class="spin">Reading the league’s trade history…</p>';
   const qbs = qbsOf(d), ppr = ({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1");
@@ -7637,6 +7730,7 @@ async function edgeLeague(L, el){
   const lsb = el.querySelector("#edLs"); if (lsb) lsb.addEventListener("click", () => openLandscape(L));
   const pth = el.querySelector("#edPath"); if (pth) pth.addEventListener("click", () => openPlayoffPath(L));
   const eps = el.querySelector("#edPoSched"); if (eps) eps.addEventListener("click", () => openPoSched(L));
+  const ept = el.querySelector("#edPts"); if (ept) ept.addEventListener("click", () => openPosPoints(L));
 }
 
 /* ===================== Kickers and defenses: which to start each week, who to grab for the playoffs ===================== */
