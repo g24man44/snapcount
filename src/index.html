@@ -2221,6 +2221,7 @@ function renderLeague(v, L){
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="mktBtn"><i class=ic-swap aria-hidden=true></i>Trade market</button>');
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="cutBtn"><i class=ic-list aria-hidden=true></i>Who to cut</button>');
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="hcBtn"><i class=ic-medic aria-hidden=true></i>Handcuffs</button>');
+    if (d.teams.some(t => t.mine) && d.games.length) tiles.push('<button type="button" class="btn ghost" id="fcBtn"><i class=ic-target aria-hidden=true></i>Floor or ceiling: lineup that wins</button>');
     if (d.teams.some(t => t.mine) && (kdHasDst(d) || kdHasK(d))) tiles.push('<button type="button" class="btn ghost" id="kdBtn"><i class=ic-target aria-hidden=true></i>Kickers and defenses</button>');
     if (d.teams.some(t => t.mine) && m.platform === "flea") tiles.push('<button type="button" class="btn ghost" id="rcBtn"><i class=ic-scale aria-hidden=true></i>Your report card</button>');
     if (d.teams.some(t => t.mine) && m.platform === "flea") tiles.push('<button type="button" class="btn ghost" id="ptsBtn"><i class=ic-bars aria-hidden=true></i>Points by position</button>');
@@ -2228,7 +2229,7 @@ function renderLeague(v, L){
     if (d.teams.some(t => t.mine) && d.games.length) tiles.push('<button type="button" class="btn ghost" id="pkBtn"><i class=ic-flame aria-hidden=true></i>Pick’em and roast</button>'); tiles.push('<button type="button" class="btn ghost" id="showBtn"><i class=ic-speaker aria-hidden=true></i>The league show</button>'); if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="commBtn"><i class=ic-trophy aria-hidden=true></i>Dues, rules and awards</button>');
     if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="dcBtn"><i class=ic-pencil aria-hidden=true></i>Draft grades and write-up</button>');
     // Grouped by what you're trying to do, as compact rows instead of a wall of identical tiles.
-    const GROUPS = [["This week", ["mrBtn", "pwBtn", "pkBtn", "cutBtn", "hcBtn", "kdBtn"]], ["Trades", ["pmBtn", "lsBtn", "scoutBtn", "mktBtn"]], ["Season", ["picBtn", "ppBtn", "swapBtn", "histBtn", "rcBtn", "ptsBtn", "wvBtn", "winBtn", "wrapBtn"]], ["Draft", ["doBtn", "dcBtn"]]];
+    const GROUPS = [["This week", ["mrBtn", "pwBtn", "fcBtn", "pkBtn", "cutBtn", "hcBtn", "kdBtn"]], ["Trades", ["pmBtn", "lsBtn", "scoutBtn", "mktBtn"]], ["Season", ["picBtn", "ppBtn", "swapBtn", "histBtn", "rcBtn", "ptsBtn", "wvBtn", "winBtn", "wrapBtn"]], ["Draft", ["doBtn", "dcBtn"]]];
     const idOf = t => (t.match(/id="(\w+)"/) || [])[1], used = new Set();
     // Four everyday tools up top; everything else waits behind "More tools", grouped by what you're doing.
     const TOP = ["mrBtn", "pwBtn", "mktBtn", "showBtn"];
@@ -2297,6 +2298,7 @@ function renderLeague(v, L){
   const pmb = v.querySelector("#pmBtn"); if (pmb) pmb.addEventListener("click", () => openPoSched(L));
   const rcb = v.querySelector("#rcBtn"); if (rcb) rcb.addEventListener("click", () => openReport(L));
   const ptb = v.querySelector("#ptsBtn"); if (ptb) ptb.addEventListener("click", () => openPosPoints(L));
+  const fcb = v.querySelector("#fcBtn"); if (fcb) fcb.addEventListener("click", () => openFloorCeiling(L));
   const wvb = v.querySelector("#wvBtn"); if (wvb) wvb.addEventListener("click", () => openWaiverReport(L));
   const pkb = v.querySelector("#pkBtn"); if (pkb) pkb.addEventListener("click", () => openPickem(L));
   const shb = v.querySelector("#showBtn"); if (shb) shb.addEventListener("click", () => openShow(L));
@@ -6143,11 +6145,13 @@ async function edgeWeek(L, el){
   }
   // game environment for my starters
   if (!/data-luopen/.test(h)) h += '<button type="button" class="btn ghost" data-luopen="1" style="width:100%;margin-top:10px"><i class=ic-pencil aria-hidden=true></i> Set your lineup</button>';
+  if (g) h += '<button type="button" class="btn ghost" data-fcopen="1" style="width:100%;margin-top:10px"><i class=ic-target aria-hidden=true></i> Floor or ceiling: the lineup that wins most often</button>';
   h += '<button type="button" class="btn ghost" data-planopen="1" style="width:100%;margin-top:10px"><i class=ic-calendar aria-hidden=true></i> Bye &amp; injury planner: next 4 weeks</button>';
   el.innerHTML = h;
   wireRows(el);
   el.querySelectorAll("[data-luopen]").forEach(b => b.addEventListener("click", () => openLineup(L)));
   el.querySelectorAll("[data-planopen]").forEach(b => b.addEventListener("click", openPlanner));
+  el.querySelectorAll("[data-fcopen]").forEach(b => b.addEventListener("click", () => openFloorCeiling(L)));
   el.querySelectorAll("[data-wxopen]").forEach(b => b.addEventListener("click", openWeather));
 }
 
@@ -7934,6 +7938,154 @@ async function openKD(L){
     wireRows(body);
     body.querySelectorAll(".sosn[data-i]").forEach(b => b.addEventListener("click", () => openPlayer(reg[+b.dataset.i])));
   } catch(e){ body.innerHTML = '<div class="err">Couldn’t build the kicker and defense plan: ' + esc(e.message) + "</div>"; }
+}
+/* ===================== Floor or ceiling: the lineup that wins most often ===================== */
+// Every player's range this week: his projection, spread out by how much his weekly scores have swung this season
+// (pulled toward a typical swing for his position when he's played only a few games). Your matchup is decided by
+// both lineups' totals, so the lineup that wins most often isn't always the one with the most projected points:
+// a favorite wants steady players, an underdog wants the big games. Each one-player change is tried and kept when
+// it raises your chance to win.
+const FC_CV = {QB: 0.38, RB: 0.55, WR: 0.62, TE: 0.68, K: 0.5, DEF: 0.6, "D/ST": 0.6};
+async function fcPlan(L){
+  const d = L.detail, me = d.teams.find(t => t.mine);
+  await Promise.all([getPlayers(), getProj(), gamesAt ? null : loadScoreboard(), rosterFor(L, me)]);
+  ensureSidIndex();
+  const g = d.games.find(x => x.a.id === me.id || x.b.id === me.id);
+  const opp = g ? d.teams.find(t => t.id === (g.a.id === me.id ? g.b.id : g.a.id)) : null;
+  if (opp) await rosterFor(L, opp);
+  const col = ({ppr: 0, half: 1, std: 2})[d.scoring] ?? scoringCol(L);
+  const pool = me.roster.concat(opp ? opp.roster.filter(p => p.slot === "start") : []);
+  const sids = [...new Set(pool.map(p => sleeperKey(L, p)).filter(Boolean))];
+  const logs = {};
+  await Promise.all(sids.map(async s => { logs[s] = await gameLogFor(s).catch(() => null); }));
+  // One player's mean and spread for what's left of this week.
+  const info = new Map();
+  const rangeOf = p => {
+    if (info.has(p)) return info.get(p);
+    const sid = sleeperKey(L, p), log = sid ? logs[sid] : null;
+    const pts = (log ? log.weeks.filter(x => x.played && x.s).map(x => x.s[col]) : []).slice(-10);
+    const n = pts.length, avg = n ? pts.reduce((a, b) => a + b, 0) / n : 0;
+    const sdE = n ? Math.sqrt(pts.reduce((a, b) => a + (b - avg) * (b - avg), 0) / n) : 0;
+    const base = FC_CV[p.pos] || 0.6, cvE = avg > 1 ? Math.min(1.4, sdE / avg) : base;
+    const cv = (cvE * n + base * 4) / (n + 4);
+    const pr = projFor(L, p), proj = pr == null ? 0 : Math.max(0, pr);
+    const out = OUTISH_C.test(String(p.inj || "")) || gameState(p.team) === "bye";
+    const f = gameLeft(p.team), done = p.pts || 0, live = isLocked(p);
+    const sdFull = cv * proj, rest = out && !live ? 0 : proj * f;
+    const r = {p, proj, cv, n, sd: out && !live ? 0 : sdFull * Math.sqrt(f), mean: (live ? done : 0) + rest, live, out, pr,
+      floor: Math.max(0, proj - 0.84 * sdFull), ceil: proj + 0.84 * sdFull, best: n ? Math.max(...pts) : null, low: n ? Math.min(...pts) : null};
+    info.set(p, r); return r;
+  };
+  const slots = edgeSlots(L);
+  // Can this set of players fill the lineup? Small backtracking match, most restrictive slots first.
+  const order = slots.slice().sort((a, b) => (FLEX[a] ? FLEX[a].length : 1) - (FLEX[b] ? FLEX[b].length : 1));
+  const assign = set => {
+    const ps = set.slice(), res = new Array(order.length).fill(null), used = new Array(ps.length).fill(false);
+    const go = i => {
+      if (i === order.length) return true;
+      let any = false;
+      for (let j = 0; j < ps.length; j++) if (!used[j] && slotOk(order[i], ps[j].pos)) { any = true; used[j] = true; res[i] = ps[j]; if (go(i + 1)) return true; used[j] = false; res[i] = null; }
+      // Leave a slot empty only when nobody left can fill it.
+      return !any && go(i + 1);
+    };
+    if (!go(0)) return null;
+    if (ps.some((p, j) => !used[j])) return null;
+    return order.map((s, i) => ({slot: s, p: res[i]}));
+  };
+  const roster = me.roster.filter(p => p.slot !== "ir");
+  const locked = roster.filter(p => p.slot === "start" && isLocked(p));
+  const cands = roster.filter(p => !isLocked(p) && slots.some(s => slotOk(s, p.pos)) && !rangeOf(p).out && rangeOf(p).proj > 0);
+  const sum = set => set.reduce((a, p) => { const r = rangeOf(p); a.m += r.mean; a.v += r.sd * r.sd; return a; }, {m: 0, v: 0});
+  const oSet = opp ? opp.roster.filter(p => p.slot === "start") : [], O = sum(oSet);
+  const winOf = set => { const s = sum(set); return opp ? normCdf((s.m - O.m) / Math.max(1, Math.sqrt(s.v + O.v))) : null; };
+  const score = set => opp ? winOf(set) : sum(set).m;
+  // Best projections first (greedy by mean, the usual start/sit), then one-for-one changes that win more often.
+  const byMean = cands.slice().sort((a, b) => rangeOf(b).mean - rangeOf(a).mean);
+  let projSet = locked.slice();
+  for (const p of byMean) { const t = projSet.concat([p]); if (t.length <= slots.length && assign(t)) projSet = t; }
+  let best = projSet.slice(), bestS = score(best);
+  for (let it = 0; it < 6 && opp; it++) {
+    let move = null;
+    for (const x of best) {
+      if (locked.includes(x)) continue;
+      for (const c of cands) {
+        if (best.includes(c)) continue;
+        const t = best.filter(y => y !== x).concat([c]);
+        if (!assign(t)) continue;
+        const s = score(t);
+        if (s > bestS + 0.0003 && (!move || s > move.s)) move = {t, s, x, c};
+      }
+    }
+    if (!move) break;
+    best = move.t; bestS = move.s;
+  }
+  const current = roster.filter(p => p.slot === "start");
+  const fav = opp ? winOf(projSet) : null;
+  return {L, me, opp, g, current, projSet, best, lineup: assign(best) || best.map(p => ({slot: p.pos, p})), rangeOf, sum, O, oSet, winOf, fav, n: sids.length};
+}
+async function openFloorCeiling(L){
+  const body = openSheetShell("Floor or ceiling");
+  body.innerHTML = '<p class="spin">Reading every player’s week-to-week swings…</p>';
+  try {
+    const P = await fcPlan(L), R = P.rangeOf, pc = x => Math.round(x * 100) + "%", r1 = x => x.toFixed(1);
+    const cur = P.winOf(P.current), proj = P.fav, built = P.winOf(P.best);
+    const S = P.sum(P.best), lo = s => Math.max(0, s.m - 0.84 * Math.sqrt(s.v)), hi = s => s.m + 0.84 * Math.sqrt(s.v);
+    let h = '<p class="muted" style="margin:-6px 2px 12px">The lineup that wins your matchup most often. A favorite should start steady players; an underdog needs players who can have a huge week. Each player’s range comes from how much his scores have swung this season.</p>';
+    // Headline
+    let head, tone;
+    if (!P.opp) { head = "No opponent this week, so just start your best projections."; tone = "ok"; }
+    else if (proj >= 0.6) { head = "You’re the favorite (" + pc(proj) + "). Play it safe: when two players project about the same, start the steadier one."; tone = "ok"; }
+    else if (proj <= 0.4) { head = "You’re the underdog (" + pc(proj) + "). Swing big: when two players project about the same, start the one who can have a monster week."; tone = "warn"; }
+    else { head = "It’s close (" + pc(proj) + "). Start your best projections; a player’s range barely matters in a coin-flip game."; tone = ""; }
+    const ins = P.best.filter(p => !P.current.includes(p)), outs = P.current.filter(p => !P.best.includes(p));
+    h += '<div class="card heroCard"><p style="margin:0"><b>' + esc(head) + "</b></p>";
+    if (P.opp) {
+      const same = !ins.length && !outs.length && Math.abs(proj - built) < 0.0005;
+      // Small gains still show: one decimal when the three chances would round to the same whole number.
+      const fine = !same && Math.round(cur * 100) === Math.round(built * 100);
+      const line = (lab, v, on) => '<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid var(--line)"><span class="small">' + lab + '</span><b style="' + (on ? "color:var(--ok)" : "") + '">' + (fine ? (v * 100).toFixed(1) + "%" : pc(v)) + "</b></div>";
+      h += '<div style="margin-top:10px">' + (same ? line("Your chance to win", built, false) : line("Lineup as you set it", cur, false) + (Math.abs(proj - cur) >= 0.005 ? line("Best projections", proj, false) : "") + line("Built to win", built, built > cur + 0.0005)) + "</div>";
+    }
+    if (ins.length || outs.length) h += '<div class="swaps"><div><small>Start</small>' + ins.map(p => "<b>" + esc(p.name) + " <span class='muted'>" + fmt(R(p).proj) + "</span></b>").join("") + "</div><div><small>Bench</small>" + outs.map(p => "<b>" + esc(p.name) + " <span class='muted'>" + fmt(R(p).proj) + "</span></b>").join("") + "</div></div>" +
+      '<div class="actions"><button type="button" class="btn" data-fclu="1">Set your lineup</button>' + extBtn(lineupUrl(L, P.me), "Open " + siteName(L), true) + "</div>";
+    else h += '<p class="small" style="margin:10px 0 0">Your lineup is already the one that wins most often.' + (P.opp && proj <= 0.4 ? " None of your bench players has enough upside to make up for the points he’d give away." : "") + "</p>";
+    h += "</div>";
+    // Why: the picks where the range beat the projection.
+    const gone = P.projSet.filter(p => !P.best.includes(p)), paired = new Set();
+    const flips = P.best.filter(p => !P.projSet.includes(p)).map(c => {
+      const left = gone.filter(p => !paired.has(p)), x = left.find(p => p.pos === c.pos) || left[0];
+      if (!x) return "";
+      paired.add(x);
+      const rc = R(c), rx = R(x), under = proj < 0.5;
+      const why = under ? esc(c.name) + "’s big weeks go higher (" + rc.ceil.toFixed(1) + " on a good day vs " + rx.ceil.toFixed(1) + ")" : esc(c.name) + " is steadier (" + rc.floor.toFixed(1) + " on a bad day vs " + rx.floor.toFixed(1) + ")";
+      return "<li><b>" + esc(c.name) + " over " + esc(x.name) + ".</b> " + esc(x.name) + " projects " + (rx.proj - rc.proj >= 0.05 ? (rx.proj - rc.proj).toFixed(1) + " more" : "about the same") + ", but " + why + ", and that matters more " + (under ? "when you need a big game." : "when you’re ahead.") + "</li>";
+    }).filter(Boolean);
+    if (flips.length) h += '<h3>Why these changes</h3><ul class="reasons">' + flips.join("") + "</ul>";
+    // Range bars
+    const rows = P.lineup.filter(x => x.p), all = rows.map(x => R(x.p)).concat(P.oSet.map(R));
+    const mx = Math.max(20, ...all.map(r => r.live ? r.mean + 0.84 * r.sd : r.ceil)) * 1.05;
+    const bar = r => {
+      const a = r.live ? Math.max(0, r.mean - 0.84 * r.sd) : r.floor, b = r.live ? r.mean + 0.84 * r.sd : r.ceil, m = r.live ? r.mean : r.proj;
+      return '<span style="display:block;position:relative;height:8px;border-radius:4px;background:var(--line);margin-top:6px"><span style="position:absolute;top:0;bottom:0;left:' + (a / mx * 100).toFixed(1) + "%;width:" + Math.max(1.5, (b - a) / mx * 100).toFixed(1) + '%;border-radius:4px;background:var(--accent-soft)"></span><span style="position:absolute;top:-2px;width:3px;height:12px;border-radius:2px;background:var(--ink);left:calc(' + (m / mx * 100).toFixed(1) + '% - 1px)"></span></span>';
+    };
+    const sub = (r, slot) => '<em class="pt" data-pos="' + esc(r.p.pos) + '">' + esc(SLOT_LABEL[slot] || slot || r.p.pos) + "</em>" + (r.live ? (gameLeft(r.p.team) === 0 ? "Final · " : "Playing now · ") + fmt(r.p.pts || 0) + (gameLeft(r.p.team) === 0 ? " pts" : " so far") : r1(r.floor) + "–" + r1(r.ceil) + (r.n < 3 ? " · few games, typical range" : r.cv >= 0.7 ? " · boom or bust" : r.cv <= 0.4 ? " · steady" : "")) + bar(r);
+    const right = r => '<span class="avg">' + fmt(r.live ? r.mean : r.proj) + "<small>" + (r.live ? (gameLeft(r.p.team) === 0 ? "final" : "finish") : "proj") + "</small></span>";
+    h += "<h3>Your lineup’s range</h3>";
+    h += '<p class="small" style="margin:-2px 2px 8px">Most weeks this lineup scores <b>' + Math.round(lo(S)) + "–" + Math.round(hi(S)) + "</b>" + (P.opp ? "; " + esc(P.opp.name) + " scores <b>" + Math.round(lo(P.O)) + "–" + Math.round(hi(P.O)) + "</b>" : "") + ". Bars show a bad week to a good week (4 in 5 weeks land inside); the mark is the projection.</p>";
+    h += '<ul class="plist">' + rows.map(x => miniRow(x.p, right(R(x.p)), sub(R(x.p), x.slot))).join("") + "</ul>";
+    const bench = P.me.roster.filter(p => p.slot !== "ir" && !P.best.includes(p) && edgeSlots(L).some(s => slotOk(s, p.pos))).map(R).filter(r => r.proj > 0 && !r.out).sort((a, b) => b.proj - a.proj).slice(0, 6);
+    if (bench.length) h += '<h3>On your bench</h3><ul class="plist">' + bench.map(r => miniRow(r.p, right(r), sub(r, r.p.pos))).join("") + "</ul>";
+    if (P.opp && P.oSet.length) {
+      const os = P.oSet.map(R).sort((a, b) => (b.live ? b.mean : b.proj) - (a.live ? a.mean : a.proj));
+      const boom = os.filter(r => !r.live && r.cv >= 0.7 && r.proj >= 8).slice(0, 2);
+      h += "<h3>" + esc(P.opp.name) + "</h3>" + (boom.length ? '<p class="small" style="margin:-2px 2px 8px">Boom-or-bust threats: ' + boom.map(r => "<b>" + esc(r.p.name) + "</b> (up to " + r.ceil.toFixed(1) + ")").join(", ") + ".</p>" : "");
+      h += '<ul class="plist">' + os.map(r => miniRow(r.p, right(r), sub(r, r.p.pos))).join("") + "</ul>";
+    }
+    h += '<p class="small muted" style="margin:10px 4px 0">Ranges use each player’s scoring swings over his last 10 games in your league’s scoring, applied to this week’s projection. Players already playing count what they’ve scored plus the rest of their game. Injured and bye-week players are left out.</p>';
+    body.innerHTML = h;
+    wireRows(body);
+    body.querySelectorAll("[data-fclu]").forEach(b => b.addEventListener("click", () => openLineup(L)));
+  } catch(e){ body.innerHTML = '<div class="err">Couldn’t build your floor and ceiling lineup: ' + esc(e.message) + "</div>"; }
 }
 /* ===================== Playoff matchups: whose schedule wins your fantasy playoffs ===================== */
 // Every QB/RB/WR/TE's points per game in your league's scoring, nudged up or down each playoff week by what
