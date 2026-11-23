@@ -2218,6 +2218,7 @@ function renderLeague(v, L){
     if (d.teams.some(t => t.mine) && ["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="wrapBtn"><i class=ic-spark aria-hidden=true></i>Season Wrapped</button>');
     if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="mrBtn"><i class=ic-ball aria-hidden=true></i>Matchup recaps</button>');
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="pmBtn"><i class=ic-calendar aria-hidden=true></i>Playoff matchups: who to buy</button>');
+    if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="vmBtn"><i class=ic-bars aria-hidden=true></i>Value movers: buy low, sell high</button>');
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="mktBtn"><i class=ic-swap aria-hidden=true></i>Trade market</button>');
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="cutBtn"><i class=ic-list aria-hidden=true></i>Who to cut</button>');
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="hcBtn"><i class=ic-medic aria-hidden=true></i>Handcuffs</button>');
@@ -2229,7 +2230,7 @@ function renderLeague(v, L){
     if (d.teams.some(t => t.mine) && d.games.length) tiles.push('<button type="button" class="btn ghost" id="pkBtn"><i class=ic-flame aria-hidden=true></i>Pick’em and roast</button>'); tiles.push('<button type="button" class="btn ghost" id="showBtn"><i class=ic-speaker aria-hidden=true></i>The league show</button>'); if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="commBtn"><i class=ic-trophy aria-hidden=true></i>Dues, rules and awards</button>');
     if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="dcBtn"><i class=ic-pencil aria-hidden=true></i>Draft grades and write-up</button>');
     // Grouped by what you're trying to do, as compact rows instead of a wall of identical tiles.
-    const GROUPS = [["This week", ["mrBtn", "pwBtn", "fcBtn", "pkBtn", "cutBtn", "hcBtn", "kdBtn"]], ["Trades", ["pmBtn", "lsBtn", "scoutBtn", "mktBtn"]], ["Season", ["picBtn", "ppBtn", "swapBtn", "histBtn", "rcBtn", "ptsBtn", "wvBtn", "winBtn", "wrapBtn"]], ["Draft", ["doBtn", "dcBtn"]]];
+    const GROUPS = [["This week", ["mrBtn", "pwBtn", "fcBtn", "pkBtn", "cutBtn", "hcBtn", "kdBtn"]], ["Trades", ["pmBtn", "vmBtn", "lsBtn", "scoutBtn", "mktBtn"]], ["Season", ["picBtn", "ppBtn", "swapBtn", "histBtn", "rcBtn", "ptsBtn", "wvBtn", "winBtn", "wrapBtn"]], ["Draft", ["doBtn", "dcBtn"]]];
     const idOf = t => (t.match(/id="(\w+)"/) || [])[1], used = new Set();
     // Four everyday tools up top; everything else waits behind "More tools", grouped by what you're doing.
     const TOP = ["mrBtn", "pwBtn", "mktBtn", "showBtn"];
@@ -2287,6 +2288,7 @@ function renderLeague(v, L){
   const ppb = v.querySelector("#ppBtn"); if (ppb) ppb.addEventListener("click", () => openPlayoffPath(L));
   const scb = v.querySelector("#scoutBtn"); if (scb) scb.addEventListener("click", () => openScouting(L));
   const wnb = v.querySelector("#winBtn"); if (wnb) wnb.addEventListener("click", () => openWindow(L));
+  const vmb = v.querySelector("#vmBtn"); if (vmb) vmb.addEventListener("click", () => openValueMovers(L));
   const wrb = v.querySelector("#wrapBtn"); if (wrb) wrb.addEventListener("click", () => openWrapped(L));
   const pcb = v.querySelector("#picBtn"); if (pcb) pcb.addEventListener("click", () => openPlayoffPicture(L));
   const dob = v.querySelector("#doBtn"); if (dob) dob.addEventListener("click", () => openDraftOrder(L));
@@ -6718,6 +6720,86 @@ async function openWindow(L){
   } catch(e){ body.innerHTML = '<div class="err">Couldn’t project the window: ' + esc(e.message) + "</div>"; }
 }
 
+/* ===================== Value movers: how the trade market moved every roster ===================== */
+// Each player's 30-day trade-market move (FantasyCalc trend, row[3], against his market price, row[8]) applied
+// to his Snap Count value in this league's format. Rosters as they are today, so a trade is never a "gain":
+// this is only how prices moved. Picks are left out (no price history for them).
+function vmData(L, VV){
+  const d = L.detail;
+  const mv = p => {
+    const r = VV.row(p); if (!r) return null;
+    const v = VV.val(p), mk = r[8] || 0, t = r[3] || 0; if (!v || mk <= 0) return {v, d: 0, pct: 0, w: r[18] != null ? r[18] * v / Math.max(1, r[0]) : null};
+    const before = Math.max(1, mk - t), pct = Math.max(-0.8, Math.min(4, t / before));
+    return {v, d: v - v / (1 + pct), pct, w: r[18] != null ? r[18] * v / Math.max(1, r[0]) : null, age: r[6], ppg: r[11], inj: r[16] || p.inj};
+  };
+  const teams = d.teams.map(t => {
+    const pl = (t.roster || []).map(p => Object.assign({p}, mv(p) || {v: 0, d: 0, pct: 0, w: null})).filter(x => x.v > 0);
+    const now = pl.reduce((s, x) => s + x.v, 0), chg = pl.reduce((s, x) => s + x.d, 0), wk = pl.some(x => x.w != null) ? pl.reduce((s, x) => s + (x.w || 0), 0) : null;
+    return {t, pl, now, chg, pct: now - chg > 0 ? chg / (now - chg) : 0, wk};
+  });
+  teams.sort((a, b) => b.pct - a.pct).forEach((o, i) => o.rk = i + 1);
+  return teams;
+}
+async function openValueMovers(L){
+  const body = openSheetShell("Value movers");
+  body.innerHTML = '<p class="spin">Checking how every player’s trade price moved…</p>';
+  try {
+    const d = L.detail;
+    await Promise.all(d.teams.map(t => rosterFor(L, t).catch(() => [])));
+    const VV = await leagueVals(L), T = vmData(L, VV), N = T.length, me = T.find(o => o.t.mine);
+    if (!T.some(o => o.pl.some(x => x.d))) { body.innerHTML = '<div class="card"><p style="margin:0">No price history for this league’s players yet. Check back in a day.</p></div>'; return; }
+    const sg = n => (n >= 0 ? "+" : "−") + fmtV(Math.abs(n)), pc = n => (n >= 0 ? "+" : "−") + Math.abs(Math.round(n * 1000) / 10).toFixed(Math.abs(n) < 0.1 ? 1 : 0) + "%";
+    const col = n => n > 0.005 ? "var(--ok)" : n < -0.005 ? "var(--bad)" : "var(--muted)";
+    let h = '<p class="muted" style="margin:-6px 2px 12px">How the trade market moved every roster in ' + esc(L.meta.name) + " over the last 30 days. Only price changes count (rosters as they are today), so a trade isn’t a gain. Draft picks are left out.</p>";
+    if (me) {
+      const tone = me.rk <= Math.ceil(N / 3) ? "good" : me.rk > N * 2 / 3 ? "bad" : "mid";
+      const head = me.chg >= 0 ? "Your roster gained " + fmtV(me.chg) + " in value (" + pc(me.pct) + ")" : "Your roster lost " + fmtV(-me.chg) + " in value (" + pc(me.pct) + ")";
+      const best = T[0], worst = T[N - 1];
+      h += '<div class="card grade ' + tone + '"><b class="glabel">' + esc(head) + "</b>" +
+        '<p class="small" style="margin:4px 0 0">' + ORDN(me.rk) + " of " + N + " in the league this month. Worth " + fmtV(me.now) + " today." +
+        (me.wk != null && Math.abs(me.wk) >= 1 ? " This week: " + sg(me.wk) + "." : "") +
+        (best !== me ? " Biggest climber: " + esc(best.t.name) + " (" + pc(best.pct) + ")." : " You’re the league’s biggest climber.") +
+        (worst !== me && worst.pct < 0 ? " Biggest drop: " + esc(worst.t.name) + " (" + pc(worst.pct) + ")." : "") + "</p></div>";
+      // Your movers: sell-high on older risers, hold young dips, think about moving older fallers.
+      const ups = me.pl.filter(x => x.pct >= 0.06 && x.d >= 150 && x.v >= 500).sort((a, b) => b.d - a.d).slice(0, 5);
+      const downs = me.pl.filter(x => x.pct <= -0.06 && x.d <= -150 && x.v - x.d >= 500).sort((a, b) => a.d - b.d).slice(0, 5);
+      const peak = {QB: 31, RB: 25, WR: 27, TE: 28};
+      const upTip = x => (x.age || 0) >= (peak[x.p.pos] || 27) ? "Sell high: past his peak age" : "Rising: keep unless the offer is big";
+      const downTip = x => /IR|out|season/i.test(x.inj || "") ? "Injury dip: don’t sell low" : (x.age || 99) <= 25 ? "Young: likely a dip, hold" : (x.age || 0) >= (peak[x.p.pos] || 27) ? "Aging: move him at fair value" : "Falling: watch his role";
+      const row = (x, tip) => miniRow(x.p, '<span class="avg" style="color:' + col(x.d) + '">' + sg(x.d) + "<small>" + pc(x.pct) + "</small></span>", posTag(x.p) + "Worth " + fmtV(x.v) + (x.age ? " · age " + Math.floor(x.age) : "") + " · " + tip);
+      if (ups.length) h += '<h3>Your risers</h3><ul class="plist">' + ups.map(x => row(x, upTip(x))).join("") + "</ul>";
+      if (downs.length) h += '<h3>Your fallers</h3><ul class="plist">' + downs.map(x => row(x, downTip(x))).join("") + "</ul>";
+      if (!ups.length && !downs.length) h += '<div class="card"><p class="small" style="margin:0">No big price swings on your roster this month.</p></div>';
+      // Buy low: good players on other teams whose price dropped without a long injury, youngest and biggest first.
+      const buys = T.filter(o => o !== me).flatMap(o => o.pl.map(x => Object.assign({o}, x)))
+        .filter(x => x.pct <= -0.08 && x.v >= 1200 && !/IR|season|out|doubt|PUP|susp/i.test(x.inj || "") && (x.age || 99) <= (peak[x.p.pos] || 27) + 1)
+        .sort((a, b) => a.d - b.d).slice(0, 6);
+      if (buys.length) {
+        h += '<h3>Buy low around the league</h3><p class="small muted" style="margin:-4px 2px 8px">Their prices dropped this month, but they’re playing and not past their prime. Their managers may sell for less than they’re worth.</p><ul class="plist">' +
+          buys.map(x => miniRow(x.p, '<span class="avg" style="color:var(--bad)">' + pc(x.pct) + "<small>30 days</small></span>", posTag(x.p) + esc(x.o.t.name) + " · worth " + fmtV(x.v) + (x.age ? " · age " + Math.floor(x.age) : "") + (x.ppg ? " · " + x.ppg + " pts/game" : ""))).join("") + "</ul>" +
+          '<div class="tlist" style="margin-top:8px">' + buys.slice(0, 3).map(x => '<button type="button" class="btn ghost" data-vmbuy="' + esc(x.o.t.id) + "|" + esc(String(x.p.id)) + '"><i class=ic-swap aria-hidden=true></i>Trade for ' + esc(x.p.name) + "</button>").join("") + "</div>";
+      }
+    }
+    // League table
+    const mx = Math.max(0.01, ...T.map(o => Math.abs(o.pct)));
+    h += '<h3>Every team this month</h3><div class="card" style="padding:0"><table class="otable rank" style="margin-top:0"><tbody>' + T.map(o =>
+      '<tr' + (o.t.mine ? ' class="me"' : "") + '><td><b>' + o.rk + "</b></td><td><b>" + esc(o.t.name) + "</b><small>" + fmtV(o.now) + " · " + sg(o.chg) + '</small></td><td class="obar" style="width:20%"><span style="width:' + Math.max(3, Math.round(Math.abs(o.pct) / mx * 100)) + "%;background:" + col(o.pct) + '"></span></td><td class="onum" style="color:' + col(o.pct) + '">' + pc(o.pct) + "</td></tr>").join("") + "</tbody></table></div>";
+    // League-wide biggest single moves
+    const all = T.flatMap(o => o.pl.map(x => Object.assign({o}, x))).filter(x => Math.abs(x.d) >= 200 && Math.max(x.v, x.v - x.d) >= 500);
+    const topUp = all.filter(x => x.d > 0).sort((a, b) => b.d - a.d).slice(0, 5), topDn = all.filter(x => x.d < 0).sort((a, b) => a.d - b.d).slice(0, 5);
+    const lrow = x => miniRow(x.p, '<span class="avg" style="color:' + col(x.d) + '">' + sg(x.d) + "<small>" + pc(x.pct) + "</small></span>", posTag(x.p) + (x.o.t.mine ? "<b>Yours</b>" : esc(x.o.t.name)) + " · worth " + fmtV(x.v));
+    if (topUp.length) h += '<h3>Biggest risers in the league</h3><ul class="plist">' + topUp.map(lrow).join("") + "</ul>";
+    if (topDn.length) h += '<h3>Biggest drops in the league</h3><ul class="plist">' + topDn.map(lrow).join("") + "</ul>";
+    h += '<p class="small muted" style="margin:10px 4px 0">Price moves come from the trade market (FantasyCalc, last 30 days) and are applied to each player’s Snap Count value in this league’s format.' + (T.some(o => o.wk != null) ? " “This week” uses Snap Count’s own saved daily values." : "") + "</p>";
+    body.innerHTML = h;
+    wireRows(body);
+    body.querySelectorAll("[data-vmbuy]").forEach(b => b.addEventListener("click", () => {
+      const [tid, pid] = b.dataset.vmbuy.split("|");
+      closeSheet(); const li = leagues.indexOf(L); if (tr.league !== li) { tr.ppr = null; tr.dyn = null; tr.keep = null; tr.hide = null; tr.target = null; } const tm = L.detail.teams.find(x => String(x.id) === tid), pl = tm && (tm.roster || []).find(x => String(x.id) === pid); tr.league = li; tr.mode = "grade"; tr.other = tm ? tm.id : tid; tr.give.clear(); tr.get = new Set([pl ? pl.id : pid]); tr.side = "get"; setTab("trade");
+    }));
+  } catch(e){ body.innerHTML = '<div class="err">Couldn’t check value moves: ' + esc(e.message) + "</div>"; }
+}
+
 /* ===================== 6. All my leagues ===================== */
 async function openExposure(){
   const body = openSheetShell("All my leagues");
@@ -8437,7 +8519,8 @@ async function edgeDynasty(L, el){
   const trendRow = (x, upDir) => miniRow(x.p, '<span class="avg" style="color:' + (upDir ? "var(--ok)" : "var(--bad)") + '">' + (upDir ? "+" : "") + fmtV(x.tr) + "<small>30 days</small></span>",
     posTag(x.p) + "Worth " + fmtV(x.v) + (x.age ? " · age " + x.age : "") + " · " + (upDir ? ((x.age || 0) >= 27 ? "<b>Sell-high window</b>" : "Rising") : ((x.age || 0) <= 25 ? "Hold, likely a dip" : "Falling, consider moving")));
   h += "<h3>Value on the move</h3>" + (up.length || down.length ? '<ul class="plist">' + up.slice(0, 6).map(x => trendRow(x, true)).join("") + down.slice(0, 6).map(x => trendRow(x, false)).join("") + "</ul>" : '<div class="card"><p class="small" style="margin:0">No big value swings on your roster in the last 30 days.</p></div>') +
-    '<p class="small muted" style="margin:8px 4px 0">Change in FantasyCalc dynasty value over 30 days. Older players spiking in value are your best sell-high chances.</p>';
+    '<p class="small muted" style="margin:8px 4px 0">Change in FantasyCalc dynasty value over 30 days. Older players spiking in value are your best sell-high chances.</p>' +
+    '<button type="button" class="btn ghost" data-vmopen="1" style="width:100%;margin-top:10px"><i class=ic-bars aria-hidden=true></i> Value movers: every team’s month, buy-low targets</button>';
   // draft prep
   const sim = ed.sim && ed.sim.L === L.meta.id ? ed.sim.base : null;
   const slotOf = id => { const s = sim && sim.find(x => x.t.id === String(id)); if (s) return s.slot; const ordr = d.teams.slice().sort((a, b) => (a.w - b.w) || ((a.pf || 0) - (b.pf || 0))); return ordr.findIndex(t => t.id === String(id)) + 1; };
@@ -8448,6 +8531,7 @@ async function edgeDynasty(L, el){
   el.innerHTML = h;
   wireRows(el);
   const dcb = el.querySelector("#dcBtn"); if (dcb) dcb.addEventListener("click", () => openDraftCenter(L));
+  el.querySelectorAll("[data-vmopen]").forEach(b => b.addEventListener("click", () => openValueMovers(L)));
 }
 
 /* ---------- Edge: Keepers ---------- */
