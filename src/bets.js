@@ -39,7 +39,7 @@ export async function betsRoute(request, env, url) {
     if (list.filter(x => x.status === "offered" || x.status === "on").length >= 40) return out({ error: "This league has a lot of open bets. Settle a few first." }, 429);
     const bet = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), week, stake, from: { id: String(from.id), name: nm(from.name) }, to: { id: String(to.id), name: nm(to.name) }, status: "offered", at: Date.now() };
     list.unshift(bet); await hotPut(env, k, list.slice(0, 150)); await trackBetLeague(env, p, lid);
-    const sent = await notifyTeam(env, p, lid, bet.to.id, { show: 1, tag, title: "🤝 " + bet.from.name + " wants a side bet", body: "Higher score in week " + week + ". Loser: " + stake, url: "/?bets=" + p + ":" + lid });
+    const sent = await notifyTeam(env, p, lid, bet.to.id, { show: 1, tag, title: "🤝 " + bet.from.name + " wants a side bet", body: "Higher score in week " + week + ". Loser has to: " + stake, url: "/?bets=" + p + ":" + lid });
     return out({ ok: true, bet, sent });
   }
   const bet = list.find(x => x.id === b.id);
@@ -49,7 +49,7 @@ export async function betsRoute(request, env, url) {
     if (team !== bet.to.id || bet.status !== "offered") return out({ error: "Only " + bet.to.name + " can answer this bet." }, 403);
     bet.status = b.action === "accept" ? "on" : "declined"; bet.answered = Date.now();
     await hotPut(env, k, list);
-    await notifyTeam(env, p, lid, bet.from.id, { show: 1, tag, title: b.action === "accept" ? "🤝 It’s on: " + bet.to.name + " took your bet" : bet.to.name + " passed on your bet", body: b.action === "accept" ? "Week " + bet.week + ". Loser: " + bet.stake : "Maybe next week.", url: "/?bets=" + p + ":" + lid });
+    await notifyTeam(env, p, lid, bet.from.id, { show: 1, tag, title: b.action === "accept" ? "🤝 It’s on: " + bet.to.name + " took your bet" : bet.to.name + " passed on your bet", body: b.action === "accept" ? "Week " + bet.week + ". Loser has to: " + bet.stake : "Maybe next week.", url: "/?bets=" + p + ":" + lid });
     return out({ ok: true, bet });
   }
   if (b.action === "cancel") {
@@ -81,8 +81,8 @@ async function announce(env, p, lid, bet) {
   }
   const W = bet.winner === bet.from.id ? bet.from : bet.to, Lz = bet.winner === bet.from.id ? bet.to : bet.from;
   const sc = bet.scores ? " (" + bet.scores[W.id] + " to " + bet.scores[Lz.id] + ")" : "";
-  await notifyTeam(env, p, lid, W.id, { show: 1, tag, title: "🏆 You won your bet with " + Lz.name, body: "Week " + bet.week + sc + ". They owe you: " + bet.stake, url: "/?bets=" + p + ":" + lid });
-  await notifyTeam(env, p, lid, Lz.id, { show: 1, tag, title: "😬 You lost your bet with " + W.name, body: "Week " + bet.week + sc + ". Time to pay up: " + bet.stake, url: "/?bets=" + p + ":" + lid });
+  await notifyTeam(env, p, lid, W.id, { show: 1, tag, title: "🏆 You won your bet with " + Lz.name, body: "Week " + bet.week + sc + ". They have to: " + bet.stake, url: "/?bets=" + p + ":" + lid });
+  await notifyTeam(env, p, lid, Lz.id, { show: 1, tag, title: "😬 You lost your bet with " + W.name, body: "Week " + bet.week + sc + ". You have to: " + bet.stake, url: "/?bets=" + p + ":" + lid });
 }
 // Runs from the minute cron every 15 minutes: settle Fleaflicker bets whose week is final.
 export async function settleBets(env) {
