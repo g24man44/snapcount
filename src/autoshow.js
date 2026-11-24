@@ -161,9 +161,10 @@ export async function halftimeFacts(lid, name) {
     const b = await getJ(FF + "FetchLeagueBoxscore?sport=NFL&league_id=" + lid + "&fantasy_game_id=" + g.id);
     if (b) (b.lineups || []).forEach(gr => (gr.slots || []).forEach(sl => ["away", "home"].forEach(k => { const x = sl[k]; if (!x || !x.proPlayer) return; const pts = val(x.viewingActualPoints) || 0; if (!tops[k] || pts > tops[k].pts) tops[k] = { name: x.proPlayer.nameFull, pts }; })));
     const L = a >= h ? ["away", g.away, a, sa] : ["home", g.home, h, sh], T = a >= h ? ["home", g.home, h, sh] : ["away", g.away, a, sa];
-    return { margin: Math.abs(a - h), text: "- " + L[1].name + " (" + (rec[L[1].id] || "") + ") leads " + T[1].name + " (" + (rec[T[1].id] || "") + ") " + n(L[2]) + " to " + n(T[2]) + ", by " + n(Math.abs(a - h)) + ". " + L[1].name + " has " + left(L[3]) + " players left to play; " + T[1].name + " has " + left(T[3]) + "." + (tops[L[0]] ? " " + L[1].name + " best so far: " + tops[L[0]].name + " " + n(tops[L[0]].pts) + "." : "") + (tops[T[0]] ? " " + T[1].name + " best so far: " + tops[T[0]].name + " " + n(tops[T[0]].pts) + "." : "") };
+    return { po: g.isPlayoffs ? 1 : 0, margin: Math.abs(a - h), text: "- " + (g.isChampionshipGame ? "CHAMPIONSHIP: " : g.isPlayoffs ? "PLAYOFF: " : g.isConsolation ? "Consolation: " : "") + L[1].name + " (" + (rec[L[1].id] || "") + ") leads " + T[1].name + " (" + (rec[T[1].id] || "") + ") " + n(L[2]) + " to " + n(T[2]) + ", by " + n(Math.abs(a - h)) + ". " + L[1].name + " has " + left(L[3]) + " players left to play; " + T[1].name + " has " + left(T[3]) + "." + (tops[L[0]] ? " " + L[1].name + " best so far: " + tops[L[0]].name + " " + n(tops[L[0]].pts) + "." : "") + (tops[T[0]] ? " " + T[1].name + " best so far: " + tops[T[0]].name + " " + n(tops[T[0]].pts) + "." : "") };
   }));
-  rows.sort((x, y) => x.margin - y.margin).forEach(r => lines.push(r.text));
+  if ((sb.games || []).some(g => g.isPlayoffs)) lines[0] += " PLAYOFFS: games marked PLAYOFF decide who advances; focus on them. Consolation games get one quick line at most.";
+  rows.sort((x, y) => (y.po - x.po) || (x.margin - y.margin)).forEach(r => lines.push(r.text));
   return { w, ctx: lines.join("\n").replace(/\p{Extended_Pictographic}️?/gu, "") };
 }
 // Sunday 4:00 to 4:50 PM Eastern, once the 1 PM games are final.
