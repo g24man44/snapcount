@@ -658,7 +658,14 @@ export async function fleaLineupRoute(request) {
   const lid = String(b.lid || ""), team = String(b.team || "");
   if (!okId(lid) || !okId(team)) return out({ error: "Bad lineup request" }, 400);
   if (!cookie) return out({ error: "Sign in to Fleaflicker first.", login: true }, 401);
-  const want = new Map((Array.isArray(b.starters) ? b.starters : []).slice(0, 40).filter(x => okId(x.id) && ffCode(x.slot)).map(x => [String(x.id), ffCode(x.slot)]));
+  const r0 = await fleaSetLineup(cookie, lid, team, b.starters);
+  return out(r0.ok ? { ok: true } : Object.assign({ error: r0.error }, r0.login ? { login: true } : {}, r0.locked ? { locked: r0.locked } : {}), r0.ok ? 200 : r0.status || 409);
+}
+// Save a full set of starters ({id, slot}) to Fleaflicker; used by the app and by Autopilot.
+export async function fleaSetLineup(cookie, lid, team, starters) {
+  const out = (d, st = 200) => Object.assign({ ok: st === 200 && !d.error, status: st }, d);
+  if (!cookie) return out({ error: "Sign in to Fleaflicker first.", login: true }, 401);
+  const want = new Map((Array.isArray(starters) ? starters : []).slice(0, 40).filter(x => okId(x.id) && ffCode(x.slot)).map(x => [String(x.id), ffCode(x.slot)]));
   if (!want.size) return out({ error: "No starters to set." }, 400);
   const path = "/nfl/leagues/" + lid + "/teams/" + team;
   const pg = await ffPage(path, cookie);

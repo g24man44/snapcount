@@ -162,3 +162,4 @@ An automatic build session picks the top unchecked item, ships it, and checks it
 - Calm pass: slim "lineups set" line, team picker moved down, quieter taunt row/show card, game cards with win % on team rows and one meta line, Advice chips only when they matter.
 - Who to root for (clinch scenarios, magic number, NFL games for your matchup); side bets; in-app trade offers; NFL highlight clips; Game day thread (in-app only); one phone per team (no impersonation); Halftime Show (free voices) and Awards Night with trophy cards.
 - Verified teams (Fleaflicker sign-in); playoff mode (live bracket, elimination watch); profiles, badges, Hall of Fame, Lemon wall; Manager IQ; transaction wire with graded trades and who-won votes; start/sit polls; Offseason HQ.
+- Voice Coach hands-free; Streamers; What to watch + red-zone alerts; Beat the Bot; Rules & votes; Toilet Bowl punishment + Hall of Shame; Lineup Autopilot (Fleaflicker, encrypted session, undo).

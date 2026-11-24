@@ -1417,6 +1417,7 @@ async function loadAll(){
   await Promise.all(leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine)).flatMap(L => [loadBets(L), loadOffers(L), loadSpecialShows(L), loadPlayoffs(L), loadRules(L), loadPunish(L), loadPicks(L, L.detail.week).then(async r => { L.picks = r; if (r.locked) { const nx = await loadPicks(L, Number(L.detail.week) + 1).catch(() => null); if (nx && !nx.locked) { L.picks = nx; L.picksWeek = Number(L.detail.week) + 1; } } }).catch(() => {})]));
   if (cur.tab === "leagues" && cur.league == null) render();
   if (pendingBets) { const L = leagues.find(L => L.meta.platform + ":" + L.meta.id === pendingBets); pendingBets = null; if (L) openBets(L); }
+  if (pendingAp) { const L = leagues.find(L => L.meta.platform === "flea" && String(L.meta.id) === pendingAp); pendingAp = null; if (L) openAutopilot(L); }
   if (pendingPunish) { const L = leagues.find(L => L.meta.platform + ":" + L.meta.id === pendingPunish); pendingPunish = null; if (L) openPunish(L); }
   if (pendingRules) { const L = leagues.find(L => L.meta.platform + ":" + L.meta.id === pendingRules); pendingRules = null; if (L) openRules(L); }
   if (pendingOffers) { const L = leagues.find(L => L.meta.platform + ":" + L.meta.id === pendingOffers); pendingOffers = null; if (L) openOffers(L); }
@@ -1950,9 +1951,9 @@ function renderLeagues(v){
   }
   if (!leaguesLoaded) { v.innerHTML = h + '<p class="spin">Loading your leagues…</p>'; return; }
   if (!leagues.length) { v.innerHTML = h + (leaguesErr.length ? "" : '<p class="muted">No leagues found for this season.</p>'); const rb = v.querySelector("#lRetry"); if (rb) rb.addEventListener("click", loadAll); return; }
-  const TL = {sweatBtn: ["ic-flame", "Sweat board"], briefBtn: ["ic-speaker", "Morning briefing"], injBtn: ["ic-medic", "Injury center"], planBtn: ["ic-calendar", "Byes and injuries, next 4 weeks"], brkBtn: ["ic-pulse", "Breakouts"], expBtn: ["ic-list", "All my leagues"], wlBtn: ["ic-star", "Watchlist"], wxBtn: ["ic-wind", "Game weather"], tdBtn: ["ic-ball", "Your teams (score celebrations)"], betBtn: ["ic-trophy", "Side bets"], offBtn: ["ic-swap", "Trade offers"], profBtn: ["ic-trophy", "Profiles & Hall of Fame"], iqBtn: ["ic-spark", "Manager IQ"], offsBtn: ["ic-spark", "Offseason HQ"], strBtn: ["ic-list", "Streamers: best D/ST, K and QB pickups"], tvBtn: ["ic-speaker", "What to watch: games ranked for you"], botBtn: ["ic-spark", "Beat the Bot: weekly picks"], ruBtn: ["ic-list", "Rules & votes"], tbBtn: ["ic-trophy", "Toilet Bowl & punishment"]};
+  const TL = {sweatBtn: ["ic-flame", "Sweat board"], briefBtn: ["ic-speaker", "Morning briefing"], injBtn: ["ic-medic", "Injury center"], planBtn: ["ic-calendar", "Byes and injuries, next 4 weeks"], brkBtn: ["ic-pulse", "Breakouts"], expBtn: ["ic-list", "All my leagues"], wlBtn: ["ic-star", "Watchlist"], wxBtn: ["ic-wind", "Game weather"], tdBtn: ["ic-ball", "Your teams (score celebrations)"], betBtn: ["ic-trophy", "Side bets"], offBtn: ["ic-swap", "Trade offers"], profBtn: ["ic-trophy", "Profiles & Hall of Fame"], iqBtn: ["ic-spark", "Manager IQ"], offsBtn: ["ic-spark", "Offseason HQ"], strBtn: ["ic-list", "Streamers: best D/ST, K and QB pickups"], tvBtn: ["ic-speaker", "What to watch: games ranked for you"], botBtn: ["ic-spark", "Beat the Bot: weekly picks"], ruBtn: ["ic-list", "Rules & votes"], tbBtn: ["ic-trophy", "Toilet Bowl & punishment"], apBtn: ["ic-spark", "Lineup Autopilot"]};
   const tb = id => '<button type="button" class="btn ghost" id="' + id + '"' + (id === "tdBtn" ? ' data-tdopen="1"' : "") + '><i class=' + TL[id][0] + ' aria-hidden=true></i>' + TL[id][1] + "</button>";
-  const tools = leagues.some(L => L.detail && L.detail.teams.some(t => t.mine)) ? '<h3 class="tgh">Tools</h3><div class="tlist">' + ["sweatBtn", "botBtn", "ruBtn", "tbBtn", "tvBtn", "strBtn", "iqBtn", "profBtn", "offBtn", "betBtn", "offsBtn", "briefBtn", "injBtn"].map(tb).join("") + '</div><details class="moretools"' + (cur.homeMore ? " open" : "") + '><summary>More tools <span class="small muted">6</span></summary><div class="tlist" style="margin-top:8px">' + ["wlBtn", "planBtn", "brkBtn", "expBtn", "wxBtn", "tdBtn"].map(tb).join("") + "</div></details>" : "";
+  const tools = leagues.some(L => L.detail && L.detail.teams.some(t => t.mine)) ? '<h3 class="tgh">Tools</h3><div class="tlist">' + ["sweatBtn", "apBtn", "botBtn", "ruBtn", "tbBtn", "tvBtn", "strBtn", "iqBtn", "profBtn", "offBtn", "betBtn", "offsBtn", "briefBtn", "injBtn"].map(tb).join("") + '</div><details class="moretools"' + (cur.homeMore ? " open" : "") + '><summary>More tools <span class="small muted">6</span></summary><div class="tlist" style="margin-top:8px">' + ["wlBtn", "planBtn", "brkBtn", "expBtn", "wxBtn", "tdBtn"].map(tb).join("") + "</div></details>" : "";
   h = scoreStrip() + h + nowCard() + wlHomeCard();
   h += '<div class="stack">';
   leagues.forEach((L, i) => {
@@ -1992,6 +1993,7 @@ function renderLeagues(v){
   v.querySelectorAll("[data-off]").forEach(b => b.addEventListener("click", () => openOffseason(leagues[+b.dataset.off])));
   v.querySelectorAll("[data-bracket]").forEach(b => b.addEventListener("click", () => openBracket(leagues[+b.dataset.bracket])));
   v.querySelectorAll("[data-special]").forEach(b => b.addEventListener("click", () => openShow(leagues[+b.dataset.special], b.dataset.sw)));
+  const apb = v.querySelector("#apBtn"); if (apb) apb.addEventListener("click", () => openAutopilot(leagues.find(L => L.meta.platform === "flea" && L.detail && L.detail.teams.some(t => t.mine))));
   const tbb = v.querySelector("#tbBtn"); if (tbb) tbb.addEventListener("click", () => { const mineL = leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine)); if (mineL.length) openPunish(mineL[0]); });
   const rub = v.querySelector("#ruBtn"); if (rub) rub.addEventListener("click", () => { const mineL = leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine)); if (mineL.length) openRules(mineL[0]); });
   const pkb = v.querySelector("#botBtn"); if (pkb) pkb.addEventListener("click", () => { const mineL = leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine)); if (mineL.length) openPicks(mineL[0]); });
@@ -5765,6 +5767,32 @@ async function openHistory(L){
   draw();
 }
 
+/* ---------- Lineup Autopilot (Fleaflicker) ---------- */
+async function openAutopilot(L){
+  const sh = $("#sheet"), p = $("#sheetPanel"), d = L && L.detail, me = d && d.teams.find(t => t.mine);
+  const head = '<button class="back" id="closeSheet">Close</button><h2>Lineup Autopilot</h2>';
+  const show = h => { p.innerHTML = h; p.querySelector("#closeSheet").addEventListener("click", closeSheet); };
+  show(head + '<p class="spin">Checking…</p>'); sh.hidden = false;
+  if (!L || L.meta.platform !== "flea") return show(head + '<div class="card"><p style="margin:0">Autopilot works with Fleaflicker leagues.</p></div>');
+  if (!me) return show(head + '<div class="card"><p style="margin:0">Pick your team in this league first.</p></div>');
+  const q = "lid=" + encodeURIComponent(L.meta.id) + "&team=" + encodeURIComponent(me.id) + "&dev=" + devId();
+  let st = {on: false, log: []}; try { st = await api("/api/autopilot?" + q); } catch(e){}
+  if (sh.hidden) return;
+  const call = async (body, cookie) => { const r = await fetch("/api/autopilot?" + q, {method: "POST", headers: Object.assign({"content-type": "application/json"}, cookie ? {"x-flea-cookie": cookie} : {}), body: JSON.stringify(body)}); const j = await r.json().catch(() => ({})); if (!r.ok) { const e = new Error(j.error || "Couldn’t save"); e.login = j.login; throw e; } return j; };
+  let h = head + '<p class="muted" style="margin:-6px 2px 12px">About an hour before each kickoff, Autopilot checks ' + esc(me.name) + '’s starters. Anyone ruled out, on IR, suspended or on bye is swapped for your best healthy bench player who fits that slot, flex included, and saved to Fleaflicker. You get a notification each time, with undo.</p>';
+  if (st.err === "signin") h += '<div class="card"><p class="small" style="margin:0">⚠️ Fleaflicker signed you out, so Autopilot paused. Turn it back on to sign in again.</p></div>';
+  h += '<div class="card heroCard"><label class="toggle" style="margin:0"><input type="checkbox" id="apOn"' + (st.on ? " checked" : "") + '> <b>Autopilot ' + (st.on ? "is on" : "is off") + '</b></label><div id="apBox"></div><p class="small" id="apMsg" style="margin:8px 0 0"></p><p class="small muted" style="margin:8px 0 0">It only benches players who won’t play. It never drops anyone or makes trades. Your Fleaflicker sign-in is stored encrypted and used only for this.</p></div>';
+  if ((st.log || []).length) h += "<h3>What Autopilot did</h3>" + st.log.map(e => '<div class="card betc"><b>' + new Date(e.at).toLocaleString([], {weekday: "short", hour: "numeric", minute: "2-digit"}) + (e.ok ? "" : " · didn’t save") + "</b>" + e.swaps.map(w => '<p class="small" style="margin:4px 0">' + esc(w.in) + " in for " + esc(w.out) + ' <span class="muted">(' + esc(w.why) + ")</span></p>").join("") + (e.ok && !e.undone ? '<button type="button" class="btn ghost" data-apu="' + esc(e.id) + '">Undo</button>' : e.undone ? '<p class="small muted" style="margin:0">Undone</p>' : '<p class="small badt" style="margin:0">' + esc(e.err || "") + "</p>") + "</div>").join("");
+  show(h);
+  const msg = p.querySelector("#apMsg"), box = p.querySelector("#apBox"), cb = p.querySelector("#apOn");
+  const turnOn = async () => {
+    msg.textContent = "Checking with Fleaflicker…";
+    try { await call({action: "on"}, fleaCookie()); openAutopilot(L); }
+    catch(e){ if (e.login || !fleaCookie()) { setFleaCookie(""); msg.textContent = ""; box.innerHTML = fleaSignInHTML("so Autopilot can fix " + me.name + "’s lineup."); wireFleaSignIn(box, m => { if (!fleaCookie()) { alertMsg(box.querySelector("#ffIn"), m); const x = box.querySelector("#ffIn"); if (x) { x.disabled = false; x.textContent = "Sign in"; } return; } box.innerHTML = ""; turnOn(); }); } else { msg.textContent = e.message; cb.checked = false; } }
+  };
+  cb.addEventListener("change", async () => { if (cb.checked) turnOn(); else { try { await call({action: "off"}); openAutopilot(L); } catch(e){ msg.textContent = e.message; } } });
+  p.querySelectorAll("[data-apu]").forEach(b => b.addEventListener("click", async () => { b.disabled = true; b.textContent = "Undoing…"; try { await call({action: "undo", id: b.dataset.apu}); openAutopilot(L); } catch(e){ b.textContent = e.message; } }));
+}
 /* ---------- Toilet Bowl: the last-place punishment vote, proof photos and the Hall of Shame ---------- */
 async function loadPunish(L){ try { L.punish = await api("/api/punish?p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id) + "&season=" + (L.meta.season || new Date().getFullYear())); } catch(e){} return L.punish; }
 function punishHomeLine(L, i){
@@ -10510,7 +10538,8 @@ function openTour(){
 }
 
 /* ---------- boot ---------- */
-let pendingJoin = null, pendingBets = null, pendingOffers = null, pendingRules = null, pendingPunish = null;
+let pendingJoin = null, pendingBets = null, pendingOffers = null, pendingRules = null, pendingPunish = null, pendingAp = null;
+try { const aq = new URLSearchParams(location.search).get("autopilot"); if (aq && /^\d{1,12}$/.test(aq)) { pendingAp = aq; history.replaceState(null, "", location.pathname); } } catch(e){}
 try { const pq = new URLSearchParams(location.search).get("punish"); if (pq && /^(flea|sleeper|espn|mfl):[\w-]{1,40}$/.test(pq)) { pendingPunish = pq; history.replaceState(null, "", location.pathname); } } catch(e){}
 try { const rq = new URLSearchParams(location.search).get("rules"); if (rq && /^(flea|sleeper|espn|mfl):[\w-]{1,40}$/.test(rq)) { pendingRules = rq; history.replaceState(null, "", location.pathname); } } catch(e){}
 try { const oq = new URLSearchParams(location.search).get("offers"); if (oq && /^(flea|sleeper|espn|mfl):[\w-]{1,40}$/.test(oq)) { pendingOffers = oq; history.replaceState(null, "", location.pathname); } } catch(e){}
