@@ -9799,11 +9799,13 @@ async function openShow(L, sw){
   const kind = sw ? (String(sw).endsWith("h") ? "half" : "awards") : "week";
   const body = openSheetShell(kind === "half" ? "The Halftime Show" : kind === "awards" ? "Awards Night" : "The Snap Count Show");
   body.innerHTML = '<p class="spin">Checking the box scores…</p>';
-  let F = null; if (sw) F = {w: sw}; else { try { F = await showFacts(L); } catch(e){} }
+  let F = null, factsErr = ""; if (sw) F = {w: sw}; else { try { F = await showFacts(L); } catch(e){ factsErr = e.message; } }
+  // If the box scores couldn't be read on this phone, fall back to the newest episode the server already recorded.
+  if (!sw && !F) { const cw = Number(L.detail && L.detail.week) || 0; for (const ww of [cw, cw - 1, cw - 2].filter(x => x > 0)) { try { const r = await api("/api/show?p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id) + "&w=" + ww); if (r.show && r.show.done >= r.show.total) { F = {w: ww}; break; } } catch(e){} } }
   // The automatic episode is made right after Monday night, but the league site can take until Tuesday afternoon
   // to mark the week final. If a newer, fully recorded episode already exists, open that one.
   if (!sw && F && F.w) { try { const nx = await api("/api/show?p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id) + "&w=" + (F.w + 1)); if (nx.show && nx.show.done >= nx.show.total) F = {w: F.w + 1}; } catch(e){} }
-  if (!F) { body.innerHTML = '<div class="card empty"><p class="muted" style="margin:0">The show covers the most recent week where every game is final. There isn’t one yet.</p></div>'; return; }
+  if (!F) { body.innerHTML = '<div class="card empty"><p class="muted" style="margin:0">' + (factsErr ? "Couldn’t read this week’s box scores (" + esc(factsErr) + "). Pull down to refresh and try again." : "The show covers the most recent week where every game is final. There isn’t one yet.") + '</p><button type="button" class="btn" id="shRetry" style="margin-top:12px">Try again</button></div>'; body.querySelector("#shRetry").addEventListener("click", () => openShow(L)); return; }
   const d = L.detail, w = F.w, q = "p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id) + "&w=" + w;
   const final = true;
   const NAMES = {DEZ: "Dez", SAM: "Sam"};
