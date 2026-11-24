@@ -5819,6 +5819,13 @@ async function shareEpisode(L, show, q, epUrl, b){
   const res = await shareFileOrLink(file, title, text, show.engine === "gemini" ? location.origin : link);
   if (res === "copied") flashBtn(b, "Copied"); else if (res === "failed") flashBtn(b, "Can’t share");
 }
+// Default share: a link to the listen page, which plays the whole episode anywhere (texts cap attachment sizes).
+async function shareEpisodeLink(L, show, w, b){
+  const wk = String(w), kind = /h$/.test(wk) ? "Halftime Show" : /a$/.test(wk) ? "Awards Night" : "week " + wk;
+  const url = location.origin + "/listen/" + L.meta.platform + "/" + encodeURIComponent(L.meta.id) + "/" + wk;
+  const r = await shareFileOrLink(null, "The Snap Count Show · " + kind, "🎙 The Snap Count Show: " + L.meta.name + ", " + kind + ". Listen to the full episode:", url);
+  if (r === "copied") flashBtn(b, "Copied"); else if (r === "failed") flashBtn(b, "Can’t share");
+}
 async function iqImage(L, B, week){
   const rows = B.slice(0, 20), c = document.createElement("canvas"); c.width = 1080; c.height = 360 + rows.length * 78; const x = c.getContext("2d");
   x.fillStyle = "#0b0d0c"; x.fillRect(0, 0, c.width, c.height);
@@ -9835,7 +9842,10 @@ async function openShow(L, sw){
     const mk = body.querySelector("#shMake"); if (mk) mk.addEventListener("click", make);
     const rm = body.querySelector("#shRemake"); if (rm && !F.ctx) rm.hidden = true; else if (rm) rm.addEventListener("click", make);
     const panel = $("#sheetPanel");
-    if (show && done >= show.total) addShareIcon(panel, "Share this episode", b => shareEpisode(L, Object.assign({w}, show), q, epUrl, b)); else { const o = panel.querySelector(".shareic"); if (o) o.remove(); }
+    if (show && done >= show.total) {
+      addShareIcon(panel, "Share this episode", b => shareEpisodeLink(L, show, w, b));
+      if (!body.querySelector("#shFile")) { const fb = document.createElement("button"); fb.type = "button"; fb.className = "linkbtn"; fb.id = "shFile"; fb.style.margin = "4px 2px 0"; fb.textContent = "Share the audio file instead"; fb.addEventListener("click", () => shareEpisode(L, Object.assign({w}, show), q, epUrl, fb)); const au = body.querySelector(".epaudio"); if (au && au.parentNode) au.parentNode.appendChild(fb); }
+    } else { const o = panel.querySelector(".shareic"); if (o) o.remove(); }
   };
   async function playSample(){
     if (sampleBusy) return; sampleBusy = true; sampleErr = ""; draw();

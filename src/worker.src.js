@@ -2,7 +2,7 @@
 // Paste this whole file into a new Cloudflare Worker and deploy. Free plan is fine.
 
 import { chatRoute, groupmeSay, ChatRoom } from "./src/chat.js";
-import { showRoute, elUsage, elSetup, gemModels, gemChat, gemProbe } from "./src/show.js";
+import { listenPage, showRoute, elUsage, elSetup, gemModels, gemChat, gemProbe } from "./src/show.js";
 import { alertsRoute, tauntRoute, runMinute, hotGet, staticRoute, injuriesRoute, readInjuries, eachSubscriber, norm, alertNames } from "./src/alerts.js";
 import { PROSPECTS } from "./src/prospects.js";
 import { betsRoute } from "./src/bets.js";
@@ -864,6 +864,7 @@ export default {
       if (p === "/api/taunt") return tauntRoute(request, env);
       if (p === "/api/bets") return betsRoute(request, env, url);
       if (p === "/api/offers") return offersRoute(request, env, url);
+      if (p.startsWith("/listen/")) return listenPage(env, url);
       if (p === "/api/party") return partyRoute(request, env, url);
       if (p === "/api/poll") return pollRoute(request, env, url);
       if (p === "/api/claims") return claimsRoute(request, env, url);

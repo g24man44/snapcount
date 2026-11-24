@@ -518,3 +518,24 @@ export async function showRoute(request, url, env) {
   }
   return out({ error: "Not found" }, 404);
 }
+
+// A public listen page for sharing: plays the full episode in any browser, no app needed, with a link preview.
+export async function listenPage(env, url) {
+  const [, , p, lid, w] = url.pathname.split("/");
+  const html = (s, st = 200) => new Response(s, { status: st, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" } });
+  if (!okLid(p, lid) || !/^\d{1,2}[ha]?$/.test(w || "")) return html("<p>Episode not found.</p>", 404);
+  const show = await env.SNAP.get(keyOf(p, lid, w), "json");
+  const e = s => String(s || "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  const recorded = show ? Math.max(show.done || 0, Number(await hotGet(env, "showdone:" + keyOf(p, lid, w)).catch(() => 0)) || 0) : 0;
+  if (!show || recorded < show.lines.length) return html("<!doctype html><meta name=viewport content='width=device-width,initial-scale=1'><body style='font:16px system-ui;background:#0b0d0c;color:#eee;padding:24px'><p>This episode isn’t ready yet. Check back in a few minutes.</p>", 404);
+  const kind = /h$/.test(w) ? "Halftime Show" : /a$/.test(w) ? "Awards Night" : "Week " + w;
+  const title = "The Snap Count Show · " + kind, league = show.league || "Your league", src = "/api/show/mp3?p=" + p + "&lid=" + encodeURIComponent(lid) + "&w=" + w + "&t=" + (show.at || 0);
+  const desc = league + ": " + (show.lines[1] ? show.lines[1].t.slice(0, 150) : "An AI-made recap of the week.");
+  return html(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${e(title)}</title><meta property="og:title" content="${e(title)}"><meta property="og:description" content="${e(desc)}"><meta property="og:type" content="music.song"><meta property="og:audio" content="${e(url.origin + src)}"><meta property="og:image" content="${e(url.origin)}/icon-192.png?v=6"><meta name="theme-color" content="#0b0d0c">
+<style>:root{color-scheme:dark}body{margin:0;background:#0b0d0c;color:#f2f2f2;font:16px/1.5 system-ui,-apple-system,sans-serif}main{max-width:560px;margin:0 auto;padding:28px 18px 48px}.bar{width:64px;height:7px;background:#2bf07f;border-radius:2px}h1{font-size:30px;line-height:1.1;margin:14px 0 4px}p.l{color:#9a9a9a;margin:0 0 20px}audio{width:100%;margin:8px 0 18px}details{background:#151816;border-radius:14px;padding:12px 16px}summary{cursor:pointer;font-weight:700}.ln{margin:10px 0}.ln b{color:#2bf07f}.ln.dez b{color:#ffb020}a{color:#2bf07f}small{color:#777;display:block;margin-top:22px}</style></head>
+<body><main><div class="bar"></div><h1>${e(title)}</h1><p class="l">${e(league)} · hosts Dez and Sam</p>
+<audio controls preload="metadata" src="${e(src)}"></audio>
+<details><summary>Read the script</summary>${show.lines.map(l => `<p class="ln ${l.s === "DEZ" ? "dez" : ""}"><b>${e(l.s === "DEZ" ? "Dez" : "Sam")}:</b> ${e(l.t)}</p>`).join("")}</details>
+<small>An AI-made recap from the league’s real results. Made with <a href="/">Snap Count</a>.</small></main></body></html>`);
+}
