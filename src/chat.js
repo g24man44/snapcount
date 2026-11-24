@@ -212,7 +212,7 @@ export async function chatRoute(request, url, env) {
     // Messages go out under the team this phone is locked to, never a typed-in name.
     const who = await asTeam(env, p, lid, b.team, b.dev, b.teamName);
     if (who.error) return out({ error: who.error }, who.status);
-    if (path === "/api/chat/post") text = who.name + ": " + text.slice(0, 900);
+    if (path === "/api/chat/post") text = who.name + (who.verified ? " ✓" : "") + ": " + text.slice(0, 900);
     else text = "Shared by " + who.name + ":\n" + text.slice(0, 2900);
     try { if (!(await groupmeSay(env, p, lid, text))) return out({ error: "This league isn’t connected to GroupMe yet." }, 409); }
     catch (e) { return out({ error: e.message }, 502); }

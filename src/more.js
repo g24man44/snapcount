@@ -644,6 +644,13 @@ function ffLineupForm(html, team) {
   fields.teamId = tid || team;
   return { fields, open, locked };
 }
+// Verify team ownership: only the owner sees the lineup form on their team's page.
+export async function fleaOwnsTeam(cookie, lid, team) {
+  if (!okId(lid) || !okId(team) || !cookie) return { error: "Sign in to Fleaflicker first.", login: true };
+  const pg = await ffPage("/nfl/leagues/" + lid + "/teams/" + team, cookie);
+  if (pg.login || !/logout|sign ?out/i.test(pg.html || "")) return { error: "Fleaflicker needs you to sign in again.", login: true };
+  return { owns: !!ffLineupForm(pg.html, team) };
+}
 export async function fleaLineupRoute(request) {
   if (request.method !== "POST") return out({ error: "POST only" }, 405);
   const b = await request.json().catch(() => ({}));
