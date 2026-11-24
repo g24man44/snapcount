@@ -1052,7 +1052,7 @@ h3.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .envrow .chip.ok{color:var(--ok)}.envrow .chip.warn,.envrow .chip.wxhi{color:var(--warn)}
 .heroCard .gnum{width:44px;height:44px;padding-top:0;align-items:center;border-radius:50%!important}.heroCard .gnum b{font-size:20px}
 .lerr{margin-bottom:12px}.lerr b{display:block;font-size:15px}.lerr p{margin:4px 0 12px}
-.rootHero .reasons{margin:8px 0 0}.scen{padding:4px 16px!important}.scrow{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px 0;font-size:14px}.scrow+.scrow{border-top:1px solid var(--line)}.scrow b{font-size:16px;flex:none}
+.rootHero .reasons{margin:8px 0 0}.betc{margin-bottom:10px}.betc p{margin:4px 0 10px}.betstakes{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.betstakes .chip{text-align:left;white-space:normal}.betstakes .chip.on{background:var(--accent);color:var(--accent-ink)}.inp{width:100%;margin-top:4px}.scrow.me b,.scrow.me span{color:var(--accent)}.scen{padding:4px 16px!important}.scrow{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px 0;font-size:14px}.scrow+.scrow{border-top:1px solid var(--line)}.scrow b{font-size:16px;flex:none}
 </style>
 </head>
 <body>
@@ -1414,6 +1414,9 @@ async function loadAll(){
   await Promise.all(leagues.filter(L => L.meta.platform === "flea" && L.detail).flatMap(L => { const me = L.detail.teams.find(t => t.mine); if (!me) return []; const g = L.detail.games.find(x => x.a.id === me.id || x.b.id === me.id), op = g && L.detail.teams.find(t => t.id === (g.a.id === me.id ? g.b.id : g.a.id)); return [me, op].filter(t => t && !t.live).map(t => fleaTeamRoster(L, t)); }));
   if (cur.tab === "leagues" || cur.tab === "edge") render();
   syncAlerts().catch(() => {});
+  await Promise.all(leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine)).map(loadBets));
+  if (cur.tab === "leagues" && cur.league == null) render();
+  if (pendingBets) { const L = leagues.find(L => L.meta.platform + ":" + L.meta.id === pendingBets); pendingBets = null; if (L) openBets(L); }
   if (leagues.some(L => L.detail && L.detail.teams.some(t => t.mine))) maybeTour();
   dailyPing();
   checkUnread();
@@ -1943,9 +1946,9 @@ function renderLeagues(v){
   }
   if (!leaguesLoaded) { v.innerHTML = h + '<p class="spin">Loading your leagues…</p>'; return; }
   if (!leagues.length) { v.innerHTML = h + (leaguesErr.length ? "" : '<p class="muted">No leagues found for this season.</p>'); const rb = v.querySelector("#lRetry"); if (rb) rb.addEventListener("click", loadAll); return; }
-  const TL = {sweatBtn: ["ic-flame", "Sweat board"], briefBtn: ["ic-speaker", "Morning briefing"], injBtn: ["ic-medic", "Injury center"], planBtn: ["ic-calendar", "Byes and injuries, next 4 weeks"], brkBtn: ["ic-pulse", "Breakouts"], expBtn: ["ic-list", "All my leagues"], wlBtn: ["ic-star", "Watchlist"], wxBtn: ["ic-wind", "Game weather"], tdBtn: ["ic-ball", "Your teams (score celebrations)"]};
+  const TL = {sweatBtn: ["ic-flame", "Sweat board"], briefBtn: ["ic-speaker", "Morning briefing"], injBtn: ["ic-medic", "Injury center"], planBtn: ["ic-calendar", "Byes and injuries, next 4 weeks"], brkBtn: ["ic-pulse", "Breakouts"], expBtn: ["ic-list", "All my leagues"], wlBtn: ["ic-star", "Watchlist"], wxBtn: ["ic-wind", "Game weather"], tdBtn: ["ic-ball", "Your teams (score celebrations)"], betBtn: ["ic-trophy", "Side bets"]};
   const tb = id => '<button type="button" class="btn ghost" id="' + id + '"' + (id === "tdBtn" ? ' data-tdopen="1"' : "") + '><i class=' + TL[id][0] + ' aria-hidden=true></i>' + TL[id][1] + "</button>";
-  const tools = leagues.some(L => L.detail && L.detail.teams.some(t => t.mine)) ? '<h3 class="tgh">Tools</h3><div class="tlist">' + ["sweatBtn", "briefBtn", "injBtn"].map(tb).join("") + '</div><details class="moretools"' + (cur.homeMore ? " open" : "") + '><summary>More tools <span class="small muted">6</span></summary><div class="tlist" style="margin-top:8px">' + ["wlBtn", "planBtn", "brkBtn", "expBtn", "wxBtn", "tdBtn"].map(tb).join("") + "</div></details>" : "";
+  const tools = leagues.some(L => L.detail && L.detail.teams.some(t => t.mine)) ? '<h3 class="tgh">Tools</h3><div class="tlist">' + ["sweatBtn", "betBtn", "briefBtn", "injBtn"].map(tb).join("") + '</div><details class="moretools"' + (cur.homeMore ? " open" : "") + '><summary>More tools <span class="small muted">6</span></summary><div class="tlist" style="margin-top:8px">' + ["wlBtn", "planBtn", "brkBtn", "expBtn", "wxBtn", "tdBtn"].map(tb).join("") + "</div></details>" : "";
   h = scoreStrip() + h + nowCard() + wlHomeCard();
   h += '<div class="stack">';
   leagues.forEach((L, i) => {
@@ -1967,6 +1970,7 @@ function renderLeagues(v){
     }
     h += "</button>";
     if (d && d.teams.some(t => t.mine)) h += tauntRow(L);
+    if (d && d.teams.some(t => t.mine)) h += betsHomeLine(L, i);
     if (d && d.teams.some(t => t.mine)) h += '<button type="button" class="card nowslim" data-root="' + i + '"><i class=ic-target aria-hidden=true></i><span><b>Who to root for</b><span class="muted"> · scenarios and games that matter</span></span><span class="go">›</span></button>';
     if (d && d.teams.some(t => t.mine)) h += '<button type="button" class="card showcard" data-show="' + i + '"><span class="showic" aria-hidden="true"><i class=ic-speaker></i></span><span class="showtx"><b>The Snap Count Show</b><span class="small muted">This week’s podcast about ' + esc(m.name) + '</span></span><span class="showgo">Listen</span></button>';
   });
@@ -1976,6 +1980,8 @@ function renderLeagues(v){
   const hm = v.querySelector(".moretools"); if (hm) hm.addEventListener("toggle", () => { cur.homeMore = hm.open; });
   v.querySelectorAll("[data-show]").forEach(b => b.addEventListener("click", () => openShow(leagues[+b.dataset.show])));
   v.querySelectorAll("[data-root]").forEach(b => b.addEventListener("click", () => openRootFor(leagues[+b.dataset.root])));
+  v.querySelectorAll("[data-bets]").forEach(b => b.addEventListener("click", () => openBets(leagues[+b.dataset.bets])));
+  const btb = v.querySelector("#betBtn"); if (btb) btb.addEventListener("click", () => { const mineL = leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine)); if (mineL.length) openBets(mineL[0]); });
   v.querySelectorAll("[data-l]").forEach(b => b.addEventListener("click", () => { cur.league = +b.dataset.l; cur.team = null; render(); window.scrollTo(0,0); }));
   const sw = v.querySelector("#sweatBtn"); if (sw) sw.addEventListener("click", openSweat);
   const pb = v.querySelector("#planBtn"); if (pb) pb.addEventListener("click", openPlanner);
@@ -8446,6 +8452,61 @@ function pathLines(pp, me){
   if (r && r.imp >= 0.01) out.push({tone: "", text: "Best help this week: " + r.fav.name + " beating " + r.vs.name + " (+" + Math.round(r.imp * 100) + "% for you)."});
   return out;
 }
+/* ---------- Side bets: friendly stakes between two managers, settled automatically (no money through the app) ---------- */
+const BET_STAKES = ["Loser renames their team for a week (winner picks the name)", "Loser posts a photo of the winner’s choice in the league chat", "Loser’s team logo becomes a lemon for a week", "Loser writes a 3-sentence tribute to the winner in the chat", "Bragging rights only"];
+async function loadBets(L){ try { const r = await api("/api/bets?p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id)); L.bets = r.bets || []; } catch(e){ L.bets = L.bets || []; } return L.bets; }
+function betsHomeLine(L, i){
+  const me = L.detail && L.detail.teams.find(t => t.mine); if (!me || !L.bets) return "";
+  const offers = L.bets.filter(b => b.status === "offered" && b.to.id === me.id);
+  if (!offers.length) return "";
+  return '<button type="button" class="card nowslim" data-bets="' + i + '"><i class=ic-trophy aria-hidden=true></i><span><b>' + esc(offers[0].from.name) + " wants a side bet</b>" + '<span class="muted"> · ' + esc(offers.length > 1 ? offers.length + " offers waiting" : "Week " + offers[0].week) + '</span></span><span class="go">›</span></button>';
+}
+async function openBets(L, preset){
+  const sh = $("#sheet"), p = $("#sheetPanel"), d = L.detail, me = d && d.teams.find(t => t.mine);
+  const head = '<button class="back" id="closeSheet">Close</button><h2>Side bets</h2>';
+  const show = h => { p.innerHTML = h; p.querySelector("#closeSheet").addEventListener("click", closeSheet); };
+  show(head + '<p class="spin">Loading bets…</p>'); sh.hidden = false;
+  if (!me) return show(head + '<div class="card"><p style="margin:0">Pick your team in this league first.</p></div>');
+  await loadBets(L); if (sh.hidden) return;
+  const T = d.teams, wk = Number(d.week) || 1;
+  const g = d.games.find(x => x.a.id === me.id || x.b.id === me.id), oppId = preset || (g ? (g.a.id === me.id ? g.b.id : g.a.id) : (T.find(t => t !== me) || {}).id);
+  const post = async body => { const r = await fetch("/api/bets", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify(Object.assign({p: L.meta.platform, lid: String(L.meta.id), team: me.id}, body))}); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "Couldn’t save that"); return j; };
+  const B = L.bets, mineB = B.filter(b => b.from.id === me.id || b.to.id === me.id);
+  const offers = B.filter(b => b.status === "offered" && b.to.id === me.id), open = mineB.filter(b => b.status === "on" || (b.status === "offered" && b.from.id === me.id));
+  const others = B.filter(b => (b.status === "on" || b.status === "settled") && b.from.id !== me.id && b.to.id !== me.id).slice(0, 8);
+  const settled = B.filter(b => b.status === "settled");
+  const vs = b => b.from.id === me.id ? b.to : b.from;
+  let h = head + '<p class="muted" style="margin:-6px 2px 12px">Higher score in a week wins. The stakes are for bragging rights; no money goes through Snap Count. ' + (L.meta.platform === "flea" ? "Bets settle themselves when the week is final." : "Either of you taps the winner when the week is done.") + "</p>";
+  if (offers.length) h += "<h3>Waiting on you</h3>" + offers.map(b => '<div class="card betc"><b>' + esc(b.from.name) + " challenges you · week " + b.week + '</b><p class="small">Loser: ' + esc(b.stake) + '</p><div class="nowbtns"><button type="button" class="btn" data-bact="accept" data-bid="' + b.id + '">Take the bet</button><button type="button" class="btn ghost" data-bact="decline" data-bid="' + b.id + '">Pass</button></div></div>').join("");
+  h += '<h3>New bet</h3><div class="card betc"><label class="small muted">Against</label><select id="betTo" class="inp">' + T.filter(t => t !== me).map(t => '<option value="' + esc(t.id) + '"' + (t.id === oppId ? " selected" : "") + ">" + esc(t.name) + (g && t.id === oppId && !preset ? " (your opponent)" : "") + "</option>").join("") + '</select>' +
+    '<label class="small muted" style="margin-top:10px;display:block">Week</label><select id="betWk" class="inp">' + [wk, wk + 1, wk + 2].map(w => '<option value="' + w + '">Week ' + w + (w === wk ? " (this week)" : "") + "</option>").join("") + "</select>" +
+    '<label class="small muted" style="margin-top:10px;display:block">The loser has to…</label><div class="betstakes">' + BET_STAKES.map((s, k) => '<button type="button" class="chip" data-stake="' + k + '">' + esc(s) + "</button>").join("") + '</div><input id="betStake" class="inp" maxlength="90" placeholder="Or write your own" style="margin-top:8px">' +
+    '<button type="button" class="btn" id="betGo" style="margin-top:12px;width:100%">Send the challenge</button><p class="small" id="betMsg" style="margin:8px 0 0"></p></div>';
+  if (open.length) h += "<h3>Your bets</h3>" + open.map(b => '<div class="card betc"><b>' + (b.status === "offered" ? "Waiting on " + esc(b.to.name) : "Vs " + esc(vs(b).name)) + " · week " + b.week + '</b><p class="small">Loser: ' + esc(b.stake) + "</p>" + (b.status === "offered" ? '<button type="button" class="btn ghost" data-bact="cancel" data-bid="' + b.id + '">Take it back</button>' : L.meta.platform !== "flea" && wk > b.week ? '<div class="nowbtns"><button type="button" class="btn ghost" data-bact="settle" data-win="' + me.id + '" data-bid="' + b.id + '">I won</button><button type="button" class="btn ghost" data-bact="settle" data-win="' + vs(b).id + '" data-bid="' + b.id + '">They won</button></div>' : '<p class="small muted" style="margin:0">It’s on. Settles when week ' + b.week + " is final.</p>") + "</div>").join("");
+  // Who owes what: settled bets, newest first, with the winner able to mark the stakes done
+  const owed = settled.filter(b => b.winner !== "push" && !b.paid);
+  if (owed.length) h += "<h3>Who owes what</h3>" + '<div class="card scen">' + owed.slice(0, 12).map(b => { const W = b.winner === b.from.id ? b.from : b.to, Lz = b.winner === b.from.id ? b.to : b.from; return '<div class="scrow"><span><b>' + esc(Lz.name) + "</b> owes " + esc(W.name) + '<small class="muted" style="display:block">' + esc(b.stake) + " · week " + b.week + (b.scores ? " · " + fmt(b.scores[W.id]) + " to " + fmt(b.scores[Lz.id]) : "") + "</small></span>" + (W.id === me.id ? '<button type="button" class="btn ghost" data-bact="paid" data-bid="' + b.id + '">Done</button>' : "") + "</div>"; }).join("") + "</div>";
+  // Season ledger: bets won and lost per team
+  const rec = {}; settled.forEach(b => { if (b.winner === "push") return; [b.from, b.to].forEach(t => { rec[t.id] = rec[t.id] || {name: t.name, w: 0, l: 0}; }); rec[b.winner].w++; rec[b.winner === b.from.id ? b.to.id : b.from.id].l++; });
+  const rows = Object.entries(rec).sort((a, b) => (b[1].w - b[1].l) - (a[1].w - a[1].l));
+  if (rows.length) h += "<h3>Side bet standings</h3>" + '<div class="card scen">' + rows.map(([id, r]) => '<div class="scrow' + (id === me.id ? " me" : "") + '"><span>' + esc(r.name) + "</span><b>" + r.w + "-" + r.l + "</b></div>").join("") + "</div>";
+  if (others.length) h += "<h3>Around the league</h3>" + '<div class="card scen">' + others.map(b => '<div class="scrow"><span>' + esc(b.from.name) + " vs " + esc(b.to.name) + '<small class="muted" style="display:block">' + esc(b.stake) + " · week " + b.week + "</small></span><b class=\"small\">" + (b.status === "settled" ? (b.winner === "push" ? "Tie" : esc((b.winner === b.from.id ? b.from : b.to).name) + " won") : "On") + "</b></div>").join("") + "</div>";
+  show(h);
+  let stake = "";
+  p.querySelectorAll("[data-stake]").forEach(c => c.addEventListener("click", () => { p.querySelectorAll("[data-stake]").forEach(x => x.classList.remove("on")); c.classList.add("on"); stake = BET_STAKES[+c.dataset.stake]; p.querySelector("#betStake").value = ""; }));
+  p.querySelector("#betGo").addEventListener("click", async () => {
+    const msg = p.querySelector("#betMsg"), custom = p.querySelector("#betStake").value.trim(), to = T.find(t => t.id === p.querySelector("#betTo").value);
+    const st = custom || stake; if (!st) { msg.textContent = "Pick what the loser has to do."; return; }
+    msg.textContent = "Sending…";
+    try { const j = await post({action: "offer", week: +p.querySelector("#betWk").value, stake: st, from: {id: me.id, name: me.name}, to: {id: to.id, name: to.name}}); msg.textContent = j.sent ? "Sent. " + to.name + " just got a notification." : "Saved. " + to.name + " will see it next time they open Snap Count."; setTimeout(() => openBets(L), 1200); }
+    catch(e){ msg.textContent = e.message; }
+  });
+  p.querySelectorAll("[data-bact]").forEach(x => x.addEventListener("click", async () => {
+    x.disabled = true;
+    try { await post({action: x.dataset.bact, id: x.dataset.bid, winner: x.dataset.win}); openBets(L); if (cur.tab === "leagues" && cur.league == null) render(); }
+    catch(e){ x.disabled = false; x.textContent = e.message; }
+  }));
+}
 /* ---------- Clinching scenarios: exact "win and you're in" paths, plus a magic number ---------- */
 // A week-0 game is already decided when it has live scores with no time left on either side.
 const gDone = g => g[4] != null && !g[6] && !g[7];
@@ -9535,7 +9596,8 @@ function openTour(){
 }
 
 /* ---------- boot ---------- */
-let pendingJoin = null;
+let pendingJoin = null, pendingBets = null;
+try { const bq = new URLSearchParams(location.search).get("bets"); if (bq && /^(flea|sleeper|espn|mfl):[\w-]{1,40}$/.test(bq)) { pendingBets = bq; history.replaceState(null, "", location.pathname); } } catch(e){}
 try {
   const j = new URLSearchParams(location.search).get("join");
   const m = j && j.match(/^(flea|espn|mfl):(\d{3,12})$/);

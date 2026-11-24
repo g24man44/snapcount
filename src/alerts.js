@@ -8,6 +8,7 @@ import { ARCHIVO_WOFF } from "./font.js";
 import { matchupPreviews, weeklyPower } from "./weekly.js";
 import { gameWeather } from "./weather.js";
 import { autoShows } from "./autoshow.js";
+import { settleBets } from "./bets.js";
 import { hookKind, sendHook, espnLeagueTaken, mflLeagueTaken, weeklyRecaps, aiComplete, scoresRoute } from "./more.js";
 
 const UA = { "User-Agent": "SnapCount/1.0 (fantasy dashboard)", "Accept": "application/json" };
@@ -100,7 +101,7 @@ async function liveState(env, k, v) {
   if (v === undefined) return stub.fetch("https://chat/state?k=" + k).then(r => r.json()).catch(() => null);
   return stub.fetch("https://chat/state?k=" + k, { method: "POST", body: JSON.stringify(v) }).catch(() => {});
 }
-async function subscriberIds(env) {
+export async function subscriberIds(env) {
   const idx = await env.SNAP.get("subs:idx", "json");
   if (Array.isArray(idx)) return idx;
   const list = await env.SNAP.list({ prefix: "sub:" }), ids = list.keys.map(k => k.name.slice(4)); // once, to build the index
@@ -405,6 +406,7 @@ export async function alertsRoute(request, env, p, url) {
     if (p === "/api/push/run" && url.searchParams.get("what") === "power") return out(await weeklyPower(env, true));
     if (p === "/api/push/run" && url.searchParams.get("what") === "plays") return out(await playAlerts(env));
     if (p === "/api/push/run" && url.searchParams.get("what") === "autoshow") return out(await autoShows(env, true));
+    if (p === "/api/push/run" && url.searchParams.get("what") === "bets") { await settleBets(env); return out({ ok: true }); }
     if (p === "/api/push/run" && url.searchParams.get("what") === "recap") return out(await weeklyRecaps(Object.assign({}, env, { HOST: url.host }), true));
     if (p === "/api/push/run" && url.searchParams.get("what") === "league") return out(await leagueWatch(env, true));
     if (p === "/api/push/run" && url.searchParams.get("what") === "brief") return out(await pregameBriefings(env, false));
@@ -1214,6 +1216,7 @@ export async function runMinute(env) {
   await lineupCheck(env).catch(() => {});
   if (m % 5 === 3) await kickoffLineupAlerts(env).catch(() => {});
   if (m % 5 === 4) await autoShows(env).catch(() => {});
+  if (m % 15 === 7) await settleBets(env).catch(() => {});
   await runChecks(env, "QB").catch(() => {});
   await runChecks(env, OTHERS[m % OTHERS.length]).catch(() => {});
   if (m % 2 === 1) await runInjuryNotes(env).catch(() => {});
