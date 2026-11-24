@@ -1052,7 +1052,7 @@ h3.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .envrow .chip.ok{color:var(--ok)}.envrow .chip.warn,.envrow .chip.wxhi{color:var(--warn)}
 .heroCard .gnum{width:44px;height:44px;padding-top:0;align-items:center;border-radius:50%!important}.heroCard .gnum b{font-size:20px}
 .lerr{margin-bottom:12px}.lerr b{display:block;font-size:15px}.lerr p{margin:4px 0 12px}
-.rootHero .reasons{margin:8px 0 0}.betc{margin-bottom:10px}.betc p{margin:4px 0 10px}.betstakes{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.betstakes .chip{text-align:left;white-space:normal}.betstakes .chip.on{background:var(--accent);color:var(--accent-ink)}.inp{width:100%;margin-top:4px}.scrow.me b,.scrow.me span{color:var(--accent)}.scen{padding:4px 16px!important}.scrow{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px 0;font-size:14px}.scrow+.scrow{border-top:1px solid var(--line)}.scrow b{font-size:16px;flex:none}
+.rootHero .reasons{margin:8px 0 0}.offside{display:flex;flex-direction:column;margin-top:8px}.offside b{font-size:15px}.okt{color:var(--ok)}.badt{color:var(--bad)}.betc{margin-bottom:10px}.betc p{margin:4px 0 10px}.betstakes{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.betstakes .chip{text-align:left;white-space:normal}.betstakes .chip.on{background:var(--accent);color:var(--accent-ink)}.inp{width:100%;margin-top:4px}.scrow.me b,.scrow.me span{color:var(--accent)}.scen{padding:4px 16px!important}.scrow{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px 0;font-size:14px}.scrow+.scrow{border-top:1px solid var(--line)}.scrow b{font-size:16px;flex:none}
 </style>
 </head>
 <body>
@@ -1414,9 +1414,10 @@ async function loadAll(){
   await Promise.all(leagues.filter(L => L.meta.platform === "flea" && L.detail).flatMap(L => { const me = L.detail.teams.find(t => t.mine); if (!me) return []; const g = L.detail.games.find(x => x.a.id === me.id || x.b.id === me.id), op = g && L.detail.teams.find(t => t.id === (g.a.id === me.id ? g.b.id : g.a.id)); return [me, op].filter(t => t && !t.live).map(t => fleaTeamRoster(L, t)); }));
   if (cur.tab === "leagues" || cur.tab === "edge") render();
   syncAlerts().catch(() => {});
-  await Promise.all(leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine)).map(loadBets));
+  await Promise.all(leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine)).flatMap(L => [loadBets(L), loadOffers(L)]));
   if (cur.tab === "leagues" && cur.league == null) render();
   if (pendingBets) { const L = leagues.find(L => L.meta.platform + ":" + L.meta.id === pendingBets); pendingBets = null; if (L) openBets(L); }
+  if (pendingOffers) { const L = leagues.find(L => L.meta.platform + ":" + L.meta.id === pendingOffers); pendingOffers = null; if (L) openOffers(L); }
   if (leagues.some(L => L.detail && L.detail.teams.some(t => t.mine))) maybeTour();
   dailyPing();
   checkUnread();
@@ -1946,9 +1947,9 @@ function renderLeagues(v){
   }
   if (!leaguesLoaded) { v.innerHTML = h + '<p class="spin">Loading your leagues…</p>'; return; }
   if (!leagues.length) { v.innerHTML = h + (leaguesErr.length ? "" : '<p class="muted">No leagues found for this season.</p>'); const rb = v.querySelector("#lRetry"); if (rb) rb.addEventListener("click", loadAll); return; }
-  const TL = {sweatBtn: ["ic-flame", "Sweat board"], briefBtn: ["ic-speaker", "Morning briefing"], injBtn: ["ic-medic", "Injury center"], planBtn: ["ic-calendar", "Byes and injuries, next 4 weeks"], brkBtn: ["ic-pulse", "Breakouts"], expBtn: ["ic-list", "All my leagues"], wlBtn: ["ic-star", "Watchlist"], wxBtn: ["ic-wind", "Game weather"], tdBtn: ["ic-ball", "Your teams (score celebrations)"], betBtn: ["ic-trophy", "Side bets"]};
+  const TL = {sweatBtn: ["ic-flame", "Sweat board"], briefBtn: ["ic-speaker", "Morning briefing"], injBtn: ["ic-medic", "Injury center"], planBtn: ["ic-calendar", "Byes and injuries, next 4 weeks"], brkBtn: ["ic-pulse", "Breakouts"], expBtn: ["ic-list", "All my leagues"], wlBtn: ["ic-star", "Watchlist"], wxBtn: ["ic-wind", "Game weather"], tdBtn: ["ic-ball", "Your teams (score celebrations)"], betBtn: ["ic-trophy", "Side bets"], offBtn: ["ic-swap", "Trade offers"]};
   const tb = id => '<button type="button" class="btn ghost" id="' + id + '"' + (id === "tdBtn" ? ' data-tdopen="1"' : "") + '><i class=' + TL[id][0] + ' aria-hidden=true></i>' + TL[id][1] + "</button>";
-  const tools = leagues.some(L => L.detail && L.detail.teams.some(t => t.mine)) ? '<h3 class="tgh">Tools</h3><div class="tlist">' + ["sweatBtn", "betBtn", "briefBtn", "injBtn"].map(tb).join("") + '</div><details class="moretools"' + (cur.homeMore ? " open" : "") + '><summary>More tools <span class="small muted">6</span></summary><div class="tlist" style="margin-top:8px">' + ["wlBtn", "planBtn", "brkBtn", "expBtn", "wxBtn", "tdBtn"].map(tb).join("") + "</div></details>" : "";
+  const tools = leagues.some(L => L.detail && L.detail.teams.some(t => t.mine)) ? '<h3 class="tgh">Tools</h3><div class="tlist">' + ["sweatBtn", "offBtn", "betBtn", "briefBtn", "injBtn"].map(tb).join("") + '</div><details class="moretools"' + (cur.homeMore ? " open" : "") + '><summary>More tools <span class="small muted">6</span></summary><div class="tlist" style="margin-top:8px">' + ["wlBtn", "planBtn", "brkBtn", "expBtn", "wxBtn", "tdBtn"].map(tb).join("") + "</div></details>" : "";
   h = scoreStrip() + h + nowCard() + wlHomeCard();
   h += '<div class="stack">';
   leagues.forEach((L, i) => {
@@ -1970,7 +1971,7 @@ function renderLeagues(v){
     }
     h += "</button>";
     if (d && d.teams.some(t => t.mine)) h += tauntRow(L);
-    if (d && d.teams.some(t => t.mine)) h += betsHomeLine(L, i);
+    if (d && d.teams.some(t => t.mine)) h += offersHomeLine(L, i) + betsHomeLine(L, i);
     if (d && d.teams.some(t => t.mine)) h += '<button type="button" class="card nowslim" data-root="' + i + '"><i class=ic-target aria-hidden=true></i><span><b>Who to root for</b><span class="muted"> · scenarios and games that matter</span></span><span class="go">›</span></button>';
     if (d && d.teams.some(t => t.mine)) h += '<button type="button" class="card showcard" data-show="' + i + '"><span class="showic" aria-hidden="true"><i class=ic-speaker></i></span><span class="showtx"><b>The Snap Count Show</b><span class="small muted">This week’s podcast about ' + esc(m.name) + '</span></span><span class="showgo">Listen</span></button>';
   });
@@ -1981,6 +1982,8 @@ function renderLeagues(v){
   v.querySelectorAll("[data-show]").forEach(b => b.addEventListener("click", () => openShow(leagues[+b.dataset.show])));
   v.querySelectorAll("[data-root]").forEach(b => b.addEventListener("click", () => openRootFor(leagues[+b.dataset.root])));
   v.querySelectorAll("[data-bets]").forEach(b => b.addEventListener("click", () => openBets(leagues[+b.dataset.bets])));
+  v.querySelectorAll("[data-offers]").forEach(b => b.addEventListener("click", () => openOffers(leagues[+b.dataset.offers])));
+  const obt = v.querySelector("#offBtn"); if (obt) obt.addEventListener("click", () => { const mineL = leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine)); if (mineL.length) openOffers(mineL[0]); });
   const btb = v.querySelector("#betBtn"); if (btb) btb.addEventListener("click", () => { const mineL = leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine)); if (mineL.length) openBets(mineL[0]); });
   v.querySelectorAll("[data-l]").forEach(b => b.addEventListener("click", () => { cur.league = +b.dataset.l; cur.team = null; render(); window.scrollTo(0,0); }));
   const sw = v.querySelector("#sweatBtn"); if (sw) sw.addEventListener("click", openSweat);
@@ -2296,7 +2299,7 @@ function renderLeague(v, L){
   v.querySelectorAll("[data-sub]").forEach(b => b.addEventListener("click", () => { cur.sub = b.dataset.sub; render(); }));
   const mt = v.querySelector(".moretools"); if (mt) mt.addEventListener("toggle", () => { cur.moreTools = mt.open; });
   const onSub = v.querySelector('.seg.sub [aria-pressed="true"]'); if (onSub && onSub.parentNode.scrollWidth > onSub.parentNode.clientWidth) onSub.parentNode.scrollLeft = onSub.offsetLeft - 8;
-  v.querySelectorAll("[data-tradewith]").forEach(b => b.addEventListener("click", () => { tr.league = cur.league; tr.mode = "grade"; tr.give.clear(); tr.get.clear(); tr.side = "get"; tr.other = b.dataset.tradewith; setTab("trade"); window.scrollTo(0, 0); }));
+  v.querySelectorAll("[data-tradewith]").forEach(b => b.addEventListener("click", () => { tr.league = cur.league; tr.mode = "grade"; tr.give.clear(); tr.get.clear(); tr.side = "get"; tr.counterOf = null; tr.other = b.dataset.tradewith; setTab("trade"); window.scrollTo(0, 0); }));
   const sel = v.querySelector("#teamPick");
   if (sel) sel.addEventListener("change", () => {
     cur.team = sel.value || null;
@@ -3752,8 +3755,9 @@ function offerText(give, get, themName){
 }
 function sendBlock(L, me, them, give, get){
   const picks = give.concat(get).filter(p => p.pos === "PICK");
+  const offerBtn = '<button type="button" class="btn" style="width:100%;margin-top:10px" data-offerin=\'' + esc(JSON.stringify({li: leagues.indexOf(L), them: them.id, give: give.map(p => p.id), get: get.map(p => p.id), picks: picks.map(p => ({id: p.id, name: p.name, pos: "PICK"}))})) + '\'><i class=ic-swap aria-hidden=true></i> ' + (tr.counterOf ? "Send this counter in Snap Count" : "Offer it in Snap Count") + "</button>";
   const text = offerText(give, get, them.name);
-  return '<div class="sendrow"><a class="btn send" href="' + esc(tradeUrl(L)) + '" target="_blank" rel="noopener" data-send=\'' + esc(JSON.stringify({give: give.filter(p => p.pos !== "PICK").map(p => p.id), get: get.filter(p => p.pos !== "PICK").map(p => p.id), givePk: give.filter(p => p.pos === "PICK").map(p => p.id), getPk: get.filter(p => p.pos === "PICK").map(p => p.id)})) + "'>" + (L.meta.platform === "flea" ? "Send in Fleaflicker" : "Open " + siteName(L)) + EXT + '</a><button type="button" class="btn ghost" data-copy="' + esc(text) + '">Copy offer</button></div>' +
+  return offerBtn + '<div class="sendrow"><a class="btn send" href="' + esc(tradeUrl(L)) + '" target="_blank" rel="noopener" data-send=\'' + esc(JSON.stringify({give: give.filter(p => p.pos !== "PICK").map(p => p.id), get: get.filter(p => p.pos !== "PICK").map(p => p.id), givePk: give.filter(p => p.pos === "PICK").map(p => p.id), getPk: get.filter(p => p.pos === "PICK").map(p => p.id)})) + "'>" + (L.meta.platform === "flea" ? "Send in Fleaflicker" : "Open " + siteName(L)) + EXT + '</a><button type="button" class="btn ghost" data-copy="' + esc(text) + '">Copy offer</button></div>' +
     (picks.length && L.meta.platform === "flea" ? '<p class="small muted" style="margin:8px 0 0">Players and picks come pre-filled. Check it over in Fleaflicker and tap Propose.</p>' : "") +
     (L.meta.platform !== "flea" ? '<p class="small muted" style="margin:8px 0 0">' + siteName(L) + ' doesn’t allow pre-filled trades. Open the trade there and pick the same players.</p>' : "");
 }
@@ -8452,6 +8456,76 @@ function pathLines(pp, me){
   if (r && r.imp >= 0.01) out.push({tone: "", text: "Best help this week: " + r.fav.name + " beating " + r.vs.name + " (+" + Math.round(r.imp * 100) + "% for you)."});
   return out;
 }
+/* ---------- Trade offers inside Snap Count: send, answer, counter, then make it official in one tap ---------- */
+async function loadOffers(L){ try { const r = await api("/api/offers?p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id)); L.offers = r.offers || []; } catch(e){ L.offers = L.offers || []; } return L.offers; }
+function offersHomeLine(L, i){
+  const me = L.detail && L.detail.teams.find(t => t.mine); if (!me || !L.offers) return "";
+  const inbox = L.offers.filter(o => o.status === "offered" && o.to.id === me.id), ready = L.offers.filter(o => o.status === "accepted" && o.from.id === me.id && !o.official);
+  if (!inbox.length && !ready.length) return "";
+  const o = ready[0] || inbox[0];
+  return '<button type="button" class="card nowslim" data-offers="' + i + '"><i class=ic-swap aria-hidden=true></i><span><b>' + (ready.length ? esc(o.to.name) + " accepted your trade" : "Trade offer from " + esc(o.from.name)) + '</b><span class="muted"> · ' + (ready.length ? "make it official" : inbox.length > 1 ? inbox.length + " waiting" : "tap to answer") + '</span></span><span class="go">›</span></button>';
+}
+const offerNames = a => a.map(x => x.name).join(" + ") || "nothing";
+async function sendOffer(L, me, them, give, get, btn){
+  const msg = btn.parentNode.parentNode.querySelector(".offmsg") || (() => { const m = document.createElement("p"); m.className = "small offmsg"; m.style.margin = "8px 0 0"; btn.parentNode.after(m); return m; })();
+  msg.textContent = "Sending…"; btn.disabled = true;
+  try {
+    const body = {action: "send", p: L.meta.platform, lid: String(L.meta.id), from: {id: me.id, name: me.name}, to: {id: them.id, name: them.name},
+      give: give.filter(p => p.pos !== "PICK").map(p => ({id: p.id, name: p.name, pos: p.pos})).concat(give.filter(p => p.pos === "PICK").map(p => ({id: p.id, name: p.name, pos: "PICK"}))),
+      get: get.filter(p => p.pos !== "PICK").map(p => ({id: p.id, name: p.name, pos: p.pos})).concat(get.filter(p => p.pos === "PICK").map(p => ({id: p.id, name: p.name, pos: "PICK"}))),
+      givePk: give.filter(p => p.pos === "PICK").map(p => p.id), getPk: get.filter(p => p.pos === "PICK").map(p => p.id), parent: tr.counterOf || null};
+    const r = await fetch("/api/offers", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify(body)}), j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || "Couldn’t send");
+    tr.counterOf = null; loadOffers(L);
+    msg.textContent = j.sent ? "Sent. " + them.name + " just got a notification." : "Sent. " + them.name + " will see it next time they open Snap Count.";
+    btn.textContent = "Offer sent";
+  } catch(e){ msg.textContent = e.message; btn.disabled = false; }
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest && e.target.closest("[data-offerin]"); if (!b) return;
+  const s = JSON.parse(b.dataset.offerin), L = leagues[s.li], d = L && L.detail, me = d && d.teams.find(t => t.mine), them = d && d.teams.find(t => t.id === s.them);
+  if (!me || !them) return;
+  const pick = (team, ids) => ids.map(id => (team.roster || []).find(p => p.id === id) || (s.picks || []).find(p => p.id === id)).filter(Boolean);
+  sendOffer(L, me, them, pick(me, s.give), pick(them, s.get), b);
+});
+async function openOffers(L){
+  const sh = $("#sheet"), p = $("#sheetPanel"), d = L.detail, me = d && d.teams.find(t => t.mine);
+  const head = '<button class="back" id="closeSheet">Close</button><h2>Trade offers</h2>';
+  const show = h => { p.innerHTML = h; p.querySelector("#closeSheet").addEventListener("click", closeSheet); };
+  show(head + '<p class="spin">Loading offers…</p>'); sh.hidden = false;
+  if (!me) return show(head + '<div class="card"><p style="margin:0">Pick your team in this league first.</p></div>');
+  await loadOffers(L); if (sh.hidden) return;
+  const O = L.offers, inbox = O.filter(o => o.status === "offered" && o.to.id === me.id), sent = O.filter(o => o.from.id === me.id && o.status !== "withdrawn").slice(0, 12), past = O.filter(o => o.to.id === me.id && o.status !== "offered").slice(0, 8);
+  const side = (lab, a) => '<div class="offside"><small class="muted">' + lab + "</small><b>" + esc(offerNames(a)) + "</b></div>";
+  const STATUS = {offered: "Waiting", accepted: "Accepted", declined: "Declined", countered: "Countered", withdrawn: "Withdrawn"};
+  let h = head + '<p class="muted" style="margin:-6px 2px 12px">Offers sent from the Trade tab land here. Once both of you agree, the sender makes it official on ' + esc(siteName(L)) + " in one tap.</p>";
+  if (inbox.length) h += "<h3>For you</h3>" + inbox.map(o => '<div class="card betc"><b>' + esc(o.from.name) + (o.parent ? " countered" : " offers") + "</b>" + side("You get", o.give) + side("You send", o.get) +
+    '<div class="nowbtns" style="margin-top:10px"><button type="button" class="btn" data-oact="accept" data-oid="' + o.id + '">Accept</button><button type="button" class="btn ghost" data-ocounter="' + o.id + '">Grade or counter</button></div><button type="button" class="linkbtn" data-oact="decline" data-oid="' + o.id + '" style="margin-top:8px">Decline</button></div>').join("");
+  if (sent.length) h += "<h3>You sent</h3>" + sent.map(o => '<div class="card betc"><b>To ' + esc(o.to.name) + ' · <span class="' + (o.status === "accepted" ? "okt" : o.status === "declined" ? "badt" : "muted") + '">' + STATUS[o.status] + "</span></b>" + side("You get", o.get) + side("You send", o.give) +
+    (o.status === "accepted" ? (L.meta.platform === "flea" ? '<a class="btn" style="margin-top:10px;width:100%" target="_blank" rel="noopener" data-official="' + o.id + '" href="' + esc(tradeUrl(L)) + '">' + (o.official ? "Open it in Fleaflicker again" : "Make it official in Fleaflicker") + "</a>" : '<a class="btn" style="margin-top:10px;width:100%" target="_blank" rel="noopener" data-official="' + o.id + '" href="' + esc(tradeUrl(L)) + '">Make it official in ' + esc(siteName(L)) + "</a>") + '<p class="small muted" style="margin:6px 0 0">' + (L.meta.platform === "flea" ? "Players come pre-filled. Tap Propose there, and " + esc(o.to.name) + " accepts it in Fleaflicker." : "Propose the same players there, and " + esc(o.to.name) + " accepts it.") + "</p>" : "") +
+    (o.status === "offered" ? '<button type="button" class="linkbtn" data-oact="withdraw" data-oid="' + o.id + '" style="margin-top:8px">Withdraw</button>' : "") + "</div>").join("");
+  if (past.length) h += "<h3>Answered</h3>" + '<div class="card scen">' + past.map(o => '<div class="scrow"><span>' + esc(o.from.name) + '<small class="muted" style="display:block">You get ' + esc(offerNames(o.give)) + " · you send " + esc(offerNames(o.get)) + "</small></span><b class=\"small\">" + STATUS[o.status] + "</b></div>").join("") + "</div>";
+  if (!inbox.length && !sent.length && !past.length) h += '<div class="card"><p style="margin:0">No offers yet. Build a trade in the Trade tab and tap “Offer it in Snap Count.”</p></div>';
+  show(h);
+  // Pre-fill the Fleaflicker trade page for accepted offers
+  p.querySelectorAll("[data-official]").forEach(async a => {
+    const o = O.find(x => x.id === a.dataset.official);
+    if (L.meta.platform === "flea") a.href = await fleaTradeUrl(L, me.id, o.to.id, o.give.filter(x => x.pos !== "PICK").map(x => x.id), o.get.filter(x => x.pos !== "PICK").map(x => x.id), o.givePk, o.getPk);
+    a.addEventListener("click", () => { fetch("/api/offers", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({action: "official", p: L.meta.platform, lid: String(L.meta.id), id: o.id, team: me.id})}).catch(() => {}); });
+  });
+  p.querySelectorAll("[data-oact]").forEach(x => x.addEventListener("click", async () => {
+    x.disabled = true;
+    try { const r = await fetch("/api/offers", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({action: x.dataset.oact, p: L.meta.platform, lid: String(L.meta.id), id: x.dataset.oid, team: me.id})}), j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "Couldn’t save"); openOffers(L); if (cur.tab === "leagues" && cur.league == null) render(); }
+    catch(e){ x.disabled = false; x.textContent = e.message; }
+  }));
+  // Grade or counter: load the offer into the Trade tab from your side
+  p.querySelectorAll("[data-ocounter]").forEach(x => x.addEventListener("click", () => {
+    const o = O.find(y => y.id === x.dataset.ocounter);
+    tr.league = leagues.indexOf(L); tr.mode = "grade"; tr.other = o.from.id; tr.give.clear(); tr.get.clear();
+    o.get.forEach(y => tr.give.add(y.id)); o.give.forEach(y => tr.get.add(y.id)); tr.side = "get"; tr.counterOf = o.id;
+    closeSheet(); setTab("trade"); window.scrollTo(0, 0);
+  }));
+}
 /* ---------- Side bets: friendly stakes between two managers, settled automatically (no money through the app) ---------- */
 const BET_STAKES = ["Rename their team for a week (winner picks the name)", "Post a photo of the winner’s choice in the league chat", "Use a lemon as their team logo for a week", "Write a 3-sentence tribute to the winner in the chat", "Nothing. Bragging rights only"];
 async function loadBets(L){ try { const r = await api("/api/bets?p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id)); L.bets = r.bets || []; } catch(e){ L.bets = L.bets || []; } return L.bets; }
@@ -9596,7 +9670,8 @@ function openTour(){
 }
 
 /* ---------- boot ---------- */
-let pendingJoin = null, pendingBets = null;
+let pendingJoin = null, pendingBets = null, pendingOffers = null;
+try { const oq = new URLSearchParams(location.search).get("offers"); if (oq && /^(flea|sleeper|espn|mfl):[\w-]{1,40}$/.test(oq)) { pendingOffers = oq; history.replaceState(null, "", location.pathname); } } catch(e){}
 try { const bq = new URLSearchParams(location.search).get("bets"); if (bq && /^(flea|sleeper|espn|mfl):[\w-]{1,40}$/.test(bq)) { pendingBets = bq; history.replaceState(null, "", location.pathname); } } catch(e){}
 try {
   const j = new URLSearchParams(location.search).get("join");

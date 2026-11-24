@@ -8,7 +8,7 @@ const out = (d, s = 200) => new Response(JSON.stringify(d), { status: s, headers
 const keyOf = (p, lid) => "bets:" + p + ":" + lid;
 const MONEY = /\$|\bdollars?\b|\bbucks\b|venmo|cash ?app|paypal|zelle|\bmoney\b/i;
 
-async function notifyTeam(env, p, lid, team, data) {
+export async function notifyTeam(env, p, lid, team, data) {
   let sent = 0;
   for (const id of await subscriberIds(env)) {
     const rec = await env.SNAP.get("sub:" + id, "json");
