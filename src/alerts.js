@@ -10,7 +10,7 @@ import { gameWeather } from "./weather.js";
 import { autoShows, halftimeShows, awardsShows } from "./autoshow.js";
 import { settleBets } from "./bets.js";
 import { collectHighlights } from "./highlights.js";
-import { partyFeed } from "./party.js";
+import { partyFeed, wireFeed } from "./party.js";
 import { asTeam } from "./claims.js";
 import { hookKind, sendHook, espnLeagueTaken, mflLeagueTaken, weeklyRecaps, aiComplete, scoresRoute } from "./more.js";
 
@@ -413,6 +413,7 @@ export async function alertsRoute(request, env, p, url) {
     if (p === "/api/push/run" && url.searchParams.get("what") === "autoshow") return out(await autoShows(env, true));
     if (p === "/api/push/run" && url.searchParams.get("what") === "halftime") return out(await halftimeShows(env, url.searchParams.get("force") === "1"));
     if (p === "/api/push/run" && url.searchParams.get("what") === "awards") return out(await awardsShows(env, url.searchParams.get("force") === "1"));
+    if (p === "/api/push/run" && url.searchParams.get("what") === "wire") { await wireFeed(env); return out({ ok: true }); }
     if (p === "/api/push/run" && url.searchParams.get("what") === "party") { await partyFeed(env); return out({ ok: true }); }
     if (p === "/api/push/run" && url.searchParams.get("what") === "bets") { await settleBets(env); return out({ ok: true }); }
     if (p === "/api/push/run" && url.searchParams.get("what") === "recap") return out(await weeklyRecaps(Object.assign({}, env, { HOST: url.host }), true));
@@ -1216,6 +1217,7 @@ export async function runMinute(env) {
   // Every 2 minutes is plenty: scoring plays come from the full game summary, so no touchdown is missed.
   if (m % 2 === 0) await playAlerts(env).catch(() => {});
   if (m % 2 === 1) await partyFeed(env).catch(() => {});
+  if (m % 6 === 3) await wireFeed(env).catch(() => {});
   if (m % 3 === 1) await liveScores(env).catch(() => {});
   if (m % 3 === 2) await swingAlerts(env).catch(() => {});
   await leagueWatch(env).catch(() => {});
