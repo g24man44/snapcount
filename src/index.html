@@ -1082,7 +1082,22 @@ const norm = s => String(s || "").toLowerCase().replace(/\b(jr|sr|ii|iii|iv|v)\b
 
 /* ---------- storage ---------- */
 const KEY = "snapcount.v1";
-function loadAccts(){ let a; try { a = JSON.parse(localStorage.getItem(KEY)); } catch(e){} a = a || {}; a.sleeper = a.sleeper || []; a.flea = a.flea || []; a.espn = a.espn || []; a.mfl = a.mfl || []; return a; }
+// "https://www.fleaflicker.com/nfl/leagues/183120/teams/1243937" → league 183120, team 1243937
+function fleaFromText(x){
+  const lg = String(x).match(/leagues?\/(\d+)/i) || String(x).match(/league_id=(\d+)/i), tm = String(x).match(/teams?\/(\d+)/i) || String(x).match(/team_id=(\d+)/i);
+  if (lg) return {type:"league", value:lg[1], team: tm ? tm[1] : null};
+  if (/^\d+$/.test(String(x).trim())) return {type:"league", value:String(x).trim(), team:null};
+  return {type:"email", value:String(x).trim(), team:null};
+}
+function saveFleaTeamId(lid, team){ if (!team) return; try { const s = JSON.parse(localStorage.getItem(KEY + ".fleaTeams") || "{}"); s[lid] = String(team); localStorage.setItem(KEY + ".fleaTeams", JSON.stringify(s)); } catch(e){} }
+function loadAccts(){ let a; try { a = JSON.parse(localStorage.getItem(KEY)); } catch(e){} a = a || {}; a.sleeper = a.sleeper || []; a.flea = a.flea || []; a.espn = a.espn || []; a.mfl = a.mfl || [];
+  const fixed = [];
+  a.flea.forEach(x => {
+    if (/fleaflicker\.com|^https?:/i.test(x.value) || (x.type === "email" && !/@/.test(x.value))) { const f = fleaFromText(x.value); saveFleaTeamId(f.value, f.team); x = {type:f.type, value:f.value}; }
+    if (!fixed.some(y => y.type === x.type && y.value === x.value)) fixed.push(x);
+  });
+  if (fixed.length !== a.flea.length || fixed.some((x, i) => x.value !== a.flea[i].value)) { a.flea = fixed; try { localStorage.setItem(KEY, JSON.stringify(a)); } catch(e){} }
+  return a; }
 function saveAccts(a){ try { localStorage.setItem(KEY, JSON.stringify(a)); } catch(e){} }
 let accts = loadAccts();
 
@@ -3200,7 +3215,7 @@ function wireAdd(v){
     e.preventDefault();
     let x = f.querySelector("#acctIn").value.trim(); if (!x) return;
     if (addMode === "sleeper") { if (!accts.sleeper.includes(x)) accts.sleeper.push(x); }
-    else if (addMode === "flea") { const type = /^\d+$/.test(x) ? "league" : "email"; if (!accts.flea.some(a => a.value === x)) accts.flea.push({type, value:x}); }
+    else if (addMode === "flea") { const f = fleaFromText(x); saveFleaTeamId(f.value, f.team); if (!accts.flea.some(a => a.value === f.value)) accts.flea.push({type:f.type, value:f.value}); }
     else {
       const m = x.match(/(?:leagueId=|L=)(\d+)/i); if (m) x = m[1];
       if (!/^\d{3,12}$/.test(x)) { alert("That doesn’t look like a league ID. It’s a number, like 1234567."); return; }
