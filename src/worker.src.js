@@ -611,7 +611,8 @@ async function scoreboard(week) {
       state: st.state || "pre", detail: st.shortDetail || st.detail || "",
       ou: odds.overUnder != null ? Number(odds.overUnder) : null, line: odds.details || "",
       temp: w && w.temperature != null ? w.temperature : null, sky: (w && w.displayValue) || "",
-      indoor: !!(c.venue && c.venue.indoor), date: c.date || e.date || ""
+      indoor: !!(c.venue && c.venue.indoor), date: c.date || e.date || "",
+      tv: ((c.broadcasts || []).flatMap(b => b.names || [])[0]) || (((c.geoBroadcasts || [])[0] || {}).media || {}).shortName || ""
     };
   }).filter(g => g.away && g.home);
   return json({ games, week: (d.week || {}).number || null }, 200, 30);

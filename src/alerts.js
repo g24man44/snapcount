@@ -350,9 +350,10 @@ export async function alertsRoute(request, env, p, url) {
           leagues: (body.leagues || []).slice(0, 30).map(l => ({ p: ["flea", "espn", "mfl"].includes(l.p) ? l.p : "sleeper", id: String(l.id), name: String(l.name || "").slice(0, 80), season: /^\d{4}$/.test(String(l.season || "")) ? String(l.season) : undefined, team: l.team ? String(l.team).slice(0, 40) : undefined })),
           oppStarters: (body.oppStarters || []).slice(0, 80).map(String),
           watch: (body.watch || []).slice(0, 60).map(String),
+          rz: (Array.isArray(body.rz) ? body.rz : []).slice(0, 32).map(x => ({ t: String(x.t || "").slice(0, 4).toUpperCase(), n: (x.n || []).slice(0, 8).map(y => String(y).slice(0, 40)) })).filter(x => x.t && x.n.length),
           lineups: (Array.isArray(body.lineups) ? body.lineups : []).slice(0, 30).map(l => ({ p: ["flea", "espn", "mfl", "sleeper"].includes(l.p) ? l.p : null, id: String(l.id || ""), name: String(l.name || "").slice(0, 80), season: /^\d{4}$/.test(String(l.season || "")) ? String(l.season) : undefined, s: (l.s || []).slice(0, 30).map(String), b: (l.b || []).slice(0, 40).map(String), t: l.t ? String(l.t).slice(0, 40) : undefined, slots: Array.isArray(l.slots) ? l.slots.slice(0, 20).map(x => String(x).slice(0, 12)) : undefined })),
           hooks: (body.hooks || []).map(String).filter(u => hookKind(u)).slice(0, 5),
-          prefs: { mine: body.prefs?.mine !== false, fa: body.prefs?.fa !== false, news: body.prefs?.news !== false, league: body.prefs?.league !== false, recap: body.prefs?.recap !== false, brief: body.prefs?.brief !== false, preview: body.prefs?.preview !== false, plays: body.prefs?.plays !== false, livescore: body.prefs?.livescore !== false, swings: body.prefs?.swings !== false, taunts: body.prefs?.taunts !== false, watch: body.prefs?.watch !== false, faPos: body.prefs?.faPos === "QB" ? "QB" : "ALL" },
+          prefs: { mine: body.prefs?.mine !== false, fa: body.prefs?.fa !== false, news: body.prefs?.news !== false, league: body.prefs?.league !== false, recap: body.prefs?.recap !== false, brief: body.prefs?.brief !== false, preview: body.prefs?.preview !== false, plays: body.prefs?.plays !== false, livescore: body.prefs?.livescore !== false, rz: body.prefs?.rz !== false, swings: body.prefs?.swings !== false, taunts: body.prefs?.taunts !== false, watch: body.prefs?.watch !== false, faPos: body.prefs?.faPos === "QB" ? "QB" : "ALL" },
           origin: url.origin,
           dev: /^0+$/.test(String(body.dev || "")) ? "" : String(body.dev || "").slice(0, 64)
         };
@@ -1217,6 +1218,7 @@ export async function runMinute(env) {
   // Every 2 minutes is plenty: scoring plays come from the full game summary, so no touchdown is missed.
   if (m % 2 === 0) await playAlerts(env).catch(() => {});
   if (m % 2 === 1) await partyFeed(env).catch(() => {});
+  if (m % 2 === 1) await redZoneAlerts(env).catch(() => {});
   if (m % 6 === 3) await wireFeed(env).catch(() => {});
   if (m % 3 === 1) await liveScores(env).catch(() => {});
   if (m % 3 === 2) await swingAlerts(env).catch(() => {});
@@ -1310,4 +1312,29 @@ export function staticRoute(p) {
     return new Response(a, { headers: { "content-type": "font/woff", "cache-control": "public, max-age=31536000, immutable", "access-control-allow-origin": "*" } });
   }
   return null;
+}
+
+// Red-zone alerts: when a team with one of your starters gets inside the 20, say which channel to switch to.
+export async function redZoneAlerts(env) {
+  const r = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard", { headers: { "User-Agent": "Mozilla/5.0 (SnapCount fantasy dashboard)" } }).catch(() => null);
+  const d = r && r.ok ? await r.json().catch(() => null) : null; if (!d) return 0;
+  const seen = (await hotGet(env, "rz:seen")) || {}, now = Date.now(), hits = [];
+  for (const e of d.events || []) {
+    const c = (e.competitions || [])[0] || {}, sit = c.situation || {}, st = ((c.status || {}).type || {}).state;
+    if (st !== "in" || !sit.isRedZone || !sit.possession) continue;
+    const team = (c.competitors || []).map(x => x.team || {}).find(t => String(t.id) === String(sit.possession)); if (!team || !team.abbreviation) continue;
+    const k = e.id + ":" + team.abbreviation, last = seen[k] || 0;
+    if (now - last < 6 * 60e3) continue; // one alert per drive, more or less
+    seen[k] = now;
+    const tv = ((c.broadcasts || []).flatMap(b => b.names || [])[0]) || (((c.geoBroadcasts || [])[0] || {}).media || {}).shortName || "";
+    hits.push({ abbr: team.abbreviation.toUpperCase(), name: team.shortDisplayName || team.abbreviation, tv, where: sit.downDistanceText || sit.possessionText || "", game: e.id });
+  }
+  Object.keys(seen).forEach(k => { if (now - seen[k] > 6 * 3600e3) delete seen[k]; });
+  if (!hits.length) { await hotPut(env, "rz:seen", seen); return 0; }
+  await hotPut(env, "rz:seen", seen);
+  return eachSubscriber(env, rec => {
+    if (rec.prefs && rec.prefs.rz === false) return [];
+    return hits.map(h => { const mine = (rec.rz || []).find(x => x.t === h.abbr); if (!mine) return null;
+      return { id: "rz:" + h.game + ":" + h.abbr + ":" + Math.floor(now / 360e3), title: "📺 " + (h.tv ? "Switch to " + h.tv + ": " : "") + h.name + " in the red zone", body: "Your " + mine.n.slice(0, 3).join(", ") + (h.where ? ". " + h.where : "") + "." }; }).filter(Boolean);
+  });
 }
