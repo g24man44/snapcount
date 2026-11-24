@@ -1113,7 +1113,7 @@ async function api(path){
 }
 let nflState = null, players = null, playersP = null;
 async function getState(){ if (!nflState) nflState = await api("/api/sleeper/state/nfl"); return nflState; }
-function getPlayers(){ if (!playersP) playersP = api("/api/players").then(p => (players = p)); return playersP; }
+function getPlayers(){ if (!playersP) playersP = api("/api/players?v=4").then(p => (players = p)); return playersP; }
 
 /* ---------- injury ---------- */
 function injChip(code){
@@ -2259,6 +2259,7 @@ function renderLeague(v, L){
     if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="mrBtn"><i class=ic-ball aria-hidden=true></i>Matchup recaps</button>');
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="pmBtn"><i class=ic-calendar aria-hidden=true></i>Playoff matchups: who to buy</button>');
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="vmBtn"><i class=ic-bars aria-hidden=true></i>Value movers: buy low, sell high</button>');
+    if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="rwBtn"><i class=ic-star aria-hidden=true></i>Rookie watch: this year’s class</button>');
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="mktBtn"><i class=ic-swap aria-hidden=true></i>Trade market</button>');
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="cutBtn"><i class=ic-list aria-hidden=true></i>Who to cut</button>');
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="hcBtn"><i class=ic-medic aria-hidden=true></i>Handcuffs</button>');
@@ -2270,7 +2271,7 @@ function renderLeague(v, L){
     if (d.teams.some(t => t.mine) && d.games.length) tiles.push('<button type="button" class="btn ghost" id="pkBtn"><i class=ic-flame aria-hidden=true></i>Pick’em and roast</button>'); tiles.push('<button type="button" class="btn ghost" id="showBtn"><i class=ic-speaker aria-hidden=true></i>The league show</button>'); if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="commBtn"><i class=ic-trophy aria-hidden=true></i>Dues, rules and awards</button>');
     if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="dcBtn"><i class=ic-pencil aria-hidden=true></i>Draft grades and write-up</button>');
     // Grouped by what you're trying to do, as compact rows instead of a wall of identical tiles.
-    const GROUPS = [["This week", ["mrBtn", "pwBtn", "fcBtn", "pkBtn", "cutBtn", "hcBtn", "kdBtn"]], ["Trades", ["pmBtn", "vmBtn", "lsBtn", "scoutBtn", "mktBtn"]], ["Season", ["picBtn", "ppBtn", "swapBtn", "histBtn", "rcBtn", "ptsBtn", "wvBtn", "winBtn", "wrapBtn"]], ["Draft", ["doBtn", "dcBtn"]]];
+    const GROUPS = [["This week", ["mrBtn", "pwBtn", "fcBtn", "pkBtn", "cutBtn", "hcBtn", "kdBtn"]], ["Trades", ["pmBtn", "vmBtn", "rwBtn", "lsBtn", "scoutBtn", "mktBtn"]], ["Season", ["picBtn", "ppBtn", "swapBtn", "histBtn", "rcBtn", "ptsBtn", "wvBtn", "winBtn", "wrapBtn"]], ["Draft", ["doBtn", "dcBtn"]]];
     const idOf = t => (t.match(/id="(\w+)"/) || [])[1], used = new Set();
     // Four everyday tools up top; everything else waits behind "More tools", grouped by what you're doing.
     const TOP = ["mrBtn", "pwBtn", "mktBtn", "showBtn"];
@@ -2329,6 +2330,7 @@ function renderLeague(v, L){
   const scb = v.querySelector("#scoutBtn"); if (scb) scb.addEventListener("click", () => openScouting(L));
   const wnb = v.querySelector("#winBtn"); if (wnb) wnb.addEventListener("click", () => openWindow(L));
   const vmb = v.querySelector("#vmBtn"); if (vmb) vmb.addEventListener("click", () => openValueMovers(L));
+  const rwb = v.querySelector("#rwBtn"); if (rwb) rwb.addEventListener("click", () => openRookieWatch(L));
   const wrb = v.querySelector("#wrapBtn"); if (wrb) wrb.addEventListener("click", () => openWrapped(L));
   const pcb = v.querySelector("#picBtn"); if (pcb) pcb.addEventListener("click", () => L.po ? openBracket(L) : openPlayoffPicture(L));
   const dob = v.querySelector("#doBtn"); if (dob) dob.addEventListener("click", () => openDraftOrder(L));
@@ -7081,6 +7083,97 @@ async function openValueMovers(L){
   } catch(e){ body.innerHTML = '<div class="err">Couldn’t check value moves: ' + esc(e.message) + "</div>"; }
 }
 
+/* ===================== Rookie watch: this year's rookie class, in your league ===================== */
+// Rookies come from Sleeper's player list ([7] = seasons played before this one, 0 = rookie).
+// Points per game from this season's stats in the league's PPR setting; value and 30-day move as in Value movers.
+async function rwData(L){
+  const d = L.detail, st = await getState();
+  await Promise.all(d.teams.map(t => rosterFor(L, t).catch(() => [])));
+  const VV = await leagueVals(L);
+  await getSeasonStats(L.meta.season || st.league_season).catch(() => {});
+  const POS = ["QB", "RB", "WR", "TE"], N = d.teams.length, qbs = VV.qbs;
+  if (!Object.values(players || {}).some(q => q[7] != null)) return null;
+  const owner = {};
+  d.teams.forEach(t => (t.roster || []).forEach(p => { owner[norm(p.name) + "|" + (p.pos || "")] = {t, p}; }));
+  const sc = d.scoring || "ppr";
+  const ppgOf = sid => { const s = seasonPts(sid, sc); return s && s.gp ? {pts: s.pts, gp: s.gp, ppg: s.pts / s.gp} : {pts: 0, gp: 0, ppg: 0}; };
+  // Where a season's points per game rank among every player at the position (3+ games), and the league's starter line.
+  const all = {}; for (const id in (sstats || {})) { const q = players[id]; if (!q || !POS.includes(q[1])) continue; const s = ppgOf(id); if (s.gp >= 3) (all[q[1]] = all[q[1]] || []).push(s.ppg); }
+  for (const k in all) all[k].sort((a, b) => b - a);
+  const line = {QB: Math.round(N * (qbs === 2 ? 2 : 1.1)), RB: Math.round(N * 2.4), WR: Math.round(N * 3), TE: Math.round(N * 1.2)};
+  const posRank = (pos, ppg) => { const a = all[pos] || []; let r = 1; while (r <= a.length && a[r - 1] > ppg) r++; return r; };
+  const list = [];
+  for (const sid in players) {
+    const q = players[sid]; if (q[7] !== 0 || !POS.includes(q[1])) continue;
+    const o = owner[norm(q[0]) + "|" + q[1]];
+    if (!q[2] && !o) continue;
+    const p = o ? o.p : {id: sid, name: q[0], pos: q[1], team: q[2], inj: q[3], injPart: q[4]};
+    const r = (o && VV.row(p)) || VV.V[sid] || null;
+    const v = r ? Math.round((r[0] || 0) * (q[1] === "QB" ? VV.prem : 1)) : 0;
+    const mk = r ? r[8] || 0 : 0, tr30 = r ? r[3] || 0 : 0, pct = mk > 0 ? Math.max(-0.8, Math.min(4, tr30 / Math.max(1, mk - tr30))) : 0;
+    const s = ppgOf(sid), rk = s.gp >= 3 ? posRank(q[1], s.ppg) : null;
+    if (!v && !s.pts && !o) continue;
+    const tag = rk && rk <= line[q[1]] ? {k: "Starter now", tone: "ok"} : rk && rk <= line[q[1]] * 1.6 ? {k: "In the mix", tone: ""} : v >= 1500 ? {k: "Hold: still developing", tone: ""} : v >= 400 ? {k: "Stash", tone: ""} : {k: "Long shot", tone: "warn"};
+    list.push({sid, p, q, o: o ? o.t : null, v, d: pct ? v - v / (1 + pct) : 0, pct, s, rk, tag, age: r ? r[6] : null});
+  }
+  const teams = d.teams.map(t => { const mine = list.filter(x => x.o === t); return {t, n: mine.length, v: mine.reduce((a, x) => a + x.v, 0), best: mine.slice().sort((a, b) => b.v - a.v)[0] || null}; }).sort((a, b) => b.v - a.v);
+  teams.forEach((x, i) => x.rk = i + 1);
+  return {list, teams, VV, line, sc, dyn: VV.dyn};
+}
+async function openRookieWatch(L){
+  const body = openSheetShell("Rookie watch");
+  body.innerHTML = '<p class="spin">Finding every rookie in your league…</p>';
+  try {
+    const R = await rwData(L), d = L.detail, me = d.teams.find(t => t.mine);
+    if (!R || !R.list.length) { body.innerHTML = '<div class="card"><p style="margin:0">The rookie list isn’t available right now. Try again in a few minutes.</p></div>'; return; }
+    const season = L.meta.season || d.season || (await getState()).league_season;
+    const scW = {ppr: "PPR", half: "half PPR", std: "standard"}[R.sc] || "PPR";
+    const pc = n => (n >= 0 ? "+" : "−") + Math.abs(Math.round(n * 100)) + "%";
+    const col = n => n > 0.005 ? "var(--ok)" : n < -0.005 ? "var(--bad)" : "var(--muted)";
+    const who = x => x.o ? (me && x.o === me ? '<span style="font-weight:700">Yours</span>' : esc(x.o.name)) : '<span style="font-weight:700;color:var(--ok)">Free agent</span>';
+    const stat = x => x.s.gp ? (x.rk ? x.p.pos + x.rk + " · " : "") + x.s.ppg.toFixed(1) + " pts/g in " + x.s.gp : "No games yet";
+    const chipT = x => '<span style="font-weight:700;color:' + (x.tag.tone === "ok" ? "var(--ok)" : x.tag.tone === "warn" ? "var(--muted)" : "var(--ink)") + '">' + esc(x.tag.k) + "</span>";
+    const T = R.teams, MT = me && T.find(x => x.t === me), mine = R.list.filter(x => me && x.o === me).sort((a, b) => b.v - a.v);
+    const fa = R.list.filter(x => !x.o && (x.v >= 150 || x.s.ppg >= 5) && !/^(IR|Out|PUP|Sus)/i.test(String(x.p.inj || ""))).sort((a, b) => b.v - a.v || b.s.ppg - a.s.ppg).slice(0, 8);
+    let h = '<p class="muted" style="margin:-6px 2px 12px">The ' + esc(String(season)) + " rookie class in " + esc(L.meta.name) + ": who’s producing, who owns them, and who’s still out there.</p>";
+    if (MT) {
+      const tone = MT.rk <= Math.ceil(T.length / 3) ? "good" : MT.rk > T.length * 2 / 3 ? "bad" : "mid";
+      h += '<div class="card grade ' + tone + '"><b class="glabel">' + (MT.n ? "Your " + MT.n + " rookie" + (MT.n > 1 ? "s are" : " is") + " worth " + fmtV(MT.v) : "You don’t have any rookies") + "</b>" +
+        '<p class="small" style="margin:4px 0 0">' + (MT.n ? ORDN(MT.rk) + " best rookie haul of " + T.length + " teams." + (MT.best ? " Best: " + esc(MT.best.p.name) + " (" + fmtV(MT.best.v) + ")." : "") : "Every team’s rookies are below.") +
+        (T[0] !== MT && T[0].n ? " Top haul: " + esc(T[0].t.name) + " (" + fmtV(T[0].v) + ")." : "") +
+        (fa.length ? " " + fa.length + " rookie" + (fa.length > 1 ? "s" : "") + " worth a look " + (fa.length > 1 ? "are" : "is") + " unowned." : "") + "</p></div>";
+    }
+    const row = (x, right, extra) => miniRow(x.p, right, posTag(x.p) + (extra || ""));
+    const valR = x => { const sh = Math.abs(x.pct) >= 0.01 && x.v >= 400; return '<span class="avg">' + fmtV(x.v) + '<small style="color:' + (sh ? col(x.pct) : "var(--muted)") + '">' + (sh ? pc(x.pct) + " month" : "value") + "</small></span>"; };
+    if (mine.length) h += '<h3>Your rookies</h3><ul class="plist">' + mine.map(x => row(x, valR(x), chipT(x) + " · " + stat(x))).join("") + "</ul>";
+    // Rookie of the year race: most fantasy points this season.
+    const roy = R.list.filter(x => x.s.pts > 0).sort((a, b) => b.s.pts - a.s.pts).slice(0, 12);
+    if (roy.length) h += '<h3>Rookie of the year race</h3><p class="small muted" style="margin:-4px 2px 8px">Most fantasy points so far (' + scW + ").</p><ul class=\"plist\">" +
+      roy.map((x, i) => row(x, '<span class="avg">' + x.s.pts.toFixed(1) + "<small>" + (i + 1 === 1 ? "leader" : ORDN(i + 1)) + "</small></span>", stat(x) + " · " + who(x))).join("") + "</ul>";
+    if (fa.length) h += '<h3>Unowned rookies worth a spot</h3><p class="small muted" style="margin:-4px 2px 8px">Not on any roster in your league. ' + (R.dyn ? "Cheap to add now; a bench or taxi spot could pay off next year." : "Could help down the stretch.") + "</p><ul class=\"plist\">" +
+      fa.map(x => row(x, valR(x), chipT(x) + " · " + stat(x))).join("") + "</ul>" + '<div class="actions" style="margin-top:8px">' + extBtn(waiverUrl(L), "Add players in " + siteName(L)) + "</div>";
+    // Biggest price moves inside the class this month.
+    const moved = R.list.filter(x => Math.abs(x.d) >= 100 && Math.max(x.v, x.v - x.d) >= 400);
+    const ups = moved.filter(x => x.d > 0).sort((a, b) => b.d - a.d).slice(0, 5), dns = moved.filter(x => x.d < 0).sort((a, b) => a.d - b.d).slice(0, 5);
+    const mvR = x => '<span class="avg" style="color:' + col(x.d) + '">' + (x.d >= 0 ? "+" : "−") + fmtV(Math.abs(x.d)) + "<small>" + pc(x.pct) + "</small></span>";
+    if (ups.length) h += '<h3>Rising rookies</h3><ul class="plist">' + ups.map(x => row(x, mvR(x), "Worth " + fmtV(x.v) + " · " + who(x))).join("") + "</ul>";
+    if (dns.length) h += '<h3>Falling rookies</h3><p class="small muted" style="margin:-4px 2px 8px">Rookie dips often bounce back. If he’s on another team, his manager may sell for less now.</p><ul class="plist">' + dns.map(x => row(x, mvR(x), "Worth " + fmtV(x.v) + " · " + who(x))).join("") + "</ul>";
+    const buys = R.list.filter(x => x.o && x.o !== me && x.v >= 800).sort((a, b) => (a.pct - b.pct) || (b.v - a.v)).filter(x => x.pct < 0).slice(0, 3);
+    if (me && buys.length) h += '<div class="tlist" style="margin-top:8px">' + buys.map(x => '<button type="button" class="btn ghost" data-rwbuy="' + esc(x.o.id) + "|" + esc(String(x.p.id)) + '"><i class=ic-swap aria-hidden=true></i>Trade for ' + esc(x.p.name) + " (" + esc(x.o.name) + ")</button>").join("") + "</div>";
+    // Every team's rookie class.
+    const mx = Math.max(1, ...T.map(x => x.v));
+    h += '<h3>Every team’s rookies</h3><div class="card" style="padding:0"><table class="otable rank" style="margin-top:0"><tbody>' + T.map(x =>
+      '<tr' + (x.t === me ? ' class="me"' : "") + "><td><b>" + x.rk + "</b></td><td><b>" + esc(x.t.name) + "</b><small>" + (x.n ? x.n + " rookie" + (x.n > 1 ? "s" : "") + (x.best ? " · best " + esc(x.best.p.name) : "") : "No rookies") + '</small></td><td class="obar" style="width:20%"><span style="width:' + Math.max(3, Math.round(x.v / mx * 100)) + '%;background:var(--accent)"></span></td><td class="onum">' + fmtV(x.v) + "</td></tr>").join("") + "</tbody></table></div>";
+    h += '<p class="small muted" style="margin:10px 4px 0">Rookies are players in their first NFL season. Points per game count games played, in ' + scW + " scoring (your league’s bonuses aren’t included). “Starter now” means his points per game would make him a starter in a league your size (QB, RB, WR, TE rank among everyone with 3+ games). Value is his Snap Count value in this league’s format; the 30-day move is from the trade market.</p>";
+    body.innerHTML = h;
+    wireRows(body);
+    body.querySelectorAll("[data-rwbuy]").forEach(b => b.addEventListener("click", () => {
+      const [tid, pid] = b.dataset.rwbuy.split("|");
+      closeSheet(); const li = leagues.indexOf(L); if (tr.league !== li) { tr.ppr = null; tr.dyn = null; tr.keep = null; tr.hide = null; tr.target = null; } const tm = L.detail.teams.find(x => String(x.id) === tid), pl = tm && (tm.roster || []).find(x => String(x.id) === pid); tr.league = li; tr.mode = "grade"; tr.other = tm ? tm.id : tid; tr.give.clear(); tr.get = new Set([pl ? pl.id : pid]); tr.side = "get"; setTab("trade");
+    }));
+  } catch(e){ body.innerHTML = '<div class="err">Couldn’t load the rookie class: ' + esc(e.message) + "</div>"; }
+}
+
 /* ===================== 6. All my leagues ===================== */
 async function openExposure(){
   const body = openSheetShell("All my leagues");
@@ -9121,7 +9214,8 @@ async function edgeDynasty(L, el){
     posTag(x.p) + "Worth " + fmtV(x.v) + (x.age ? " · age " + x.age : "") + " · " + (upDir ? ((x.age || 0) >= 27 ? "<b>Sell-high window</b>" : "Rising") : ((x.age || 0) <= 25 ? "Hold, likely a dip" : "Falling, consider moving")));
   h += "<h3>Value on the move</h3>" + (up.length || down.length ? '<ul class="plist">' + up.slice(0, 6).map(x => trendRow(x, true)).join("") + down.slice(0, 6).map(x => trendRow(x, false)).join("") + "</ul>" : '<div class="card"><p class="small" style="margin:0">No big value swings on your roster in the last 30 days.</p></div>') +
     '<p class="small muted" style="margin:8px 4px 0">Change in FantasyCalc dynasty value over 30 days. Older players spiking in value are your best sell-high chances.</p>' +
-    '<button type="button" class="btn ghost" data-vmopen="1" style="width:100%;margin-top:10px"><i class=ic-bars aria-hidden=true></i> Value movers: every team’s month, buy-low targets</button>';
+    '<button type="button" class="btn ghost" data-vmopen="1" style="width:100%;margin-top:10px"><i class=ic-bars aria-hidden=true></i> Value movers: every team’s month, buy-low targets</button>' +
+    '<button type="button" class="btn ghost" data-rwopen="1" style="width:100%;margin-top:10px"><i class=ic-star aria-hidden=true></i> Rookie watch: this year’s class in your league</button>';
   // draft prep
   const sim = ed.sim && ed.sim.L === L.meta.id ? ed.sim.base : null;
   const slotOf = id => { const s = sim && sim.find(x => x.t.id === String(id)); if (s) return s.slot; const ordr = d.teams.slice().sort((a, b) => (a.w - b.w) || ((a.pf || 0) - (b.pf || 0))); return ordr.findIndex(t => t.id === String(id)) + 1; };
@@ -9133,6 +9227,7 @@ async function edgeDynasty(L, el){
   wireRows(el);
   const dcb = el.querySelector("#dcBtn"); if (dcb) dcb.addEventListener("click", () => openDraftCenter(L));
   el.querySelectorAll("[data-vmopen]").forEach(b => b.addEventListener("click", () => openValueMovers(L)));
+  el.querySelectorAll("[data-rwopen]").forEach(b => b.addEventListener("click", () => openRookieWatch(L)));
 }
 
 /* ---------- Edge: Keepers ---------- */

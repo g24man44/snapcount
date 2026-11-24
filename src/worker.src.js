@@ -79,7 +79,8 @@ async function slimPlayers() {
     const name = p.full_name || [p.first_name, p.last_name].filter(Boolean).join(" ");
     // [6] = spot on his NFL team's depth chart (1 = starter) when listed at his own position; used by the handcuff finder.
     const dc = p.depth_chart_order && (!p.depth_chart_position || p.depth_chart_position === pos) ? Number(p.depth_chart_order) : null;
-    out[id] = [name, pos, p.team || "", p.injury_status || null, p.injury_body_part || null, p.espn_id ? String(p.espn_id) : null, dc];
+    // [7] = NFL seasons played before this one (0 = rookie), for Rookie watch.
+    out[id] = [name, pos, p.team || "", p.injury_status || null, p.injury_body_part || null, p.espn_id ? String(p.espn_id) : null, dc, p.years_exp != null ? Number(p.years_exp) : null];
   }
   return json(out, 200, 21600);
 }
@@ -783,7 +784,7 @@ async function allowedWeek(ctx, season, week) {
   const [statsR, boardR, plR] = await Promise.all([
     fetch("https://api.sleeper.app/v1/stats/nfl/regular/" + season + "/" + week, { headers: UA }),
     fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=" + season + "&seasontype=2&week=" + week, { headers: UA }),
-    cached(ctx, "players-v3", 21600, slimPlayers)
+    cached(ctx, "players-v4", 21600, slimPlayers)
   ]);
   if (!statsR.ok || !boardR.ok || plR.status !== 200) return json({ error: "Stats unavailable for week " + week }, 502, 0);
   const [stats, board, pl] = await Promise.all([statsR.json(), boardR.json(), plR.json()]);
@@ -907,7 +908,7 @@ export default {
         const target = "https://api.sleeper.app/v1/" + rest + url.search;
         return cached(ctx, "s/" + rest + url.search, ttl, () => upstream(target, ttl));
       }
-      if (p === "/api/players") return cached(ctx, "players-v3", 21600, slimPlayers);
+      if (p === "/api/players") return cached(ctx, "players-v4", 21600, slimPlayers);
       if (p.startsWith("/api/flea/")) {
         const ep = p.slice("/api/flea/".length);
         if (!FLEA_OK.has(ep)) return json({ error: "Unsupported Fleaflicker request" }, 400, 0);
