@@ -1,0 +1,8 @@
+name: probe
+on: push
+jobs:
+  p:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          for u in "https://fantasysportsnews.grattangreg.workers.dev/api/flea/FetchLeagueStandings?sport=NFL&league_id=183120" "https://fantasysportsnews.grattangreg.workers.dev/api/flea/FetchLeagueScoreboard?sport=NFL&league_id=183120" "https://www.fleaflicker.com/api/FetchLeagueStandings?sport=NFL&league_id=183120" "https://fantasysportsnews.grattangreg.workers.dev/api/health"; do echo "== $u"; curl -s -m 30 -w "\nHTTP %{http_code}\n" "$u" | head -c 700; echo; done
