@@ -7,7 +7,7 @@ import { ICON_192, ICON_512 } from "./icons.js";
 import { ARCHIVO_WOFF } from "./font.js";
 import { matchupPreviews, weeklyPower } from "./weekly.js";
 import { gameWeather } from "./weather.js";
-import { autoShows } from "./autoshow.js";
+import { autoShows, halftimeShows, awardsShows } from "./autoshow.js";
 import { settleBets } from "./bets.js";
 import { collectHighlights } from "./highlights.js";
 import { partyFeed } from "./party.js";
@@ -411,6 +411,8 @@ export async function alertsRoute(request, env, p, url) {
     if (p === "/api/push/run" && url.searchParams.get("what") === "power") return out(await weeklyPower(env, true));
     if (p === "/api/push/run" && url.searchParams.get("what") === "plays") return out(await playAlerts(env));
     if (p === "/api/push/run" && url.searchParams.get("what") === "autoshow") return out(await autoShows(env, true));
+    if (p === "/api/push/run" && url.searchParams.get("what") === "halftime") return out(await halftimeShows(env, url.searchParams.get("force") === "1"));
+    if (p === "/api/push/run" && url.searchParams.get("what") === "awards") return out(await awardsShows(env, url.searchParams.get("force") === "1"));
     if (p === "/api/push/run" && url.searchParams.get("what") === "party") { await partyFeed(env); return out({ ok: true }); }
     if (p === "/api/push/run" && url.searchParams.get("what") === "bets") { await settleBets(env); return out({ ok: true }); }
     if (p === "/api/push/run" && url.searchParams.get("what") === "recap") return out(await weeklyRecaps(Object.assign({}, env, { HOST: url.host }), true));
@@ -1223,6 +1225,8 @@ export async function runMinute(env) {
   await lineupCheck(env).catch(() => {});
   if (m % 5 === 3) await kickoffLineupAlerts(env).catch(() => {});
   if (m % 5 === 4) await autoShows(env).catch(() => {});
+  if (m % 5 === 1) await halftimeShows(env).catch(() => {});
+  if (m % 30 === 12) await awardsShows(env).catch(() => {});
   if (m % 15 === 7) await settleBets(env).catch(() => {});
   if (m % 10 === 6) await collectHighlights(env).catch(() => {});
   await runChecks(env, "QB").catch(() => {});

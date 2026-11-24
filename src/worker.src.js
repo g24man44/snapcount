@@ -864,6 +864,7 @@ export default {
       if (p === "/api/offers") return offersRoute(request, env, url);
       if (p === "/api/party") return partyRoute(request, env, url);
       if (p === "/api/claims") return claimsRoute(request, env, url);
+      if (p === "/api/awards") { const lid = url.searchParams.get("lid") || ""; if (!/^\d{1,10}$/.test(lid)) return json({ error: "Bad league" }, 400, 0); return json({ awards: await hotGet(env, "awardsdata:" + lid) }, 200, 300); }
       if (p === "/api/highlights") return cached(ctx, "highlights", 300, () => highlightsRoute(env));
       if (p.startsWith("/api/push/")) return alertsRoute(request, env, p, url);
       if (p === "/api/coach") return coachRoute(request, env);

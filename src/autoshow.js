@@ -120,3 +120,120 @@ export async function autoShows(env, force) {
   }
   return out;
 }
+
+/* ---------- Halftime Show and Awards night: the same write-then-record steps, other episodes ---------- */
+// Writes the script if needed, then records up to LINES_PER_RUN lines; tells the league when it's done.
+async function produce(env, lid, name, w, tag, factsFn, ready) {
+  const st = (await hotGet(env, tag)) || {};
+  if (st.done) return "done";
+  if (st.fails >= 8) return "gave up";
+  const q = "p=flea&lid=" + encodeURIComponent(lid) + "&w=" + w;
+  let show = (await call(env, "/api/show", q)).show;
+  if (!show) {
+    const ctx = await factsFn(); if (!ctx) return "no facts";
+    const r = await call(env, "/api/show/script", q, { ctx, final: true, league: name });
+    if (!r.show) { await hotPut(env, tag, { fails: (st.fails || 0) + 1, err: r.error || "script" }); return "script failed: " + (r.error || ""); }
+    return "script written";
+  }
+  let done = show.done || 0;
+  for (let k = 0; k < LINES_PER_RUN && done < show.total; k++) {
+    const r = await call(env, "/api/show/line", q, { i: done });
+    if (r.error) { await hotPut(env, tag, { fails: (st.fails || 0) + 1, err: r.error }); return "line " + done + " failed: " + r.error; }
+    done++;
+  }
+  if (done < show.total) return "recorded " + done + "/" + show.total;
+  await hotPut(env, tag, { done: true, at: Date.now() });
+  await eachSubscriber(env, rec => (rec.leagues || []).some(L => L.p === "flea" && L.id === lid) ? [ready] : []);
+  return "recorded";
+}
+// Live facts for the halftime episode: current scores, players left, and each team's best performer so far.
+export async function halftimeFacts(lid, name) {
+  const [sb, st] = await Promise.all([getJ(FF + "FetchLeagueScoreboard?sport=NFL&league_id=" + lid), getJ(FF + "FetchLeagueStandings?sport=NFL&league_id=" + lid)]);
+  if (!sb || !(sb.games || []).length) return null;
+  const w = Number((sb.schedulePeriod || {}).ordinal || 0), rec = {};
+  ((st && st.divisions) || []).forEach(d => (d.teams || []).forEach(t => { rec[String(t.id)] = (t.recordOverall || {}).wins + "-" + (t.recordOverall || {}).losses; }));
+  const n = x => String(Math.round((Number(x) || 0) * 100) / 100);
+  const lines = ["LEAGUE: " + name + ". HALFTIME of WEEK " + w + ": the early NFL games are over, the late games are still to come. Nothing is final.", "", "EVERY MATCHUP RIGHT NOW (leader first, current scores):"];
+  const rows = await Promise.all((sb.games || []).map(async g => {
+    const sa = (g.awayScore || {}), sh = (g.homeScore || {}), a = val((sa.score || {})), h = val((sh.score || {}));
+    const left = s => (s.yetToPlay || 0) + (s.inPlay || 0);
+    let tops = {};
+    const b = await getJ(FF + "FetchLeagueBoxscore?sport=NFL&league_id=" + lid + "&fantasy_game_id=" + g.id);
+    if (b) (b.lineups || []).forEach(gr => (gr.slots || []).forEach(sl => ["away", "home"].forEach(k => { const x = sl[k]; if (!x || !x.proPlayer) return; const pts = val(x.viewingActualPoints) || 0; if (!tops[k] || pts > tops[k].pts) tops[k] = { name: x.proPlayer.nameFull, pts }; })));
+    const L = a >= h ? ["away", g.away, a, sa] : ["home", g.home, h, sh], T = a >= h ? ["home", g.home, h, sh] : ["away", g.away, a, sa];
+    return { margin: Math.abs(a - h), text: "- " + L[1].name + " (" + (rec[L[1].id] || "") + ") leads " + T[1].name + " (" + (rec[T[1].id] || "") + ") " + n(L[2]) + " to " + n(T[2]) + ", by " + n(Math.abs(a - h)) + ". " + L[1].name + " has " + left(L[3]) + " players left to play; " + T[1].name + " has " + left(T[3]) + "." + (tops[L[0]] ? " " + L[1].name + " best so far: " + tops[L[0]].name + " " + n(tops[L[0]].pts) + "." : "") + (tops[T[0]] ? " " + T[1].name + " best so far: " + tops[T[0]].name + " " + n(tops[T[0]].pts) + "." : "") };
+  }));
+  rows.sort((x, y) => x.margin - y.margin).forEach(r => lines.push(r.text));
+  return { w, ctx: lines.join("\n").replace(/\p{Extended_Pictographic}️?/gu, "") };
+}
+// Sunday 4:00 to 4:50 PM Eastern, once the 1 PM games are final.
+export async function halftimeShows(env, force) {
+  const et = etParts(), h = Number(et.hour) % 24;
+  if (!force && !(et.weekday === "Sun" && h === 16)) return { skipped: true };
+  const espn = await getJ("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard");
+  const early = ((espn && espn.events) || []).filter(e => { const d = new Date(e.date); const hh = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "2-digit", hour12: false }).format(d)); return hh === 13 && etParts(d).weekday === "Sun"; });
+  if (!force && (early.length < 3 || !early.every(e => (((e.competitions || [])[0] || {}).status || {}).type?.state === "post"))) return { waiting: true };
+  const idx = (await env.SNAP.get("fleaLeagues", "json")) || {}, out = {};
+  for (const [lid, name] of Object.entries(idx)) {
+    const sb = await getJ(FF + "FetchLeagueScoreboard?sport=NFL&league_id=" + lid);
+    const w = Number(((sb || {}).schedulePeriod || {}).ordinal || 0); if (!w) continue;
+    const tag = "halfshow:" + lid + ":" + w;
+    if (((await hotGet(env, tag)) || {}).done) { out[lid] = "done"; continue; }
+    out[lid] = await produce(env, lid, name, w + "h", tag, async () => (await halftimeFacts(lid, name) || {}).ctx, { id: "half:" + lid + ":" + w, title: "🎙 The Halftime Show is ready", body: "Who’s winning, who’s sweating and who’s cooked going into the late games." });
+    return out; // one league per run
+  }
+  return out;
+}
+// Awards night: once the championship game is final, hand out the league's trophies.
+export async function awardsFacts(env, lid, name, W, season) {
+  const S = season ? "&season=" + season : "";
+  const st = await getJ(FF + "FetchLeagueStandings?sport=NFL&league_id=" + lid + S);
+  const teams = {}; ((st && st.divisions) || []).forEach(d => (d.teams || []).forEach(t => { teams[String(t.id)] = { name: t.name, w: (t.recordOverall || {}).wins || 0, l: (t.recordOverall || {}).losses || 0, pf: val(t.pointsFor) || 0, pa: val(t.pointsAgainst) || 0 }; }));
+  if (!Object.keys(teams).length) return null;
+  const n = x => String(Math.round((Number(x) || 0) * 100) / 100), all = [];
+  let champ = null, third = null;
+  for (let w = 1; w <= W; w++) {
+    const sb = await getJ(FF + "FetchLeagueScoreboard?sport=NFL&league_id=" + lid + "&scoring_period=" + w + S);
+    ((sb && sb.games) || []).forEach(g => {
+      const a = val((g.awayScore || {}).score), h = val((g.homeScore || {}).score); if (!(a || h)) return;
+      const x = { w, A: g.away.name, H: g.home.name, a, h, po: !!g.isPlayoffs, cons: !!g.isConsolation };
+      if (g.isChampionshipGame) champ = x; if (g.isThirdPlaceGame) third = x;
+      if (!g.isConsolation) all.push(x);
+    });
+  }
+  if (!champ) return null;
+  const win = x => x.a >= x.h ? [x.A, x.a, x.H, x.h] : [x.H, x.h, x.A, x.a];
+  const T = Object.values(teams), by = (f, d) => T.slice().sort((p, q) => d * (f(q) - f(p)))[0];
+  const scores = all.flatMap(x => [{ t: x.A, s: x.a, w: x.w }, { t: x.H, s: x.h, w: x.w }]);
+  const hi = scores.slice().sort((p, q) => q.s - p.s)[0], lo = scores.slice().sort((p, q) => p.s - q.s)[0];
+  const close = all.slice().sort((p, q) => Math.abs(p.a - p.h) - Math.abs(q.a - q.h))[0], blow = all.slice().sort((p, q) => Math.abs(q.a - q.h) - Math.abs(p.a - p.h))[0];
+  const c = win(champ), lines = ["LEAGUE: " + name + ". AWARDS NIGHT for the season that just ended.", "",
+    "CHAMPION: " + c[0] + " beat " + c[2] + " " + n(c[1]) + " to " + n(c[3]) + " in the championship game (week " + champ.w + ")."];
+  if (third) { const t3 = win(third); lines.push("THIRD PLACE: " + t3[0] + " beat " + t3[2] + " " + n(t3[1]) + " to " + n(t3[3]) + "."); }
+  const best = by(t => t.w * 1000 + t.pf, 1), most = by(t => t.pf, 1), lemon = by(t => -(t.w * 1000) - t.pf, 1), unlucky = by(t => t.pa, 1);
+  lines.push("", "AWARDS (use exactly):",
+    "- Best regular-season record: " + best.name + " at " + best.w + "-" + best.l + ".",
+    "- Most points scored all season: " + most.name + " with " + n(most.pf) + ".",
+    "- Highest single week: " + hi.t + " with " + n(hi.s) + " in week " + hi.w + ".",
+    "- Lowest single week: " + lo.t + " with " + n(lo.s) + " in week " + lo.w + ".",
+    "- Closest game of the season: " + win(close)[0] + " over " + win(close)[2] + ", " + n(win(close)[1]) + " to " + n(win(close)[3]) + " in week " + close.w + ".",
+    "- Biggest blowout: " + win(blow)[0] + " over " + win(blow)[2] + ", " + n(win(blow)[1]) + " to " + n(win(blow)[3]) + " in week " + blow.w + ".",
+    "- Toughest luck (most points scored against them): " + unlucky.name + ", " + n(unlucky.pa) + " against.");
+  const bets = ((await hotGet(env, "bets:flea:" + lid)) || []).filter(b => b.status === "settled" && b.winner !== "push");
+  if (bets.length) { const r = {}; bets.forEach(b => { const W2 = b.winner === b.from.id ? b.from.name : b.to.name; r[W2] = (r[W2] || 0) + 1; }); const top = Object.entries(r).sort((p, q) => q[1] - p[1])[0]; lines.push("- Side bet champion: " + top[0] + " with " + top[1] + " bets won."); }
+  lines.push("- The Lemon (last place, roast them kindly): " + lemon.name + " at " + lemon.w + "-" + lemon.l + " with " + n(lemon.pf) + " points.");
+  return { ctx: lines.join("\n").replace(/\p{Extended_Pictographic}️?/gu, ""), awards: { champ: c[0], best: best.name, most: most.name, hi: hi.t, lemon: lemon.name } };
+}
+export async function awardsShows(env, force) {
+  const idx = (await env.SNAP.get("fleaLeagues", "json")) || {}, out = {};
+  for (const [lid, name] of Object.entries(idx)) {
+    const sb = await getJ(FF + "FetchLeagueScoreboard?sport=NFL&league_id=" + lid);
+    const W = Number(((sb || {}).schedulePeriod || {}).ordinal || 0), gs = (sb && sb.games) || [];
+    if (!force && !(gs.some(g => g.isChampionshipGame) && gs.every(g => g.isFinalScore))) { out[lid] = "season not over"; continue; }
+    const tag = "awards:" + lid + ":" + W;
+    if (((await hotGet(env, tag)) || {}).done) { out[lid] = "done"; continue; }
+    out[lid] = await produce(env, lid, name, W + "a", tag, async () => { const f = await awardsFacts(env, lid, name, W); if (f) await hotPut(env, "awardsdata:" + lid, f.awards); return f && f.ctx; }, { id: "awards:" + lid + ":" + W, title: "🏆 Awards Night is here", body: "The Snap Count Show hands out " + name + "’s trophies. Grab your trophy card." });
+    return out;
+  }
+  return out;
+}

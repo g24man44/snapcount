@@ -1414,7 +1414,7 @@ async function loadAll(){
   await Promise.all(leagues.filter(L => L.meta.platform === "flea" && L.detail).flatMap(L => { const me = L.detail.teams.find(t => t.mine); if (!me) return []; const g = L.detail.games.find(x => x.a.id === me.id || x.b.id === me.id), op = g && L.detail.teams.find(t => t.id === (g.a.id === me.id ? g.b.id : g.a.id)); return [me, op].filter(t => t && !t.live).map(t => fleaTeamRoster(L, t)); }));
   if (cur.tab === "leagues" || cur.tab === "edge") render();
   syncAlerts().catch(() => {});
-  await Promise.all(leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine)).flatMap(L => [loadBets(L), loadOffers(L)]));
+  await Promise.all(leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine)).flatMap(L => [loadBets(L), loadOffers(L), loadSpecialShows(L)]));
   if (cur.tab === "leagues" && cur.league == null) render();
   if (pendingBets) { const L = leagues.find(L => L.meta.platform + ":" + L.meta.id === pendingBets); pendingBets = null; if (L) openBets(L); }
   if (pendingOffers) { const L = leagues.find(L => L.meta.platform + ":" + L.meta.id === pendingOffers); pendingOffers = null; if (L) openOffers(L); }
@@ -1972,7 +1972,7 @@ function renderLeagues(v){
     }
     h += "</button>";
     if (d && d.teams.some(t => t.mine)) h += tauntRow(L);
-    if (d && d.teams.some(t => t.mine)) h += offersHomeLine(L, i) + betsHomeLine(L, i);
+    if (d && d.teams.some(t => t.mine)) h += specialHomeLines(L, i) + offersHomeLine(L, i) + betsHomeLine(L, i);
     if (d && d.teams.some(t => t.mine)) h += '<button type="button" class="card nowslim" data-root="' + i + '"><i class=ic-target aria-hidden=true></i><span><b>Who to root for</b><span class="muted"> · scenarios and games that matter</span></span><span class="go">›</span></button>';
     if (d && d.teams.some(t => t.mine)) h += '<button type="button" class="card showcard" data-show="' + i + '"><span class="showic" aria-hidden="true"><i class=ic-speaker></i></span><span class="showtx"><b>The Snap Count Show</b><span class="small muted">This week’s podcast about ' + esc(m.name) + '</span></span><span class="showgo">Listen</span></button>';
   });
@@ -1984,6 +1984,7 @@ function renderLeagues(v){
   v.querySelectorAll("[data-root]").forEach(b => b.addEventListener("click", () => openRootFor(leagues[+b.dataset.root])));
   v.querySelectorAll("[data-bets]").forEach(b => b.addEventListener("click", () => openBets(leagues[+b.dataset.bets])));
   v.querySelectorAll("[data-offers]").forEach(b => b.addEventListener("click", () => openOffers(leagues[+b.dataset.offers])));
+  v.querySelectorAll("[data-special]").forEach(b => b.addEventListener("click", () => openShow(leagues[+b.dataset.special], b.dataset.sw)));
   const obt = v.querySelector("#offBtn"); if (obt) obt.addEventListener("click", () => { const mineL = leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine)); if (mineL.length) openOffers(mineL[0]); });
   const btb = v.querySelector("#betBtn"); if (btb) btb.addEventListener("click", () => { const mineL = leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine)); if (mineL.length) openBets(mineL[0]); });
   v.querySelectorAll("[data-l]").forEach(b => b.addEventListener("click", () => { cur.league = +b.dataset.l; cur.team = null; render(); window.scrollTo(0,0); }));
@@ -9369,10 +9370,48 @@ function withShowMusic(audio){
   audio.addEventListener("ended", async () => { if (!on()) return; try { outro = new Audio(await jingleUrl("outro")); outro.volume = 0.8; outro.play(); } catch(e){} });
   audio.addEventListener("seeked", () => { if (audio.currentTime < 0.5) introPlayed = false; });
 }
-async function openShow(L){
-  const body = openSheetShell("The Snap Count Show");
+/* ---------- Halftime Show and Awards night on home, and shareable trophy cards ---------- */
+async function loadSpecialShows(L){
+  if (L.meta.platform !== "flea" || !L.detail) return;
+  const w = Number(L.detail.week) || 0, q = "p=flea&lid=" + encodeURIComponent(L.meta.id) + "&w=";
+  const has = async ww => { try { const r = await api("/api/show?" + q + ww); return r.show && r.show.done >= r.show.total ? r.show : null; } catch(e){ return null; } };
+  const [h, a] = await Promise.all([has(w + "h"), has(w + "a")]);
+  L.special = {half: h ? w + "h" : null, awards: a ? w + "a" : null};
+}
+function specialHomeLines(L, i){
+  const s = L.special; if (!s) return "";
+  let h = "";
+  if (s.awards) h += '<button type="button" class="card nowslim" data-special="' + i + '" data-sw="' + s.awards + '"><i class=ic-trophy aria-hidden=true></i><span><b>Awards Night</b><span class="muted"> · the season’s trophies</span></span><span class="go">›</span></button>';
+  if (s.half && etNow().getDay() === 0) h += '<button type="button" class="card nowslim" data-special="' + i + '" data-sw="' + s.half + '"><i class=ic-speaker aria-hidden=true></i><span><b>The Halftime Show</b><span class="muted"> · who’s winning before the late games</span></span><span class="go">›</span></button>';
+  return h;
+}
+async function trophyCard(title, team, league, season){
+  const c = document.createElement("canvas"); c.width = 1080; c.height = 1350; const x = c.getContext("2d");
+  const g = x.createLinearGradient(0, 0, 0, 1350); g.addColorStop(0, "#0b1a10"); g.addColorStop(1, "#000"); x.fillStyle = g; x.fillRect(0, 0, 1080, 1350);
+  x.fillStyle = "#2bf07f"; x.fillRect(90, 120, 120, 14);
+  x.fillStyle = "#fff"; x.textAlign = "center"; x.font = "260px system-ui, sans-serif"; x.fillText(/lemon/i.test(title) ? "🍋" : "🏆", 540, 560);
+  const fit = (t, size, weight, y, color) => { let s = size; do { x.font = weight + " " + s + "px system-ui, sans-serif"; s -= 4; } while (x.measureText(t).width > 920 && s > 30); x.fillStyle = color; x.fillText(t, 540, y); };
+  fit(title, 64, "800", 720, "#2bf07f"); fit(team, 96, "800", 850, "#fff"); fit(league, 40, "600", 940, "#b8b8b8");
+  x.font = "600 34px system-ui, sans-serif"; x.fillStyle = "#8a8a8a"; x.fillText("Snap Count Awards Night · " + season, 540, 1230);
+  const blob = await new Promise(r => c.toBlob(r, "image/png")), file = new File([blob], "snap-count-trophy.png", {type: "image/png"});
+  try { if (navigator.canShare && navigator.canShare({files: [file]})) { await navigator.share({files: [file], title: title + ": " + team}); return; } } catch(e){ if (e && e.name === "AbortError") return; }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "snap-count-trophy.png"; a.click();
+}
+async function trophyList(L, box){
+  let aw = null; try { aw = (await api("/api/awards?lid=" + encodeURIComponent(L.meta.id))).awards; } catch(e){}
+  if (!aw) return;
+  const me = L.detail && L.detail.teams.find(t => t.mine), season = L.meta.season || new Date().getFullYear();
+  const list = [["Champion", aw.champ], ["Best record", aw.best], ["Most points", aw.most], ["Highest single week", aw.hi], ["The Lemon", aw.lemon]].filter(z => z[1]);
+  const d = document.createElement("div"); d.className = "card"; d.style.marginTop = "12px";
+  d.innerHTML = "<b>Trophy cards</b><p class=\"small muted\" style=\"margin:4px 0 8px\">Share a trophy to the group or your camera roll.</p>" + list.map(([t, n], k) => '<div class="scrow' + (me && me.name === n ? " me" : "") + '"><span>' + esc(t) + '<small class="muted" style="display:block">' + esc(n) + '</small></span><button type="button" class="btn ghost" data-trophy="' + k + '">Share</button></div>').join("");
+  box.appendChild(d);
+  d.querySelectorAll("[data-trophy]").forEach(b => b.addEventListener("click", () => { const [t, n] = list[+b.dataset.trophy]; trophyCard(t, n, L.meta.name, season); }));
+}
+async function openShow(L, sw){
+  const kind = sw ? (String(sw).endsWith("h") ? "half" : "awards") : "week";
+  const body = openSheetShell(kind === "half" ? "The Halftime Show" : kind === "awards" ? "Awards Night" : "The Snap Count Show");
   body.innerHTML = '<p class="spin">Checking the box scores…</p>';
-  let F = null; try { F = await showFacts(L); } catch(e){}
+  let F = null; if (sw) F = {w: sw}; else { try { F = await showFacts(L); } catch(e){} }
   if (!F) { body.innerHTML = '<div class="card empty"><p class="muted" style="margin:0">The show covers the most recent week where every game is final. There isn’t one yet.</p></div>'; return; }
   const d = L.detail, w = F.w, q = "p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id) + "&w=" + w;
   const final = true;
@@ -9380,11 +9419,12 @@ async function openShow(L){
   let busy = false, msg = "", show = null, done = 0, sampleUrl = null, sampleBusy = false, sampleErr = "", epUrl = null, epBusy = false, pair = "a", chosen = null, sampleModel = "", eleven = false;
   const draw = () => {
     const PAIRS = [["a", "Upbeat"], ["b", "Gravelly"], ["c", "Deep"]];
-    let h = '<div class="card" style="margin-bottom:12px"><b>Pick the hosts’ voices</b><p class="small muted" style="margin:4px 0 8px">Three voice pairs reading the same 20 seconds. Choose the one that sounds most real; every episode after uses it.</p>'
+    let h = sw ? "" : '<div class="card" style="margin-bottom:12px"><b>Pick the hosts’ voices</b><p class="small muted" style="margin:4px 0 8px">Three voice pairs reading the same 20 seconds. Choose the one that sounds most real; every episode after uses it.</p>'
       + (eleven ? '<p class="small muted" style="margin:0">Voices by ElevenLabs (elevenlabs.io).</p>' : '<div class="seg">' + PAIRS.map(([k, l]) => '<button data-pair="' + k + '" aria-pressed="' + (pair === k) + '">' + l + (chosen === k ? " ✓" : "") + '</button>').join("") + '</div>')
       + '<div id="shSample" style="margin-top:8px">' + (sampleUrl ? '<audio controls autoplay style="width:100%" src="' + sampleUrl + '"></audio>' + (sampleModel ? '<p class="small muted" style="margin:4px 0 0">Voice model: ' + esc(sampleModel) + '</p>' : "") + (eleven ? "" : chosen !== pair ? '<button class="btn" id="shUse" style="margin-top:8px">Use ' + esc(PAIRS.find(x => x[0] === pair)[1]) + ' for the show</button>' : '<p class="small" style="margin:6px 0 0">✓ The show uses these voices.</p>') : '<button class="btn ghost" id="shSampleBtn">' + (sampleBusy ? "Recording the sample…" : "Play " + PAIRS.find(x => x[0] === pair)[1]) + '</button>') + '</div>' + (sampleErr ? '<p class="small" style="color:var(--bad);margin:6px 0 0">' + esc(sampleErr) + '</p>' : "") + '</div>';
-    h += '<p class="small muted" style="margin:0 0 12px">A weekly podcast about ' + esc(L.meta.name) + ', made by AI from your league’s real results. Hosts Dez and Sam, week ' + w + '.</p>';
-    if (!show) h += '<div class="card empty"><h3>Week ' + w + ' isn’t recorded yet</h3><p class="muted">' + "It covers week " + w + ", the latest week with every game final, using the same box scores as Matchup recaps." + '</p><button class="btn" id="shMake"' + (busy ? " disabled" : "") + '>' + (busy ? "Writing the script…" : "Make this week’s show") + '</button></div>';
+    h += '<p class="small muted" style="margin:0 0 12px">' + (kind === "half" ? "A quick Sunday update on " + esc(L.meta.name) + " between the early and late games, made by AI from the live scores. Hosts Dez and Sam." : kind === "awards" ? "The season-ending episode of " + esc(L.meta.name) + ": the champion and every trophy, made by AI from the season’s real results." : "A weekly podcast about " + esc(L.meta.name) + ", made by AI from your league’s real results. Hosts Dez and Sam, week " + w + ".") + '</p>';
+    if (!show && sw) h += '<div class="card empty"><p class="muted" style="margin:0">' + (kind === "half" ? "The Halftime Show records itself Sunday afternoon, once the early games end." : "Awards Night records itself once the championship game is final.") + "</p></div>";
+    if (!show && !sw) h += '<div class="card empty"><h3>Week ' + w + ' isn’t recorded yet</h3><p class="muted">' + "It covers week " + w + ", the latest week with every game final, using the same box scores as Matchup recaps." + '</p><button class="btn" id="shMake"' + (busy ? " disabled" : "") + '>' + (busy ? "Writing the script…" : "Make this week’s show") + '</button></div>';
     else {
       const ready = done >= show.total;
       if (ready) h += '<div class="card">' + (show.engine === "gemini" ? (epUrl ? '<audio class="epaudio" controls style="width:100%" src="' + epUrl + '"></audio>' : '<p class="spin" style="margin:0">Loading the episode…</p>') : '<audio class="epaudio" controls preload="metadata" style="width:100%" src="/api/show/mp3?' + q + '&t=' + show.at + '"></audio>') + '<label class="toggle" style="margin-top:8px"><input type="checkbox" id="shMusic"' + (musicOn() ? " checked" : "") + '> Intro and outro music</label>' + (!show.final ? '<p class="small muted" style="margin:8px 0 0">Made while games were still being played.' + (final && !show.remade ? ' <button class="linkish" id="shRemake">Remake it with final scores</button>' : "") + "</p>" : "") + "</div>";
@@ -9444,6 +9484,7 @@ async function openShow(L){
   try { const r = await api("/api/show?" + q); show = r.show; done = show ? show.done : 0; } catch(e){ msg = e.message; }
   draw();
   if (show && done < show.total) record();
+  if (kind === "awards") trophyList(L, body);
 }
 
 /* ---------- league chat, bridged to the league's GroupMe ---------- */

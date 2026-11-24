@@ -47,6 +47,68 @@ Flow:
 Length: 450 to 550 words total.
 Format: every line is DEZ (acting note): text  or  SAM (acting note): text. No other text before or after.`;
 
+// Sunday Halftime Show: short, between the early and late games, recorded with the free backup voices.
+const HALF_SYS = `You write the script for "The Snap Count Show", a quick Sunday halftime update of a fantasy football podcast about ONE private league, hosted by two best friends who love this league. It must sound like two real people talking, not a radio ad.
+
+The hosts:
+- DEZ: the numbers guy. Dry wit, then genuinely worked up when the stats are absurd. Gloats when the math backs him up.
+- SAM: big personality, quick to laugh, roasts bad decisions, roots for the underdog, loves drama.
+
+Make it sound like a REAL podcast, not a performance:
+- Mostly normal conversation. Energy rises and falls: calm, then excited at the big moments, then laughing. Not every line is loud.
+- Real speech: contractions, "I mean", "like", "honestly", "wait", "okay so", trailing off with "...", restarting a sentence, an occasional "uh". Hosts interrupt, agree, push back, tease, and call back to earlier jokes.
+- Quick back-and-forth. Many turns are short reactions ("No way.", "Stop.", "Oh, that's bad.", "Right?!").
+- Laughter as <laugh>, never "Hahaha". Use <gasp> or <sigh> sparingly. Exclamation points only for real peaks. Capitals for one stressed word at most, rarely.
+- Each line gets a short acting note in parentheses after the host's name, saying HOW it's said, e.g. "(amused)", "(can't believe it)", "(laughing)", "(getting fired up)", "(deadpan)", "(groaning)". Vary them.
+- No lists, headings, square brackets, sound effects, asterisks or emojis.
+
+ACCURACY RULES (most important):
+- Use ONLY the facts in the league data, exactly as written. Every score, player and team name must match the data. Never invent or estimate a number, player, trade or record.
+- Say scores the way they appear in the data (for example "142.5"). Do not add up or compute anything yourself; the HEADLINES section already has the closest game, blowout, high, low and blunder.
+- The episode covers only the week named in the data.
+- Good-natured roasting only, about fantasy decisions, never about real people's lives.
+
+Flow:
+1. SAM opens with: "This is The Snap Count Halftime Show, an AI-made update on [league name], week [N]!"
+2. Who's winning right now, with exact current scores from the data. Big reactions for the closest game and the biggest lead.
+3. Who's sweating: teams behind with few players left to play.
+4. Who's already cooked: teams far behind with almost nobody left. Playful, never mean.
+5. One quick tease for the late games, then sign off.
+Nothing is final yet: say "leading" or "trailing", never "won" or "lost".
+
+Length: 150 to 200 words total.
+Format: every line is DEZ (acting note): text  or  SAM (acting note): text. No other text before or after.`;
+// Season awards night: the championship is final; hand out the league's trophies.
+const AWARDS_SYS = `You write the script for "The Snap Count Show", the season-ending awards episode of a fantasy football podcast about ONE private league, hosted by two best friends who love this league. It must sound like two real people talking, not a radio ad.
+
+The hosts:
+- DEZ: the numbers guy. Dry wit, then genuinely worked up when the stats are absurd. Gloats when the math backs him up.
+- SAM: big personality, quick to laugh, roasts bad decisions, roots for the underdog, loves drama.
+
+Make it sound like a REAL podcast, not a performance:
+- Mostly normal conversation. Energy rises and falls: calm, then excited at the big moments, then laughing. Not every line is loud.
+- Real speech: contractions, "I mean", "like", "honestly", "wait", "okay so", trailing off with "...", restarting a sentence, an occasional "uh". Hosts interrupt, agree, push back, tease, and call back to earlier jokes.
+- Quick back-and-forth. Many turns are short reactions ("No way.", "Stop.", "Oh, that's bad.", "Right?!").
+- Laughter as <laugh>, never "Hahaha". Use <gasp> or <sigh> sparingly. Exclamation points only for real peaks. Capitals for one stressed word at most, rarely.
+- Each line gets a short acting note in parentheses after the host's name, saying HOW it's said, e.g. "(amused)", "(can't believe it)", "(laughing)", "(getting fired up)", "(deadpan)", "(groaning)". Vary them.
+- No lists, headings, square brackets, sound effects, asterisks or emojis.
+
+ACCURACY RULES (most important):
+- Use ONLY the facts in the league data, exactly as written. Every score, player and team name must match the data. Never invent or estimate a number, player, trade or record.
+- Say scores the way they appear in the data (for example "142.5"). Do not add up or compute anything yourself; the HEADLINES section already has the closest game, blowout, high, low and blunder.
+- The episode covers only the week named in the data.
+- Good-natured roasting only, about fantasy decisions, never about real people's lives.
+
+Flow:
+1. SAM opens with: "This is The Snap Count Show Awards Night, an AI-made celebration of [league name]'s season!"
+2. Crown the champion first, with the exact title-game score. Big celebration.
+3. Hand out every award in AWARDS, one at a time, with the exact numbers given. Make each one a moment: a short build-up, the reveal, a reaction.
+4. The Lemon award goes last before the sign-off, roasted playfully and affectionately, never mean.
+5. Sign off thanking the league for the season.
+
+Length: 380 to 480 words total.
+Format: every line is DEZ (acting note): text  or  SAM (acting note): text. No other text before or after.`;
+
 const keyOf = (p, lid, w) => "show5:" + p + ":" + lid + ":" + w;
 function parseScript(text) {
   const lines = [];
@@ -332,7 +394,8 @@ export async function showRoute(request, url, env) {
   }
   if (!env.SNAP || !env.AI) return out({ error: "The show isn't available on this server." }, 503);
   const p = url.searchParams.get("p") || "", lid = url.searchParams.get("lid") || "", w = String(url.searchParams.get("w") || "");
-  if (!okLid(p, lid) || !/^\d{1,2}$/.test(w)) return out({ error: "Bad league or week" }, 400);
+  if (!okLid(p, lid) || !/^\d{1,2}[ha]?$/.test(w)) return out({ error: "Bad league or week" }, 400);
+  const kind = w.endsWith("h") ? "half" : w.endsWith("a") ? "awards" : "week", SYS = kind === "half" ? HALF_SYS : kind === "awards" ? AWARDS_SYS : SHOW_SYS, minLines = kind === "half" ? 8 : 12;
   const key = keyOf(p, lid, w);
 
   if (path === "/api/show/mp3") {
@@ -386,33 +449,35 @@ export async function showRoute(request, url, env) {
     // Voice budget: split the ElevenLabs characters left this month across the episodes (Tuesdays) still to come before
     // the reset, so a month with five Tuesdays gets slightly shorter shows instead of the last one losing the good voices.
     let words = 430;
-    if (elKey(env)) { try { words = wordBudget(await elUsage(env), Date.now()); } catch (e) {} }
+    // The halftime show uses the free backup voices, so the ElevenLabs characters stay with the weekly show.
+    const useEleven = elKey(env) && kind !== "half";
+    if (useEleven) { try { words = wordBudget(await elUsage(env), Date.now()); } catch (e) {} }
     for (let tries = 0; tries < 3 && !(best && !best.bad.length) && !(best && Date.now() - t0 > 35000); tries++) {
       const model = SCRIPT_MODELS[tries === 2 ? 1 : 0];
       const fix = best && best.bad.length ? "\n\nYour last draft used numbers that are NOT in the data: " + [...new Set(best.bad)].slice(0, 8).join(", ") + ". Use only numbers that appear in the data." : "";
       try {
         let txt = "";
-        const len = elKey(env) ? "\n\nKeep it SHORT this time: " + (words - 60) + " to " + words + " words total (the voice budget is tight). Fewer games in detail; still cover the closest game, the blowout, the high score, the blunder, at least one coulda-won-it swap, and the roast corner." : "";
-        if (gemKey(env) && !useCf) { try { txt = await gemWrite(env, SHOW_SYS, "LEAGUE DATA:\n" + data + "\n\nWrite the script now." + len + fix); } catch (e) { lastErr = e; gemErr = e; useCf = true; } }
+        const len = kind === "half" ? "" : useEleven && kind === "awards" ? "\n\nKeep it to " + Math.max(300, words - 20) + " to " + Math.max(360, words + 40) + " words total (the voice budget is tight)." : useEleven ? "\n\nKeep it SHORT this time: " + (words - 60) + " to " + words + " words total (the voice budget is tight). Fewer games in detail; still cover the closest game, the blowout, the high score, the blunder, at least one coulda-won-it swap, and the roast corner." : "";
+        if (gemKey(env) && !useCf) { try { txt = await gemWrite(env, SYS, "LEAGUE DATA:\n" + data + "\n\nWrite the script now." + len + fix); } catch (e) { lastErr = e; gemErr = e; useCf = true; } }
         if (!txt) {
-          const r = await env.AI.run(model, { messages: [{ role: "system", content: SHOW_SYS }, { role: "user", content: "LEAGUE DATA:\n" + data + "\n\nWrite the script now." + len + fix }], max_tokens: 1800, temperature: 0.8 });
+          const r = await env.AI.run(model, { messages: [{ role: "system", content: SYS }, { role: "user", content: "LEAGUE DATA:\n" + data + "\n\nWrite the script now." + len + fix }], max_tokens: 1800, temperature: 0.8 });
           txt = String((r && (r.response ?? (r.choices && r.choices[0] && r.choices[0].message && r.choices[0].message.content))) ?? "");
         }
         const ls = parseScript(txt);
-        if (ls.length >= 12) { const bad = badNums(ls); if (!best || bad.length < best.bad.length) best = { lines: ls, bad }; }
+        if (ls.length >= minLines) { const bad = badNums(ls); if (!best || bad.length < best.bad.length) best = { lines: ls, bad }; }
         else lastErr = new Error("short script (" + ls.length + " lines)");
       } catch (e) { lastErr = e; if (/4006|neuron|allocation|quota|limit/i.test(String(e && e.message))) break; }
     }
     const lines = best ? best.lines : [];
-    if (lines.length < 12) {
+    if (lines.length < minLines) {
       const m = String(lastErr && lastErr.message || "");
       if (gemErr) return out({ error: "Gemini couldn’t write the script: " + String(gemErr.message).slice(0, 200) }, 502);
       if (/4006|neuron|allocation|quota|limit/i.test(m)) return out({ error: "Today’s free AI allowance is used up. Try again after 7 PM Eastern, when it resets.", wait: true }, 503);
       return out({ error: "The script writer came back short. Try again in a minute. (" + m.slice(0, 100) + ")" }, 502);
     }
-    if (elKey(env) && lines[0]) lines[0].t = lines[0].t.replace(/(an AI-made recap)/i, "$1, with voices by ElevenLabs dot io,");
+    if (useEleven && lines[0]) lines[0].t = lines[0].t.replace(/(an AI-made recap)/i, "$1, with voices by ElevenLabs dot io,");
     if (old) { for (let i = 0; i < old.lines.length; i++) { await env.SNAP.delete(key + ":a" + i); await env.SNAP.delete(key + ":g" + i); } }
-    const engine = elKey(env) ? "eleven" : gemKey(env) ? "gemini" : "deepgram";
+    const engine = useEleven ? "eleven" : kind === "half" && env.DEEPGRAM_KEY ? "deepgram" : gemKey(env) ? "gemini" : "deepgram";
     const show = { lines, engine, parts: engine === "gemini" ? chunk(lines) : null, final: !!b.final, at: Date.now(), league: String(b.league || "").slice(0, 80), remade: !!old };
     await env.SNAP.put(key, JSON.stringify(show), { expirationTtl: 120 * 86400 });
     await hotPut(env, "showdone:" + key, 0).catch(() => {});
