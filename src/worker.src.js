@@ -12,6 +12,7 @@ import { partyRoute, pollRoute } from "./src/party.js";
 import { claimsRoute } from "./src/claims.js";
 import { iqRoute } from "./src/iq.js";
 import { picksRoute } from "./src/picks.js";
+import { rulesRoute } from "./src/rules.js";
 import { gameWeather } from "./src/weather.js";
 import { upsetRoute, betInfoRoute, ttsRoute, marketRoute, pickemRoute, commRoute, syncRoute, transcribeRoute, espnRoute, mflRoute, scoresRoute, calendarRoute, coachRoute, hookPostRoute, espnLineupRoute, mflLoginRoute, mflLineupRoute, fleaLoginRoute, fleaLineupRoute, fleaMoveRoute } from "./src/more.js";
 
@@ -872,6 +873,7 @@ export default {
       if (p === "/api/claims") return claimsRoute(request, env, url);
       if (p === "/api/iq") return iqRoute(env, url);
       if (p === "/api/picks") return picksRoute(request, env, url);
+      if (p === "/api/rules") return rulesRoute(request, env, url);
       if (p === "/api/awards") { const lid = url.searchParams.get("lid") || ""; if (!/^\d{1,10}$/.test(lid)) return json({ error: "Bad league" }, 400, 0); return json({ awards: await hotGet(env, "awardsdata:" + lid) }, 200, 300); }
       if (p === "/api/highlights") return cached(ctx, "highlights", 300, () => highlightsRoute(env));
       if (p.startsWith("/api/push/")) return alertsRoute(request, env, p, url);
