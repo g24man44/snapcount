@@ -599,6 +599,7 @@ async function scoreboard() {
     return {
       away: (side("away").team || {}).abbreviation, home: (side("home").team || {}).abbreviation,
       awayLogo: (side("away").team || {}).logo || "", homeLogo: (side("home").team || {}).logo || "",
+      awayName: (side("away").team || {}).shortDisplayName || "", homeName: (side("home").team || {}).shortDisplayName || "",
       awayScore: side("away").score || "0", homeScore: side("home").score || "0",
       state: st.state || "pre", detail: st.shortDetail || st.detail || "",
       ou: odds.overUnder != null ? Number(odds.overUnder) : null, line: odds.details || "",
@@ -900,7 +901,7 @@ export default {
         const target = "https://www.fleaflicker.com/api/" + ep + url.search;
         return cached(ctx, "f/" + ep + url.search, ttl, () => upstream(target, ttl));
       }
-      if (p === "/api/scoreboard") return cached(ctx, "scoreboard", 30, scoreboard);
+      if (p === "/api/scoreboard") return cached(ctx, "scoreboard2", 30, scoreboard);
       if (p === "/api/weather") return cached(ctx, "weather1", 1800, async () => { const w = await gameWeather(); return json(w, w.source || !w.games.some(g => !g.indoor) ? 200 : 203, w.source ? 1800 : 60); }); // 203 = forecast missing, not cached
       if (p === "/api/sstats") {
         const season = url.searchParams.get("season") || "";

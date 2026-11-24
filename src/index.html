@@ -1052,6 +1052,7 @@ h3.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .envrow .chip.ok{color:var(--ok)}.envrow .chip.warn,.envrow .chip.wxhi{color:var(--warn)}
 .heroCard .gnum{width:44px;height:44px;padding-top:0;align-items:center;border-radius:50%!important}.heroCard .gnum b{font-size:20px}
 .lerr{margin-bottom:12px}.lerr b{display:block;font-size:15px}.lerr p{margin:4px 0 12px}
+.rootHero .reasons{margin:8px 0 0}.scen{padding:4px 16px!important}.scrow{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px 0;font-size:14px}.scrow+.scrow{border-top:1px solid var(--line)}.scrow b{font-size:16px;flex:none}
 </style>
 </head>
 <body>
@@ -1966,6 +1967,7 @@ function renderLeagues(v){
     }
     h += "</button>";
     if (d && d.teams.some(t => t.mine)) h += tauntRow(L);
+    if (d && d.teams.some(t => t.mine)) h += '<button type="button" class="card nowslim" data-root="' + i + '"><i class=ic-target aria-hidden=true></i><span><b>Who to root for</b><span class="muted"> · scenarios and games that matter</span></span><span class="go">›</span></button>';
     if (d && d.teams.some(t => t.mine)) h += '<button type="button" class="card showcard" data-show="' + i + '"><span class="showic" aria-hidden="true"><i class=ic-speaker></i></span><span class="showtx"><b>The Snap Count Show</b><span class="small muted">This week’s podcast about ' + esc(m.name) + '</span></span><span class="showgo">Listen</span></button>';
   });
   v.innerHTML = h + "</div>" + homeHeadlines() + tdAsk() + tools;
@@ -1973,6 +1975,7 @@ function renderLeagues(v){
   wireNow(v);
   const hm = v.querySelector(".moretools"); if (hm) hm.addEventListener("toggle", () => { cur.homeMore = hm.open; });
   v.querySelectorAll("[data-show]").forEach(b => b.addEventListener("click", () => openShow(leagues[+b.dataset.show])));
+  v.querySelectorAll("[data-root]").forEach(b => b.addEventListener("click", () => openRootFor(leagues[+b.dataset.root])));
   v.querySelectorAll("[data-l]").forEach(b => b.addEventListener("click", () => { cur.league = +b.dataset.l; cur.team = null; render(); window.scrollTo(0,0); }));
   const sw = v.querySelector("#sweatBtn"); if (sw) sw.addEventListener("click", openSweat);
   const pb = v.querySelector("#planBtn"); if (pb) pb.addEventListener("click", openPlanner);
@@ -8442,6 +8445,158 @@ function pathLines(pp, me){
   const r = pp.root.find(x => x.p >= 0.02 && x.p <= 0.98);
   if (r && r.imp >= 0.01) out.push({tone: "", text: "Best help this week: " + r.fav.name + " beating " + r.vs.name + " (+" + Math.round(r.imp * 100) + "% for you)."});
   return out;
+}
+/* ---------- Clinching scenarios: exact "win and you're in" paths, plus a magic number ---------- */
+// A week-0 game is already decided when it has live scores with no time left on either side.
+const gDone = g => g[4] != null && !g[6] && !g[7];
+// Copy of the schedule with some of this week's games forced: forced[key] = winner team id.
+function forceSched(sched, forced, wi0){
+  return Object.assign({}, sched, {weeks: sched.weeks.map((wk, i) => i !== (wi0 || 0) ? wk : Object.assign({}, wk, {games: wk.games.map(g => {
+    const w = forced[g[0] + "-" + g[1]]; if (w == null) return g;
+    const hi = Math.max(g[2] || 110, g[3] || 110) + 8, lo = Math.min(g[2] || 110, g[3] || 110) - 8, c = g.slice();
+    c[4] = w === g[0] ? hi : lo; c[5] = w === g[0] ? lo : hi; c[6] = 0; c[7] = 0; return c;
+  })}))});
+}
+// Certain answers from wins alone (ties count against you, so "clinched" and "eliminated" are never overstated).
+function lockState(d, sched, me, forced, wi0){ wi0 = wi0 || 0;
+  const T = d.teams, P = Math.min(sched.po.teams, T.length), W = {}, R = {};
+  T.forEach(t => { W[t.id] = (t.w || 0) + (t.t || 0) / 2; R[t.id] = 0; });
+  sched.weeks.forEach((wk, wi) => wk.games.forEach(g => {
+    const f = (wi === wi0 && forced[g[0] + "-" + g[1]] != null) ? forced[g[0] + "-" + g[1]] : (wi === 0 && gDone(g)) ? (g[4] > g[5] ? g[0] : g[1]) : null;
+    if (f != null) { if (W[f] != null) W[f]++; } else { if (R[g[0]] != null) R[g[0]]++; if (R[g[1]] != null) R[g[1]]++; }
+  }));
+  const divs = {}; T.forEach(t => { if (t.div != null) (divs[t.div] = divs[t.div] || []).push(t); });
+  const useDivs = Object.keys(divs).length > 1 && Object.keys(divs).length <= P;
+  const myMin = W[me.id], myMax = W[me.id] + R[me.id], others = T.filter(t => t !== me);
+  const couldPass = new Set(others.filter(t => W[t.id] + R[t.id] >= myMin).map(t => t.id));
+  let threat = couldPass.size;
+  if (useDivs) Object.entries(divs).forEach(([k, m]) => { if (String(k) !== String(me.div) && !m.some(t => couldPass.has(t.id))) threat++; });
+  const ahead = others.filter(t => W[t.id] > myMax).length;
+  const canWinDiv = !useDivs || !(divs[me.div] || []).some(t => t !== me && W[t.id] > myMax);
+  return {clinched: threat < P, out: ahead >= P && !canWinDiv || (!useDivs && ahead >= P)};
+}
+function simDetailWeek(d, sched, wi, me, n){
+  const T = d.teams, meI = T.indexOf(me), acc = {};
+  simulate(d, sched, null, 0, n, (W, seeds, res, seedsOf) => {
+    const made = seeds.includes(meI);
+    (res[wi] || []).forEach(g => {
+      if (g[0] === meI || g[1] === meI) return;
+      const k = g[0] + "-" + g[1], o = acc[k] = acc[k] || {a: g[0], b: g[1], aw: 0, ifA: 0, ifB: 0};
+      if (g[2] === g[0]) o.aw++;
+      const flip = want => { if (g[2] === want) return made; const W2 = W.slice(); W2[g[2]]--; W2[want]++; return seedsOf(W2).seeds.includes(meI); };
+      if (flip(g[0])) o.ifA++; if (flip(g[1])) o.ifB++;
+    });
+  });
+  return Object.values(acc).map(o => { const imp = (o.ifA - o.ifB) / n; return imp >= 0 ? {fav: T[o.a], vs: T[o.b], p: o.aw / n, imp} : {fav: T[o.b], vs: T[o.a], p: 1 - o.aw / n, imp: -imp}; }).sort((a, b) => b.imp - a.imp);
+}
+function clinchInfo(d, sched, me, pp){
+  const T = d.teams, P = Math.min(sched.po.teams, T.length), wk0 = sched.weeks[0];
+  if (!wk0) return null;
+  const now = lockState(d, sched, me, {});
+  const res = {now, combos: [], lines: [], magic: null, week: null};
+  if (now.clinched || now.out) return res;
+  // Magic number against the first team out (or games back of the last spot).
+  {
+    const ord = T.slice(), doneW = {}; wk0.games.forEach(g => { if (gDone(g)) { const w = g[4] > g[5] ? g[0] : g[1]; doneW[w] = (doneW[w] || 0) + 1; } });
+    const left = t => sched.weeks.reduce((n, w, wi) => n + w.games.filter(g => (g[0] === t.id || g[1] === t.id) && !(wi === 0 && gDone(g))).length, 0);
+    const wOf = t => (t.w || 0) + (t.t || 0) / 2 + (doneW[t.id] || 0);
+    ord.sort((a, b) => (wOf(b) - wOf(a)) || ((b.pf || 0) - (a.pf || 0)));
+    const pos = ord.indexOf(me);
+    if (pos < P && ord[P]) { const ch = ord[P], M = wOf(ch) + left(ch) - wOf(me) + 1; if (M > 0 && M <= left(me) + left(ch)) res.magic = {n: M, vs: ch, text: "Magic number " + M + ": any mix of your wins and " + ch.name + " losses that adds up to " + M + " locks you ahead of " + ch.name + ", the first team out right now."}; }
+    else if (pos >= P && ord[P - 1]) { const gb = wOf(ord[P - 1]) - wOf(me); res.magic = {gb, vs: ord[P - 1], text: (gb > 0 ? gb + " game" + (gb === 1 ? "" : "s") + " behind " : "Tied with ") + ord[P - 1].name + " for the last playoff spot."}; }
+  }
+  const wi0 = sched.weeks.findIndex((w, i) => w.games.some(g => !(i === 0 && gDone(g))));
+  if (wi0 < 0) return res;
+  const wk = sched.weeks[wi0]; res.week = wk.w;
+  const undone = g => !(wi0 === 0 && gDone(g));
+  const keyOf = (a, b) => { const g = wk.games.find(x => (x[0] === a && x[1] === b) || (x[0] === b && x[1] === a)); return g && undone(g) ? g : null; };
+  const myG = wk.games.find(g => (g[0] === me.id || g[1] === me.id) && undone(g));
+  // Next week's key games: the ones whose results move my odds most (this week's swings come from the playoff path).
+  const swing = wi0 === 0 && pp ? pp.root : (() => { const S = simDetailWeek(d, sched, wi0, me, 1500); return S; })();
+  const key = (swing || []).filter(r => r.imp >= 0.03 && r.p > 0.02 && r.p < 0.98).map(r => ({r, g: keyOf(r.fav.id, r.vs.id)})).filter(x => x.g).slice(0, myG ? 2 : 3);
+  const dims = (myG ? [{g: myG, good: me.id, bad: myG[0] === me.id ? myG[1] : myG[0], mine: true}] : []).concat(key.map(x => ({g: x.g, good: x.r.fav.id, bad: x.r.vs.id})));
+  if (!dims.length) return res;
+  const name = id => (T.find(t => t.id === id) || {}).name || "";
+  for (let m = 0; m < (1 << dims.length); m++) {
+    const forced = {}, parts = [];
+    dims.forEach((x, k) => { const goodWay = !(m & (1 << k)); forced[x.g[0] + "-" + x.g[1]] = goodWay ? x.good : x.bad; parts.push({x, goodWay}); });
+    const lock = lockState(d, sched, me, forced, wi0), odds = (simulate(d, forceSched(sched, forced, wi0), null, 0, 1200).find(r => r.t === me) || {}).odds || 0;
+    res.combos.push({parts, odds, lock});
+  }
+  // Plain-English lines: the simplest condition that gets you in, and the one that knocks you out.
+  const inOf = c => c.lock.clinched || c.odds >= 0.995, outOf = c => c.lock.out || c.odds <= 0.005;
+  const say = parts => parts.map(p => p.x.mine ? (p.goodWay ? "you win" : "you lose") : (p.goodWay ? name(p.x.good) + " beats " + name(p.x.bad) : name(p.x.bad) + " beats " + name(p.x.good))).join(" and ");
+  const sure = cs => cs.every(c => c.lock.clinched) ? "clinched" : "virtually in";
+  const sureOut = cs => cs.every(c => c.lock.out) ? "eliminated" : "virtually out";
+  if (myG) {
+    const win = res.combos.filter(c => c.parts[0].goodWay), lose = res.combos.filter(c => !c.parts[0].goodWay);
+    if (win.every(inOf)) res.lines.push({tone: "ok", text: "Win and you’re " + sure(win) + "."});
+    else { const c = win.find(inOf); if (c) res.lines.push({tone: "ok", text: "You’re " + sure([c]) + " if " + say(c.parts) + "."}); }
+    if (lose.every(outOf)) res.lines.push({tone: "bad", text: "Lose and you’re " + sureOut(lose) + "."});
+    else { const c = lose.find(outOf); if (c) res.lines.push({tone: "bad", text: "You’re " + sureOut([c]) + " if " + say(c.parts) + "."}); }
+    if (lose.every(inOf)) res.lines.push({tone: "ok", text: "Even with a loss you’re " + sure(lose) + "."});
+  } else {
+    const c = res.combos.find(inOf); if (c) res.lines.push({tone: "ok", text: "You’re " + sure([c]) + " if " + say(c.parts) + "."});
+  }
+  if (wi0 > 0) res.lines.forEach(l => l.text = "Week " + wk.w + ": " + l.text.charAt(0).toLowerCase() + l.text.slice(1));
+  return res;
+}
+/* ---------- NFL games that matter to this week's matchup ---------- */
+function nflRootFor(d, me){
+  const g = d.games.find(x => x.a.id === me.id || x.b.id === me.id); if (!g || !nflList.length) return [];
+  const opp = d.teams.find(t => t.id === (g.a.id === me.id ? g.b.id : g.a.id)); if (!opp) return [];
+  const want = {}, who = {}; // want[team] > 0: you want that NFL team's offense to score
+  const add = (p, sign) => {
+    if (p.slot !== "start" || !p.team) return; const left = gameLeft(p.team), r = (p.proj || 0) * left; if (r < 0.5) return;
+    const tm = tnorm(p.team), gm = nflGames[tm]; if (!gm) return;
+    if (/DEF|DST|D\/ST/i.test(p.pos)) { const o = tnorm(gm.away) === tm ? tnorm(gm.home) : tnorm(gm.away); want[o] = (want[o] || 0) - sign * r; (who[o] = who[o] || []).push({p, sign, dst: true}); }
+    else { want[tm] = (want[tm] || 0) + sign * r; (who[tm] = who[tm] || []).push({p, sign}); }
+  };
+  (me.roster || []).forEach(p => add(p, 1)); (opp.roster || []).forEach(p => add(p, -1));
+  return nflList.filter(x => x.state !== "post").map(x => {
+    const A = tnorm(x.away), H = tnorm(x.home), a = want[A] || 0, h = want[H] || 0, stake = Math.abs(a) + Math.abs(h);
+    if (stake < 2) return null;
+    const ppl = (who[A] || []).concat(who[H] || []), yours = ppl.filter(z => z.sign > 0).map(z => z.p.name), theirs = ppl.filter(z => z.sign < 0).map(z => z.p.name);
+    let text;
+    if (a > 1 && h > 1) text = "Root for a shootout";
+    else if (a < -1 && h < -1) text = "Root for a low-scoring game";
+    else if (a >= h) text = "Root for " + teamName(A) + " to light it up" + (h < -1 ? " and " + teamName(H) + " to stall" : "");
+    else text = "Root for " + teamName(H) + " to light it up" + (a < -1 ? " and " + teamName(A) + " to stall" : "");
+    return {x, A, H, stake, text, yours, theirs, oppName: opp.name};
+  }).filter(Boolean).sort((p, q) => q.stake - p.stake);
+}
+function teamName(abbr){ const g = nflList.find(x => tnorm(x.away) === abbr || tnorm(x.home) === abbr); return (g && (tnorm(g.away) === abbr ? g.awayName : g.homeName)) || abbr; }
+/* ---------- Root for: one screen with your scenarios, the league games and the NFL games that matter to you ---------- */
+async function openRootFor(L){
+  const sh = $("#sheet"), p = $("#sheetPanel"), d = L.detail, me = d && d.teams.find(t => t.mine);
+  const head = '<button class="back" id="closeSheet">Close</button><h2>Who to root for</h2>';
+  const done = h => { p.innerHTML = h; p.querySelector("#closeSheet").addEventListener("click", closeSheet); };
+  done(head + '<p class="spin">Playing out the rest of the season…</p>'); sh.hidden = false;
+  if (!me) return done(head + '<div class="card"><p style="margin:0">Pick your team in this league first.</p></div>');
+  if (!gamesAt) await loadScoreboard().catch(() => {});
+  let sched = null; try { sched = await getSchedule(L); } catch(e){}
+  if (sh.hidden) return;
+  const regular = sched && sched.weeks.length && !(sched.cw >= sched.po.start);
+  let h = head, pp = null, ci = null;
+  if (regular) { try { pp = playoffPath(d, sched, me, 4000); ci = clinchInfo(d, sched, me, pp); } catch(e){} }
+  const pct = x => x >= 0.995 && x < 1 ? ">99%" : x > 0 && x < 0.005 ? "<1%" : Math.round(x * 100) + "%";
+  if (ci) {
+    const top = ci.now.clinched ? [{tone: "ok", text: "You’ve clinched a playoff spot."}] : ci.now.out ? [{tone: "bad", text: "You’re out of the playoff race. Play spoiler."}] : ci.lines;
+    h += '<div class="card rootHero"><b class="glabel">' + esc(me.name) + (pp ? " · " + pct(pp.odds) + " playoff odds" : "") + '</b><ul class="reasons">' + (top.length ? top : (pathLines(pp, me).slice(0, 2).length ? pathLines(pp, me).slice(0, 2) : [{tone: "", text: "Nothing is settled this week either way. Every win still moves the needle."}])).map(r => '<li class="' + r.tone + '">' + esc(r.text) + "</li>").join("") + (ci.magic ? '<li>' + esc(ci.magic.text) + "</li>" : "") + "</ul></div>";
+    if (ci.combos.length > 1) {
+      const name = id => (d.teams.find(t => t.id === id) || {}).name || "";
+      h += "<h3>Every way week " + ci.week + " can go</h3><div class=\"card scen\">" + ci.combos.slice().sort((x, y) => y.odds - x.odds).map(c => '<div class="scrow"><span>' + c.parts.map(q => q.x.mine ? (q.goodWay ? "You win" : "You lose") : esc((q.goodWay ? name(q.x.good) : name(q.x.bad)) + " win")).join(" · ") + '</span><b' + (c.lock.clinched || c.odds >= 0.995 ? ' style="color:var(--ok)"' : c.lock.out || c.odds <= 0.005 ? ' style="color:var(--bad)"' : "") + ">" + (c.lock.clinched ? "In" : c.lock.out ? "Out" : pct(c.odds)) + "</b></div>").join("") + "</div>";
+    }
+  }
+  const nfl = nflRootFor(d, me);
+  if (nfl.length) h += "<h3>NFL games · your matchup</h3><div class=\"card scen\">" + nfl.slice(0, 8).map(r => '<div class="scrow"><span><b style="font-size:15px">' + esc(r.text) + '</b><small class="muted" style="display:block;margin-top:2px">' + esc(teamName(r.A) + " at " + teamName(r.H) + (r.x.state === "in" ? " · live" : "")) + (r.yours.length ? " · yours: " + esc(r.yours.join(", ")) : "") + (r.theirs.length ? " · " + esc(r.oppName) + ": " + esc(r.theirs.join(", ")) : "") + '</small></span><b>' + Math.round(r.stake) + ' <small class="muted" style="font-weight:600">pts</small></b></div>').join("") + "</div>";
+  if (pp && pp.week != null) {
+    const matter = pp.root.filter(r => r.imp >= 0.005 && r.p > 0.02 && r.p < 0.98);
+    if (matter.length) h += "<h3>League games · your playoff odds</h3>" + '<div class="card" style="padding:6px 0"><table class="otable"><tbody>' + matter.map(r => "<tr><td>" + teamLogo(r.fav) + "</td><td><b>Root for " + esc(r.fav.name) + "</b><small>over " + esc(r.vs.name) + "</small></td><td class=\"onum\" style=\"color:var(--ok)\">+" + Math.max(1, Math.round(r.imp * 100)) + "%</td></tr>").join("") + "</tbody></table></div>";
+  }
+  if (h === head) h += '<div class="card"><p style="margin:0">Nothing left to root for this week. Check back when the next week’s games are set.</p></div>';
+  h += '<p class="small muted" style="margin:10px 4px 0">“Clinched” and “eliminated” are certain from wins alone. Percentages come from thousands of simulated finishes; ties go to points for. NFL points at stake are your starters’ remaining projections minus your opponent’s in that game.</p>';
+  done(h);
 }
 async function openPlayoffPath(L){
   const sh = $("#sheet"), p = $("#sheetPanel"), d = L.detail, me = d.teams.find(t => t.mine);
