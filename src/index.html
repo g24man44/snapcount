@@ -1948,9 +1948,9 @@ function renderLeagues(v){
   }
   if (!leaguesLoaded) { v.innerHTML = h + '<p class="spin">Loading your leagues…</p>'; return; }
   if (!leagues.length) { v.innerHTML = h + (leaguesErr.length ? "" : '<p class="muted">No leagues found for this season.</p>'); const rb = v.querySelector("#lRetry"); if (rb) rb.addEventListener("click", loadAll); return; }
-  const TL = {sweatBtn: ["ic-flame", "Sweat board"], briefBtn: ["ic-speaker", "Morning briefing"], injBtn: ["ic-medic", "Injury center"], planBtn: ["ic-calendar", "Byes and injuries, next 4 weeks"], brkBtn: ["ic-pulse", "Breakouts"], expBtn: ["ic-list", "All my leagues"], wlBtn: ["ic-star", "Watchlist"], wxBtn: ["ic-wind", "Game weather"], tdBtn: ["ic-ball", "Your teams (score celebrations)"], betBtn: ["ic-trophy", "Side bets"], offBtn: ["ic-swap", "Trade offers"], profBtn: ["ic-trophy", "Profiles & Hall of Fame"]};
+  const TL = {sweatBtn: ["ic-flame", "Sweat board"], briefBtn: ["ic-speaker", "Morning briefing"], injBtn: ["ic-medic", "Injury center"], planBtn: ["ic-calendar", "Byes and injuries, next 4 weeks"], brkBtn: ["ic-pulse", "Breakouts"], expBtn: ["ic-list", "All my leagues"], wlBtn: ["ic-star", "Watchlist"], wxBtn: ["ic-wind", "Game weather"], tdBtn: ["ic-ball", "Your teams (score celebrations)"], betBtn: ["ic-trophy", "Side bets"], offBtn: ["ic-swap", "Trade offers"], profBtn: ["ic-trophy", "Profiles & Hall of Fame"], iqBtn: ["ic-spark", "Manager IQ"]};
   const tb = id => '<button type="button" class="btn ghost" id="' + id + '"' + (id === "tdBtn" ? ' data-tdopen="1"' : "") + '><i class=' + TL[id][0] + ' aria-hidden=true></i>' + TL[id][1] + "</button>";
-  const tools = leagues.some(L => L.detail && L.detail.teams.some(t => t.mine)) ? '<h3 class="tgh">Tools</h3><div class="tlist">' + ["sweatBtn", "profBtn", "offBtn", "betBtn", "briefBtn", "injBtn"].map(tb).join("") + '</div><details class="moretools"' + (cur.homeMore ? " open" : "") + '><summary>More tools <span class="small muted">6</span></summary><div class="tlist" style="margin-top:8px">' + ["wlBtn", "planBtn", "brkBtn", "expBtn", "wxBtn", "tdBtn"].map(tb).join("") + "</div></details>" : "";
+  const tools = leagues.some(L => L.detail && L.detail.teams.some(t => t.mine)) ? '<h3 class="tgh">Tools</h3><div class="tlist">' + ["sweatBtn", "iqBtn", "profBtn", "offBtn", "betBtn", "briefBtn", "injBtn"].map(tb).join("") + '</div><details class="moretools"' + (cur.homeMore ? " open" : "") + '><summary>More tools <span class="small muted">6</span></summary><div class="tlist" style="margin-top:8px">' + ["wlBtn", "planBtn", "brkBtn", "expBtn", "wxBtn", "tdBtn"].map(tb).join("") + "</div></details>" : "";
   h = scoreStrip() + h + nowCard() + wlHomeCard();
   h += '<div class="stack">';
   leagues.forEach((L, i) => {
@@ -1986,6 +1986,7 @@ function renderLeagues(v){
   v.querySelectorAll("[data-offers]").forEach(b => b.addEventListener("click", () => openOffers(leagues[+b.dataset.offers])));
   v.querySelectorAll("[data-bracket]").forEach(b => b.addEventListener("click", () => openBracket(leagues[+b.dataset.bracket])));
   v.querySelectorAll("[data-special]").forEach(b => b.addEventListener("click", () => openShow(leagues[+b.dataset.special], b.dataset.sw)));
+  const iqb = v.querySelector("#iqBtn"); if (iqb) iqb.addEventListener("click", () => { const mineL = leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine) && L.meta.platform === "flea"); if (mineL.length) openIQ(mineL[0]); });
   const pfb = v.querySelector("#profBtn"); if (pfb) pfb.addEventListener("click", () => { const mineL = leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine)); if (mineL.length) openProfiles(mineL[0]); });
   const obt = v.querySelector("#offBtn"); if (obt) obt.addEventListener("click", () => { const mineL = leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine)); if (mineL.length) openOffers(mineL[0]); });
   const btb = v.querySelector("#betBtn"); if (btb) btb.addEventListener("click", () => { const mineL = leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine)); if (mineL.length) openBets(mineL[0]); });
@@ -5749,6 +5750,41 @@ async function openHistory(L){
   draw();
 }
 
+/* ---------- Manager IQ: how close every lineup came to its best possible score ---------- */
+async function loadIQ(L, onStep){
+  let r = null;
+  for (let k = 0; k < 8; k++) { r = await api("/api/iq?lid=" + encodeURIComponent(L.meta.id)); if (onStep) onStep(Object.keys(r.weeks || {}).length); if (!r.more) break; }
+  return r;
+}
+function iqBoard(r){
+  const T = {};
+  Object.entries(r.weeks || {}).forEach(([w, rows]) => Object.entries(rows).forEach(([id, x]) => {
+    if (x.cons || !(x.opt > 0)) return;
+    const t = T[id] = T[id] || {id, name: x.name, act: 0, opt: 0, perfect: 0, weeks: 0, best: null, worst: null};
+    const pct = x.act / x.opt; t.act += x.act; t.opt += x.opt; t.weeks++; if (pct >= 0.999) t.perfect++;
+    if (!t.worst || pct < t.worst.pct) t.worst = {w: +w, pct, left: x.opt - x.act};
+  }));
+  return Object.values(T).map(t => Object.assign(t, {pct: t.act / t.opt, left: t.opt - t.act})).sort((a, b) => b.pct - a.pct);
+}
+function iqGrade(p){ return p >= 0.97 ? "A+" : p >= 0.94 ? "A" : p >= 0.91 ? "A-" : p >= 0.88 ? "B+" : p >= 0.85 ? "B" : p >= 0.82 ? "B-" : p >= 0.78 ? "C" : p >= 0.72 ? "D" : "F"; }
+async function openIQ(L){
+  const sh = $("#sheet"), p = $("#sheetPanel"), me = L.detail && L.detail.teams.find(t => t.mine);
+  const head = '<button class="back" id="closeSheet">Close</button><h2>Manager IQ</h2>';
+  const show = h => { p.innerHTML = h; p.querySelector("#closeSheet").addEventListener("click", closeSheet); };
+  show(head + '<p class="spin" id="iqMsg">Grading every lineup this season…</p>'); sh.hidden = false;
+  if (L.meta.platform !== "flea") return show(head + '<div class="card"><p style="margin:0">Manager IQ works with Fleaflicker leagues for now.</p></div>');
+  let r; try { r = await loadIQ(L, n => { const m = $("#iqMsg"); if (m) m.textContent = "Graded " + n + " week" + (n === 1 ? "" : "s") + "…"; }); } catch(e){ return show(head + '<div class="err">' + esc(e.message) + "</div>"); }
+  if (sh.hidden) return;
+  const B = iqBoard(r); if (!B.length) return show(head + '<div class="card"><p style="margin:0">No finished weeks to grade yet.</p></div>');
+  const weeks = Object.keys(r.weeks).map(Number).sort((a, b) => b - a), last = r.weeks[weeks[0]];
+  const pctS = x => (Math.round(x * 1000) / 10).toFixed(1) + "%";
+  let h = head + '<p class="muted" style="margin:-6px 2px 12px">Points you scored as a share of your best possible lineup, every week this season. 100% means you started exactly the right players.</p>';
+  if (last) { const lw = Object.entries(last).filter(([, x]) => !x.cons && x.opt > 0).map(([id, x]) => Object.assign({id}, x, {pct: x.act / x.opt})).sort((a, b) => b.pct - a.pct);
+    h += '<div class="card heroCard"><b class="glabel">Week ' + weeks[0] + '</b><ul class="reasons"><li class="ok">🧠 Coach of the week: <b>' + esc(lw[0].name) + "</b>, " + pctS(lw[0].pct) + "</li><li class=\"bad\">🤡 Worst call: <b>" + esc(lw[lw.length - 1].name) + "</b>, " + fmt(lw[lw.length - 1].opt - lw[lw.length - 1].act) + " points left on the bench</li></ul></div>"; }
+  h += "<h3>Season leaderboard</h3>" + '<div class="card scen">' + B.map((t, k) => '<div class="scrow' + (me && me.id === t.id ? " me" : "") + '"><span><b>' + (k + 1) + ". " + esc(t.name) + '</b><small class="muted" style="display:block">' + t.perfect + " perfect week" + (t.perfect === 1 ? "" : "s") + " · " + fmt(t.left) + " pts left on the bench" + (t.worst ? " · worst: week " + t.worst.w : "") + '</small></span><b>' + iqGrade(t.pct) + ' <small class="muted" style="font-weight:600">' + pctS(t.pct) + "</small></b></div>").join("") + "</div>";
+  h += '<p class="small muted" style="margin:10px 4px 0">From Fleaflicker’s own best-possible-lineup numbers. Consolation games aren’t counted.</p>';
+  show(h);
+}
 /* ---------- Manager profiles, badges and the Hall of Fame (built on League history and the trade report card) ---------- */
 const profCache = {};
 async function profData(L){
@@ -5840,7 +5876,10 @@ async function openProfiles(L, pick){
     const nem = rows.slice().sort((a, b) => a.pct - b.pct)[0], vic = rows.slice().sort((a, b) => b.pct - a.pct)[0];
     if (nem || vic) h += '<div class="card scen" style="margin-top:10px">' + (nem ? '<div class="scrow"><span>😈 Nemesis<small class="muted" style="display:block">' + esc(nem.o.name) + "</small></span><b>" + rec(nem) + "</b></div>" : "") + (vic && vic !== nem ? '<div class="scrow"><span>🍽️ Favorite victim<small class="muted" style="display:block">' + esc(vic.o.name) + "</small></span><b>" + rec(vic) + "</b></div>" : "") + "</div>";
     // Badges
-    const bs = badgesFor(sel, P, L); if (ver) bs.unshift({icon: "✓", name: "Verified", why: "Proved ownership with Fleaflicker."});
+    const bs = badgesFor(sel, P, L);
+    const iq = (L.iqBoard || []).find(x => x.id === sel);
+    if (iq) { if (iq.perfect) bs.push({icon: "🎯", name: "Perfect lineup", why: iq.perfect + " week" + (iq.perfect > 1 ? "s" : "") + " this season with the best possible lineup.", n: iq.perfect}); bs.push({icon: "🧠", name: "Manager IQ " + iqGrade(iq.pct), why: (Math.round(iq.pct * 1000) / 10) + "% of the best possible points this season."}); }
+    if (ver) bs.unshift({icon: "✓", name: "Verified", why: "Proved ownership with Fleaflicker."});
     h += "<h3>Badges</h3>" + (bs.length ? '<div class="bdgs">' + bs.map(b => '<div class="bdg"><span class="bi">' + b.icon + (b.n > 1 ? "<small>×" + b.n + "</small>" : "") + '</span><b>' + esc(b.name) + '</b><small class="muted">' + esc(b.why) + "</small></div>").join("") + "</div>" : '<div class="card"><p class="small muted" style="margin:0">No badges yet. Score 200, win 6 straight or win a title to start the collection.</p></div>');
     // Hall of Fame
     const champs = X.champs.filter(c => c.id);
@@ -5856,6 +5895,7 @@ async function openProfiles(L, pick){
   draw();
   api("/api/claims?p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id) + "&dev=" + devId()).then(c => { claims = c; if (!sh.hidden) draw(); }).catch(() => {});
   profTrades(L).then(c => { trades = c || {}; if (!sh.hidden) draw(); }).catch(() => { trades = {}; if (!sh.hidden) draw(); });
+  if (L.meta.platform === "flea") loadIQ(L).then(r => { L.iqBoard = iqBoard(r); if (!sh.hidden) draw(); }).catch(() => {});
 }
 /* ---------- league trade report card: every trade in the league, graded ---------- */
 const lt = {};   // per-league state: {trades, total, next, loading, boards, year, team, sort}

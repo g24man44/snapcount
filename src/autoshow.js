@@ -44,6 +44,9 @@ async function fleaFacts(lid, name, w) {
     return [side("away", String((g.away || {}).id), b.pointsAway), side("home", String((g.home || {}).id), b.pointsHome)];
   }));
   const ok = games.filter(Boolean); if (!ok.length) return null;
+  // Manager IQ for the week: points scored as a share of the best possible lineup
+  const iqs = ok.flat().filter(x => x.opt > 0).map(x => ({ n: T(x.tid).name, pct: Math.round(x.act / x.opt * 1000) / 10, left: Math.round((x.opt - x.act) * 100) / 100 })).sort((a, b) => b.pct - a.pct);
+  const iqLine = iqs.length ? "MANAGER IQ THIS WEEK (share of best possible lineup): coach of the week " + iqs[0].n + " at " + iqs[0].pct + " percent; worst " + iqs[iqs.length - 1].n + " at " + iqs[iqs.length - 1].pct + " percent, leaving " + iqs[iqs.length - 1].left + " points on the bench." : "";
   const blunder = s => { let best = null; s.start.forEach(a => s.bench.forEach(x => { if (x.pos === a.pos && x.pts - a.pts > 0 && (!best || x.pts - a.pts > best.d)) best = { start: a, bench: x, d: x.pts - a.pts }; })); return best; };
   const f = ok.map(([x, y]) => { const win = x.act >= y.act ? x : y, lose = win === x ? y : x;
     const top = s => s.start.slice().sort((a, b) => b.pts - a.pts)[0], dud = s => s.start.filter(p => !["K", "D/ST", "DEF"].includes(p.pos)).sort((a, b) => a.pts - b.pts)[0];
@@ -73,6 +76,7 @@ async function fleaFacts(lid, name, w) {
   const bottom = Object.entries(teams).map(([id, t]) => Object.assign({ id }, t)).sort((a, b) => a.w - b.w || a.pf - b.pf).slice(0, 3);
   lines.push("", "ROAST CORNER (the bottom of the standings; roast them playfully about their fantasy season, never mean):");
   bottom.forEach(t => { const g = f.find(x => x.win.tid === t.id || x.lose.tid === t.id), won = g && g.win.tid === t.id && g.margin > 0; lines.push("- " + t.name + " is " + t.w + "-" + t.l + " with " + n(t.pf) + " points for" + (g ? ", and " + (won ? "actually WON this week, " + n(g.win.act) + " to " + n(g.lose.act) : "lost again this week, " + n(g.lose.act) + " to " + n(g.win.act)) : "") + "."); });
+  if (iqLine) lines.push("", iqLine);
   lines.push("", "STANDINGS NOW (wins-losses, points for):");
   Object.values(teams).sort((a, b) => b.w - a.w || b.pf - a.pf).forEach((t, i) => lines.push((i + 1) + ". " + t.name + " " + t.w + "-" + t.l + ", " + n(t.pf) + " points for"));
   return lines.join("\n").replace(/\p{Extended_Pictographic}️?/gu, "").replace(/ +/g, " ");
