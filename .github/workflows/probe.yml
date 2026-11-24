@@ -1,0 +1,10 @@
+name: probe
+on: push
+jobs:
+  p:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -s "https://www.youtube.com/feeds/videos.xml?channel_id=UCDVYQ4Zhbm3S2dlz7P1GBDg" | grep -o "<title>[^<]*</title>\|<yt:videoId>[^<]*</yt:videoId>\|<published>[^<]*" | head -40
+          echo ===
+          curl -s "https://now.core.api.espn.com/v1/sports/news?sport=football&league=nfl&type=video&limit=5" | head -c 1500
