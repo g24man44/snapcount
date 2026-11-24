@@ -6,5 +6,5 @@ jobs:
     steps:
       - run: |
           B=https://fantasysportsnews.grattangreg.workers.dev
-          echo "== show w11"; curl -s "$B/api/show?p=flea&lid=183120&w=11" | head -c 500; echo
-          echo "== show w10"; curl -s "$B/api/show?p=flea&lid=183120&w=10" | head -c 150; echo
+          curl -s "$B/api/show?p=flea&lid=183120&w=11" | python3 -c "import json,sys;s=json.load(sys.stdin)['show'];print('== state', {k:v for k,v in s.items() if k!='lines'}, len(s['lines']))"
+          curl -s "$B/api/health" | python3 -c "import json,sys;j=json.load(sys.stdin);print('== health', [c for c in j.get('checks',j) if 'oice' in str(c) or 'Gemini' in str(c) or 'ElevenLabs' in str(c)])" || true
