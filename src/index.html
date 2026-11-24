@@ -1948,9 +1948,9 @@ function renderLeagues(v){
   }
   if (!leaguesLoaded) { v.innerHTML = h + '<p class="spin">Loading your leagues…</p>'; return; }
   if (!leagues.length) { v.innerHTML = h + (leaguesErr.length ? "" : '<p class="muted">No leagues found for this season.</p>'); const rb = v.querySelector("#lRetry"); if (rb) rb.addEventListener("click", loadAll); return; }
-  const TL = {sweatBtn: ["ic-flame", "Sweat board"], briefBtn: ["ic-speaker", "Morning briefing"], injBtn: ["ic-medic", "Injury center"], planBtn: ["ic-calendar", "Byes and injuries, next 4 weeks"], brkBtn: ["ic-pulse", "Breakouts"], expBtn: ["ic-list", "All my leagues"], wlBtn: ["ic-star", "Watchlist"], wxBtn: ["ic-wind", "Game weather"], tdBtn: ["ic-ball", "Your teams (score celebrations)"], betBtn: ["ic-trophy", "Side bets"], offBtn: ["ic-swap", "Trade offers"], profBtn: ["ic-trophy", "Profiles & Hall of Fame"], iqBtn: ["ic-spark", "Manager IQ"], offsBtn: ["ic-spark", "Offseason HQ"]};
+  const TL = {sweatBtn: ["ic-flame", "Sweat board"], briefBtn: ["ic-speaker", "Morning briefing"], injBtn: ["ic-medic", "Injury center"], planBtn: ["ic-calendar", "Byes and injuries, next 4 weeks"], brkBtn: ["ic-pulse", "Breakouts"], expBtn: ["ic-list", "All my leagues"], wlBtn: ["ic-star", "Watchlist"], wxBtn: ["ic-wind", "Game weather"], tdBtn: ["ic-ball", "Your teams (score celebrations)"], betBtn: ["ic-trophy", "Side bets"], offBtn: ["ic-swap", "Trade offers"], profBtn: ["ic-trophy", "Profiles & Hall of Fame"], iqBtn: ["ic-spark", "Manager IQ"], offsBtn: ["ic-spark", "Offseason HQ"], strBtn: ["ic-list", "Streamers: best D/ST, K and QB pickups"]};
   const tb = id => '<button type="button" class="btn ghost" id="' + id + '"' + (id === "tdBtn" ? ' data-tdopen="1"' : "") + '><i class=' + TL[id][0] + ' aria-hidden=true></i>' + TL[id][1] + "</button>";
-  const tools = leagues.some(L => L.detail && L.detail.teams.some(t => t.mine)) ? '<h3 class="tgh">Tools</h3><div class="tlist">' + ["sweatBtn", "iqBtn", "profBtn", "offBtn", "betBtn", "offsBtn", "briefBtn", "injBtn"].map(tb).join("") + '</div><details class="moretools"' + (cur.homeMore ? " open" : "") + '><summary>More tools <span class="small muted">6</span></summary><div class="tlist" style="margin-top:8px">' + ["wlBtn", "planBtn", "brkBtn", "expBtn", "wxBtn", "tdBtn"].map(tb).join("") + "</div></details>" : "";
+  const tools = leagues.some(L => L.detail && L.detail.teams.some(t => t.mine)) ? '<h3 class="tgh">Tools</h3><div class="tlist">' + ["sweatBtn", "strBtn", "iqBtn", "profBtn", "offBtn", "betBtn", "offsBtn", "briefBtn", "injBtn"].map(tb).join("") + '</div><details class="moretools"' + (cur.homeMore ? " open" : "") + '><summary>More tools <span class="small muted">6</span></summary><div class="tlist" style="margin-top:8px">' + ["wlBtn", "planBtn", "brkBtn", "expBtn", "wxBtn", "tdBtn"].map(tb).join("") + "</div></details>" : "";
   h = scoreStrip() + h + nowCard() + wlHomeCard();
   h += '<div class="stack">';
   leagues.forEach((L, i) => {
@@ -1987,6 +1987,7 @@ function renderLeagues(v){
   v.querySelectorAll("[data-off]").forEach(b => b.addEventListener("click", () => openOffseason(leagues[+b.dataset.off])));
   v.querySelectorAll("[data-bracket]").forEach(b => b.addEventListener("click", () => openBracket(leagues[+b.dataset.bracket])));
   v.querySelectorAll("[data-special]").forEach(b => b.addEventListener("click", () => openShow(leagues[+b.dataset.special], b.dataset.sw)));
+  const stb = v.querySelector("#strBtn"); if (stb) stb.addEventListener("click", () => { const mineL = leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine)); if (mineL.length) openStreamers(mineL[0]); });
   const osb = v.querySelector("#offsBtn"); if (osb) osb.addEventListener("click", () => { const mineL = leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine)); if (mineL.length) openOffseason(mineL[0]); });
   const iqb = v.querySelector("#iqBtn"); if (iqb) iqb.addEventListener("click", () => { const mineL = leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine) && L.meta.platform === "flea"); if (mineL.length) openIQ(mineL[0]); });
   const pfb = v.querySelector("#profBtn"); if (pfb) pfb.addEventListener("click", () => { const mineL = leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine)); if (mineL.length) openProfiles(mineL[0]); });
@@ -2963,7 +2964,7 @@ async function askCoach(q){
     let dc = ""; try { dc = await coachDepth(L, q); } catch(e){}
     const text = await streamAI({mode:"coach", q, ctx: tm + dc + L.ctx, history}, t => { ans.content = t; drawCoach(); });
     if (!text) ans.err = "No answer came back. Try again.";
-    else if (coach.speak && "speechSynthesis" in window) { const u = new SpeechSynthesisUtterance(text.replace(/[*#•]/g, "")); u.rate = 1.05; speechSynthesis.cancel(); speechSynthesis.speak(u); }
+    else if ((coach.speak || coach.byVoice) && "speechSynthesis" in window) { coach.byVoice = false; const u = new SpeechSynthesisUtterance(text.replace(/[*#•]/g, "")); u.rate = 1.05; speechSynthesis.cancel(); speechSynthesis.speak(u); }
   } catch(e){ ans.err = e.message; }
   coach.busy = false; if ($("#cGo")) $("#cGo").disabled = false; drawCoach();
 }
@@ -3092,6 +3093,7 @@ async function stopVoice(keep){
       inp.value = (inp.value.trim() ? inp.value.trim() + " " : "") + said;
       // Tapping the arrow means "send": no second tap on Ask.
       if (bar) bar.remove(); form.classList.remove("rec"); voice.chunks = [];
+      coach.byVoice = true; // asked out loud, so answer out loud (hands-free)
       if (form.requestSubmit) form.requestSubmit(); else { const go = form.querySelector("#cGo"); if (go) go.click(); }
       return;
     }
@@ -5754,6 +5756,40 @@ async function openHistory(L){
   draw();
 }
 
+/* ---------- Streamer finder: the best defense, kicker and QB on your waiver wire for this week's matchups ---------- */
+function oppOf(team){ const t = tnorm(team), g = nflGames[t]; if (!g) return null; return tnorm(g.away) === t ? tnorm(g.home) : tnorm(g.away); }
+async function openStreamers(L){
+  const sh = $("#sheet"), p = $("#sheetPanel");
+  const head = '<button class="back" id="closeSheet">Close</button><h2>Streamers</h2>';
+  const show = h => { p.innerHTML = h; p.querySelector("#closeSheet").addEventListener("click", closeSheet); };
+  show(head + '<p class="spin">Checking the waiver wire against this week’s matchups…</p>'); sh.hidden = false;
+  if (!gamesAt) await loadScoreboard().catch(() => {});
+  // After the week's games are over, look ahead to next week's schedule and lines.
+  let wk = Number(L.detail && L.detail.week) || "", saved = null;
+  if (nflList.length && nflList.every(g => g.state === "post")) {
+    try { const cur = await api("/api/scoreboard"), nx = await api("/api/scoreboard?week=" + ((Number(cur.week) || wk || 0) + 1)), map = {};
+      (nx.games || []).forEach(g => { map[tnorm(g.away)] = g; map[tnorm(g.home)] = g; });
+      if (Object.keys(map).length) { saved = nflGames; nflGames = map; wk = (Number(cur.week) || 0) + 1; } } catch(e){}
+  }
+  const pull = async pos => { try { return await faList(L, pos); } catch(e){ return []; } };
+  const [D, K, Q] = await Promise.all([pull("DEF"), pull("K"), pull("QB")]);
+  if (sh.hidden) return;
+  const live = t => { const g = nflGames[tnorm(t)]; return g && g.state && g.state !== "pre"; };
+  // Healthy players who actually play: skip anyone out or on IR, and backups with no real production.
+  const hurt = x => /^(O|OUT|IR|PUP|NFI|SUS|D|DOUBTFUL)$/i.test(String(x.inj || "").trim()) || /out|injured reserve|suspend/i.test(String(x.injPart || ""));
+  const MIN = {QB: 9, K: 4, DEF: 0, "D/ST": 0};
+  const rank = (list, score, why) => list.filter(x => x.team && nflGames[tnorm(x.team)] && !live(x.team) && !hurt(x) && (x.avg || 0) >= (MIN[x.pos] != null ? MIN[x.pos] : 0)).map(x => Object.assign({}, x, {s: score(x)})).filter(x => x.s != null).sort((a, b) => b.s - a.s).slice(0, 5).map(x => Object.assign(x, {why: why(x)}));
+  const it = t => impliedTotal(t), dome = t => { const g = nflGames[tnorm(t)]; return g && g.indoor; };
+  const defs = rank(D, x => { const o = oppOf(x.team), oi = o && it(o); return oi == null ? null : 30 - oi + (x.avg || 0) * 0.3; }, x => { const o = oppOf(x.team); return "vs " + o + ", who are expected to score just " + it(o).toFixed(1); });
+  const ks = rank(K, x => { const m = it(x.team); return m == null ? null : m + (dome(x.team) ? 2 : 0) + (x.avg || 0) * 0.3; }, x => esc(x.team) + " expected to score " + it(x.team).toFixed(1) + (dome(x.team) ? ", in a dome" : ""));
+  const qbs = rank(Q, x => { const m = it(x.team); return m == null ? null : m + (x.avg || 0) * 0.5; }, x => esc(x.team) + " expected to score " + it(x.team).toFixed(1));
+  const sec = (title, arr, pool) => "<h3>" + title + "</h3>" + (!pool.length ? '<div class="card"><p class="small muted" style="margin:0">Every one is on a roster in your league. Nothing to stream.</p></div>' : arr.length ? '<div class="card scen">' + arr.map((x, k) => '<div class="scrow"><span><b>' + (k + 1) + ". " + esc(x.name) + '</b><small class="muted" style="display:block">' + x.why + (x.inj ? " · " + esc(x.inj) : "") + "</small></span><b class=\"small\">" + (x.avg != null ? fmt(x.avg) + " avg" : "") + "</b></div>").join("") + "</div>" : '<div class="card"><p class="small muted" style="margin:0">No healthy starters worth streaming on the wire this week.</p></div>');
+  let h = head + '<p class="muted" style="margin:-6px 2px 12px">Free agents in ' + esc(L.meta.name) + " ranked by " + (wk ? "week " + wk + " " : "") + "matchup, using the betting lines. Defenses want opponents expected to score little; kickers and QBs want their own offense expected to score a lot.</p>";
+  if (!Object.values(nflGames).some(g => g.ou != null)) h += '<div class="card"><p style="margin:0">The betting lines for week ' + wk + ' aren’t posted yet, so matchups can’t be ranked. They usually appear by Wednesday.</p></div>';
+  else h += sec("Defenses", defs, D) + sec("Kickers", ks, K) + sec("Quarterbacks", qbs, Q);
+  if (saved) nflGames = saved;
+  show(h);
+}
 /* ---------- Offseason HQ: next year's power rankings, age-cliff sells, and the draft and trade tools in one place ---------- */
 function isOffseason(L){ const m = new Date().getMonth(); return !!(L.po && L.po.champ && L.po.champ.isFinalScore) || (m >= 1 && m <= 6); }
 function offseasonHomeLine(L, i){

@@ -594,8 +594,8 @@ async function cfbTeams() {
   return json({ teams: list }, 200, 86400);
 }
 
-async function scoreboard() {
-  const r = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard", { headers: UA });
+async function scoreboard(week) {
+  const r = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard" + (week ? "?seasontype=2&week=" + week : ""), { headers: UA });
   if (!r.ok) return json({ error: "NFL scoreboard unavailable (" + r.status + ")" }, 502, 0);
   const d = await r.json();
   const games = (d.events || []).map(e => {
@@ -614,7 +614,7 @@ async function scoreboard() {
       indoor: !!(c.venue && c.venue.indoor), date: c.date || e.date || ""
     };
   }).filter(g => g.away && g.home);
-  return json({ games }, 200, 30);
+  return json({ games, week: (d.week || {}).number || null }, 200, 30);
 }
 
 // Season fantasy points for every player: [ppr, half, std, games played].
@@ -917,7 +917,7 @@ export default {
         const target = "https://www.fleaflicker.com/api/" + ep + url.search;
         return cached(ctx, "f/" + ep + url.search, ttl, () => upstream(target, ttl));
       }
-      if (p === "/api/scoreboard") return cached(ctx, "scoreboard2", 30, scoreboard);
+      if (p === "/api/scoreboard") { const wk = url.searchParams.get("week"); if (wk && /^\d{1,2}$/.test(wk)) return cached(ctx, "scoreboard2:" + wk, 600, () => scoreboard(wk)); return cached(ctx, "scoreboard3", 30, () => scoreboard()); }
       if (p === "/api/weather") return cached(ctx, "weather1", 1800, async () => { const w = await gameWeather(); return json(w, w.source || !w.games.some(g => !g.indoor) ? 200 : 203, w.source ? 1800 : 60); }); // 203 = forecast missing, not cached
       if (p === "/api/sstats") {
         const season = url.searchParams.get("season") || "";
