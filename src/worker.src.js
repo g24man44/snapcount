@@ -30,17 +30,30 @@ async function cached(ctx, key, ttl, produce) {
   const req = new Request("https://snapcount.cache/" + key);
   const hit = await cache.match(req);
   if (hit) return hit;
-  const res = await produce();
+  // A last good copy is kept for two days. If the league site hiccups (it happens on busy game nights),
+  // people see that copy instead of an error.
+  const staleReq = new Request("https://snapcount.cache/stale/" + key);
+  let res;
+  try { res = await produce(); } catch (e) { res = json({ error: "The league site didn’t answer." }, 502, 0); }
   if (res.status === 200) {
     const copy = new Response(res.clone().body, res);
     copy.headers.set("cache-control", "public, max-age=" + ttl);
     ctx.waitUntil(cache.put(req, copy));
+    const keep = new Response(res.clone().body, res);
+    keep.headers.set("cache-control", "public, max-age=172800");
+    ctx.waitUntil(cache.put(staleReq, keep));
+  } else if (res.status >= 400) {
+    const old = await cache.match(staleReq);
+    if (old) { const r2 = new Response(old.body, old); r2.headers.set("cache-control", "no-store"); r2.headers.set("x-sc-stale", "1"); return r2; }
   }
   return res;
 }
 
 async function upstream(url, ttl) {
-  const r = await fetch(url, { headers: UA });
+  let r = await fetch(url, { headers: UA }).catch(() => null);
+  // One quick retry: the league sites sometimes fail a single request and answer the next.
+  if (!r || r.status === 404 || r.status >= 500) { await new Promise(f => setTimeout(f, 800)); r = await fetch(url, { headers: UA }).catch(() => null); }
+  if (!r) return json({ error: "The league site didn’t answer." }, 502, 0);
   if (!r.ok) return json({ error: "The league site answered " + r.status + " for this request." }, r.status === 404 ? 404 : 502, 0);
   const body = await r.text();
   return new Response(body, { status: 200, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "public, max-age=" + ttl } });

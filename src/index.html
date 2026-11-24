@@ -1051,6 +1051,7 @@ h3.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .envrow .chip{background:none!important;padding:0!important;margin-right:10px;font-size:12px;font-weight:600;color:var(--muted)}
 .envrow .chip.ok{color:var(--ok)}.envrow .chip.warn,.envrow .chip.wxhi{color:var(--warn)}
 .heroCard .gnum{width:44px;height:44px;padding-top:0;align-items:center;border-radius:50%!important}.heroCard .gnum b{font-size:20px}
+.lerr{margin-bottom:12px}.lerr b{display:block;font-size:15px}.lerr p{margin:4px 0 12px}
 </style>
 </head>
 <body>
@@ -1088,7 +1089,8 @@ let accts = loadAccts();
 /* ---------- api ---------- */
 let offlineShown = false;
 async function api(path){
-  const r = await fetch(path);
+  let r = await fetch(path).catch(() => null);
+  if (!r || r.status >= 500 || (r.status === 404 && /^\/api\/(flea|sleeper|espn|mfl)/.test(path))) { await new Promise(f => setTimeout(f, 1500)); r = await fetch(path); }
   if (r.headers.get("x-sc-offline") && !offlineShown) { offlineShown = true; const b = document.createElement("div"); b.className = "offline"; b.textContent = "You’re offline. Showing the last data you saw."; document.body.appendChild(b); window.addEventListener("online", () => location.reload(), {once:true}); }
   if (!r.ok) { let t = ""; try { t = (await r.json()).error; } catch(e){} throw new Error(t || ("Request failed (" + r.status + ")")); }
   return r.json();
@@ -1919,9 +1921,12 @@ function wireNow(v){
 function renderLeagues(v){
   if (!hasAccts()) return emptyState(v);
   let h = installCard();
-  leaguesErr.forEach(e => h += '<div class="err">' + esc(e) + "</div>");
+  if (leaguesErr.length) {
+    const sites = [...new Set(leaguesErr.map(e => e.split(" ")[0]))].join(" and ");
+    h += '<div class="card lerr"><b>' + esc(sites) + ' isn’t answering right now</b><p class="small muted">This is on their end and usually clears up in a minute or two.</p><button type="button" class="btn" id="lRetry">Try again</button></div>';
+  }
   if (!leaguesLoaded) { v.innerHTML = h + '<p class="spin">Loading your leagues…</p>'; return; }
-  if (!leagues.length) { v.innerHTML = h + '<p class="muted">No leagues found for this season.</p>'; return; }
+  if (!leagues.length) { v.innerHTML = h + (leaguesErr.length ? "" : '<p class="muted">No leagues found for this season.</p>'); const rb = v.querySelector("#lRetry"); if (rb) rb.addEventListener("click", loadAll); return; }
   const TL = {sweatBtn: ["ic-flame", "Sweat board"], briefBtn: ["ic-speaker", "Morning briefing"], injBtn: ["ic-medic", "Injury center"], planBtn: ["ic-calendar", "Byes and injuries, next 4 weeks"], brkBtn: ["ic-pulse", "Breakouts"], expBtn: ["ic-list", "All my leagues"], wlBtn: ["ic-star", "Watchlist"], wxBtn: ["ic-wind", "Game weather"], tdBtn: ["ic-ball", "Your teams (score celebrations)"]};
   const tb = id => '<button type="button" class="btn ghost" id="' + id + '"' + (id === "tdBtn" ? ' data-tdopen="1"' : "") + '><i class=' + TL[id][0] + ' aria-hidden=true></i>' + TL[id][1] + "</button>";
   const tools = leagues.some(L => L.detail && L.detail.teams.some(t => t.mine)) ? '<h3 class="tgh">Tools</h3><div class="tlist">' + ["sweatBtn", "briefBtn", "injBtn"].map(tb).join("") + '</div><details class="moretools"' + (cur.homeMore ? " open" : "") + '><summary>More tools <span class="small muted">6</span></summary><div class="tlist" style="margin-top:8px">' + ["wlBtn", "planBtn", "brkBtn", "expBtn", "wxBtn", "tdBtn"].map(tb).join("") + "</div></details>" : "";
@@ -1931,7 +1936,7 @@ function renderLeagues(v){
     const m = L.meta, d = L.detail;
     h += '<button class="card league" data-l="' + i + '"><div class="row1"><span class="name">' + esc(m.name) + '</span><span class="badge">' + PLAT[m.platform] + "</span></div>";
     const meT = d && d.teams.find(t => t.mine), gT = meT && d.games.find(g => g.a.id === meT.id || g.b.id === meT.id);
-    if (L.error) h += '<span class="small" style="color:var(--bad)">' + esc(L.error) + "</span>";
+    if (L.error) h += '<span class="small muted">' + esc(PLAT[L.meta.platform] || "The league site") + ' isn’t answering right now. Pull down to refresh in a minute.</span>';
     else if (!d) h += '<span class="small muted">Loading scores…</span>';
     else {
       const me = d.teams.find(t => t.mine);
@@ -1949,6 +1954,7 @@ function renderLeagues(v){
     if (d && d.teams.some(t => t.mine)) h += '<button type="button" class="card showcard" data-show="' + i + '"><span class="showic" aria-hidden="true"><i class=ic-speaker></i></span><span class="showtx"><b>The Snap Count Show</b><span class="small muted">This week’s podcast about ' + esc(m.name) + '</span></span><span class="showgo">Listen</span></button>';
   });
   v.innerHTML = h + "</div>" + homeHeadlines() + tdAsk() + tools;
+  const rb = v.querySelector("#lRetry"); if (rb) rb.addEventListener("click", loadAll);
   wireNow(v);
   const hm = v.querySelector(".moretools"); if (hm) hm.addEventListener("toggle", () => { cur.homeMore = hm.open; });
   v.querySelectorAll("[data-show]").forEach(b => b.addEventListener("click", () => openShow(leagues[+b.dataset.show])));
