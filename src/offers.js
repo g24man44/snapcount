@@ -1,3 +1,4 @@
+import { asTeam } from "./claims.js";
 // Trade offers inside Snap Count: send, accept, decline or counter, then one tap makes it official on the league site.
 // Stored in the live-state Durable Object (no KV writes).
 import { hotGet, hotPut } from "./alerts.js";
@@ -20,6 +21,10 @@ export async function offersRoute(request, env, url) {
   const p = String(b.p || ""), lid = String(b.lid || "");
   if (!/^(flea|sleeper|espn|mfl)$/.test(p) || !/^[\w-]{1,40}$/.test(lid)) return out({ error: "Bad request" }, 400);
   const k = keyOf(p, lid), list = (await hotGet(env, k)) || [], link = "/?offers=" + p + ":" + lid, tag = "offer:" + lid;
+  const actor = b.action === "send" ? (b.from || {}).id : b.team;
+  const who = await asTeam(env, p, lid, actor, b.dev, b.action === "send" ? (b.from || {}).name : "");
+  if (who.error) return out({ error: who.error }, who.status);
+  if (b.action === "send") b.from.name = who.name;
   if (b.action === "send") {
     const from = b.from || {}, to = b.to || {}, give = items(b.give), get = items(b.get);
     if (!from.id || !to.id || from.id === to.id || !(give.length + get.length)) return out({ error: "Add players to both sides first." }, 400);

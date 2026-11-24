@@ -8,6 +8,8 @@ import { PROSPECTS } from "./src/prospects.js";
 import { betsRoute } from "./src/bets.js";
 import { offersRoute } from "./src/offers.js";
 import { highlightsRoute } from "./src/highlights.js";
+import { partyRoute } from "./src/party.js";
+import { claimsRoute } from "./src/claims.js";
 import { gameWeather } from "./src/weather.js";
 import { upsetRoute, betInfoRoute, ttsRoute, marketRoute, pickemRoute, commRoute, syncRoute, transcribeRoute, espnRoute, mflRoute, scoresRoute, calendarRoute, coachRoute, hookPostRoute, espnLineupRoute, mflLoginRoute, mflLineupRoute, fleaLoginRoute, fleaLineupRoute, fleaMoveRoute } from "./src/more.js";
 
@@ -860,6 +862,8 @@ export default {
       if (p === "/api/taunt") return tauntRoute(request, env);
       if (p === "/api/bets") return betsRoute(request, env, url);
       if (p === "/api/offers") return offersRoute(request, env, url);
+      if (p === "/api/party") return partyRoute(request, env, url);
+      if (p === "/api/claims") return claimsRoute(request, env, url);
       if (p === "/api/highlights") return cached(ctx, "highlights", 300, () => highlightsRoute(env));
       if (p.startsWith("/api/push/")) return alertsRoute(request, env, p, url);
       if (p === "/api/coach") return coachRoute(request, env);

@@ -10,6 +10,8 @@ import { gameWeather } from "./weather.js";
 import { autoShows } from "./autoshow.js";
 import { settleBets } from "./bets.js";
 import { collectHighlights } from "./highlights.js";
+import { partyFeed } from "./party.js";
+import { asTeam } from "./claims.js";
 import { hookKind, sendHook, espnLeagueTaken, mflLeagueTaken, weeklyRecaps, aiComplete, scoresRoute } from "./more.js";
 
 const UA = { "User-Agent": "SnapCount/1.0 (fantasy dashboard)", "Accept": "application/json" };
@@ -235,7 +237,9 @@ export async function tauntRoute(request, env) {
     const g = await env.CHAT.get(env.CHAT.idFromName("taunts")).fetch("https://chat/gate?dev=" + dev).catch(() => null);
     if (g && g.status === 429) return out({ error: "One taunt at a time." }, 429);
   }
-  const from = String(b.fromName || "Your opponent").slice(0, 60), player = String(b.player || "").slice(0, 60);
+  const who = await asTeam(env, p, lid, b.from, dev, b.fromName);
+  if (who.error) return out({ error: who.error }, who.status);
+  const from = who.name, player = String(b.player || "").slice(0, 60);
   const data = { show: 1, taunt: { kind: b.kind, e: t[0], text: t[1], from, player }, tag: "taunt:" + lid, title: t[0] + " " + from + ": " + t[1], body: player ? "After " + player + "’s touchdown." : "From your matchup this week.", url: "/" };
   let sent = 0;
   for (const id of await subscriberIds(env)) {
@@ -407,6 +411,7 @@ export async function alertsRoute(request, env, p, url) {
     if (p === "/api/push/run" && url.searchParams.get("what") === "power") return out(await weeklyPower(env, true));
     if (p === "/api/push/run" && url.searchParams.get("what") === "plays") return out(await playAlerts(env));
     if (p === "/api/push/run" && url.searchParams.get("what") === "autoshow") return out(await autoShows(env, true));
+    if (p === "/api/push/run" && url.searchParams.get("what") === "party") { await partyFeed(env); return out({ ok: true }); }
     if (p === "/api/push/run" && url.searchParams.get("what") === "bets") { await settleBets(env); return out({ ok: true }); }
     if (p === "/api/push/run" && url.searchParams.get("what") === "recap") return out(await weeklyRecaps(Object.assign({}, env, { HOST: url.host }), true));
     if (p === "/api/push/run" && url.searchParams.get("what") === "league") return out(await leagueWatch(env, true));
@@ -1208,6 +1213,7 @@ export async function runMinute(env) {
   const m = new Date().getUTCMinutes();
   // Every 2 minutes is plenty: scoring plays come from the full game summary, so no touchdown is missed.
   if (m % 2 === 0) await playAlerts(env).catch(() => {});
+  if (m % 2 === 1) await partyFeed(env).catch(() => {});
   if (m % 3 === 1) await liveScores(env).catch(() => {});
   if (m % 3 === 2) await swingAlerts(env).catch(() => {});
   await leagueWatch(env).catch(() => {});

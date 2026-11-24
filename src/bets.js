@@ -1,3 +1,4 @@
+import { asTeam } from "./claims.js";
 // Side bets: friendly stakes between two managers in a league (no money ever goes through the app).
 // Stored in the live-state Durable Object (no KV writes). Fleaflicker bets settle themselves when the week is final;
 // on other sites either side taps the winner.
@@ -32,6 +33,11 @@ export async function betsRoute(request, env, url) {
   if (!/^(flea|sleeper|espn|mfl)$/.test(p) || !/^[\w-]{1,40}$/.test(lid)) return out({ error: "Bad request" }, 400);
   const k = keyOf(p, lid), list = (await hotGet(env, k)) || [];
   const tag = "bet:" + lid;
+  // The phone must be locked to the team it acts for (see claims.js).
+  const actor = b.action === "offer" ? (b.from || {}).id : b.team;
+  const who = await asTeam(env, p, lid, actor, b.dev, b.action === "offer" ? (b.from || {}).name : "");
+  if (who.error) return out({ error: who.error }, who.status);
+  if (b.action === "offer") b.from.name = who.name;
   if (b.action === "offer") {
     const from = b.from || {}, to = b.to || {}, stake = String(b.stake || "").trim().slice(0, 90), week = Number(b.week);
     if (!from.id || !to.id || from.id === to.id || !stake || !(week > 0 && week < 30)) return out({ error: "Pick a team, a week and the stakes." }, 400);

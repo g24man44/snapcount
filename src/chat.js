@@ -1,3 +1,4 @@
+import { asTeam } from "./claims.js";
 // League chat, bridged to the league's GroupMe group.
 // GroupMe sends every group message to our callback (a GroupMe "bot" the commissioner creates); each league's
 // messages live in one Durable Object, which also holds the open app connections and pushes new messages to them
@@ -191,7 +192,9 @@ export async function chatRoute(request, url, env) {
     const a = new Uint8Array(8); crypto.getRandomValues(a);
     const id = Date.now().toString(36).padStart(9, "0") + [...a].map(x => "abcdefghijkmnpqrstuvwxyz23456789"[x % 32]).join("");
     await room(env, p, lid).fetch("https://chat/img/put?id=" + id + "&t=" + encodeURIComponent(type), { method: "POST", body });
-    const name = String(url.searchParams.get("name") || "Someone").slice(0, 40), cap = String(url.searchParams.get("text") || "").replace(/\*\*/g, "").trim().slice(0, 700);
+    const who = await asTeam(env, p, lid, url.searchParams.get("team"), dev, url.searchParams.get("teamName"));
+    if (who.error) return out({ error: who.error }, who.status);
+    const name = who.name, cap = String(url.searchParams.get("text") || "").replace(/\*\*/g, "").trim().slice(0, 700);
     try { await groupmeSay(env, p, lid, name + ": " + (cap ? cap + "\n" : "📷 ") + url.origin + "/p/" + c.code + "/" + id); }
     catch (e) { return out({ error: e.message }, 502); }
     return out({ ok: true });
@@ -206,8 +209,11 @@ export async function chatRoute(request, url, env) {
     if (!text) return out({ error: "Nothing to send." }, 400);
     const gate = await room(env, p, lid).fetch("https://chat/gate?dev=" + b.dev);
     if (gate.status === 429) return out({ error: "Slow down a second." }, 429);
-    if (path === "/api/chat/post") text = String(b.name || "Someone").slice(0, 40) + ": " + text.slice(0, 900);
-    else text = text.slice(0, 2900);
+    // Messages go out under the team this phone is locked to, never a typed-in name.
+    const who = await asTeam(env, p, lid, b.team, b.dev, b.teamName);
+    if (who.error) return out({ error: who.error }, who.status);
+    if (path === "/api/chat/post") text = who.name + ": " + text.slice(0, 900);
+    else text = "Shared by " + who.name + ":\n" + text.slice(0, 2900);
     try { if (!(await groupmeSay(env, p, lid, text))) return out({ error: "This league isn’t connected to GroupMe yet." }, 409); }
     catch (e) { return out({ error: e.message }, 502); }
     return out({ ok: true });

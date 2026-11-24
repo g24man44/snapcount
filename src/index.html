@@ -1052,7 +1052,7 @@ h3.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .envrow .chip.ok{color:var(--ok)}.envrow .chip.warn,.envrow .chip.wxhi{color:var(--warn)}
 .heroCard .gnum{width:44px;height:44px;padding-top:0;align-items:center;border-radius:50%!important}.heroCard .gnum b{font-size:20px}
 .lerr{margin-bottom:12px}.lerr b{display:block;font-size:15px}.lerr p{margin:4px 0 12px}
-.rootHero .reasons{margin:8px 0 0}.cliprow{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 0 8px;padding:0 0 4px;scrollbar-width:none}.cliprow::-webkit-scrollbar{display:none}.clip{flex:none;width:220px;scroll-snap-align:start;background:var(--surface);border:0;border-radius:var(--r);padding:0;overflow:hidden;text-align:left;color:var(--ink);cursor:pointer;font:inherit}.clipimg{position:relative;display:block;aspect-ratio:16/9;background:var(--surface2)}.clipimg img{width:100%;height:100%;object-fit:cover;display:block}.clipimg i{position:absolute;left:10px;bottom:8px;width:30px;height:30px;border-radius:50%;background:rgba(0,0,0,.65);color:#fff;font-style:normal;display:grid;place-items:center;font-size:13px}.cliptx{display:flex;flex-direction:column;gap:4px;padding:10px 12px 12px}.cliptx b{font-size:14px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.clipframe{position:relative;aspect-ratio:16/9;border-radius:var(--r);overflow:hidden;background:#000}.clipframe iframe{position:absolute;inset:0;width:100%;height:100%;border:0}.plclips{margin-top:12px}.offside{display:flex;flex-direction:column;margin-top:8px}.offside b{font-size:15px}.okt{color:var(--ok)}.badt{color:var(--bad)}.betc{margin-bottom:10px}.betc p{margin:4px 0 10px}.betstakes{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.betstakes .chip{text-align:left;white-space:normal}.betstakes .chip.on{background:var(--accent);color:var(--accent-ink)}.inp{width:100%;margin-top:4px}.scrow.me b,.scrow.me span{color:var(--accent)}.scen{padding:4px 16px!important}.scrow{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px 0;font-size:14px}.scrow+.scrow{border-top:1px solid var(--line)}.scrow b{font-size:16px;flex:none}
+.rootHero .reasons{margin:8px 0 0}.claimsbox{margin-top:12px}.claimsbox summary{cursor:pointer}.chatseg{display:flex;gap:6px;margin:0 0 10px}.chatseg button{flex:1;border:0;border-radius:999px;padding:9px 12px;background:var(--surface2);color:var(--muted);font:600 14px var(--body);cursor:pointer}.chatseg button.on{background:var(--ink);color:var(--bg)}.ptev{display:flex;flex-direction:column;gap:2px;margin:8px 0;padding:10px 12px;border-radius:12px;background:var(--surface);font-size:14px}.ptev.lead{border-left:3px solid var(--warn)}.ptev.play{border-left:3px solid var(--accent)}.ptev.final{border-left:3px solid var(--ink)}.ptreact{display:flex;gap:4px;justify-content:space-between;margin:8px 0}.ptreact button{flex:1;border:0;background:var(--surface2);border-radius:999px;height:36px;font-size:18px;cursor:pointer}.cliprow{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 0 8px;padding:0 0 4px;scrollbar-width:none}.cliprow::-webkit-scrollbar{display:none}.clip{flex:none;width:220px;scroll-snap-align:start;background:var(--surface);border:0;border-radius:var(--r);padding:0;overflow:hidden;text-align:left;color:var(--ink);cursor:pointer;font:inherit}.clipimg{position:relative;display:block;aspect-ratio:16/9;background:var(--surface2)}.clipimg img{width:100%;height:100%;object-fit:cover;display:block}.clipimg i{position:absolute;left:10px;bottom:8px;width:30px;height:30px;border-radius:50%;background:rgba(0,0,0,.65);color:#fff;font-style:normal;display:grid;place-items:center;font-size:13px}.cliptx{display:flex;flex-direction:column;gap:4px;padding:10px 12px 12px}.cliptx b{font-size:14px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.clipframe{position:relative;aspect-ratio:16/9;border-radius:var(--r);overflow:hidden;background:#000}.clipframe iframe{position:absolute;inset:0;width:100%;height:100%;border:0}.plclips{margin-top:12px}.offside{display:flex;flex-direction:column;margin-top:8px}.offside b{font-size:15px}.okt{color:var(--ok)}.badt{color:var(--bad)}.betc{margin-bottom:10px}.betc p{margin:4px 0 10px}.betstakes{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.betstakes .chip{text-align:left;white-space:normal}.betstakes .chip.on{background:var(--accent);color:var(--accent-ink)}.inp{width:100%;margin-top:4px}.scrow.me b,.scrow.me span{color:var(--accent)}.scen{padding:4px 16px!important}.scrow{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px 0;font-size:14px}.scrow+.scrow{border-top:1px solid var(--line)}.scrow b{font-size:16px;flex:none}
 </style>
 </head>
 <body>
@@ -1438,6 +1438,7 @@ let lastView = "";
 function render(){
   const v = $("#view");
   if (chat && cur.tab !== "chat") closeChat();
+  if (party && cur.tab !== "chat") closeParty();
   const vk = cur.tab + "/" + cur.league + "/" + (cur.sub || "") + "/" + (tr.mode || "");
   if (vk !== lastView) { lastView = vk; v.classList.remove("swap"); void v.offsetWidth; v.classList.add("swap"); if (navigator.vibrate && matchMedia("(pointer:coarse)").matches) try { navigator.vibrate(6); } catch(e){} }
   $("#gearBtn").setAttribute("aria-pressed", cur.tab === "accounts"); $("#bellBtn").setAttribute("aria-pressed", cur.tab === "alerts");
@@ -1621,7 +1622,7 @@ function showPlayBanner(ev, hit, theirs){
     e.stopPropagation(); clearTimeout(box._t1); clearTimeout(box._t2);
     const sp = box.querySelector(".taunts"); sp.innerHTML = "<small>Sending…</small>";
     try {
-      const r = await fetch("/api/taunt", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({kind: tb.dataset.taunt, p: hit.L.meta.platform, lid: hit.L.meta.id, to: opp.id, fromName: hit.me.name, player: hit.p.name, dev: devId()})});
+      const r = await fetch("/api/taunt", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({kind: tb.dataset.taunt, p: hit.L.meta.platform, lid: hit.L.meta.id, to: opp.id, fromName: hit.me.name, from: hit.me.id, player: hit.p.name, dev: devId()})});
       const j = await r.json().catch(() => ({}));
       sp.innerHTML = "<small>" + (r.ok ? TAUNT_LIST[tb.dataset.taunt][0] + " Sent to " + esc(opp.name) + (j.sent ? "" : " (they’ll see it if they have alerts on)") : esc(j.error || "Couldn’t send")) + "</small>";
     } catch(x){ sp.innerHTML = "<small>Couldn’t send</small>"; }
@@ -1687,7 +1688,7 @@ document.addEventListener("click", async e => {
   const lab = row.querySelector(".trl"), was = lab.textContent;
   lab.textContent = "Sending " + TAUNT_LIST[b.dataset.tk][0] + "…";
   try {
-    const r = await fetch("/api/taunt", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({kind: b.dataset.tk, p: L.meta.platform, lid: L.meta.id, to: opp.id, fromName: me.name, dev: devId()})});
+    const r = await fetch("/api/taunt", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({kind: b.dataset.tk, p: L.meta.platform, lid: L.meta.id, to: opp.id, fromName: me.name, from: me.id, dev: devId()})});
     const j = await r.json().catch(() => ({}));
     lab.textContent = r.ok ? (j.sent ? TAUNT_LIST[b.dataset.tk][0] + " Sent to " + opp.name : opp.name + " doesn’t have alerts on yet") : (j.error || "Couldn’t send");
   } catch(x){ lab.textContent = "Couldn’t send"; }
@@ -8514,7 +8515,7 @@ async function sendOffer(L, me, them, give, get, btn){
   const msg = btn.parentNode.parentNode.querySelector(".offmsg") || (() => { const m = document.createElement("p"); m.className = "small offmsg"; m.style.margin = "8px 0 0"; btn.parentNode.after(m); return m; })();
   msg.textContent = "Sending…"; btn.disabled = true;
   try {
-    const body = {action: "send", p: L.meta.platform, lid: String(L.meta.id), from: {id: me.id, name: me.name}, to: {id: them.id, name: them.name},
+    const body = {action: "send", p: L.meta.platform, lid: String(L.meta.id), dev: devId(), from: {id: me.id, name: me.name}, to: {id: them.id, name: them.name},
       give: give.filter(p => p.pos !== "PICK").map(p => ({id: p.id, name: p.name, pos: p.pos})).concat(give.filter(p => p.pos === "PICK").map(p => ({id: p.id, name: p.name, pos: "PICK"}))),
       get: get.filter(p => p.pos !== "PICK").map(p => ({id: p.id, name: p.name, pos: p.pos})).concat(get.filter(p => p.pos === "PICK").map(p => ({id: p.id, name: p.name, pos: "PICK"}))),
       givePk: give.filter(p => p.pos === "PICK").map(p => p.id), getPk: get.filter(p => p.pos === "PICK").map(p => p.id), parent: tr.counterOf || null};
@@ -8555,11 +8556,11 @@ async function openOffers(L){
   p.querySelectorAll("[data-official]").forEach(async a => {
     const o = O.find(x => x.id === a.dataset.official);
     if (L.meta.platform === "flea") a.href = await fleaTradeUrl(L, me.id, o.to.id, o.give.filter(x => x.pos !== "PICK").map(x => x.id), o.get.filter(x => x.pos !== "PICK").map(x => x.id), o.givePk, o.getPk);
-    a.addEventListener("click", () => { fetch("/api/offers", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({action: "official", p: L.meta.platform, lid: String(L.meta.id), id: o.id, team: me.id})}).catch(() => {}); });
+    a.addEventListener("click", () => { fetch("/api/offers", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({action: "official", p: L.meta.platform, lid: String(L.meta.id), id: o.id, team: me.id, dev: devId()})}).catch(() => {}); });
   });
   p.querySelectorAll("[data-oact]").forEach(x => x.addEventListener("click", async () => {
     x.disabled = true;
-    try { const r = await fetch("/api/offers", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({action: x.dataset.oact, p: L.meta.platform, lid: String(L.meta.id), id: x.dataset.oid, team: me.id})}), j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "Couldn’t save"); openOffers(L); if (cur.tab === "leagues" && cur.league == null) render(); }
+    try { const r = await fetch("/api/offers", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({action: x.dataset.oact, p: L.meta.platform, lid: String(L.meta.id), id: x.dataset.oid, team: me.id, dev: devId()})}), j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "Couldn’t save"); openOffers(L); if (cur.tab === "leagues" && cur.league == null) render(); }
     catch(e){ x.disabled = false; x.textContent = e.message; }
   }));
   // Grade or counter: load the offer into the Trade tab from your side
@@ -8588,7 +8589,7 @@ async function openBets(L, preset){
   await loadBets(L); if (sh.hidden) return;
   const T = d.teams, wk = Number(d.week) || 1;
   const g = d.games.find(x => x.a.id === me.id || x.b.id === me.id), oppId = preset || (g ? (g.a.id === me.id ? g.b.id : g.a.id) : (T.find(t => t !== me) || {}).id);
-  const post = async body => { const r = await fetch("/api/bets", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify(Object.assign({p: L.meta.platform, lid: String(L.meta.id), team: me.id}, body))}); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "Couldn’t save that"); return j; };
+  const post = async body => { const r = await fetch("/api/bets", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify(Object.assign({p: L.meta.platform, lid: String(L.meta.id), team: me.id, dev: devId()}, body))}); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "Couldn’t save that"); return j; };
   const B = L.bets, mineB = B.filter(b => b.from.id === me.id || b.to.id === me.id);
   const offers = B.filter(b => b.status === "offered" && b.to.id === me.id), open = mineB.filter(b => b.status === "on" || (b.status === "offered" && b.from.id === me.id));
   const others = B.filter(b => (b.status === "on" || b.status === "settled") && b.from.id !== me.id && b.to.id !== me.id).slice(0, 8);
@@ -9448,14 +9449,16 @@ async function openShow(L){
 /* ---------- league chat, bridged to the league's GroupMe ---------- */
 let chat = null;
 function closeChat(){ if (!chat) return; chat.dead = true; clearInterval(chat.poll); clearInterval(chat.ping); try { chat.ws && chat.ws.close(); } catch(e){} chat = null; }
-function chatName(L){ let n = ""; try { n = localStorage.getItem(KEY + ".chatName") || ""; } catch(e){} const me = L.detail.teams.find(t => t.mine); return n || (me ? me.name : "Snap Count user"); }
+// You post as your team. The server checks this phone is locked to that team, so nobody can post as someone else.
+function chatName(L){ const me = L.detail && L.detail.teams.find(t => t.mine); return me ? me.name : "Snap Count user"; }
+function chatTeam(L){ const me = L.detail && L.detail.teams.find(t => t.mine); return me ? {team: me.id, teamName: me.name} : {}; }
 const gmState = {};
 async function gmConnected(L){ const k = L.meta.platform + ":" + L.meta.id; if (gmState[k] == null) { try { gmState[k] = !!(await api("/api/chat?p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id) + "&dev=" + devId())).connected; } catch(e){ gmState[k] = false; } } return gmState[k]; }
 async function gmPostBtn(after, L, textFn){
   if (!after || !(await gmConnected(L))) return;
   const b = document.createElement("button"); b.type = "button"; b.className = after.className || "btn ghost"; b.textContent = "Post to GroupMe";
   after.after(b);
-  b.addEventListener("click", async () => { b.disabled = true; b.textContent = "Posting…"; try { await post("/api/chat/share?p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id), {dev: devId(), text: textFn()}); b.textContent = "Posted to GroupMe"; } catch(e){ b.disabled = false; b.textContent = "Post to GroupMe"; alertMsg(after, e.message); } });
+  b.addEventListener("click", async () => { b.disabled = true; b.textContent = "Posting…"; try { await post("/api/chat/share?p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id), Object.assign(chatTeam(L), {dev: devId(), text: textFn()})); b.textContent = "Posted to GroupMe"; } catch(e){ b.disabled = false; b.textContent = "Post to GroupMe"; alertMsg(after, e.message); } });
 }
 function alertMsg(near, m){ const p = document.createElement("p"); p.className = "small"; p.style.color = "var(--bad)"; p.textContent = m; near.parentNode.appendChild(p); }
 function chatTime(t){ const d = new Date(t), now = new Date(); return d.toDateString() === now.toDateString() ? d.toLocaleTimeString([], {hour: "numeric", minute: "2-digit"}) : d.toLocaleDateString([], {weekday: "short", month: "short", day: "numeric"}) + " " + d.toLocaleTimeString([], {hour: "numeric", minute: "2-digit"}); }
@@ -9482,6 +9485,38 @@ async function shrinkPhoto(f){
 }
 // The chat button (top right) opens one league's chat; with several leagues there's a picker on top.
 function chatLeagues(){ return leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine)); }
+/* ---------- Game day: the league's live thread, only in Snap Count (nothing goes to GroupMe) ---------- */
+let party = null;
+function closeParty(){ if (party) { party.dead = true; clearInterval(party.t); party = null; } }
+async function openParty(L, box){
+  closeParty();
+  const q = "p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id), st = party = {dead: false, t: 0, n: -1};
+  const me = L.detail && L.detail.teams.find(t => t.mine), myName = me ? me.name : chatName(L);
+  box.innerHTML = '<div class="chatwrap"><div class="chatlog" id="ptLog" aria-live="polite"><p class="spin">Loading game day…</p></div>' +
+    '<div class="ptreact">' + ["🔥", "😂", "😭", "🍋", "👏", "🫡"].map(e => '<button type="button" data-pe="' + e + '">' + e + "</button>").join("") + "</div>" +
+    '<form class="chatform" id="ptForm"><input id="ptIn" maxlength="400" placeholder="Say something to the league" autocomplete="off"><button class="btn" type="submit">Send</button></form><p class="small muted" style="margin:6px 2px 0">Game day lives only in Snap Count. Scoring plays, lead changes and finals post here on their own.</p></div>';
+  const log = box.querySelector("#ptLog");
+  const draw = list => {
+    if (st.dead) return;
+    if (list.length === st.n) return; st.n = list.length;
+    const stick = log.scrollHeight - log.scrollTop - log.clientHeight < 80 || st.n <= list.length;
+    log.innerHTML = list.length ? list.map(m => {
+      const t = new Date(m.at).toLocaleTimeString([], {hour: "numeric", minute: "2-digit"});
+      if (m.kind === "user") return '<div class="cmsg' + (m.name === myName ? " me" : "") + '"><div class="cb"><b>' + esc(m.name) + '</b><span>' + esc(m.text) + '</span><small class="muted">' + t + "</small></div></div>";
+      return '<div class="ptev ' + esc(m.kind || "") + '"><span>' + esc(m.text).replace(/\n/g, "<br>") + '</span><small class="muted">' + t + "</small></div>";
+    }).join("") : '<div class="card empty"><p class="muted" style="margin:0">Quiet for now. When games are on, every scoring play by a player in your league, each lead change and the final results post here.</p></div>';
+    if (stick) log.scrollTop = log.scrollHeight;
+  };
+  const load = async () => { try { const j = await api("/api/party?" + q); draw(j.list || []); } catch(e){ if (st.n < 0) log.innerHTML = '<div class="err">' + esc(e.message) + "</div>"; } };
+  const send = async text => {
+    try { const r = await fetch("/api/party?" + q, {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({text, team: me ? me.id : "", teamName: myName, dev: devId()})}); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "Couldn’t send"); load(); }
+    catch(e){ const i = box.querySelector("#ptIn"); i.value = text; i.placeholder = e.message; }
+  };
+  box.querySelector("#ptForm").addEventListener("submit", e => { e.preventDefault(); const i = box.querySelector("#ptIn"), t = i.value.trim(); if (!t) return; i.value = ""; send(t); });
+  box.querySelectorAll("[data-pe]").forEach(b => b.addEventListener("click", () => send(b.dataset.pe)));
+  await load();
+  st.t = setInterval(() => { if (cur.tab !== "chat" || document.hidden) return; load(); }, 15000);
+}
 async function renderChatTab(v){
   const list = chatLeagues();
   if (!list.length) { v.innerHTML = '<h2>Chat</h2><div class="card empty"><p class="muted">Add your league first, then your league’s GroupMe can show up here.</p></div>'; return; }
@@ -9491,7 +9526,20 @@ async function renderChatTab(v){
   const L = list.find(x => x.meta.platform + ":" + x.meta.id === pick);
   v.innerHTML = '<h2>Chat</h2>' + (list.length > 1 ? '<select id="chatPick" aria-label="League" style="width:100%;margin-bottom:10px">' + list.map(x => { const k = x.meta.platform + ":" + x.meta.id; return '<option value="' + esc(k) + '"' + (k === pick ? " selected" : "") + '>' + esc(x.meta.name) + '</option>'; }).join("") + '</select>' : '<p class="small muted" style="margin:-6px 0 10px">' + esc(L.meta.name) + '</p>') + '<div id="chatBox"><p class="spin">Loading chat…</p></div>';
   const sel = v.querySelector("#chatPick"); if (sel) sel.addEventListener("change", () => { try { localStorage.setItem(KEY + ".chatL", sel.value); } catch(e){} renderChatTab(v); });
-  openChat(L, v.querySelector("#chatBox"));
+  // Two threads: the league's GroupMe, and Game day (only in Snap Count)
+  const seg = cur.chatSeg || "chat", box = v.querySelector("#chatBox");
+  box.insertAdjacentHTML("beforebegin", '<div class="seg chatseg" role="tablist"><button type="button" role="tab" data-cseg="chat" aria-selected="' + (seg === "chat") + '" class="' + (seg === "chat" ? "on" : "") + '">League chat</button><button type="button" role="tab" data-cseg="party" aria-selected="' + (seg === "party") + '" class="' + (seg === "party" ? "on" : "") + '">Game day</button></div>');
+  v.querySelectorAll("[data-cseg]").forEach(b => b.addEventListener("click", () => { cur.chatSeg = b.dataset.cseg; renderChatTab(v); }));
+  if (seg === "party") { closeChat(); openParty(L, box); } else { closeParty(); openChat(L, box); }
+  // Commissioner: see which phone posts as which team, and reset one if the wrong phone took it.
+  api("/api/claims?p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id) + "&dev=" + devId()).then(c => {
+    if (!c.isComm || cur.tab !== "chat") return;
+    const ents = Object.entries(c.teams || {}); if (!ents.length) return;
+    const d = document.createElement("details"); d.className = "card claimsbox";
+    d.innerHTML = "<summary><b>Who posts as which team</b><span class=\"small muted\"> · commissioner</span></summary><p class=\"small muted\" style=\"margin:6px 0 8px\">Each team can post from one phone. If the wrong phone took a team, reset it and the real owner’s next message claims it.</p>" + ents.map(([t, x]) => '<div class="scrow"><span>' + esc(x.name || t) + '<small class="muted" style="display:block">since ' + new Date(x.at).toLocaleDateString() + '</small></span><button type="button" class="btn ghost" data-creset="' + esc(t) + '">Reset</button></div>').join("");
+    v.appendChild(d);
+    d.querySelectorAll("[data-creset]").forEach(b => b.addEventListener("click", async () => { b.disabled = true; try { await post("/api/claims?p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id) + "&dev=" + devId(), {action: "reset", team: b.dataset.creset}); b.closest(".scrow").remove(); } catch(e){ b.textContent = e.message; } }));
+  }).catch(() => {});
 }
 function chatSeen(k, key){ try { const m = JSON.parse(localStorage.getItem(KEY + ".chatSeen") || "{}"); if (key) { m[k] = key; localStorage.setItem(KEY + ".chatSeen", JSON.stringify(m)); } return m[k] || ""; } catch(e){ return ""; } }
 async function checkUnread(){
@@ -9528,7 +9576,7 @@ async function openChat(L, box){
       catch(e){ b.disabled = false; b.textContent = "Connect"; box.querySelector("#gmMsg").textContent = e.message; } });
     return;
   }
-  box.innerHTML = '<div class="chatwrap"><div class="chatlog" id="chatLog" aria-live="polite"></div><div class="chatpv" id="chatPv" hidden><img alt="Photo to send" id="chatPvImg"><button type="button" class="chatpvx" id="chatPvX" aria-label="Remove photo">✕</button></div><form class="chatin" id="chatForm"><label class="chatphoto" aria-label="Add a photo" title="Add a photo"><input type="file" id="chatFile" accept="image/*" hidden><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="15" rx="3"/><circle cx="12" cy="12.5" r="3.5"/><path d="M8.5 5l1.5-2h4l1.5 2"/></svg></label><textarea id="chatText" rows="1" maxlength="900" placeholder="Message the league" aria-label="Message"></textarea><button class="btn" id="chatSend" aria-label="Send">Send</button></form><p class="small muted chatas">Posting as <button type="button" class="linkish" id="chatAs">' + esc(chatName(L)) + '</button> through the Snap Count bot.</p></div>';
+  box.innerHTML = '<div class="chatwrap"><div class="chatlog" id="chatLog" aria-live="polite"></div><div class="chatpv" id="chatPv" hidden><img alt="Photo to send" id="chatPvImg"><button type="button" class="chatpvx" id="chatPvX" aria-label="Remove photo">✕</button></div><form class="chatin" id="chatForm"><label class="chatphoto" aria-label="Add a photo" title="Add a photo"><input type="file" id="chatFile" accept="image/*" hidden><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="15" rx="3"/><circle cx="12" cy="12.5" r="3.5"/><path d="M8.5 5l1.5-2h4l1.5 2"/></svg></label><textarea id="chatText" rows="1" maxlength="900" placeholder="Message the league" aria-label="Message"></textarea><button class="btn" id="chatSend" aria-label="Send">Send</button></form><p class="small muted chatas">Posting as <b>' + esc(chatName(L)) + '</b> through the Snap Count bot.</p></div>';
   const log = box.querySelector("#chatLog");
   const mine = n => n === chatName(L);
   const atBottom = () => log.scrollHeight - log.scrollTop - log.clientHeight < 80;
@@ -9568,21 +9616,15 @@ async function openChat(L, box){
     try {
       if (photo) {
         btn.textContent = "Sending…";
-        const r = await fetch("/api/chat/photo?" + q + "&dev=" + devId() + "&name=" + encodeURIComponent(chatName(L)) + "&text=" + encodeURIComponent(t.slice(0, 700)), {method: "POST", headers: {"content-type": photo.type || "image/jpeg"}, body: photo});
+        const r = await fetch("/api/chat/photo?" + q + "&dev=" + devId() + "&team=" + encodeURIComponent(chatTeam(L).team || "") + "&teamName=" + encodeURIComponent(chatName(L)) + "&text=" + encodeURIComponent(t.slice(0, 700)), {method: "POST", headers: {"content-type": photo.type || "image/jpeg"}, body: photo});
         let j = {}; try { j = await r.json(); } catch(x){}
         if (!r.ok) throw new Error(j.error || "Couldn’t send the photo (" + r.status + ")");
         clearPhoto();
-      } else await post("/api/chat/post?" + q, {dev: devId(), name: chatName(L), text: t});
+      } else await post("/api/chat/post?" + q, Object.assign({dev: devId(), text: t}, chatTeam(L)));
       ta.value = ""; ta.style.height = "auto"; setTimeout(refresh, 2500);
     }
     catch(x){ alertMsg(ta.parentNode, x.message); }
     btn.disabled = false; btn.textContent = "Send"; ta.focus();
-  });
-  box.querySelector("#chatAs").addEventListener("click", () => {
-    const b = box.querySelector("#chatAs"), i = document.createElement("input");
-    i.value = chatName(L); i.maxLength = 40; i.className = "chatname"; i.setAttribute("aria-label", "Name to post as"); b.replaceWith(i); i.focus(); i.select();
-    const done = () => { const n = i.value.trim(); try { if (n) localStorage.setItem(KEY + ".chatName", n); else localStorage.removeItem(KEY + ".chatName"); } catch(e){} const nb = document.createElement("button"); nb.type = "button"; nb.className = "linkish"; nb.id = "chatAs"; nb.textContent = chatName(L); i.replaceWith(nb); nb.addEventListener("click", () => box.querySelector("#chatAs") && openChat(L, box)); draw(false); };
-    i.addEventListener("blur", done); i.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); i.blur(); } });
   });
 }
 
