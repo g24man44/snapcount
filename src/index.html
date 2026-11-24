@@ -1052,7 +1052,7 @@ h3.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .envrow .chip.ok{color:var(--ok)}.envrow .chip.warn,.envrow .chip.wxhi{color:var(--warn)}
 .heroCard .gnum{width:44px;height:44px;padding-top:0;align-items:center;border-radius:50%!important}.heroCard .gnum b{font-size:20px}
 .lerr{margin-bottom:12px}.lerr b{display:block;font-size:15px}.lerr p{margin:4px 0 12px}
-.rootHero .reasons{margin:8px 0 0}.offside{display:flex;flex-direction:column;margin-top:8px}.offside b{font-size:15px}.okt{color:var(--ok)}.badt{color:var(--bad)}.betc{margin-bottom:10px}.betc p{margin:4px 0 10px}.betstakes{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.betstakes .chip{text-align:left;white-space:normal}.betstakes .chip.on{background:var(--accent);color:var(--accent-ink)}.inp{width:100%;margin-top:4px}.scrow.me b,.scrow.me span{color:var(--accent)}.scen{padding:4px 16px!important}.scrow{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px 0;font-size:14px}.scrow+.scrow{border-top:1px solid var(--line)}.scrow b{font-size:16px;flex:none}
+.rootHero .reasons{margin:8px 0 0}.cliprow{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 0 8px;padding:0 0 4px;scrollbar-width:none}.cliprow::-webkit-scrollbar{display:none}.clip{flex:none;width:220px;scroll-snap-align:start;background:var(--surface);border:0;border-radius:var(--r);padding:0;overflow:hidden;text-align:left;color:var(--ink);cursor:pointer;font:inherit}.clipimg{position:relative;display:block;aspect-ratio:16/9;background:var(--surface2)}.clipimg img{width:100%;height:100%;object-fit:cover;display:block}.clipimg i{position:absolute;left:10px;bottom:8px;width:30px;height:30px;border-radius:50%;background:rgba(0,0,0,.65);color:#fff;font-style:normal;display:grid;place-items:center;font-size:13px}.cliptx{display:flex;flex-direction:column;gap:4px;padding:10px 12px 12px}.cliptx b{font-size:14px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.clipframe{position:relative;aspect-ratio:16/9;border-radius:var(--r);overflow:hidden;background:#000}.clipframe iframe{position:absolute;inset:0;width:100%;height:100%;border:0}.plclips{margin-top:12px}.offside{display:flex;flex-direction:column;margin-top:8px}.offside b{font-size:15px}.okt{color:var(--ok)}.badt{color:var(--bad)}.betc{margin-bottom:10px}.betc p{margin:4px 0 10px}.betstakes{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.betstakes .chip{text-align:left;white-space:normal}.betstakes .chip.on{background:var(--accent);color:var(--accent-ink)}.inp{width:100%;margin-top:4px}.scrow.me b,.scrow.me span{color:var(--accent)}.scen{padding:4px 16px!important}.scrow{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px 0;font-size:14px}.scrow+.scrow{border-top:1px solid var(--line)}.scrow b{font-size:16px;flex:none}
 </style>
 </head>
 <body>
@@ -1975,7 +1975,7 @@ function renderLeagues(v){
     if (d && d.teams.some(t => t.mine)) h += '<button type="button" class="card nowslim" data-root="' + i + '"><i class=ic-target aria-hidden=true></i><span><b>Who to root for</b><span class="muted"> · scenarios and games that matter</span></span><span class="go">›</span></button>';
     if (d && d.teams.some(t => t.mine)) h += '<button type="button" class="card showcard" data-show="' + i + '"><span class="showic" aria-hidden="true"><i class=ic-speaker></i></span><span class="showtx"><b>The Snap Count Show</b><span class="small muted">This week’s podcast about ' + esc(m.name) + '</span></span><span class="showgo">Listen</span></button>';
   });
-  v.innerHTML = h + "</div>" + homeHeadlines() + tdAsk() + tools;
+  v.innerHTML = h + "</div>" + homeClips() + homeHeadlines() + tdAsk() + tools;
   const rb = v.querySelector("#lRetry"); if (rb) rb.addEventListener("click", loadAll);
   wireNow(v);
   const hm = v.querySelector(".moretools"); if (hm) hm.addEventListener("toggle", () => { cur.homeMore = hm.open; });
@@ -2433,6 +2433,7 @@ async function openPlayer(pl){
   const cb = p.querySelector("#pCmp"); if (cb) cb.addEventListener("click", async () => { cb.disabled = true; const ok = await addToCompare(pl).catch(() => false); if (ok) openCompare(); else { cb.textContent = "Couldn’t find him in the player list"; } });
   const lg = p.querySelector("#plog"); if (lg) drawGameLog(lg, pl).catch(() => { lg.innerHTML = '<p class="muted small">Couldn’t load the game log.</p>'; });
   drawValueCard(p, pl).catch(() => {});
+  loadClips().then(cs => { const mine = (cs || []).filter(c => clipHitsPlayer(c, pl)).slice(0, 4); if (!mine.length || p.querySelector(".plclips")) return; const box = document.createElement("div"); box.className = "plclips"; box.innerHTML = '<h3>Highlights</h3><div class="cliprow">' + mine.map(c => clipCard(Object.assign({who: [pl.name]}, c))).join("") + "</div>"; const sh0 = p.querySelector(".shead"); if (sh0) sh0.after(box); }).catch(() => {});
   try {
     const eid = await espnIdFor(pl);
     const [r, bk] = await Promise.all([api("/api/news?q=" + encodeURIComponent(pl.name) + (eid ? "&espn=" + eid : "")), loadBreaking().catch(() => null)]);
@@ -8456,6 +8457,49 @@ function pathLines(pp, me){
   if (r && r.imp >= 0.01) out.push({tone: "", text: "Best help this week: " + r.fav.name + " beating " + r.vs.name + " (+" + Math.round(r.imp * 100) + "% for you)."});
   return out;
 }
+/* ---------- Highlight clips: NFL YouTube videos featuring your players, plus recaps of their games ---------- */
+let clips = null, clipsAt = 0, clipsP = null;
+function loadClips(){
+  if (clips && Date.now() - clipsAt < 600000) return Promise.resolve(clips);
+  if (!clipsP) clipsP = api("/api/highlights").then(r => { clips = r.clips || []; clipsAt = Date.now(); clipsP = null; return clips; }).catch(() => { clipsP = null; return clips || []; });
+  return clipsP;
+}
+const nickOf = abbr => { const t = tnorm(abbr), g = nflList.find(x => tnorm(x.away) === t || tnorm(x.home) === t); return g ? (tnorm(g.away) === t ? g.awayName : g.homeName) || "" : ""; };
+const plainName = n => String(n || "").replace(/\b(Jr|Sr|II|III|IV)\.?$/i, "").trim();
+// A clip is about a player if it names him in full, or by last name next to his team's nickname.
+function clipHitsPlayer(c, p){
+  const txt = c.title + " " + (c.desc || ""), full = plainName(p.name), last = full.split(" ").slice(-1)[0];
+  if (full.length > 5 && new RegExp("\\b" + full.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+") + "\\b", "i").test(txt)) return true;
+  const nick = nickOf(p.team);
+  return last.length >= 5 && nick && new RegExp("\\b" + last + "\\b", "i").test(c.title) && new RegExp("\\b" + nick + "\\b", "i").test(txt);
+}
+function myClipList(){
+  if (!clips) return [];
+  const mine = []; leagues.forEach(L => { const me = L.detail && L.detail.teams.find(t => t.mine); if (me) me.roster.forEach(p => { if (p.name && p.pos !== "PICK" && !mine.some(x => x.name === p.name)) mine.push(p); }); });
+  const teams = new Set(mine.filter(p => p.slot === "start").map(p => nickOf(p.team)).filter(Boolean));
+  const out = [];
+  clips.forEach(c => {
+    const who = mine.filter(p => clipHitsPlayer(c, p)).map(p => p.name);
+    const recap = /game highlights|highlights \|/i.test(c.title) && [...teams].some(n => new RegExp("\\b" + n + "\\b", "i").test(c.title));
+    if (who.length || recap) out.push(Object.assign({who, recap}, c));
+  });
+  return out.sort((a, b) => (b.who.length ? 1 : 0) - (a.who.length ? 1 : 0) || (b.t || 0) - (a.t || 0));
+}
+function clipCard(c){
+  return '<button type="button" class="clip" data-clip="' + esc(c.id) + '" data-ctitle="' + esc(c.title) + '"><span class="clipimg"><img src="https://i.ytimg.com/vi/' + esc(c.id) + '/mqdefault.jpg" alt="" loading="lazy"><i>▶</i></span><span class="cliptx"><b>' + esc(c.title) + '</b><small class="muted">' + esc(c.who && c.who.length ? c.who.slice(0, 2).join(", ") : "Game recap") + "</small></span></button>";
+}
+function homeClips(){
+  if (!clips) { loadClips().then(() => { if (cur.tab === "leagues" && cur.league == null && myClipList().length) render(); }); return ""; }
+  const list = myClipList().slice(0, 6); if (!list.length) return "";
+  return '<h3 class="hlh">Your highlights</h3><div class="cliprow">' + list.map(clipCard).join("") + "</div>";
+}
+function openClip(id, title){
+  const sh = $("#sheet"), p = $("#sheetPanel");
+  p.innerHTML = '<button class="back" id="closeSheet">Close</button><h2 style="font-size:20px">' + esc(title || "Highlight") + '</h2><div class="clipframe"><iframe src="https://www.youtube-nocookie.com/embed/' + encodeURIComponent(id) + '?autoplay=1&playsinline=1&rel=0" title="' + esc(title || "Highlight") + '" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe></div><p class="small muted" style="margin:10px 2px 0">From the NFL on YouTube.</p>';
+  sh.hidden = false;
+  p.querySelector("#closeSheet").addEventListener("click", () => { p.innerHTML = ""; closeSheet(); });
+}
+document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-clip]"); if (b) openClip(b.dataset.clip, b.dataset.ctitle); });
 /* ---------- Trade offers inside Snap Count: send, answer, counter, then make it official in one tap ---------- */
 async function loadOffers(L){ try { const r = await api("/api/offers?p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id)); L.offers = r.offers || []; } catch(e){ L.offers = L.offers || []; } return L.offers; }
 function offersHomeLine(L, i){

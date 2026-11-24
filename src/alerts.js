@@ -9,6 +9,7 @@ import { matchupPreviews, weeklyPower } from "./weekly.js";
 import { gameWeather } from "./weather.js";
 import { autoShows } from "./autoshow.js";
 import { settleBets } from "./bets.js";
+import { collectHighlights } from "./highlights.js";
 import { hookKind, sendHook, espnLeagueTaken, mflLeagueTaken, weeklyRecaps, aiComplete, scoresRoute } from "./more.js";
 
 const UA = { "User-Agent": "SnapCount/1.0 (fantasy dashboard)", "Accept": "application/json" };
@@ -1217,6 +1218,7 @@ export async function runMinute(env) {
   if (m % 5 === 3) await kickoffLineupAlerts(env).catch(() => {});
   if (m % 5 === 4) await autoShows(env).catch(() => {});
   if (m % 15 === 7) await settleBets(env).catch(() => {});
+  if (m % 10 === 6) await collectHighlights(env).catch(() => {});
   await runChecks(env, "QB").catch(() => {});
   await runChecks(env, OTHERS[m % OTHERS.length]).catch(() => {});
   if (m % 2 === 1) await runInjuryNotes(env).catch(() => {});
