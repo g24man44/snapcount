@@ -1,0 +1,10 @@
+name: probe
+on: push
+jobs:
+  p:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          B=https://fantasysportsnews.grattangreg.workers.dev
+          echo "== show w11"; curl -s "$B/api/show?p=flea&lid=183120&w=11" | head -c 500; echo
+          echo "== show w10"; curl -s "$B/api/show?p=flea&lid=183120&w=10" | head -c 150; echo
