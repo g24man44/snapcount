@@ -13,6 +13,7 @@ import { claimsRoute } from "./src/claims.js";
 import { iqRoute } from "./src/iq.js";
 import { picksRoute } from "./src/picks.js";
 import { rulesRoute } from "./src/rules.js";
+import { receiptsRoute } from "./src/receipts.js";
 import { punishRoute } from "./src/punish.js";
 import { autopilotRoute } from "./src/autopilot.js";
 import { gameWeather } from "./src/weather.js";
@@ -876,6 +877,7 @@ export default {
       if (p === "/api/iq") return iqRoute(env, url);
       if (p === "/api/picks") return picksRoute(request, env, url);
       if (p === "/api/rules") return rulesRoute(request, env, url);
+      if (p === "/api/receipts") return receiptsRoute(request, env, url);
       if (p === "/api/autopilot") return autopilotRoute(request, env, url);
       if (p === "/api/punish" || p === "/api/punish/photo" || p === "/api/punish/img") return punishRoute(request, env, url);
       if (p === "/api/awards") { const lid = url.searchParams.get("lid") || ""; if (!/^\d{1,10}$/.test(lid)) return json({ error: "Bad league" }, 400, 0); return json({ awards: await hotGet(env, "awardsdata:" + lid) }, 200, 300); }

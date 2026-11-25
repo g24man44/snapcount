@@ -13,6 +13,7 @@ import { collectHighlights } from "./highlights.js";
 import { partyFeed, wireFeed } from "./party.js";
 import { asTeam } from "./claims.js";
 import { autopilotRun } from "./autopilot.js";
+import { receiptsRun } from "./receipts.js";
 import { hookKind, sendHook, espnLeagueTaken, mflLeagueTaken, weeklyRecaps, aiComplete, scoresRoute } from "./more.js";
 
 const UA = { "User-Agent": "SnapCount/1.0 (fantasy dashboard)", "Accept": "application/json" };
@@ -418,6 +419,7 @@ export async function alertsRoute(request, env, p, url) {
     if (p === "/api/push/run" && url.searchParams.get("what") === "autopilot") return out(await autopilotRun(env, url.searchParams.get("force") === "1"));
     if (p === "/api/push/run" && url.searchParams.get("what") === "wire") { await wireFeed(env); return out({ ok: true }); }
     if (p === "/api/push/run" && url.searchParams.get("what") === "party") { await partyFeed(env); return out({ ok: true }); }
+    if (p === "/api/push/run" && url.searchParams.get("what") === "receipts") return out(await receiptsRun(env));
     if (p === "/api/push/run" && url.searchParams.get("what") === "bets") { await settleBets(env); return out({ ok: true }); }
     if (p === "/api/push/run" && url.searchParams.get("what") === "recap") return out(await weeklyRecaps(Object.assign({}, env, { HOST: url.host }), true));
     if (p === "/api/push/run" && url.searchParams.get("what") === "league") return out(await leagueWatch(env, true));
@@ -1236,6 +1238,7 @@ export async function runMinute(env) {
   if (m % 30 === 12) await awardsShows(env).catch(() => {});
   if (m % 15 === 7) await settleBets(env).catch(() => {});
   if (m % 10 === 6) await collectHighlights(env).catch(() => {});
+  if (m % 10 === 8) await receiptsRun(env).catch(() => {});
   await runChecks(env, "QB").catch(() => {});
   await runChecks(env, OTHERS[m % OTHERS.length]).catch(() => {});
   if (m % 2 === 1) await runInjuryNotes(env).catch(() => {});
