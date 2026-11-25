@@ -2283,6 +2283,7 @@ function renderLeague(v, L){
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="mktBtn"><i class=ic-swap aria-hidden=true></i>Trade market</button>');
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="cutBtn"><i class=ic-list aria-hidden=true></i>Who to cut</button>');
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="hcBtn"><i class=ic-medic aria-hidden=true></i>Handcuffs</button>');
+    if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="nmuBtn"><i class=ic-medic aria-hidden=true></i>Next man up: injury cover</button>');
     if (d.teams.some(t => t.mine) && d.games.length) tiles.push('<button type="button" class="btn ghost" id="fcBtn"><i class=ic-target aria-hidden=true></i>Floor or ceiling: lineup that wins</button>');
     if (d.teams.some(t => t.mine) && (kdHasDst(d) || kdHasK(d))) tiles.push('<button type="button" class="btn ghost" id="kdBtn"><i class=ic-target aria-hidden=true></i>Kickers and defenses</button>');
     if (d.teams.some(t => t.mine) && m.platform === "flea") tiles.push('<button type="button" class="btn ghost" id="rcBtn"><i class=ic-scale aria-hidden=true></i>Your report card</button>');
@@ -2291,7 +2292,7 @@ function renderLeague(v, L){
     if (d.teams.some(t => t.mine) && d.games.length) tiles.push('<button type="button" class="btn ghost" id="pkBtn"><i class=ic-flame aria-hidden=true></i>Pick’em and roast</button>'); tiles.push('<button type="button" class="btn ghost" id="showBtn"><i class=ic-speaker aria-hidden=true></i>The league show</button>'); if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="commBtn"><i class=ic-trophy aria-hidden=true></i>Dues, rules and awards</button>');
     if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="dcBtn"><i class=ic-pencil aria-hidden=true></i>Draft grades and write-up</button>');
     // Grouped by what you're trying to do, as compact rows instead of a wall of identical tiles.
-    const GROUPS = [["This week", ["mrBtn", "pwBtn", "fcBtn", "pkBtn", "cutBtn", "hcBtn", "kdBtn"]], ["Trades", ["pmBtn", "vmBtn", "rwBtn", "lsBtn", "scoutBtn", "mktBtn"]], ["Season", ["picBtn", "ppBtn", "swapBtn", "histBtn", "rcBtn", "ptsBtn", "wvBtn", "winBtn", "wrapBtn"]], ["Draft", ["doBtn", "dcBtn"]]];
+    const GROUPS = [["This week", ["mrBtn", "pwBtn", "fcBtn", "pkBtn", "cutBtn", "hcBtn", "nmuBtn", "kdBtn"]], ["Trades", ["pmBtn", "vmBtn", "rwBtn", "lsBtn", "scoutBtn", "mktBtn"]], ["Season", ["picBtn", "ppBtn", "swapBtn", "histBtn", "rcBtn", "ptsBtn", "wvBtn", "winBtn", "wrapBtn"]], ["Draft", ["doBtn", "dcBtn"]]];
     const idOf = t => (t.match(/id="(\w+)"/) || [])[1], used = new Set();
     // Four everyday tools up top; everything else waits behind "More tools", grouped by what you're doing.
     const TOP = ["mrBtn", "pwBtn", "mktBtn", "showBtn"];
@@ -2358,6 +2359,7 @@ function renderLeague(v, L){
   const mkb = v.querySelector("#mktBtn"); if (mkb) mkb.addEventListener("click", () => openMarket(L));
   const ctb = v.querySelector("#cutBtn"); if (ctb) ctb.addEventListener("click", () => openCuts(L));
   const hcb = v.querySelector("#hcBtn"); if (hcb) hcb.addEventListener("click", () => openHandcuffs(L));
+  const nmb = v.querySelector("#nmuBtn"); if (nmb) nmb.addEventListener("click", () => openNextManUp(L));
   const kdb = v.querySelector("#kdBtn"); if (kdb) kdb.addEventListener("click", () => openKD(L));
   const pmb = v.querySelector("#pmBtn"); if (pmb) pmb.addEventListener("click", () => openPoSched(L));
   const rcb = v.querySelector("#rcBtn"); if (rcb) rcb.addEventListener("click", () => openReport(L));
@@ -6853,6 +6855,7 @@ async function edgeWaivers(L, el){
       posTag(x.p) + esc(x.p.team) + " · behind " + esc(x.starter) + (x.status ? " (" + esc(x.status) + ")" : ""))).join("") + "</ul>" : '<div class="card"><p class="small" style="margin:0">No free backups behind injured starters right now. Alerts will tell you the moment one opens up.</p></div>') +
     '<p class="small muted" style="margin:8px 4px 0">Free in your league. "Add now" means the starter is out; "Watch" means he’s questionable. In superflex, every starting QB’s backup is worth a bench spot.</p>' +
     '<button type="button" class="btn ghost" data-hcopen="1" style="width:100%;margin-top:10px"><i class=ic-medic aria-hidden=true></i> Handcuffs: who backs up your starters</button>' +
+    '<button type="button" class="btn ghost" data-nmuopen="1" style="width:100%;margin-top:8px"><i class=ic-medic aria-hidden=true></i> Next man up: what one injury would cost you</button>' +
     (kdHasDst(d) || kdHasK(d) ? '<button type="button" class="btn ghost" data-kdopen="1" style="width:100%;margin-top:8px"><i class=ic-target aria-hidden=true></i> Kickers and defenses: who to start and stream</button>' : "") +
     (L.meta.platform === "flea" ? '<button type="button" class="btn ghost" data-wvopen="1" style="width:100%;margin-top:8px"><i class=ic-swap aria-hidden=true></i> Waiver report: who’s winning the waiver wire</button>' : "");
   // 3. role risers
@@ -6886,6 +6889,7 @@ async function edgeWaivers(L, el){
   wireRows(el);
   const ec = el.querySelector("#edgeCuts"); if (ec) ec.addEventListener("click", () => openCuts(L));
   el.querySelectorAll("[data-hcopen]").forEach(b => b.addEventListener("click", () => openHandcuffs(L)));
+  el.querySelectorAll("[data-nmuopen]").forEach(b => b.addEventListener("click", () => openNextManUp(L)));
   el.querySelectorAll("[data-kdopen]").forEach(b => b.addEventListener("click", () => openKD(L)));
   el.querySelectorAll("[data-wvopen]").forEach(b => b.addEventListener("click", () => openWaiverReport(L)));
 }
@@ -8409,6 +8413,135 @@ async function openHandcuffs(L){
     body.innerHTML = h;
     wireRows(body);
   } catch(e){ body.innerHTML = '<div class="err">Couldn’t read the depth charts: ' + esc(e.message) + "</div>"; }
+}
+
+/* ===================== Next man up: how much one injury would cost each starting spot ===================== */
+// Your best lineup by points per game (your league's scoring), then the same lineup with each starter taken out:
+// the drop is what a week without him costs once your bench (and any flex shuffle) fills in. The best free agent
+// at each position shows whether the waiver wire can soften it, and every team's average drop ranks the league's depth.
+const nmuOrd = n => n + (["th", "st", "nd", "rd"][(n % 100 >= 11 && n % 100 <= 13) ? 0 : n % 10] || "th");
+async function nmuPlan(L){
+  const d = L.detail, me = d.teams.find(t => t.mine), st = await getState();
+  const season = L.meta.season || st.league_season || st.season;
+  await Promise.all([getPlayers(), getSeasonStats(season), getProj()]);
+  await Promise.all(d.teams.map(t => rosterFor(L, t).catch(() => null)));
+  ensureSidIndex();
+  const col = ({ppr: 0, half: 1, std: 2})[d.scoring] ?? scoringCol(L), tep = Number(d.tep) || 0;
+  const REP = {QB: 14, RB: 7, WR: 7, TE: 5};
+  const slots = leagueSlots(L);
+  const LONG = /^(ir|injured reserve|pup|sus|suspended|na|out|o)$/i;
+  const memo = new Map();
+  // Points a game, pulled toward a fringe starter's when he's played only a few games.
+  const ppg = p => {
+    if (memo.has(p)) return memo.get(p);
+    const sid = sleeperKey(L, p), s = sid && sstats ? sstats[sid] : null, g = s ? s[3] || 0 : 0;
+    let rate = null;
+    if (p.avg != null && L.meta.platform === "flea") rate = p.avg;
+    else if (s && g) { let pts = s[col]; if (p.pos === "TE" && tep) pts += tep * Math.max(0, (s[0] - s[1]) * 2); rate = pts / g; }
+    const rep = REP[p.pos] || 5, n = g || (rate != null ? 4 : 0);
+    const v = rate == null ? Math.min(rep * 0.6, Math.max(0, projFor(L, p) || 0)) : (rate * n + rep * 2) / (n + 2);
+    memo.set(p, v); return v;
+  };
+  const order = slots.slice().sort((a, b) => (FLEX[a] ? FLEX[a].length : 1) - (FLEX[b] ? FLEX[b].length : 1));
+  // Best lineup from a pool: strongest players first, each kept if the lineup can still be filled around him.
+  const fits = set => {
+    const res = new Array(order.length).fill(null), used = new Array(set.length).fill(false);
+    const go = i => {
+      if (i === order.length) return true;
+      let any = false;
+      for (let j = 0; j < set.length; j++) if (!used[j] && slotOk(order[i], set[j].pos)) { any = true; used[j] = true; res[i] = set[j]; if (go(i + 1)) return true; used[j] = false; res[i] = null; }
+      return !any && go(i + 1);
+    };
+    if (!go(0) || used.some(u => !u)) return null;
+    return order.map((s, i) => ({slot: s, p: res[i]}));
+  };
+  const build = pool => {
+    let set = [];
+    for (const p of pool.slice().sort((a, b) => ppg(b) - ppg(a))) { if (set.length >= slots.length) break; if (!slots.some(s => slotOk(s, p.pos))) continue; const t = set.concat([p]); if (fits(t)) set = t; }
+    return {set, total: set.reduce((a, p) => a + ppg(p), 0)};
+  };
+  const usable = t => (t.roster || []).filter(p => p.name && p.slot !== "ir" && !p.taxi && ["QB", "RB", "WR", "TE"].includes(p.pos));
+  const healthy = p => !LONG.test(String(p.inj || ""));
+  const depthOf = t => {
+    const pool = usable(t).filter(healthy), base = build(pool);
+    const rows = base.set.map(p => {
+      const w = build(pool.filter(x => x !== p));
+      const inn = w.set.filter(x => !base.set.includes(x));
+      return {p, ppg: ppg(p), drop: Math.max(0, base.total - w.total), next: inn.sort((a, b) => ppg(b) - ppg(a))[0] || null, pool};
+    });
+    return {t, base, rows, avg: rows.length ? rows.reduce((a, r) => a + r.drop, 0) / rows.length : 0, worst: rows.reduce((a, r) => Math.max(a, r.drop), 0)};
+  };
+  const all = d.teams.filter(t => usable(t).length).map(depthOf).sort((a, b) => a.avg - b.avg);
+  const mine = all.find(x => x.t === me) || depthOf(me);
+  // Starters who are already out: who's filling in, from the lineup you'd set with everyone healthy.
+  const fullBase = build(usable(me).filter(p => !LONG.test(String(p.inj || "")) || p.slot === "start"));
+  const hurt = usable(me).filter(p => !healthy(p) && fullBase.set.includes(p));
+  // Free agents: the best at each position where a starter's absence would hurt, and how much of the drop he'd save.
+  const POSN = [...new Set(mine.rows.filter(r => r.drop >= 3).map(r => r.p.pos))];
+  const fa = {};
+  const taken = rosteredSet(L);
+  await Promise.all(POSN.map(async pos => {
+    let list = [];
+    if (L.meta.platform === "flea") { try { list = await faPool(L, pos); } catch(e){} }
+    else {
+      for (const id in players) { const q = players[id]; if (q[1] !== pos || !q[2]) continue; if (L.meta.platform === "sleeper" ? taken.has("id:" + id) : taken.has(norm(q[0]) + "|" + q[1])) continue;
+        const s = sstats && sstats[id]; if (!s || !s[3]) continue; list.push({id, name: q[0], pos: q[1], team: q[2], inj: q[3], injPart: q[4]}); }
+    }
+    list = list.filter(p => healthy(p)).sort((a, b) => ppg(b) - ppg(a)).slice(0, 3);
+    fa[pos] = list;
+  }));
+  mine.rows.forEach(r => {
+    const f = (fa[r.p.pos] || [])[0];
+    if (!f || r.drop < 3) return;
+    const pool = r.pool.filter(x => x !== r.p).concat([f]);
+    const w = build(pool), after = Math.max(0, mine.base.total - w.total);
+    if (r.drop - after >= 1) r.fa = {p: f, after};
+  });
+  mine.rows.sort((a, b) => b.drop - a.drop);
+  return {me, mine, all, hurt, fa, ppg, rank: all.indexOf(mine) + 1, n: all.length, slots};
+}
+async function openNextManUp(L){
+  const body = openSheetShell("Next man up");
+  body.innerHTML = '<p class="spin">Testing your lineup without each starter…</p>';
+  try {
+    const P = await nmuPlan(L), M = P.mine, r1 = x => x.toFixed(1);
+    const tone = x => x >= 8 ? ["Thin", "warn"] : x >= 4 ? ["Some drop", ""] : ["Covered", "ok"];
+    const tag = (txt, t) => '<span class="chip' + (t ? " " + t : "") + '" style="padding:4px 8px">' + txt + "</span>";
+    const row = (p, right, sub) => miniRow(p, right, sub).replace("<small>", '<small style="white-space:normal">');
+    let h = '<p class="muted" style="margin:-6px 2px 12px">If one of your starters misses a week, how many points does your lineup lose once your bench fills in? Built from every player’s points a game in your league’s scoring.</p>';
+    const top = M.rows[0];
+    h += '<div class="card heroCard">';
+    if (!top) h += '<p style="margin:0"><b>Your roster didn’t load, so there’s nothing to test yet.</b></p>';
+    else {
+      const thin = M.rows.filter(r => r.drop >= 8);
+      h += '<p style="margin:0"><b>' + (top.drop >= 8 ? "Your thinnest spot is " + esc(top.p.name) + "." : top.drop >= 4 ? "You’re fairly well covered. Your biggest drop is at " + esc(top.p.name) + "." : "You’re well covered: no single injury costs you much.") + "</b></p>";
+      if (top.drop >= 4) h += '<p class="small" style="margin:6px 0 0">Without him your lineup drops <b>' + r1(top.drop) + " points a week</b> (" + Math.round(M.base.total) + " to " + Math.round(M.base.total - top.drop) + ")" + (top.next ? ", with " + esc(top.next.name) + " (" + r1(P.ppg(top.next)) + " a game) stepping in" : ", and no one on your bench can fill the spot") + "." + (top.fa ? " The best free agent, " + esc(top.fa.p.name) + ", would cut that to " + r1(top.fa.after) + "." : "") + "</p>";
+      if (P.n > 1) h += '<div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0 0;margin-top:10px;border-top:1px solid var(--line)"><span class="small">Your depth in the league</span><b>' + nmuOrd(P.rank) + " of " + P.n + "</b></div>";
+      if (thin.length > 1) h += '<p class="small" style="margin:6px 0 0">' + thin.length + " starting spots would cost you 8+ points.</p>";
+    }
+    h += "</div>";
+    if (P.hurt.length) h += "<h3>Already out</h3>" + '<ul class="plist">' + P.hurt.map(p => row(p, tag(esc(String(p.inj)), "warn"), posTag(p) + "Would be in your best lineup at " + r1(P.ppg(p)) + " a game. Check that his spot is filled this week.")).join("") + "</ul>";
+    if (M.rows.length) {
+      const mx = Math.max(10, ...M.rows.map(r => r.drop));
+      h += "<h3>If a starter goes down</h3>" + '<ul class="plist">' + M.rows.map(r => {
+        const [lab, t] = tone(r.drop);
+        const bar = '<span style="display:block;height:6px;border-radius:3px;background:var(--line);margin-top:6px;overflow:hidden"><span style="display:block;height:100%;width:' + Math.max(2, r.drop / mx * 100).toFixed(1) + "%;background:" + (r.drop >= 8 ? "var(--warn)" : r.drop >= 4 ? "var(--ink)" : "var(--ok)") + '"></span></span>';
+        const sub = posTag(r.p) + r1(r.ppg) + " a game · " + (r.next ? "next up " + esc(r.next.name) + " (" + r1(P.ppg(r.next)) + ")" : "no one to fill in") + (r.fa ? " · free agent " + esc(r.fa.p.name) + " saves " + r1(r.drop - r.fa.after) : "") + bar;
+        return row(r.p, '<span class="avg">−' + r1(r.drop) + "<small>" + lab.toLowerCase() + "</small></span>", sub);
+      }).join("") + "</ul>";
+    }
+    const faRows = Object.keys(P.fa).flatMap(pos => (P.fa[pos] || []).slice(0, 2).map(p => ({p, pos}))).filter(x => M.rows.some(r => r.fa && r.fa.p === x.p) || P.ppg(x.p) >= 6);
+    if (faRows.length) h += "<h3>Free agents who’d help</h3>" + '<p class="small" style="margin:-2px 2px 8px">The best players still free at the positions where one injury would hurt you most.</p><ul class="plist">' +
+      faRows.map(x => row(x.p, '<span class="avg">' + r1(P.ppg(x.p)) + "<small>a game</small></span>", posTag(x.p) + esc(x.p.team || "") + (M.rows.find(r => r.fa && r.fa.p === x.p) ? " · would back up " + M.rows.filter(r => r.fa && r.fa.p === x.p).map(r => esc(r.p.name)).join(", ") : ""))).join("") + "</ul>" +
+      '<div class="actions" style="margin-top:8px">' + extBtn(waiverUrl(L), "Add players in " + siteName(L)) + "</div>";
+    if (P.n > 1) {
+      h += "<h3>Deepest rosters</h3>" + '<p class="small" style="margin:-2px 2px 8px">Average points lost when one starter is out. Lower is deeper.</p><div class="card">' + P.all.map((x, i) =>
+        '<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;' + (i ? "border-top:1px solid var(--line)" : "") + '"><span class="small">' + (i + 1) + ". " + (x.t === P.me ? "<b>" + esc(x.t.name) + " (you)</b>" : esc(x.t.name)) + '</span><span class="small">−' + r1(x.avg) + "</span></div>").join("") + "</div>";
+    }
+    h += '<p class="small muted" style="margin:10px 4px 0">Points a game are this season’s averages in your league’s scoring, pulled toward a typical backup for players with only a few games. Players on injured reserve or ruled out don’t count as fill-ins. Kickers and defenses are left out. One player’s bad week isn’t an injury: use this to decide who deserves a bench spot.</p>';
+    body.innerHTML = h;
+    wireRows(body);
+  } catch(e){ body.innerHTML = '<div class="err">Couldn’t test your depth: ' + esc(e.message) + "</div>"; }
 }
 
 /* ===================== 6. League pick'em + roast ===================== */
