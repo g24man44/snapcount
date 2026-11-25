@@ -25,7 +25,7 @@ export async function autopilotRoute(request, env, url) {
   if (!okId(lid) || !okId(team) || !/^[a-f0-9]{16,64}$/.test(dev)) return out({ error: "Bad request" }, 400);
   const k = keyName(lid, team), rec = await hotGet(env, k);
   const mine = rec && rec.dev === dev;
-  if (request.method === "GET") return out({ on: !!(mine && rec.on), err: mine ? rec.err || null : null, log: mine ? (rec.log || []).slice(0, 8) : [] });
+  if (request.method === "GET") return out({ on: !!(mine && rec.on), late: !!(mine && rec.late), err: mine ? rec.err || null : null, log: mine ? (rec.log || []).slice(0, 8) : [] });
   const b = await request.json().catch(() => ({}));
   if (b.action === "on") {
     const cookie = request.headers.get("x-flea-cookie") || "";
@@ -39,6 +39,7 @@ export async function autopilotRoute(request, env, url) {
   }
   if (!mine) return out({ error: "Autopilot isn’t on for this phone." }, 403);
   if (b.action === "off") { await hotPut(env, k, null); const idx = ((await hotGet(env, "ap:idx")) || []).filter(x => x !== k); await hotPut(env, "ap:idx", idx); return out({ ok: true, on: false }); }
+  if (b.action === "late") { rec.late = !!b.late; await hotPut(env, k, rec); return out({ ok: true, late: rec.late }); }
   if (b.action === "undo") {
     const entry = (rec.log || []).find(x => x.id === b.id); if (!entry || entry.undone) return out({ error: "Nothing to undo." }, 404);
     const r = await fleaSetLineup(await open(env, rec.c), lid, team, entry.before);
@@ -51,6 +52,7 @@ export async function autopilotRoute(request, env, url) {
 // Fleaflicker and ESPN spell a few teams differently (JAC/JAX, WAS/WSH, LA/LAR); compare on one spelling.
 const CANON = { JAX: "JAC", WSH: "WAS", LAR: "LA", LVR: "LV", OAK: "LV", SD: "LAC", STL: "LA", ARZ: "ARI", BLT: "BAL", CLV: "CLE", HST: "HOU" };
 const canon = a => { a = String(a || "").toUpperCase(); return CANON[a] || a; };
+const LATE_EDGE = 3;
 const OUT_RE = /^(O|OUT|IR|SUS|SUSP|PUP|NFI|D|DOUBTFUL|COV)$/i;
 const fits = (label, pos) => String(label).toUpperCase().split("/").map(x => x.trim()).includes(String(pos).toUpperCase()) || (/^(DEF|D\/ST|DST)$/i.test(pos) && /D\/ST|DEF/i.test(label));
 // Runs every 5 minutes from the minute cron.
@@ -89,6 +91,17 @@ export async function autopilotRun(env, force) {
       if (!cand) continue;
       used.add(cand.id); swaps.push({ label: s.label, out: p, in: cand, why: bye ? "on bye" : (p.inj || "out") });
     }
+    // Late swaps (opt-in): before a starter or a bench player locks, start the bench player if he's projected at
+    // least LATE_EDGE points more. Decided only while both games are still unplayed, so it's a normal lineup move.
+    if (rec.late) {
+      // Best bench players first; each replaces the weakest starter he can play for.
+      const healthy = x => x && x.team && playing.has(x.team) && !started.has(x.team) && !OUT_RE.test(x.inj);
+      for (const x of bench.filter(y => !used.has(y.id) && healthy(y)).sort((a, c) => c.proj - a.proj)) {
+        const slot = start.filter(s2 => s2.p && healthy(s2.p) && !swaps.some(w => w.out.id === s2.p.id) && fits(s2.label, x.pos) && (soon.has(s2.p.team) || soon.has(x.team)) && x.proj - s2.p.proj >= LATE_EDGE).sort((a, c) => a.p.proj - c.p.proj)[0];
+        if (!slot) continue;
+        used.add(x.id); swaps.push({ label: slot.label, out: slot.p, in: x, why: "projected " + x.proj.toFixed(1) + " vs " + slot.p.proj.toFixed(1) });
+      }
+    }
     if (!swaps.length) { res[k] = "nothing to do"; continue; }
     const before = start.filter(s => s.p).map(s => ({ id: s.p.id, slot: s.label }));
     const after = before.map(x => { const sw = swaps.find(w => w.out.id === x.id); return sw ? { id: sw.in.id, slot: x.slot } : x; });
@@ -100,7 +113,7 @@ export async function autopilotRun(env, force) {
     await hotPut(env, k, rec);
     const lines = swaps.map(w => w.in.name + " in for " + w.out.name + " (" + w.why + ")").join(", ");
     await notifyTeam(env, "flea", lid, team, r.ok
-      ? { show: 1, tag: "ap:" + lid, title: "🤖 Autopilot fixed your lineup", body: lines + ". Tap to review or undo.", url: "/?autopilot=" + lid }
+      ? { show: 1, tag: "ap:" + lid, title: swaps.every(w => /^projected/.test(w.why)) ? "🤖 Autopilot made a late swap" : "🤖 Autopilot fixed your lineup", body: lines + ". Tap to review or undo.", url: "/?autopilot=" + lid }
       : { show: 1, tag: "ap:" + lid, title: r.login ? "🤖 Autopilot needs you to sign in to Fleaflicker again" : "🤖 Autopilot couldn’t fix your lineup", body: r.login ? "It’s paused until you sign in again in Snap Count." : (lines + ". " + (r.error || "")), url: "/?autopilot=" + lid });
     res[k] = r.ok ? "swapped " + swaps.length : "failed: " + r.error;
   }
