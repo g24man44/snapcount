@@ -205,7 +205,7 @@ form.add{display:flex;flex-direction:column;gap:10px}
 .prow{display:grid;grid-template-columns:46px 1fr auto;align-items:center;gap:14px;width:100%;background:none;border:0;text-align:left;padding:12px 16px}
 .prow:active{background:var(--surface2)}
 .pname{min-width:0}
-.pname b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;font-size:16px;letter-spacing:-.01em}
+.pname>b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;font-size:16px;letter-spacing:-.01em}
 .pname small{color:var(--muted);font-size:13px;line-height:1.5}
 .pts{font:800 19px/1 var(--body);font-variant-numeric:tabular-nums;text-align:right;letter-spacing:-.02em}
 .avg{display:flex;flex-direction:column;align-items:flex-end;font:700 17px/1 var(--body);color:var(--ink);font-variant-numeric:tabular-nums}
@@ -2284,6 +2284,7 @@ function renderLeague(v, L){
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="cutBtn"><i class=ic-list aria-hidden=true></i>Who to cut</button>');
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="hcBtn"><i class=ic-medic aria-hidden=true></i>Handcuffs</button>');
     if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="nmuBtn"><i class=ic-medic aria-hidden=true></i>Next man up: injury cover</button>');
+    if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="hncBtn"><i class=ic-flame aria-hidden=true></i>Hot and cold: who’s trending</button>');
     if (d.teams.some(t => t.mine) && d.games.length) tiles.push('<button type="button" class="btn ghost" id="fcBtn"><i class=ic-target aria-hidden=true></i>Floor or ceiling: lineup that wins</button>');
     if (d.teams.some(t => t.mine) && (kdHasDst(d) || kdHasK(d))) tiles.push('<button type="button" class="btn ghost" id="kdBtn"><i class=ic-target aria-hidden=true></i>Kickers and defenses</button>');
     if (d.teams.some(t => t.mine) && m.platform === "flea") tiles.push('<button type="button" class="btn ghost" id="rcBtn"><i class=ic-scale aria-hidden=true></i>Your report card</button>');
@@ -2292,7 +2293,7 @@ function renderLeague(v, L){
     if (d.teams.some(t => t.mine) && d.games.length) tiles.push('<button type="button" class="btn ghost" id="pkBtn"><i class=ic-flame aria-hidden=true></i>Pick’em and roast</button>'); tiles.push('<button type="button" class="btn ghost" id="showBtn"><i class=ic-speaker aria-hidden=true></i>The league show</button>'); if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="commBtn"><i class=ic-trophy aria-hidden=true></i>Dues, rules and awards</button>');
     if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="dcBtn"><i class=ic-pencil aria-hidden=true></i>Draft grades and write-up</button>');
     // Grouped by what you're trying to do, as compact rows instead of a wall of identical tiles.
-    const GROUPS = [["This week", ["mrBtn", "pwBtn", "fcBtn", "pkBtn", "cutBtn", "hcBtn", "nmuBtn", "kdBtn"]], ["Trades", ["pmBtn", "vmBtn", "rwBtn", "lsBtn", "scoutBtn", "mktBtn"]], ["Season", ["picBtn", "ppBtn", "swapBtn", "histBtn", "rcBtn", "ptsBtn", "wvBtn", "winBtn", "wrapBtn"]], ["Draft", ["doBtn", "dcBtn"]]];
+    const GROUPS = [["This week", ["mrBtn", "pwBtn", "fcBtn", "pkBtn", "cutBtn", "hcBtn", "nmuBtn", "hncBtn", "kdBtn"]], ["Trades", ["pmBtn", "vmBtn", "rwBtn", "lsBtn", "scoutBtn", "mktBtn"]], ["Season", ["picBtn", "ppBtn", "swapBtn", "histBtn", "rcBtn", "ptsBtn", "wvBtn", "winBtn", "wrapBtn"]], ["Draft", ["doBtn", "dcBtn"]]];
     const idOf = t => (t.match(/id="(\w+)"/) || [])[1], used = new Set();
     // Four everyday tools up top; everything else waits behind "More tools", grouped by what you're doing.
     const TOP = ["mrBtn", "pwBtn", "mktBtn", "showBtn"];
@@ -2360,6 +2361,7 @@ function renderLeague(v, L){
   const ctb = v.querySelector("#cutBtn"); if (ctb) ctb.addEventListener("click", () => openCuts(L));
   const hcb = v.querySelector("#hcBtn"); if (hcb) hcb.addEventListener("click", () => openHandcuffs(L));
   const nmb = v.querySelector("#nmuBtn"); if (nmb) nmb.addEventListener("click", () => openNextManUp(L));
+  const hnb = v.querySelector("#hncBtn"); if (hnb) hnb.addEventListener("click", () => openHotCold(L));
   const kdb = v.querySelector("#kdBtn"); if (kdb) kdb.addEventListener("click", () => openKD(L));
   const pmb = v.querySelector("#pmBtn"); if (pmb) pmb.addEventListener("click", () => openPoSched(L));
   const rcb = v.querySelector("#rcBtn"); if (rcb) rcb.addEventListener("click", () => openReport(L));
@@ -6856,6 +6858,7 @@ async function edgeWaivers(L, el){
     '<p class="small muted" style="margin:8px 4px 0">Free in your league. "Add now" means the starter is out; "Watch" means he’s questionable. In superflex, every starting QB’s backup is worth a bench spot.</p>' +
     '<button type="button" class="btn ghost" data-hcopen="1" style="width:100%;margin-top:10px"><i class=ic-medic aria-hidden=true></i> Handcuffs: who backs up your starters</button>' +
     '<button type="button" class="btn ghost" data-nmuopen="1" style="width:100%;margin-top:8px"><i class=ic-medic aria-hidden=true></i> Next man up: what one injury would cost you</button>' +
+    '<button type="button" class="btn ghost" data-hncopen="1" style="width:100%;margin-top:8px"><i class=ic-flame aria-hidden=true></i> Hot and cold: who’s trending and why</button>' +
     (kdHasDst(d) || kdHasK(d) ? '<button type="button" class="btn ghost" data-kdopen="1" style="width:100%;margin-top:8px"><i class=ic-target aria-hidden=true></i> Kickers and defenses: who to start and stream</button>' : "") +
     (L.meta.platform === "flea" ? '<button type="button" class="btn ghost" data-wvopen="1" style="width:100%;margin-top:8px"><i class=ic-swap aria-hidden=true></i> Waiver report: who’s winning the waiver wire</button>' : "");
   // 3. role risers
@@ -6890,6 +6893,7 @@ async function edgeWaivers(L, el){
   const ec = el.querySelector("#edgeCuts"); if (ec) ec.addEventListener("click", () => openCuts(L));
   el.querySelectorAll("[data-hcopen]").forEach(b => b.addEventListener("click", () => openHandcuffs(L)));
   el.querySelectorAll("[data-nmuopen]").forEach(b => b.addEventListener("click", () => openNextManUp(L)));
+  el.querySelectorAll("[data-hncopen]").forEach(b => b.addEventListener("click", () => openHotCold(L)));
   el.querySelectorAll("[data-kdopen]").forEach(b => b.addEventListener("click", () => openKD(L)));
   el.querySelectorAll("[data-wvopen]").forEach(b => b.addEventListener("click", () => openWaiverReport(L)));
 }
@@ -8542,6 +8546,133 @@ async function openNextManUp(L){
     body.innerHTML = h;
     wireRows(body);
   } catch(e){ body.innerHTML = '<div class="err">Couldn’t test your depth: ' + esc(e.message) + "</div>"; }
+}
+
+/* ===================== Hot and cold: who's trending, and whether the playing time backs it up ===================== */
+// Each player's last three games against his games before that, in your league's scoring, next to how much work he got
+// (snap share, targets and carries). Points that rise with the work tend to last; points that rise on touchdowns alone
+// tend not to. Same read for free agents (hot pickups) and other teams' players (buy-low targets whose work held up).
+async function hncPlan(L){
+  const d = L.detail, me = d.teams.find(t => t.mine), st = await getState();
+  const season = L.meta.season || st.league_season || st.season;
+  const last = Math.min(18, (st.season_type === "post" ? 19 : st.week || 1) - 1);
+  if (st.season_type === "pre" || last < 4) return {last, few: true};
+  const ws = []; for (let w = 1; w <= last; w++) ws.push(w);
+  const [weeks] = await Promise.all([Promise.all(ws.map(w => weekStats(season, w, w >= last - 1))), getPlayers()]);
+  await Promise.all(d.teams.map(t => rosterFor(L, t).catch(() => null)));
+  ensureSidIndex();
+  const col = ({ppr: 0, half: 1, std: 2})[d.scoring] ?? scoringCol(L), tep = Number(d.tep) || 0;
+  const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+  // One player's season split into his last three games and the games before.
+  const read = (sid, pos) => {
+    const g = [];
+    weeks.forEach((wk, i) => {
+      const r = wk && wk.players && wk.players[sid];
+      if (!r || !r[3] || (r[4] != null && r[4] < 15 && r[0] < 3)) return; // not active, or a few garbage-time snaps
+      let pts = r[col]; if (pos === "TE" && tep) pts += tep * (r[6] || 0);
+      g.push({w: ws[i], pts, snap: r[4] == null ? null : Math.min(100, r[4]), tgt: r[5] || 0, car: r[9] || 0, td: (r[8] || 0) + (r[11] || 0), rec: r[6] || 0});
+    });
+    if (g.length < 4) return null;
+    const rec = g.slice(-3), old = g.slice(0, -3);
+    const sn = a => { const v = a.map(x => x.snap).filter(x => x != null); return v.length ? avg(v) : null; };
+    const opp = x => pos === "QB" ? x.car : x.tgt + x.car;
+    const o = {gp: g.length, rec, old, rPts: avg(rec.map(x => x.pts)), oPts: avg(old.map(x => x.pts)), rSnap: sn(rec), oSnap: sn(old),
+      rTgt: avg(rec.map(x => x.tgt)), oTgt: avg(old.map(x => x.tgt)), rCar: avg(rec.map(x => x.car)), oCar: avg(old.map(x => x.car)),
+      rOpp: avg(rec.map(opp)), oOpp: avg(old.map(opp)), rTd: rec.reduce((a, x) => a + x.td, 0), oTd: avg(old.map(x => x.td)) * 3, lastW: g[g.length - 1].w};
+    o.delta = o.rPts - o.oPts;
+    o.pct = o.delta / Math.max(o.oPts, 4);
+    o.workPct = pos === "QB" ? 0 : (o.rOpp - o.oOpp) / Math.max(o.oOpp, 3);
+    o.snapD = o.rSnap != null && o.oSnap != null ? o.rSnap - o.oSnap : 0;
+    o.workUp = pos !== "QB" && (o.workPct >= 0.2 || o.snapD >= 10);
+    o.workDown = pos !== "QB" && (o.workPct <= -0.2 || o.snapD <= -10);
+    o.tdHeavy = o.rTd >= 3 && o.rTd >= o.oTd + 2;
+    const hot = o.delta >= 3 && o.pct >= 0.25, cold = o.delta <= -3 && o.pct <= -0.25;
+    // Verdicts, strongest signal first.
+    if (hot && o.workUp) o.v = ["Heating up: more work", "ok", "His snaps and touches went up with the points. This tends to stick.", 3];
+    else if (hot && (o.tdHeavy || o.workDown || (pos !== "QB" && o.workPct < 0.05))) o.v = ["Hot on touchdowns", "warn", o.rTd + " touchdowns in three games on " + (o.workDown ? "less" : "about the same") + " work. Expect him to cool; a good time to sell if someone pays for it.", 2];
+    else if (hot) o.v = ["Heating up", "ok", "Scoring more over his last three games.", 1];
+    else if (cold && o.workDown) o.v = ["Losing his role", "warn", "Fewer snaps and touches, not just bad luck. Think twice before starting him.", 3];
+    else if (cold && pos !== "QB" && o.workPct > -0.1 && o.snapD > -6) o.v = ["Cold, but still getting the work", "", "Same playing time and touches; the points should come back. Hold him, or buy him from a worried owner.", 2];
+    else if (cold) o.v = ["Cooling off", "warn", "Scoring less over his last three games.", 1];
+    else if (o.workUp && o.workPct >= 0.3 && o.rOpp >= 5) o.v = ["More work, points to follow", "ok", "His touches jumped before his points did.", 1];
+    else if (o.workDown && o.workPct <= -0.3 && o.oOpp >= 5) o.v = ["Work is shrinking", "warn", "Fewer touches lately even if the points held up.", 1];
+    else o.v = ["Steady", "", "About what he’s done all season.", 0];
+    return o;
+  };
+  const skill = p => ["QB", "RB", "WR", "TE"].includes(p.pos);
+  const rowOf = (p, t) => { const sid = sleeperKey(L, p); if (!sid) return null; const o = read(sid, p.pos); return o ? {p, t, sid, o} : null; };
+  const mine = (me ? me.roster : []).filter(p => p.name && skill(p)).map(p => rowOf(p, me)).filter(Boolean)
+    .sort((a, b) => b.o.v[3] - a.o.v[3] || Math.abs(b.o.delta) - Math.abs(a.o.delta));
+  // Buy low: other teams' players who've gone cold while keeping the work, and who were good before.
+  const buy = [];
+  d.teams.forEach(t => { if (t === me) return; (t.roster || []).forEach(p => {
+    if (!p.name || !skill(p) || p.slot === "ir" || /^(ir|injured reserve|pup|sus|suspended|out|o|d|doubtful)$/i.test(String(p.inj || ""))) return;
+    const r = rowOf(p, t); if (r && r.o.v[0].startsWith("Cold, but") && r.o.oPts >= 8) buy.push(r);
+  }); });
+  buy.sort((a, b) => b.o.oPts - a.o.oPts);
+  // Sell high on your team, buy-low counterpart.
+  const sell = mine.filter(r => r.o.v[0] === "Hot on touchdowns");
+  // Free agents who are hot with the work to back it up.
+  const taken = rosteredSet(L), fa = [];
+  for (const id in players) {
+    const q = players[id]; if (!q || !["QB", "RB", "WR", "TE"].includes(q[1]) || !q[2]) continue;
+    if (L.meta.platform === "sleeper" ? taken.has("id:" + id) : taken.has(norm(q[0]) + "|" + q[1])) continue;
+    const o = read(id, q[1]); if (!o || o.lastW < last - 1) continue;
+    if (o.rPts >= 7 && (o.v[1] === "ok" || (o.delta >= 2 && !o.workDown))) fa.push({p: {id, name: q[0], pos: q[1], team: q[2], inj: q[3], injPart: q[4]}, sid: id, o});
+  }
+  fa.sort((a, b) => (b.o.v[0] === "Heating up: more work") - (a.o.v[0] === "Heating up: more work") || b.o.rPts - a.o.rPts);
+  return {last, mine, buy: buy.slice(0, 8), sell, fa: fa.slice(0, 8), me};
+}
+async function openHotCold(L){
+  const body = openSheetShell("Hot and cold");
+  body.innerHTML = '<p class="spin">Reading every game this season…</p>';
+  try {
+    const P = await hncPlan(L), r1 = x => x.toFixed(1);
+    if (P.few) { body.innerHTML = '<div class="card"><p style="margin:0">Hot and cold needs at least four weeks of games. Check back after week 4.</p></div>'; return; }
+    const tag = (txt, t) => '<span class="chip' + (t ? " " + t : "") + '" style="padding:4px 8px;white-space:normal">' + txt + "</span>";
+    const row = (p, right, sub) => miniRow(p, right, sub).replace("<small>", '<small style="white-space:normal">');
+    const arrow = o => o.delta >= 1 ? "▲" : o.delta <= -1 ? "▼" : "";
+    const right = o => '<span class="avg">' + r1(o.rPts) + "<small>" + (arrow(o) ? arrow(o) + " " + (o.delta > 0 ? "+" : "") + r1(o.delta) : "last 3") + "</small></span>";
+    const work = (o, pos) => {
+      const bits = [];
+      if (o.rSnap != null && o.oSnap != null) bits.push("snaps " + Math.round(o.oSnap) + "% → <b>" + Math.round(o.rSnap) + "%</b>");
+      if (pos === "RB") bits.push("touches " + r1(o.oTgt + o.oCar) + " → <b>" + r1(o.rTgt + o.rCar) + "</b>");
+      else if (pos === "WR" || pos === "TE") bits.push("targets " + r1(o.oTgt) + " → <b>" + r1(o.rTgt) + "</b>");
+      else if (pos === "QB" && (o.oCar >= 2 || o.rCar >= 2)) bits.push("runs " + r1(o.oCar) + " → <b>" + r1(o.rCar) + "</b>");
+      if (o.rTd) bits.push(o.rTd + " TD in last 3");
+      return bits.join(" · ");
+    };
+    const sub = (r, extra) => posTag(r.p) + r1(r.o.oPts) + " a game before → <b>" + r1(r.o.rPts) + "</b> last 3" + (work(r.o, r.p.pos) ? " · " + work(r.o, r.p.pos) : "") +
+      '<span style="display:block;margin-top:6px">' + tag(esc(r.o.v[0]), r.o.v[1]) + "</span>" + (extra || "");
+    let h = '<p class="muted" style="margin:-6px 2px 12px">Each player’s last three games against the rest of his season, in your league’s scoring, next to his playing time. Points that come with more snaps and touches tend to last. Points that come from touchdowns alone usually don’t.</p>';
+    const real = P.mine.filter(r => r.o.v[0] === "Heating up: more work"), fade = P.mine.filter(r => r.o.v[0] === "Losing his role");
+    const up = P.mine.filter(r => r.o.delta >= 3 && r.o.pct >= 0.25).length, down = P.mine.filter(r => r.o.delta <= -3 && r.o.pct <= -0.25).length;
+    h += '<div class="card heroCard">';
+    if (!P.mine.length) h += '<p style="margin:0"><b>Your players don’t have enough games yet to compare.</b></p>';
+    else {
+      h += '<p style="margin:0"><b>' + (up || down ? (up ? up + " of your players " + (up > 1 ? "are" : "is") + " heating up" : "No one on your team is heating up") + (down ? ", " + down + " cooling off." : ".") : "Your team is steady: no big swings over the last three games.") + "</b></p>";
+      const lines = [];
+      if (real[0]) lines.push(esc(real[0].p.name) + " is the real thing: " + r1(real[0].o.oPts) + " to " + r1(real[0].o.rPts) + " a game with more work behind it.");
+      if (P.sell[0]) lines.push(esc(P.sell[0].p.name) + "’s jump is mostly touchdowns. Sell high if a contender bites.");
+      if (fade[0]) lines.push(esc(fade[0].p.name) + " is losing playing time: " + (fade[0].o.rSnap != null && fade[0].o.oSnap != null ? Math.round(fade[0].o.oSnap) + "% of snaps to " + Math.round(fade[0].o.rSnap) + "%." : "fewer touches."));
+      if (lines.length) h += '<p class="small" style="margin:6px 0 0">' + lines.join(" ") + "</p>";
+      h += '<p class="small muted" style="margin:8px 0 0;padding-top:8px;border-top:1px solid var(--line)">Through week ' + P.last + ".</p>";
+    }
+    h += "</div>";
+    const mrow = r => row(r.p, right(r.o), sub(r, r.o.v[3] >= 2 ? '<span style="display:block;margin-top:4px">' + esc(r.o.v[2]) + "</span>" : ""));
+    const moving = P.mine.filter(r => r.o.v[3] > 0), steady = P.mine.filter(r => !r.o.v[3]);
+    if (P.mine.length) h += "<h3>Your team</h3>" + (moving.length ? '<ul class="plist">' + moving.map(mrow).join("") + "</ul>" : "") +
+      (steady.length ? (moving.length ? '<details style="margin-top:8px"><summary class="small" style="cursor:pointer;padding:6px 2px">Show ' + steady.length + " steady player" + (steady.length > 1 ? "s" : "") + "</summary>" : "") + '<ul class="plist">' + steady.map(mrow).join("") + "</ul>" + (moving.length ? "</details>" : "") : "");
+    h += "<h3>Hot free agents</h3>" + (P.fa.length ? '<p class="small" style="margin:-2px 2px 8px">Still free in your league and scoring more lately, with the playing time to back it up.</p><ul class="plist">' +
+      P.fa.map(r => row(r.p, right(r.o), sub(r))).join("") + "</ul>" + '<div class="actions" style="margin-top:8px">' + extBtn(waiverUrl(L), "Add players in " + siteName(L)) + "</div>"
+      : '<div class="card"><p class="small" style="margin:0">No free agent is on a real hot streak right now.</p></div>');
+    h += "<h3>Buy low</h3>" + (P.buy.length ? '<p class="small" style="margin:-2px 2px 8px">Good players on other teams whose points dipped while their snaps and touches held. Their owners may sell cheap.</p><ul class="plist">' +
+      P.buy.map(r => row(r.p, right(r.o), sub(r, '<span style="display:block;margin-top:4px">On ' + esc(r.t.name) + "</span>"))).join("") + "</ul>"
+      : '<div class="card"><p class="small" style="margin:0">No clear buy-low targets on other teams this week.</p></div>');
+    h += '<p class="small muted" style="margin:10px 4px 0">“Last 3” is a player’s last three games played; byes and missed games are skipped. Snaps are his share of his team’s offensive plays; touches are carries plus targets. Players need four games to be compared. Kickers and defenses are left out.</p>';
+    body.innerHTML = h;
+    wireRows(body);
+  } catch(e){ body.innerHTML = '<div class="err">Couldn’t read the game logs: ' + esc(e.message) + "</div>"; }
 }
 
 /* ===================== 6. League pick'em + roast ===================== */
