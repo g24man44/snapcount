@@ -1058,6 +1058,16 @@ h3.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .gbgsum small{display:block;font:700 11px/1.2 var(--body);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .gbgsum b{display:block;font-size:20px;margin-top:4px;font-variant-numeric:tabular-nums}
 .gbgsum span{display:block;font-size:12.5px;color:var(--muted);margin-top:2px}
+.pbteam{border-top:1px solid var(--line)}.pbteam:first-child{border-top:0}
+.pbteam>summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:26px minmax(0,1fr) 64px auto;align-items:center;gap:8px;padding:10px 12px;min-height:44px}
+.pbteam>summary::-webkit-details-marker{display:none}
+.pbteam>summary .sn{min-width:0}.pbteam>summary .sn b{display:block;font-size:14px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pbteam>summary .sn small{display:block;color:var(--muted);font-size:12px}
+.pbteam.me>summary .sn b{color:var(--accent)}
+.pbbar{height:6px;border-radius:3px;background:var(--surface2);overflow:hidden}.pbbar i{display:block;height:100%;background:var(--accent);border-radius:3px}
+.pbteam>summary .onum{font-variant-numeric:tabular-nums;font-weight:700;font-size:14px;text-align:right}
+.pbpicks{padding:0 12px 10px 46px;display:flex;flex-wrap:wrap;gap:6px}
+.pbpick{display:inline-flex;flex-direction:column;background:var(--surface2);border-radius:10px;padding:5px 9px;font-size:12.5px;line-height:1.3}
+.pbpick b{font-size:13px}.pbpick small{color:var(--muted);font-size:11.5px}.pbpick.via{box-shadow:inset 0 0 0 1.5px var(--accent)}
 .gbgtl{list-style:none;margin:0;padding:0}
 .gbgtl li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:9px 0;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
 .gbgtl li:first-child{border-top:0}
@@ -1445,7 +1455,7 @@ async function loadAll(){
   await Promise.all(leagues.filter(L => L.meta.platform === "flea" && L.detail).flatMap(L => { const me = L.detail.teams.find(t => t.mine); if (!me) return []; const g = L.detail.games.find(x => x.a.id === me.id || x.b.id === me.id), op = g && L.detail.teams.find(t => t.id === (g.a.id === me.id ? g.b.id : g.a.id)); return [me, op].filter(t => t && !t.live).map(t => fleaTeamRoster(L, t)); }));
   if (cur.tab === "leagues" || cur.tab === "edge") render();
   syncAlerts().catch(() => {});
-  await Promise.all(leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine)).flatMap(L => [loadBets(L), loadOffers(L), loadSpecialShows(L), loadPlayoffs(L), loadRules(L), loadReceipts(L), loadPunish(L), loadPicks(L, L.detail.week).then(async r => { L.picks = r; if (r.locked) { const nx = await loadPicks(L, Number(L.detail.week) + 1).catch(() => null); if (nx && !nx.locked) { L.picks = nx; L.picksWeek = Number(L.detail.week) + 1; } } }).catch(() => {})]));
+  await Promise.all(leagues.filter(L => L.detail && L.detail.teams.some(t => t.mine)).flatMap(L => [loadBets(L), loadOffers(L), loadSpecialShows(L), loadPlayoffs(L), loadRules(L), loadReceipts(L), loadPunish(L), loadBotPicks(L, L.detail.week).then(async r => { L.picks = r; if (r.locked) { const nx = await loadBotPicks(L, Number(L.detail.week) + 1).catch(() => null); if (nx && !nx.locked) { L.picks = nx; L.picksWeek = Number(L.detail.week) + 1; } } }).catch(() => {})]));
   if (cur.tab === "leagues" && cur.league == null) render();
   if (pendingBets) { const L = leagues.find(L => L.meta.platform + ":" + L.meta.id === pendingBets); pendingBets = null; if (L) openBets(L); }
   if (pendingAp) { const L = leagues.find(L => L.meta.platform === "flea" && String(L.meta.id) === pendingAp); pendingAp = null; if (L) openAutopilot(L); }
@@ -2324,9 +2334,10 @@ function renderLeague(v, L){
     if (d.teams.some(t => t.mine) && m.platform === "flea") tiles.push('<button type="button" class="btn ghost" id="ptsBtn"><i class=ic-bars aria-hidden=true></i>Points by position</button>');
     if (d.teams.some(t => t.mine) && m.platform === "flea") tiles.push('<button type="button" class="btn ghost" id="wvBtn"><i class=ic-swap aria-hidden=true></i>Waiver report: best pickups</button>');
     if (d.teams.some(t => t.mine) && d.games.length) tiles.push('<button type="button" class="btn ghost" id="pkBtn"><i class=ic-flame aria-hidden=true></i>Pick’em and roast</button>'); tiles.push('<button type="button" class="btn ghost" id="showBtn"><i class=ic-speaker aria-hidden=true></i>The league show</button>'); if (d.teams.some(t => t.mine)) tiles.push('<button type="button" class="btn ghost" id="commBtn"><i class=ic-trophy aria-hidden=true></i>Dues, rules and awards</button>');
+    if (["flea", "sleeper"].includes(m.platform) && (d.maxKeepers || /dynasty|keeper/i.test(m.name))) tiles.push('<button type="button" class="btn ghost" id="pbBtn"><i class=ic-list aria-hidden=true></i>Pick bank: who owns every pick</button>');
     if (["flea", "sleeper"].includes(m.platform)) tiles.push('<button type="button" class="btn ghost" id="dcBtn"><i class=ic-pencil aria-hidden=true></i>Draft grades and write-up</button>');
     // Grouped by what you're trying to do, as compact rows instead of a wall of identical tiles.
-    const GROUPS = [["This week", ["mrBtn", "pwBtn", "gbgBtn", "fcBtn", "pkBtn", "cutBtn", "hcBtn", "nmuBtn", "hncBtn", "kdBtn"]], ["Trades", ["pmBtn", "vmBtn", "rwBtn", "lsBtn", "scoutBtn", "mktBtn"]], ["Season", ["picBtn", "ppBtn", "swapBtn", "histBtn", "rcBtn", "ptsBtn", "wvBtn", "winBtn", "wrapBtn"]], ["Draft", ["doBtn", "dcBtn"]]];
+    const GROUPS = [["This week", ["mrBtn", "pwBtn", "gbgBtn", "fcBtn", "pkBtn", "cutBtn", "hcBtn", "nmuBtn", "hncBtn", "kdBtn"]], ["Trades", ["pmBtn", "vmBtn", "rwBtn", "lsBtn", "scoutBtn", "mktBtn"]], ["Season", ["picBtn", "ppBtn", "swapBtn", "histBtn", "rcBtn", "ptsBtn", "wvBtn", "winBtn", "wrapBtn"]], ["Draft", ["doBtn", "pbBtn", "dcBtn"]]];
     const idOf = t => (t.match(/id="(\w+)"/) || [])[1], used = new Set();
     // Four everyday tools up top; everything else waits behind "More tools", grouped by what you're doing.
     const TOP = ["mrBtn", "pwBtn", "mktBtn", "showBtn"];
@@ -2389,6 +2400,7 @@ function renderLeague(v, L){
   const wrb = v.querySelector("#wrapBtn"); if (wrb) wrb.addEventListener("click", () => openWrapped(L));
   const pcb = v.querySelector("#picBtn"); if (pcb) pcb.addEventListener("click", () => L.po ? openBracket(L) : openPlayoffPicture(L));
   const dob = v.querySelector("#doBtn"); if (dob) dob.addEventListener("click", () => openDraftOrder(L));
+  const pbb = v.querySelector("#pbBtn"); if (pbb) pbb.addEventListener("click", () => openPickBank(L));
   const mrb = v.querySelector("#mrBtn"); if (mrb) mrb.addEventListener("click", () => openMatchupRecaps(L));
   const mkb = v.querySelector("#mktBtn"); if (mkb) mkb.addEventListener("click", () => openMarket(L));
   const ctb = v.querySelector("#cutBtn"); if (ctb) ctb.addEventListener("click", () => openCuts(L));
@@ -6012,7 +6024,7 @@ async function nextPairs(L, w){
   return [];
 }
 function avgProb(d, g){ const A = d.teams.find(t => t.id === g.a.id), B = d.teams.find(t => t.id === g.b.id); const av = t => t && (t.w + t.l + (t.t || 0)) ? (t.pf || 0) / (t.w + t.l + (t.t || 0)) : 0; const a = av(A), b = av(B); return a && b ? Math.min(0.95, Math.max(0.05, wpFrom(a, b, a, b))) : 0.5; }
-async function loadPicks(L, w){ return api("/api/picks?p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id) + (w ? "&w=" + w : "")); }
+async function loadBotPicks(L, w){ return api("/api/picks?p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id) + (w ? "&w=" + w : "")); }
 function picksHomeLine(L, i){
   const me = L.detail && L.detail.teams.find(t => t.mine); if (!me || !L.picks) return "";
   const w = String(L.picksWeek || L.detail.week), W = L.picks.weeks[w];
@@ -6026,10 +6038,10 @@ async function openPicks(L){
   show(head + '<p class="spin">Loading picks…</p>'); sh.hidden = false;
   if (!me) return show(head + '<div class="card"><p style="margin:0">Pick your team in this league first.</p></div>');
   let w = String(d.week), pairs = d.games, useAvg = false;
-  let r, weeks = []; try { [r, weeks] = await Promise.all([loadPicks(L, w), seasonWeeks(L).catch(() => [])]); } catch(e){ return show(head + '<div class="err">' + esc(e.message) + "</div>"); }
+  let r, weeks = []; try { [r, weeks] = await Promise.all([loadBotPicks(L, w), seasonWeeks(L).catch(() => [])]); } catch(e){ return show(head + '<div class="err">' + esc(e.message) + "</div>"); }
   // This week is over: move on to next week's matchups
   const thisDone = weeks.some(x => String(x.w) === w && x.games.length && x.games.every(g => g.done));
-  if (r.locked && thisDone) { const nx = await nextPairs(L, Number(w) + 1); if (nx.length) { w = String(Number(w) + 1); pairs = nx; useAvg = true; r = await loadPicks(L, w).catch(() => r); } }
+  if (r.locked && thisDone) { const nx = await nextPairs(L, Number(w) + 1); if (nx.length) { w = String(Number(w) + 1); pairs = nx; useAvg = true; r = await loadBotPicks(L, w).catch(() => r); } }
   if (sh.hidden) return;
   L.picks = r;
   const W = r.weeks[w] || {picks: {}, bot: null}, mine = (W.picks[me.id] || {}).g || {}, T = id => d.teams.find(t => t.id === id) || {name: "?"};
@@ -6058,7 +6070,7 @@ async function openPicks(L){
       const msg = p.querySelector("#pkMsg"); if (Object.keys(sel).length < games.length) { msg.textContent = "Pick all " + games.length + " games first."; return; }
       sv.disabled = true; msg.textContent = "Saving…";
       try { const rr = await fetch("/api/picks?p=" + L.meta.platform + "&lid=" + encodeURIComponent(L.meta.id), {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({w, team: me.id, teamName: me.name, dev: devId(), picks: sel, bot})}), j = await rr.json().catch(() => ({})); if (!rr.ok) throw new Error(j.error || "Couldn’t save");
-        msg.textContent = "Saved. Change them any time before kickoff."; L.picks = await loadPicks(L, w).catch(() => L.picks); if (cur.tab === "leagues" && cur.league == null) render(); }
+        msg.textContent = "Saved. Change them any time before kickoff."; L.picks = await loadBotPicks(L, w).catch(() => L.picks); if (cur.tab === "leagues" && cur.league == null) render(); }
       catch(e){ msg.textContent = e.message; } finally { sv.disabled = false; }
     });
   };
@@ -7249,6 +7261,104 @@ async function openDraftOrder(L){
   h += board + '<p class="small muted" style="margin:12px 4px 0">Order follows regular-season record (ties by points for). If your league seeds the draft by playoff finish or uses a lottery, playoff teams’ picks can shift. Pick values are Snap Count dynasty values.</p>';
   p.innerHTML = h;
   p.querySelector("#closeSheet").addEventListener("click", closeSheet);
+}
+
+/* ===================== Pick bank: who owns every future pick ===================== */
+async function pbData(L){
+  const d = L.detail, N = d.teams.length;
+  const [picks, pack] = await Promise.all([loadPicks(L), loadValues(({ppr:"1", half:"0.5", std:"0"}[d.scoring] || "1"), N, qbsOf(d), true, fmtAdj(d))]);
+  const V = pack.v, T = id => d.teams.find(t => t.id === String(id));
+  // Next year's picks get a projected slot (worst record picks first) and a price slid between the early, mid and late values.
+  const order = d.teams.slice().sort((a, b) => (a.w - b.w) || ((a.pf || 0) - (b.pf || 0))).map(t => t.id);
+  const slotPrice = (label, slot) => {
+    const e = V["pick:" + label + " (Early)"], m = V["pick:" + label + " (Mid)"], l = V["pick:" + label + " (Late)"];
+    if (!e || !m || !l) return null;
+    const x = (slot - 0.5) / N, pts = [[1 / 6, e[0]], [0.5, m[0]], [5 / 6, l[0]]];
+    const [a0, a1] = x <= 0.5 ? [pts[0], pts[1]] : [pts[1], pts[2]], f = (x - a0[0]) / (a1[0] - a0[0]);
+    return Math.max(0, Math.round(a0[1] + (a1[1] - a0[1]) * Math.max(-0.35, Math.min(1.35, f))));
+  };
+  const all = [];
+  Object.keys(picks).forEach(oid => (picks[oid] || []).forEach(pk => {
+    const [, sy, rd, orig] = pk.id.split(":"), r = V[pk.vkey] || V[pk.fallback];
+    if (!T(oid)) return;
+    all.push({pk, season: Number(sy), round: Number(rd), owner: T(oid), orig: T(orig), via: String(orig) !== String(oid), v: r ? r[0] || 0 : 0, tier: (pk.vkey.match(/\((Early|Mid|Late)\)/) || [])[1] || ""});
+  }));
+  const first = Math.min(...all.map(x => x.season));
+  all.forEach(x => { if (x.season !== first || !x.orig) return; const sl = order.indexOf(x.orig.id) + 1; if (sl < 1) return; x.slot = sl; const sp = slotPrice(x.season + " " + ORD[x.round], sl); if (sp != null) x.v = sp; });
+  const seasons = [...new Set(all.map(x => x.season))].sort((a, b) => a - b);
+  const teams = d.teams.map(t => {
+    const mine = all.filter(x => x.owner === t).sort((a, b) => a.season - b.season || a.round - b.round);
+    return {t, list: mine, v: mine.reduce((s, x) => s + x.v, 0), firsts: mine.filter(x => x.round === 1).length, seconds: mine.filter(x => x.round === 2).length,
+      got: mine.filter(x => x.via).length, gone: all.filter(x => x.orig === t && x.owner !== t).length, mode: teamMode(d, t)};
+  }).sort((a, b) => b.v - a.v);
+  teams.forEach((x, i) => x.rk = i + 1);
+  return {all, seasons, teams, N};
+}
+async function openPickBank(L){
+  const body = openSheetShell("Pick bank");
+  body.innerHTML = '<p class="spin">Finding every pick in your league…</p>';
+  try {
+    const d = L.detail, me = d.teams.find(t => t.mine), P = await pbData(L);
+    if (!P.all.length) { body.innerHTML = '<div class="card"><p style="margin:0">' + esc(siteName(L)) + " isn’t showing any future draft picks for this league yet. Check back once next year’s draft is set up.</p></div>"; return; }
+    const {all, seasons, teams, N} = P, MT = me && teams.find(x => x.t === me);
+    const yrs = seasons.length > 1 ? seasons[0] + "–" + seasons[seasons.length - 1] : String(seasons[0]);
+    const rec = t => t.w + "-" + t.l + (t.t ? "-" + t.t : "");
+    const pickName = x => x.season + " " + ORD[x.round];
+    const fromTxt = x => x.via ? "from " + esc(x.orig ? x.orig.name : "another team") : "own";
+    const tierTxt = x => x.slot ? "projects " + x.round + "." + String(x.slot).padStart(2, "0") : x.tier ? x.tier.toLowerCase() + " pick" : "";
+    const pbRow = (x, title, sub, btn) => '<li><div class="prow"><span class="pos" data-pos="PICK">' + String(x.season).slice(2) + '</span><span class="pname"><b>' + title + "</b><small>" + sub + '</small></span><span class="stright"><span class="avg">' + fmtV(x.v) + "<small>value</small></span>" + (btn || "") + "</span></div></li>";
+    let h = '<p class="muted" style="margin:-6px 2px 12px">Every 1st to 4th round pick in the ' + yrs + " draft" + (seasons.length > 1 ? "s" : "") + ": who owns it, where it came from and what it’s worth in " + esc(L.meta.name) + ".</p>";
+    if (MT) {
+      const tone = MT.rk <= Math.ceil(N / 3) ? "good" : MT.rk > N * 2 / 3 ? "bad" : "mid";
+      const myMode = MT.mode.mode, rich = MT.rk <= Math.ceil(N / 3), poor = MT.rk > N * 2 / 3;
+      const advice = myMode === "contend" && rich ? "You’re contending with picks to spare. Package a pick or two for a starter before the playoffs." :
+        myMode === "contend" && poor ? "You’ve spent your picks chasing a title. Keep your young players; they’re your future now." :
+        myMode === "rebuild" && poor ? "You’re rebuilding without many picks. Sell veterans to contenders for 1sts." :
+        myMode === "rebuild" && rich ? "Good spot for a rebuild: lots of picks, and your own should land early." :
+        rich ? "Plenty of picks to trade up or buy a player if you make a run." : "";
+      h += '<div class="card grade ' + tone + '"><b class="glabel">Your picks are worth ' + fmtV(MT.v) + "</b>" +
+        '<p class="small" style="margin:4px 0 0">' + ORDN(MT.rk) + " most draft capital of " + N + " teams · " + MT.firsts + " first" + (MT.firsts === 1 ? "" : "s") + ", " + MT.seconds + " second" + (MT.seconds === 1 ? "" : "s") +
+        (MT.got ? " · " + MT.got + " picked up in trades" : "") + (MT.gone ? " · " + MT.gone + " of your own traded away" : "") + ". " + advice + "</p></div>";
+      if (MT.list.length) h += '<h3>Your picks</h3><ul class="plist">' + MT.list.map(x => pbRow(x, esc(pickName(x)), (x.via ? "From " + esc(x.orig ? x.orig.name : "another team") : "Your own") + " · " + (x.season === seasons[0] && (x.slot || x.tier) ? tierTxt(x) : "future pick"))).join("") + "</ul>";
+      const lost = all.filter(x => x.orig === me && x.owner !== me);
+      if (lost.length) h += '<p class="small muted" style="margin:8px 4px 0">Your own picks elsewhere: ' + lost.map(x => esc(pickName(x)) + " (" + esc(x.owner.name) + ")").join(", ") + ".</p>";
+    }
+    // The best picks someone else owns.
+    const top = all.filter(x => !me || x.owner !== me).sort((a, b) => b.v - a.v).slice(0, 8);
+    if (top.length) h += '<h3>Most valuable picks</h3><p class="small muted" style="margin:-4px 2px 8px">The picks worth the most in your league right now' + (me ? ", and who to call about them" : "") + ".</p><ul class=\"plist\">" +
+      top.map(x => pbRow(x, esc(pickName(x)) + (x.season === seasons[0] && x.slot ? ' <span style="font-weight:500">· ' + x.round + "." + String(x.slot).padStart(2, "0") + "</span>" : ""), '<span style="white-space:normal">Owned by <b>' + esc(x.owner.name) + "</b> (" + rec(x.owner) + ", " + MODE_TXT[teamMode(d, x.owner).mode].toLowerCase() + ")" + (x.via ? ", from " + esc(x.orig ? x.orig.name : "another team") : "") + "</span>",
+        me ? '<button type="button" class="linkbtn" data-pbget="' + esc(x.owner.id) + "|" + esc(x.pk.id) + '">Trade</button>' : "")).join("") + "</ul>";
+    // Who might deal.
+    const tips = [];
+    const third = Math.ceil(N / 3);
+    const richC = teams.filter(x => x.t !== me && x.mode.mode === "contend" && x.rk <= third);
+    if (richC.length) tips.push('<li class="good"><b>' + richC.map(x => esc(x.t.name)).join(", ") + "</b> " + (richC.length > 1 ? "are" : "is") + " contending with lots of picks. Contenders spend picks on players: sell them a veteran for a pick.</li>");
+    const poorR = teams.filter(x => x.t !== me && x.mode.mode === "rebuild" && x.rk > N - third);
+    if (poorR.length) tips.push("<li><b>" + poorR.map(x => esc(x.t.name)).join(", ") + "</b> " + (poorR.length > 1 ? "are" : "is") + " near the bottom with few picks left. They may sell veterans cheaply to get picks back.</li>");
+    const s0 = seasons[0], bad = d.teams.filter(t => teamMode(d, t).mode === "rebuild");
+    const gifts = all.filter(x => x.season === s0 && x.round === 1 && x.via && x.orig && bad.includes(x.orig)).sort((a, b) => b.v - a.v);
+    gifts.forEach(x => tips.push('<li class="' + (me && x.owner === me ? "good" : "bad") + '"><b>' + esc(x.orig.name) + "</b> (" + rec(x.orig) + ") doesn’t own its " + s0 + " 1st. " + (me && x.owner === me ? "<b>You</b> do" : "<b>" + esc(x.owner.name) + "</b> does") + ", so every loss helps " + (me && x.owner === me ? "you" : "them") + ".</li>"));
+    if (tips.length) h += '<h3>Who might deal</h3><div class="card"><ul class="reasons" style="margin:0">' + tips.join("") + "</ul></div>";
+    // Every pick that has changed hands.
+    const moved = all.filter(x => x.via).sort((a, b) => a.season - b.season || a.round - b.round || b.v - a.v);
+    if (moved.length) {
+      const rowsM = moved.map(x => '<tr' + (me && (x.owner === me || x.orig === me) ? ' class="me"' : "") + "><td><b>" + esc(pickName(x)) + "</b></td><td><b>" + esc(x.owner.name) + "</b><small>from " + esc(x.orig ? x.orig.name : "another team") + '</small></td><td class="onum">' + fmtV(x.v) + "</td></tr>");
+      const tbl = r => '<div class="card" style="padding:0"><table class="otable" style="margin-top:0"><tbody>' + r.join("") + "</tbody></table></div>";
+      h += "<h3>Picks that changed hands · " + moved.length + "</h3>" + (rowsM.length > 10 ? tbl(rowsM.slice(0, 10)) + '<details class="moretools"><summary>' + (rowsM.length - 10) + " more</summary>" + tbl(rowsM.slice(10)) + "</details>" : tbl(rowsM));
+    }
+    // Every team's bank.
+    const mx = Math.max(1, ...teams.map(x => x.v));
+    h += '<h3>Every team’s picks</h3><p class="small muted" style="margin:-4px 2px 8px">Ranked by total pick value. Tap a team to see its picks; outlined picks came from another team.</p><div class="card" style="padding:0">' + teams.map(x =>
+      '<details class="pbteam' + (x.t === me ? " me" : "") + '"><summary><span class="muted" style="font-variant-numeric:tabular-nums;font-weight:700">' + x.rk + '</span><span class="sn"><b>' + esc(x.t.name) + "</b><small>" + x.firsts + " 1st" + (x.firsts === 1 ? "" : "s") + " · " + x.seconds + " 2nd" + (x.seconds === 1 ? "" : "s") + (x.got ? " · +" + x.got : "") + (x.gone ? " · −" + x.gone : "") + " · " + rec(x.t) + '</small></span><span class="pbbar"><i style="width:' + Math.max(3, Math.round(x.v / mx * 100)) + '%"></i></span><span class="onum">' + fmtV(x.v) + "</span></summary>" +
+      '<div class="pbpicks">' + (x.list.length ? x.list.map(p => '<span class="pbpick' + (p.via ? " via" : "") + '"><b>' + esc(pickName(p)) + "</b><small>" + (p.via ? "from " + esc(p.orig ? p.orig.name : "other") : "own") + " · " + fmtV(p.v) + "</small></span>").join("") : '<span class="small muted">No picks in rounds 1–4.</span>') + "</div></details>").join("") + "</div>";
+    h += '<p class="small muted" style="margin:10px 4px 0">+ is picks picked up in trades, − is a team’s own picks traded away. Values are Snap Count dynasty pick values for this league’s format; next year’s picks are priced by where they’d land if the season ended today (worst record picks first, ties by points), later years at an average slot. Rounds 5 and later aren’t counted.</p>';
+    body.innerHTML = h;
+    body.querySelectorAll("[data-pbget]").forEach(b => b.addEventListener("click", () => {
+      const [tid, pid] = b.dataset.pbget.split("|"), li = leagues.indexOf(L);
+      closeSheet(); if (tr.league !== li) { tr.ppr = null; tr.dyn = null; tr.keep = null; tr.hide = null; tr.target = null; }
+      tr.league = li; tr.mode = "grade"; tr.other = tid; tr.give.clear(); tr.get = new Set([pid]); tr.side = "get"; tr.counterOf = null; setTab("trade"); window.scrollTo(0, 0);
+    }));
+  } catch(e){ body.innerHTML = '<div class="err">Couldn’t load the pick bank: ' + esc(e.message) + "</div>"; }
 }
 
 /* ===================== Shared: values for one league ===================== */
@@ -10103,7 +10213,8 @@ async function edgeDynasty(L, el){
   h += "<h3>Value on the move</h3>" + (up.length || down.length ? '<ul class="plist">' + up.slice(0, 6).map(x => trendRow(x, true)).join("") + down.slice(0, 6).map(x => trendRow(x, false)).join("") + "</ul>" : '<div class="card"><p class="small" style="margin:0">No big value swings on your roster in the last 30 days.</p></div>') +
     '<p class="small muted" style="margin:8px 4px 0">Change in FantasyCalc dynasty value over 30 days. Older players spiking in value are your best sell-high chances.</p>' +
     '<button type="button" class="btn ghost" data-vmopen="1" style="width:100%;margin-top:10px"><i class=ic-bars aria-hidden=true></i> Value movers: every team’s month, buy-low targets</button>' +
-    '<button type="button" class="btn ghost" data-rwopen="1" style="width:100%;margin-top:10px"><i class=ic-star aria-hidden=true></i> Rookie watch: this year’s class in your league</button>';
+    '<button type="button" class="btn ghost" data-rwopen="1" style="width:100%;margin-top:10px"><i class=ic-star aria-hidden=true></i> Rookie watch: this year’s class in your league</button>' +
+    (["flea", "sleeper"].includes(L.meta.platform) ? '<button type="button" class="btn ghost" data-pbopen="1" style="width:100%;margin-top:10px"><i class=ic-list aria-hidden=true></i> Pick bank: who owns every future pick</button>' : "");
   // draft prep
   const sim = ed.sim && ed.sim.L === L.meta.id ? ed.sim.base : null;
   const slotOf = id => { const s = sim && sim.find(x => x.t.id === String(id)); if (s) return s.slot; const ordr = d.teams.slice().sort((a, b) => (a.w - b.w) || ((a.pf || 0) - (b.pf || 0))); return ordr.findIndex(t => t.id === String(id)) + 1; };
@@ -10116,6 +10227,7 @@ async function edgeDynasty(L, el){
   const dcb = el.querySelector("#dcBtn"); if (dcb) dcb.addEventListener("click", () => openDraftCenter(L));
   el.querySelectorAll("[data-vmopen]").forEach(b => b.addEventListener("click", () => openValueMovers(L)));
   el.querySelectorAll("[data-rwopen]").forEach(b => b.addEventListener("click", () => openRookieWatch(L)));
+  el.querySelectorAll("[data-pbopen]").forEach(b => b.addEventListener("click", () => openPickBank(L)));
 }
 
 /* ---------- Edge: Keepers ---------- */
